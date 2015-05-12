@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using TechnitiumLibrary.IO;
 
@@ -27,6 +28,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
     public class TrackerClientID : WriteStream
     {
         #region variables
+
+        static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         byte[] _peerID;
         byte[] _clientKey;
@@ -100,7 +103,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
         public static byte[] GenerateClientKey()
         {
             byte[] clientKey = new byte[4];
-            (new Random()).NextBytes(clientKey);
+            _rnd.GetBytes(clientKey);
             return clientKey;
         }
 
@@ -111,7 +114,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             Buffer.BlockCopy(Encoding.UTF8.GetBytes("-" + AzureusStyleClientID + "-"), 0, peerID, 0, AzureusStyleClientID.Length + 2);
 
             byte[] buffRnd = new byte[20 - AzureusStyleClientID.Length - 2];
-            (new Random()).NextBytes(buffRnd);
+            _rnd.GetBytes(buffRnd);
 
             Buffer.BlockCopy(buffRnd, 0, peerID, AzureusStyleClientID.Length + 2, buffRnd.Length);
 

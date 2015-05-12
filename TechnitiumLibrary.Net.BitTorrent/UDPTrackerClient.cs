@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 
 namespace TechnitiumLibrary.Net.BitTorrent
 {
@@ -30,7 +31,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         UdpClient _udp;
 
-        Random _rnd = new Random();
+        static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
         byte[] _connectionID = null;
         byte[] _transactionID = new byte[4];
         DateTime _connectionIDExpires = DateTime.UtcNow;
@@ -216,7 +217,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     if ((_connectionID == null) || (_connectionIDExpires <= DateTime.UtcNow))
                     {
                         //GET CONNECTION ID
-                        _rnd.NextBytes(_transactionID);
+                        _rnd.GetBytes(_transactionID);
                         _connectionID = GetConnectionID(_transactionID);
                         _connectionIDExpires = DateTime.UtcNow.AddMinutes(1);
                     }
@@ -230,7 +231,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 {
                     try
                     {
-                        _rnd.NextBytes(_transactionID);
+                        _rnd.GetBytes(_transactionID);
                         byte[] announceResponse = GetAnnounceResponse(_transactionID, _connectionID, @event, clientEP);
 
                         byte[] buffer = new byte[4];

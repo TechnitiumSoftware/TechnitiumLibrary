@@ -24,6 +24,7 @@ using System.IO;
 using System.Net;
 using System.Net.Mail;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace TechnitiumLibrary.Net
@@ -51,6 +52,8 @@ namespace TechnitiumLibrary.Net
     {
         #region variables
 
+        static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+
         Socket _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         IPEndPoint _server;
 
@@ -74,41 +77,40 @@ namespace TechnitiumLibrary.Net
 
         public DnsDatagram Resolve(string domain, DnsRecordType queryType, int retries = 3)
         {
-            Random Rnd = new Random();
-            short ID = Convert.ToInt16(Rnd.Next() & 0x7fff);
+            byte[] buffer = new byte[2];
+            _rnd.GetBytes(buffer);
+            short id = BitConverter.ToInt16(buffer, 0);
 
-            DnsHeader Header = new DnsHeader(ID, false, DnsOpcode.StandardQuery, false, false, true, false, DnsResponseCode.NoError, 1, 0,
-            0, 0);
-            DnsQuestionRecord Question = new DnsQuestionRecord(domain, queryType, DnsClass.Internet);
+            DnsHeader header = new DnsHeader(id, false, DnsOpcode.StandardQuery, false, false, true, false, DnsResponseCode.NoError, 1, 0, 0, 0);
+            DnsQuestionRecord question = new DnsQuestionRecord(domain, queryType, DnsClass.Internet);
 
-            MemoryStream DnsQueryStream = new MemoryStream();
-            Header.WriteTo(DnsQueryStream);
-            Question.WriteTo(DnsQueryStream);
+            MemoryStream dnsQueryStream = new MemoryStream();
+            header.WriteTo(dnsQueryStream);
+            question.WriteTo(dnsQueryStream);
 
-            byte[] DnsQuery = DnsQueryStream.ToArray();
+            byte[] dnsQuery = dnsQueryStream.ToArray();
 
             _socket.SendTimeout = 2000;
             _socket.ReceiveTimeout = 2000;
 
-            int Retry = 1;
+            int retry = 1;
             do
             {
-                _socket.SendTo(DnsQuery, Server);
+                _socket.SendTo(dnsQuery, Server);
 
-                byte[] Recvbuffer = new byte[32 * 1024];
-                EndPoint RemoteEP = new IPEndPoint(0, 0);
+                byte[] recvbuffer = new byte[32 * 1024];
+                EndPoint remoteEP = new IPEndPoint(0, 0);
 
                 try
                 {
-                    Retry += 1;
-                    int BytesRecv = _socket.ReceiveFrom(Recvbuffer, ref RemoteEP);
+                    retry += 1;
+                    int bytesRecv = _socket.ReceiveFrom(recvbuffer, ref remoteEP);
 
-                    return DnsDatagram.Parse(new MemoryStream(Recvbuffer, 0, BytesRecv, false));
-
+                    return DnsDatagram.Parse(new MemoryStream(recvbuffer, 0, bytesRecv, false));
                 }
                 catch (SocketException)
                 {
-                    if (Retry > retries)
+                    if (retry > retries)
                     {
                         throw;
                     }
