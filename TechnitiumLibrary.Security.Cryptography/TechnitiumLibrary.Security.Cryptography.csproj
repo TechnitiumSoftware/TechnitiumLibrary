@@ -47,8 +47,6 @@
     <Compile Include="Certificate.cs" />
     <Compile Include="CertificateProfile.cs" />
     <Compile Include="CRC32Managed.cs" />
-    <Compile Include="Math\BigInteger.cs" />
-    <Compile Include="Math\BigMath.cs" />
     <Compile Include="RevocationCertificate.cs" />
     <Compile Include="CertificateStore.cs" />
     <Compile Include="CryptoException.cs" />
