@@ -38,15 +38,15 @@
     <Reference Include="System.XML" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Algorithms\DiffieHellman.cs" />
-    <Compile Include="Algorithms\DiffieHellmanPublicKey.cs" />
-    <Compile Include="Algorithms\ECDiffieHellman.cs" />
-    <Compile Include="Algorithms\KeyAgreement.cs" />
-    <Compile Include="Algorithms\RC4Managed.cs" />
+    <Compile Include="DiffieHellman.cs" />
+    <Compile Include="DiffieHellmanPublicKey.cs" />
+    <Compile Include="ECDiffieHellman.cs" />
+    <Compile Include="KeyAgreement.cs" />
+    <Compile Include="RC4Managed.cs" />
     <Compile Include="AsymmetricCryptoKey.cs" />
     <Compile Include="Certificate.cs" />
     <Compile Include="CertificateProfile.cs" />
-    <Compile Include="Algorithms\CRC32Managed.cs" />
+    <Compile Include="CRC32Managed.cs" />
     <Compile Include="Math\BigInteger.cs" />
     <Compile Include="Math\BigMath.cs" />
     <Compile Include="RevocationCertificate.cs" />

@@ -30,7 +30,6 @@ namespace TechnitiumLibrary.Security.Cryptography
         Unknown = 0,
         RSA = 1,
         DSA = 2,
-        ECDiffieHellman = 3
     }
 
     public sealed class AsymmetricCryptoKey : WriteStream, IDisposable
