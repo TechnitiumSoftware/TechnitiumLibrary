@@ -34,11 +34,21 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.XML" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Algorithms\DiffieHellman.cs" />
+    <Compile Include="Algorithms\DiffieHellmanPublicKey.cs" />
+    <Compile Include="Algorithms\ECDiffieHellman.cs" />
+    <Compile Include="Algorithms\KeyAgreement.cs" />
+    <Compile Include="Algorithms\RC4Managed.cs" />
     <Compile Include="AsymmetricCryptoKey.cs" />
     <Compile Include="Certificate.cs" />
     <Compile Include="CertificateProfile.cs" />
+    <Compile Include="Algorithms\CRC32Managed.cs" />
+    <Compile Include="Math\BigInteger.cs" />
+    <Compile Include="Math\BigMath.cs" />
     <Compile Include="RevocationCertificate.cs" />
     <Compile Include="CertificateStore.cs" />
     <Compile Include="CryptoException.cs" />
@@ -53,10 +63,6 @@
     <ProjectReference Include="..\TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj">
       <Project>{e0ba5456-feaa-4380-92bb-6b1c4bc3dc70}</Project>
       <Name>TechnitiumLibrary.IO</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\TechnitiumLibrary.Net\TechnitiumLibrary.Net.csproj">
-      <Project>{c8293a12-5a6a-4f53-bebe-35a6d37bd891}</Project>
-      <Name>TechnitiumLibrary.Net</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

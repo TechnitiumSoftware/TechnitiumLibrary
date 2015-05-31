@@ -19,9 +19,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
+using System.Net;
 using System.Text;
 using TechnitiumLibrary.IO;
-using TechnitiumLibrary.Net;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
@@ -70,9 +70,8 @@ namespace TechnitiumLibrary.Security.Cryptography
             if (certToCheck.RevocationURL == null)
                 throw new CryptoException("Certificate does not support revocation.");
 
-            using (WebClientEx client = new WebClientEx())
+            using (WebClient client = new WebClient())
             {
-                client.Timeout = 10000; //request timeout of 10 sec
                 byte[] buffer = client.DownloadData(certToCheck.RevocationURL.AbsoluteUri + "?sn=" + certToCheck.SerialNumber);
 
                 using (BinaryReader bR = new BinaryReader(new MemoryStream(buffer)))
