@@ -28,14 +28,14 @@ namespace TechnitiumLibrary.Security.Cryptography
         ECDiffieHellman = 2
     }
 
-    public enum KeyDerivationFunction
+    public enum KeyAgreementKeyDerivationFunction
     {
         Unknown = 0,
         Hash = 1,
         Hmac = 2
     }
 
-    public enum KeyDerivationHashAlgorithm
+    public enum KeyAgreementKeyDerivationHashAlgorithm
     {
         Unknown = 0,
         SHA256 = 1,
@@ -47,27 +47,18 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
-        KeyDerivationFunction _kdFunc = KeyDerivationFunction.Hash;
-        KeyDerivationHashAlgorithm _kdAlgo = KeyDerivationHashAlgorithm.SHA256;
+        KeyAgreementKeyDerivationFunction _kdFunc = KeyAgreementKeyDerivationFunction.Hash;
+        KeyAgreementKeyDerivationHashAlgorithm _kdHashAlgo = KeyAgreementKeyDerivationHashAlgorithm.SHA256;
         byte[] _hmacMessage;
 
         #endregion
 
-        #region static
+        #region constructor
 
-        public static KeyAgreement Create(KeyAgreementAlgorithm algo, int keySize, KeyDerivationFunction kdFunc = KeyDerivationFunction.Hash, KeyDerivationHashAlgorithm kdAlgo = KeyDerivationHashAlgorithm.SHA256)
+        public KeyAgreement(KeyAgreementKeyDerivationFunction kdFunc, KeyAgreementKeyDerivationHashAlgorithm kdHashAlgo)
         {
-            switch (algo)
-            {
-                case KeyAgreementAlgorithm.DiffieHellman:
-                    return new DiffieHellman(keySize, kdAlgo) { _kdAlgo = kdAlgo, _kdFunc = kdFunc };
-
-                case KeyAgreementAlgorithm.ECDiffieHellman:
-                    return new ECDiffieHellman(keySize, kdAlgo) { _kdAlgo = kdAlgo, _kdFunc = kdFunc };
-
-                default:
-                    throw new CryptoException("KeyExchange algorithm not supported.");
-            }
+            _kdFunc = kdFunc;
+            _kdHashAlgo = kdHashAlgo;
         }
 
         #endregion
@@ -80,18 +71,18 @@ namespace TechnitiumLibrary.Security.Cryptography
 
             switch (_kdFunc)
             {
-                case KeyDerivationFunction.Hash:
-                    switch (_kdAlgo)
+                case KeyAgreementKeyDerivationFunction.Hash:
+                    switch (_kdHashAlgo)
                     {
-                        case KeyDerivationHashAlgorithm.SHA256:
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA256:
                             hash = HashAlgorithm.Create("SHA256");
                             break;
 
-                        case KeyDerivationHashAlgorithm.SHA384:
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA384:
                             hash = HashAlgorithm.Create("SHA384");
                             break;
 
-                        case KeyDerivationHashAlgorithm.SHA512:
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA512:
                             hash = HashAlgorithm.Create("SHA512");
                             break;
 
@@ -101,18 +92,18 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                     return hash.ComputeHash(ComputeKey(otherPartyPublicKeyXML));
 
-                case KeyDerivationFunction.Hmac:
-                    switch (_kdAlgo)
+                case KeyAgreementKeyDerivationFunction.Hmac:
+                    switch (_kdHashAlgo)
                     {
-                        case KeyDerivationHashAlgorithm.SHA256:
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA256:
                             hash = new HMACSHA256(ComputeKey(otherPartyPublicKeyXML));
                             break;
 
-                        case KeyDerivationHashAlgorithm.SHA384:
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA384:
                             hash = new HMACSHA384(ComputeKey(otherPartyPublicKeyXML));
                             break;
 
-                        case KeyDerivationHashAlgorithm.SHA512:
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA512:
                             hash = new HMACSHA512(ComputeKey(otherPartyPublicKeyXML));
                             break;
 
@@ -139,11 +130,11 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region properties
 
-        public KeyDerivationFunction KeyDerivationFunction
+        public KeyAgreementKeyDerivationFunction KeyDerivationFunction
         { get { return _kdFunc; } }
 
-        public KeyDerivationHashAlgorithm KeyDerivationAlgorithm
-        { get { return _kdAlgo; } }
+        public KeyAgreementKeyDerivationHashAlgorithm KeyDerivationHashAlgorithm
+        { get { return _kdHashAlgo; } }
 
         public byte[] HmacMessage
         {

@@ -27,6 +27,7 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
+        DiffieHellmanGroupType _group;
         int _keySize;
         BigInteger _p;
         BigInteger _g;
@@ -36,12 +37,25 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region constructor
 
+        public DiffieHellmanPublicKey(DiffieHellmanGroupType group, int keySize, BigInteger x)
+        {
+            _group = group;
+            _keySize = keySize;
+            _x = x;
+
+            DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(group, keySize);
+            VerifyPublicKey(_keySize, dhg.P, dhg.G, x);
+        }
+
         public DiffieHellmanPublicKey(int keySize, BigInteger p, BigInteger g, BigInteger x)
         {
+            _group = DiffieHellmanGroupType.None;
             _keySize = keySize;
             _p = p;
             _g = g;
             _x = x;
+
+            VerifyPublicKey(_keySize, _p, _g, _x);
         }
 
         public DiffieHellmanPublicKey(string publicKeyXML)
@@ -53,17 +67,64 @@ namespace TechnitiumLibrary.Security.Cryptography
 
             _keySize = int.Parse(DHPublicKey.Attributes["keySize"].Value);
 
+            if (DHPublicKey.Attributes["group"] == null)
+                _group = DiffieHellmanGroupType.None;
+            else
+                _group = (DiffieHellmanGroupType)int.Parse(DHPublicKey.Attributes["group"].Value);
+
             switch (DHPublicKey.Attributes["encoding"].Value)
             {
                 case "base64":
-                    _p = new BigInteger(Convert.FromBase64String(DHPublicKey.SelectSingleNode("P").InnerText));
-                    _g = new BigInteger(Convert.FromBase64String(DHPublicKey.SelectSingleNode("G").InnerText));
-                    _x = new BigInteger(Convert.FromBase64String(DHPublicKey.SelectSingleNode("X").InnerText));
+                    if (_group == DiffieHellmanGroupType.None)
+                    {
+                        _p = ReadPositiveNumber(DHPublicKey.SelectSingleNode("P").InnerText);
+                        _g = ReadPositiveNumber(DHPublicKey.SelectSingleNode("G").InnerText);
+                    }
+                    else
+                    {
+                        DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(_group, _keySize);
+                        _p = dhg.P;
+                        _g = dhg.G;
+                    }
+
+                    _x = ReadPositiveNumber(DHPublicKey.SelectSingleNode("X").InnerText);
                     break;
 
                 default:
                     throw new CryptoException("DiffieHellman public key xml encoding not supported.");
             }
+
+            VerifyPublicKey(_keySize, _p, _g, _x);
+        }
+
+        #endregion
+
+        #region private
+
+        private static BigInteger ReadPositiveNumber(string base64Data)
+        {
+            byte[] buffer = Convert.FromBase64String(base64Data);
+
+            if (buffer[buffer.Length - 1] == 0)
+                return new BigInteger(buffer);
+
+            byte[] buffer2 = new byte[buffer.Length + 1];
+            Buffer.BlockCopy(buffer, 0, buffer2, 0, buffer.Length);
+            return new BigInteger(buffer2);
+        }
+
+        private static void VerifyPublicKey(int keySize, BigInteger p, BigInteger g, BigInteger x)
+        {
+            if ((keySize - (p.ToByteArray().Length << 3)) > 32)
+                throw new CryptoException("DiffieHellman invalid public key parameter.");
+
+            BigInteger pm2 = p - 2;
+
+            if ((x < 2) || (x > pm2))
+                throw new CryptoException("DiffieHellman invalid public key parameter.");
+
+            if ((g < 2) || (g > pm2))
+                throw new CryptoException("DiffieHellman invalid public key parameter.");
         }
 
         #endregion
@@ -72,18 +133,30 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public string PublicKeyXML()
         {
-            return @"<?xml version=""1.0"" encoding=""UTF-8""?>
+            switch (_group)
+            {
+                case DiffieHellmanGroupType.RFC3526:
+                    return @"<?xml version=""1.0"" encoding=""UTF-8""?>
+<DHPublicKey keySize=""" + _keySize + @""" group=""" + (int)_group + @""" encoding=""base64"">
+    <X>" + Convert.ToBase64String(_x.ToByteArray()) + @"</X>
+</DHPublicKey>";
+
+                default:
+                    return @"<?xml version=""1.0"" encoding=""UTF-8""?>
 <DHPublicKey keySize=""" + _keySize + @""" encoding=""base64"">
     <P>" + Convert.ToBase64String(_p.ToByteArray()) + @"</P>
     <G>" + Convert.ToBase64String(_g.ToByteArray()) + @"</G>
     <X>" + Convert.ToBase64String(_x.ToByteArray()) + @"</X>
-</DHPublicKey>
-";
+</DHPublicKey>";
+            }
         }
 
         #endregion
 
         #region properties
+
+        public DiffieHellmanGroupType Group
+        { get { return _group; } }
 
         public int KeySize
         { get { return _keySize; } }

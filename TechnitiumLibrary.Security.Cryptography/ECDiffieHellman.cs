@@ -32,22 +32,23 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region constructor
 
-        public ECDiffieHellman(int keySize, KeyDerivationHashAlgorithm hashAlgo)
+        public ECDiffieHellman(int keySize, KeyAgreementKeyDerivationFunction kdFunc, KeyAgreementKeyDerivationHashAlgorithm hashAlgo)
+            : base(kdFunc, hashAlgo)
         {
             _ecdh = new ECDiffieHellmanCng(keySize);
             _ecdh.KeyDerivationFunction = ECDiffieHellmanKeyDerivationFunction.Hash;
 
             switch (hashAlgo)
             {
-                case KeyDerivationHashAlgorithm.SHA256:
+                case KeyAgreementKeyDerivationHashAlgorithm.SHA256:
                     _ecdh.HashAlgorithm = CngAlgorithm.Sha256;
                     break;
 
-                case KeyDerivationHashAlgorithm.SHA384:
+                case KeyAgreementKeyDerivationHashAlgorithm.SHA384:
                     _ecdh.HashAlgorithm = CngAlgorithm.Sha384;
                     break;
 
-                case KeyDerivationHashAlgorithm.SHA512:
+                case KeyAgreementKeyDerivationHashAlgorithm.SHA512:
                     _ecdh.HashAlgorithm = CngAlgorithm.Sha512;
                     break;
 
