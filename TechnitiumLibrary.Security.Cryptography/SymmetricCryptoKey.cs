@@ -58,35 +58,6 @@ namespace TechnitiumLibrary.Security.Cryptography
             _cryptoAlgo = cryptoAlgo;
         }
 
-        public SymmetricCryptoKey(SymmetricEncryptionAlgorithm cryptoAlgo, int keySize, string password, byte[] IV = null, PaddingMode padding = PaddingMode.ISO10126)
-        {
-            _symAlgo = SymmetricAlgorithm.Create(cryptoAlgo.ToString());
-            _symAlgo.KeySize = keySize;
-            _symAlgo.Padding = padding;
-            _symAlgo.Mode = CipherMode.CBC;
-
-            switch (keySize)
-            {
-                case 128:
-                    _symAlgo.Key = HashAlgorithm.Create("MD5").ComputeHash(Encoding.UTF8.GetBytes(password));
-                    break;
-
-                case 256:
-                    _symAlgo.Key = HashAlgorithm.Create("SHA256").ComputeHash(Encoding.UTF8.GetBytes(password));
-                    break;
-
-                default:
-                    throw new CryptoException("Key size not supported.");
-            }
-
-            if (IV == null)
-                _symAlgo.GenerateIV();
-            else
-                _symAlgo.IV = IV;
-
-            _cryptoAlgo = cryptoAlgo;
-        }
-
         public SymmetricCryptoKey(SymmetricEncryptionAlgorithm cryptoAlgo, byte[] key, byte[] IV = null, PaddingMode padding = PaddingMode.ISO10126)
         {
             _symAlgo = SymmetricAlgorithm.Create(cryptoAlgo.ToString());

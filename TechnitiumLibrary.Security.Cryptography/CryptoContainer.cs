@@ -29,7 +29,11 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
+        const int PBKDF2_ITERATION_COUNT = 200000;
+
         SymmetricCryptoKey _containerKey;
+        PBKDF2 _kdf;
+        HMAC _hmac;
 
         #endregion
 
@@ -40,7 +44,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public CryptoContainer(SymmetricEncryptionAlgorithm cryptoAlgo, int keySize, string password)
         {
-            _containerKey = new SymmetricCryptoKey(cryptoAlgo, keySize, password);
+            SetPassword(cryptoAlgo, keySize, password);
         }
 
         public CryptoContainer(Stream s, string password = null)
@@ -62,28 +66,87 @@ namespace TechnitiumLibrary.Security.Cryptography
             if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "CC")
                 throw new InvalidCryptoContainerException("Invalid CryptoContainer format.");
 
-            switch (bR.ReadByte()) //version
+            byte version = bR.ReadByte();
+
+            switch (version) //version
             {
                 case 0:
                     ReadPlainTextFrom(bR);
                     break;
 
-                case 1:
-                    if (password == null)
-                        throw new InvalidCryptoContainerException("Password required.");
+                case 1: //depricated version
+                    {
+                        if (password == null)
+                            throw new InvalidCryptoContainerException("Password required.");
 
-                    //CryptoAlgo
-                    SymmetricEncryptionAlgorithm cryptoAlgo = (SymmetricEncryptionAlgorithm)bR.ReadByte();
+                        //CryptoAlgo
+                        SymmetricEncryptionAlgorithm cryptoAlgo = (SymmetricEncryptionAlgorithm)bR.ReadByte();
 
-                    //KeySizeBytes
-                    int keySizeBytes = bR.ReadByte();
+                        //KeySizeBytes
+                        int keySizeBytes = bR.ReadByte();
 
-                    //IV
-                    byte[] IV = bR.ReadBytes(bR.ReadByte());
+                        byte[] IV = bR.ReadBytes(bR.ReadByte());
+                        byte[] key;
 
-                    _containerKey = new SymmetricCryptoKey(cryptoAlgo, keySizeBytes * 8, password, IV);
+                        switch (keySizeBytes)
+                        {
+                            case 16:
+                                key = HashAlgorithm.Create("MD5").ComputeHash(Encoding.UTF8.GetBytes(password));
+                                break;
 
-                    ReadPlainTextFrom(new BinaryReader(_containerKey.GetCryptoStreamReader(bR.BaseStream)));
+                            case 32:
+                                key = HashAlgorithm.Create("SHA256").ComputeHash(Encoding.UTF8.GetBytes(password));
+                                break;
+
+                            default:
+                                throw new CryptoException("CryptoContainer key size not supported.");
+                        }
+
+                        _containerKey = new SymmetricCryptoKey(cryptoAlgo, key, IV);
+                        ReadPlainTextFrom(new BinaryReader(_containerKey.GetCryptoStreamReader(bR.BaseStream)));
+
+                        //auto upgrade to version 2 with PBKDF2-HMAC-SHA256 when calling WriteTo
+                        _kdf = PBKDF2.CreateHMACSHA256(password, keySizeBytes, PBKDF2_ITERATION_COUNT);
+                        key = _kdf.GetBytes(keySizeBytes);
+                        _containerKey = new SymmetricCryptoKey(cryptoAlgo, key, IV);
+                        _hmac = new HMACSHA256(key);
+                    }
+                    break;
+
+                case 2: //using PBKDF2-HMAC-SHA256
+                    {
+                        if (password == null)
+                            throw new InvalidCryptoContainerException("Password required.");
+
+                        //CryptoAlgo
+                        SymmetricEncryptionAlgorithm cryptoAlgo = (SymmetricEncryptionAlgorithm)bR.ReadByte();
+
+                        //KeySizeBytes
+                        int keySizeBytes = bR.ReadByte();
+
+                        byte[] IV = bR.ReadBytes(bR.ReadByte());
+                        byte[] salt = bR.ReadBytes(bR.ReadByte());
+                        byte[] HMAC = bR.ReadBytes(bR.ReadByte());
+                        _kdf = PBKDF2.CreateHMACSHA256(password, salt, PBKDF2_ITERATION_COUNT);
+                        byte[] key = _kdf.GetBytes(keySizeBytes);
+
+                        //authenticate data
+                        _hmac = new HMACSHA256(key);
+                        long startPosition = bR.BaseStream.Position;
+                        byte[] computedHMAC = _hmac.ComputeHash(bR.BaseStream);
+                        bR.BaseStream.Position = startPosition;
+
+                        //verify hmac
+                        for (int i = 0; i < HMAC.Length; i++)
+                        {
+                            if (HMAC[i] != computedHMAC[i])
+                                throw new CryptoException("Invalid password or data tampered.");
+                        }
+
+                        //decrypt data
+                        _containerKey = new SymmetricCryptoKey(cryptoAlgo, key, IV);
+                        ReadPlainTextFrom(new BinaryReader(_containerKey.GetCryptoStreamReader(bR.BaseStream)));
+                    }
                     break;
 
                 default:
@@ -110,26 +173,49 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
             else
             {
-                bW.Write((byte)1); //version
-                bW.Write((byte)_containerKey.Algorithm); //CryptoAlgoName
-                bW.Write(Convert.ToByte(_containerKey.KeySize / 8)); //KeySizeBytes
-                bW.Write(Convert.ToByte(_containerKey.IV.Length)); //IV Size
-                bW.Write(_containerKey.IV, 0, _containerKey.IV.Length); //IV
                 bW.Flush();
+                Stream baseStream = bW.BaseStream;
 
-                CryptoStream c = _containerKey.GetCryptoStreamWriter(bW.BaseStream);
+                baseStream.WriteByte(2); //version uses PBKDF2-HMAC-SHA256
+                baseStream.WriteByte((byte)_containerKey.Algorithm); //CryptoAlgoName
+                baseStream.WriteByte(Convert.ToByte(_containerKey.KeySize / 8)); //KeySizeBytes
+                baseStream.WriteByte(Convert.ToByte(_containerKey.IV.Length)); //IV Size
+                baseStream.Write(_containerKey.IV, 0, _containerKey.IV.Length); //IV
+                baseStream.WriteByte(Convert.ToByte(_kdf.Salt.Length)); //salt size
+                baseStream.Write(_kdf.Salt, 0, _kdf.Salt.Length); //salt
+
+                //write placeholder for HMAC
+                byte[] computedHMAC = new byte[32];
+                baseStream.WriteByte(32);
+                long hmacPosition = baseStream.Position;
+                baseStream.Write(computedHMAC, 0, 32);
+                long cipherPosition = baseStream.Position;
+
+                //encrypt data
+                CryptoStream c = _containerKey.GetCryptoStreamWriter(baseStream);
 
                 BinaryWriter bW2 = new BinaryWriter(c);
                 WritePlainTextTo(bW2);
                 bW2.Flush();
 
                 c.FlushFinalBlock();
+
+                //compute HMAC and write it into placeholder
+                baseStream.Position = cipherPosition;
+                computedHMAC = _hmac.ComputeHash(baseStream);
+
+                baseStream.Position = hmacPosition;
+                baseStream.Write(computedHMAC, 0, 32);
             }
         }
 
         public void SetPassword(SymmetricEncryptionAlgorithm cryptoAlgo, int keySize, string password)
         {
-            _containerKey = new SymmetricCryptoKey(cryptoAlgo, keySize, password);
+            int keySizeBytes = keySize / 8;
+            _kdf = PBKDF2.CreateHMACSHA256(password, keySizeBytes, PBKDF2_ITERATION_COUNT);
+            byte[] key = _kdf.GetBytes(keySizeBytes);
+
+            _containerKey = new SymmetricCryptoKey(cryptoAlgo, key);
         }
 
         public void ChangePassword(string password = null)
@@ -140,7 +226,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             if (password == null)
                 _containerKey = null;
             else
-                _containerKey = new SymmetricCryptoKey(_containerKey.Algorithm, _containerKey.KeySize, password);
+                SetPassword(_containerKey.Algorithm, _containerKey.KeySize, password);
         }
 
         #endregion
