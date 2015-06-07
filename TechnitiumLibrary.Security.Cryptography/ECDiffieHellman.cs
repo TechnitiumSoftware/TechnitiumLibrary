@@ -26,7 +26,7 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
-        ECDiffieHellmanCng _ecdh;
+        object _ecdh;
 
         #endregion
 
@@ -35,26 +35,28 @@ namespace TechnitiumLibrary.Security.Cryptography
         public ECDiffieHellman(int keySize, KeyAgreementKeyDerivationFunction kdFunc, KeyAgreementKeyDerivationHashAlgorithm hashAlgo)
             : base(kdFunc, hashAlgo)
         {
-            _ecdh = new ECDiffieHellmanCng(keySize);
-            _ecdh.KeyDerivationFunction = ECDiffieHellmanKeyDerivationFunction.Hash;
+            ECDiffieHellmanCng ecdh = new ECDiffieHellmanCng(keySize);
+            ecdh.KeyDerivationFunction = ECDiffieHellmanKeyDerivationFunction.Hash;
 
             switch (hashAlgo)
             {
                 case KeyAgreementKeyDerivationHashAlgorithm.SHA256:
-                    _ecdh.HashAlgorithm = CngAlgorithm.Sha256;
+                    ecdh.HashAlgorithm = CngAlgorithm.Sha256;
                     break;
 
                 case KeyAgreementKeyDerivationHashAlgorithm.SHA384:
-                    _ecdh.HashAlgorithm = CngAlgorithm.Sha384;
+                    ecdh.HashAlgorithm = CngAlgorithm.Sha384;
                     break;
 
                 case KeyAgreementKeyDerivationHashAlgorithm.SHA512:
-                    _ecdh.HashAlgorithm = CngAlgorithm.Sha512;
+                    ecdh.HashAlgorithm = CngAlgorithm.Sha512;
                     break;
 
                 default:
                     throw new CryptoException("Key derivation hash algorithm not supported.");
             }
+
+            _ecdh = ecdh;
         }
 
         #endregion
@@ -63,12 +65,12 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public override string GetPublicKeyXML()
         {
-            return _ecdh.PublicKey.ToXmlString();
+            return ((ECDiffieHellmanCng)_ecdh).PublicKey.ToXmlString();
         }
 
         protected override byte[] ComputeKey(string otherPartyPublicKeyXML)
         {
-            return _ecdh.DeriveKeyMaterial(ECDiffieHellmanCngPublicKey.FromXmlString(otherPartyPublicKeyXML));
+            return ((ECDiffieHellmanCng)_ecdh).DeriveKeyMaterial(ECDiffieHellmanCngPublicKey.FromXmlString(otherPartyPublicKeyXML));
         }
 
         #endregion
