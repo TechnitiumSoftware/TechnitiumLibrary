@@ -216,6 +216,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             byte[] key = _kdf.GetBytes(keySizeBytes);
 
             _containerKey = new SymmetricCryptoKey(cryptoAlgo, key);
+            _hmac = new HMACSHA256(key);
         }
 
         public void ChangePassword(string password = null)
