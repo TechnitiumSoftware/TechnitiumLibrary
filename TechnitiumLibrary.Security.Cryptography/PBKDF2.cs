@@ -50,6 +50,32 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region static
 
+        public static PBKDF2 CreateHMACSHA1(string password, byte[] salt, int iterationCount)
+        {
+            return CreateHMACSHA1(Encoding.UTF8.GetBytes(password), salt, iterationCount);
+        }
+
+        public static PBKDF2 CreateHMACSHA1(byte[] password, byte[] salt, int iterationCount)
+        {
+            return new PBKDF2(new HMACSHA256(password), password, salt, iterationCount);
+        }
+
+        public static PBKDF2 CreateHMACSHA1(string password, int saltLength, int iterationCount)
+        {
+            return CreateHMACSHA1(Encoding.UTF8.GetBytes(password), saltLength, iterationCount);
+        }
+
+        public static PBKDF2 CreateHMACSHA1(byte[] password, int saltLength, int iterationCount)
+        {
+            HMAC PRF = new HMACSHA1(password);
+
+            byte[] salt = new byte[saltLength];
+            RandomNumberGenerator rng = new RNGCryptoServiceProvider();
+            rng.GetBytes(salt);
+
+            return new PBKDF2(PRF, password, salt, iterationCount);
+        }
+
         public static PBKDF2 CreateHMACSHA256(string password, byte[] salt, int iterationCount)
         {
             return CreateHMACSHA256(Encoding.UTF8.GetBytes(password), salt, iterationCount);
