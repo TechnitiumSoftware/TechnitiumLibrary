@@ -38,12 +38,14 @@
     <Reference Include="System.XML" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DEREncoding.cs" />
     <Compile Include="DiffieHellman.cs" />
     <Compile Include="DiffieHellmanGroup.cs" />
     <Compile Include="DiffieHellmanPublicKey.cs" />
     <Compile Include="ECDiffieHellman.cs" />
     <Compile Include="KeyAgreement.cs" />
     <Compile Include="PBKDF2.cs" />
+    <Compile Include="PEMFormat.cs" />
     <Compile Include="RC4Managed.cs" />
     <Compile Include="AsymmetricCryptoKey.cs" />
     <Compile Include="Certificate.cs" />

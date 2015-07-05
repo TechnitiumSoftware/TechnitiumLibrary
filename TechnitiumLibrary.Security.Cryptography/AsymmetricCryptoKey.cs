@@ -43,6 +43,9 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region constructor
 
+        private AsymmetricCryptoKey()
+        { }
+
         public AsymmetricCryptoKey(AsymmetricEncryptionAlgorithm cryptoAlgo, int keySize)
         {
             switch (cryptoAlgo)
@@ -58,10 +61,6 @@ namespace TechnitiumLibrary.Security.Cryptography
                     dsa.PersistKeyInCsp = false;
                     _asymAlgo = dsa;
                     break;
-
-                //case AsymmetricEncryptionAlgorithm.ECDiffieHellman:
-
-                //    break;
 
                 default:
                     throw new NotImplementedException("Feature not implemented for specified algorithm.");
@@ -151,6 +150,20 @@ namespace TechnitiumLibrary.Security.Cryptography
         #endregion
 
         #region static
+
+        public static AsymmetricCryptoKey CreateUsing(RSAParameters parameters)
+        {
+            RSACryptoServiceProvider rsa = new RSACryptoServiceProvider();
+            rsa.PersistKeyInCsp = false;
+            rsa.ImportParameters(parameters);
+
+            AsymmetricCryptoKey obj = new AsymmetricCryptoKey();
+
+            obj._asymAlgo = rsa;
+            obj._cryptoAlgo = AsymmetricEncryptionAlgorithm.RSA;
+
+            return obj;
+        }
 
         public static byte[] Encrypt(byte[] data, AsymmetricEncryptionAlgorithm cryptoAlgo, string publicKey)
         {

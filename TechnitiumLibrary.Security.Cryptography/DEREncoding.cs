@@ -1,0 +1,191 @@
+﻿using System;
+using System.IO;
+
+namespace TechnitiumLibrary.Security.Cryptography
+{
+
+    /* Distinguished Encoding Rules
+     * 
+     * ASN.1 Type System
+     * bits 7, 6 = CLASS
+     * bit 5 = FORM
+     * 
+     * bit7 bit6    CLASS
+     * 0    0       UNIVERSAL
+     * 0    1       APPLICATION
+     * 1    0       context-defined
+     * 1    1       PRIVATE
+     * 
+     * bit5     FORM
+     * 0        primitive
+     * 1        constructed
+     * 
+     * reference: https://msdn.microsoft.com/en-us/library/windows/desktop/dd408078(v=vs.85).aspx
+     */
+
+    public enum DEREncodingASN1Type : byte
+    {
+        BIT_STRING = 0x03, //UNIVERSAL; Primitive
+        BOOLEAN = 0x01, //UNIVERSAL; Primitive
+        INTEGER = 0x02, //UNIVERSAL; Primitive
+        NULL = 0x05, //UNIVERSAL; Primitive
+        OBJECT_IDENTIFIER = 0x06, //UNIVERSAL; Primitive
+        OCTET_STRING = 0x04, //UNIVERSAL; Primitive
+        UNICODE_STRING = 0x1E,  //BMPString; UNIVERSAL; Primitive
+        IA5_STRING = 0x16, //UNIVERSAL; Primitive
+        PRINTABLE_STRING = 0x13, //UNIVERSAL; Primitive
+        TeletexString = 0x14, //UNIVERSAL; Primitive
+        UTF8_STRING = 0x0C, //UNIVERSAL; Primitive
+        SEQUENCE = 0x30, //UNIVERSAL; constructed
+        SET = 0x31 //UNIVERSAL; constructed
+    }
+
+    public class DEREncoding
+    {
+        #region variables
+
+        DEREncodingASN1Type _type;
+        byte[] _value;
+
+        #endregion
+
+        #region constructor
+
+        private DEREncoding(DEREncodingASN1Type type, byte[] value)
+        {
+            _type = type;
+            _value = value;
+        }
+
+        #endregion
+
+        #region static
+
+        public static DEREncoding Decode(byte[] data)
+        {
+            using (MemoryStream mS = new MemoryStream(data))
+            {
+                return Decode(mS);
+            }
+        }
+
+        public static DEREncoding Decode(Stream s)
+        {
+            DEREncodingASN1Type type = (DEREncodingASN1Type)s.ReadByte();
+
+            int valueLength;
+            int length1 = s.ReadByte();
+
+            if (length1 > 127)
+            {
+                int numberLenBytes = length1 & 0x7F;
+
+                byte[] valueBytes = new byte[4];
+                s.Read(valueBytes, 0, numberLenBytes);
+
+                switch (numberLenBytes)
+                {
+                    case 1:
+                        valueLength = valueBytes[0];
+                        break;
+
+                    case 2:
+                        Array.Reverse(valueBytes, 0, 2);
+                        valueLength = BitConverter.ToInt16(valueBytes, 0);
+                        break;
+
+                    case 3:
+                        Array.Reverse(valueBytes, 0, 3);
+                        valueLength = BitConverter.ToInt32(valueBytes, 0);
+                        break;
+
+                    case 4:
+                        Array.Reverse(valueBytes, 0, 4);
+                        valueLength = BitConverter.ToInt32(valueBytes, 0);
+                        break;
+
+                    default:
+                        throw new IOException("DER encoding length not supported.");
+                }
+            }
+            else
+            {
+                valueLength = length1;
+            }
+
+            byte[] value = new byte[valueLength];
+            s.Read(value, 0, valueLength);
+
+            return new DEREncoding(type, value);
+        }
+
+        public static void Encode(DEREncodingASN1Type type, byte[] value, Stream s)
+        {
+            s.WriteByte((byte)type);
+
+            int valueLength = value.Length;
+
+            if (valueLength < 128)
+            {
+                s.WriteByte((byte)valueLength);
+            }
+            else
+            {
+                byte[] bytesValueLength = BitConverter.GetBytes(valueLength);
+                Array.Reverse(bytesValueLength);
+
+                for (int i = 0; i < bytesValueLength.Length; i++)
+                {
+                    if (bytesValueLength[i] != 0)
+                    {
+                        s.WriteByte((byte)(0x80 | (bytesValueLength.Length - i)));
+                        s.Write(bytesValueLength, i, bytesValueLength.Length - i);
+                        break;
+                    }
+                }
+            }
+
+            s.Write(value, 0, valueLength);
+        }
+
+        #endregion
+
+        #region public
+
+        public Stream GetValueStream()
+        {
+            return new MemoryStream(_value, false);
+        }
+
+        public void Encode(Stream s)
+        {
+            Encode(_type, _value, s);
+        }
+
+        public byte[] GetIntegerValue()
+        {
+            if (_value[0] == 0)
+            {
+                byte[] valInt = new byte[_value.Length - 1];
+                Buffer.BlockCopy(_value, 1, valInt, 0, valInt.Length);
+                return valInt;
+            }
+            else
+            {
+                return _value;
+            }
+        }
+
+        #endregion
+
+        #region properties
+
+        public DEREncodingASN1Type Type
+        { get { return _type; } }
+
+        public byte[] Value
+        { get { return _value; } }
+
+        #endregion
+    }
+}
