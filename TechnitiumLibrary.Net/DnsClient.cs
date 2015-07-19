@@ -64,11 +64,17 @@ namespace TechnitiumLibrary.Net
         public DnsClient(IPEndPoint server)
         {
             _server = server;
+
+            _socket.SendTimeout = 2000;
+            _socket.ReceiveTimeout = 2000;
         }
 
         public DnsClient(IPAddress serverIP, ushort port = 53)
         {
             _server = new IPEndPoint(serverIP, port);
+
+            _socket.SendTimeout = 2000;
+            _socket.ReceiveTimeout = 2000;
         }
 
         #endregion
@@ -78,25 +84,23 @@ namespace TechnitiumLibrary.Net
         public DnsDatagram Resolve(string domain, DnsRecordType queryType, int retries = 3)
         {
             byte[] buffer = new byte[2];
-            _rnd.GetBytes(buffer);
-            short id = BitConverter.ToInt16(buffer, 0);
-
-            DnsHeader header = new DnsHeader(id, false, DnsOpcode.StandardQuery, false, false, true, false, DnsResponseCode.NoError, 1, 0, 0, 0);
-            DnsQuestionRecord question = new DnsQuestionRecord(domain, queryType, DnsClass.Internet);
-
-            MemoryStream dnsQueryStream = new MemoryStream();
-            header.WriteTo(dnsQueryStream);
-            question.WriteTo(dnsQueryStream);
-
-            byte[] dnsQuery = dnsQueryStream.ToArray();
-
-            _socket.SendTimeout = 2000;
-            _socket.ReceiveTimeout = 2000;
 
             int retry = 1;
             do
             {
-                _socket.SendTo(dnsQuery, Server);
+                _rnd.GetBytes(buffer);
+                short id = BitConverter.ToInt16(buffer, 0);
+
+                DnsHeader header = new DnsHeader(id, false, DnsOpcode.StandardQuery, false, false, true, false, DnsResponseCode.NoError, 1, 0, 0, 0);
+                DnsQuestionRecord question = new DnsQuestionRecord(domain, queryType, DnsClass.Internet);
+
+                using (MemoryStream dnsQueryStream = new MemoryStream(128))
+                {
+                    header.WriteTo(dnsQueryStream);
+                    question.WriteTo(dnsQueryStream);
+
+                    _socket.SendTo(dnsQueryStream.ToArray(), _server);
+                }
 
                 byte[] recvbuffer = new byte[32 * 1024];
                 EndPoint remoteEP = new IPEndPoint(0, 0);
@@ -104,9 +108,16 @@ namespace TechnitiumLibrary.Net
                 try
                 {
                     retry += 1;
-                    int bytesRecv = _socket.ReceiveFrom(recvbuffer, ref remoteEP);
 
-                    return DnsDatagram.Parse(new MemoryStream(recvbuffer, 0, bytesRecv, false));
+                    while (true)
+                    {
+                        int bytesRecv = _socket.ReceiveFrom(recvbuffer, ref remoteEP);
+
+                        DnsDatagram response = DnsDatagram.Parse(new MemoryStream(recvbuffer, 0, bytesRecv, false));
+
+                        if (response.Header.Identifier == id)
+                            return response;
+                    }
                 }
                 catch (SocketException)
                 {
