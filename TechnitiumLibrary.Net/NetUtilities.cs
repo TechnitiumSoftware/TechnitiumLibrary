@@ -1,4 +1,23 @@
-﻿using System;
+﻿/*
+Technitium Library
+Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -49,7 +68,7 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        public static DefaultNetworkInfo GetDefaultNetworkInfo()
+        public static NetworkInfo GetDefaultNetworkInfo()
         {
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
@@ -126,7 +145,7 @@ namespace TechnitiumLibrary.Net
                                         }
 
                                         if (isInSameNetwork)
-                                            return new DefaultNetworkInfo(ip.Address, new IPAddress(broadcast));
+                                            return new NetworkInfo(ip.Address, new IPAddress(mask), new IPAddress(broadcast));
                                     }
                                 }
                             }
@@ -139,9 +158,9 @@ namespace TechnitiumLibrary.Net
             return null;
         }
 
-        public static List<IPAddress> GetBroadcastIPList()
+        public static List<NetworkInfo> GetNetworkInfo()
         {
-            List<IPAddress> broadcastIPList = new List<IPAddress>(2);
+            List<NetworkInfo> networkInfoList = new List<NetworkInfo>(2);
 
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
@@ -199,24 +218,109 @@ namespace TechnitiumLibrary.Net
                                 int ip_bytes = BitConverter.ToInt32(addr, 0);
                                 int mask_bytes = BitConverter.ToInt32(mask, 0); ;
 
-                                broadcastIPList.Add(new IPAddress(BitConverter.GetBytes(ip_bytes | (~mask_bytes))));
+                                networkInfoList.Add(new NetworkInfo(ip.Address, new IPAddress(mask), new IPAddress(BitConverter.GetBytes(ip_bytes | (~mask_bytes)))));
                             }
                         }
                         break;
                 }
             }
 
-            return broadcastIPList;
+            return networkInfoList;
+        }
+
+        public static NetworkInfo GetNetworkInfo(IPAddress destinationIP)
+        {
+            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus != OperationalStatus.Up)
+                    continue;
+
+                if (!nic.Supports(NetworkInterfaceComponent.IPv4))
+                    continue;
+
+                switch (nic.NetworkInterfaceType)
+                {
+                    case NetworkInterfaceType.Ethernet:
+                    case NetworkInterfaceType.Ethernet3Megabit:
+                    case NetworkInterfaceType.FastEthernetT:
+                    case NetworkInterfaceType.FastEthernetFx:
+                    case NetworkInterfaceType.Wireless80211:
+                    case NetworkInterfaceType.GigabitEthernet:
+                        //for all broadcast type network
+                        IPInterfaceProperties ipInterface = nic.GetIPProperties();
+
+                        foreach (UnicastIPAddressInformation ip in ipInterface.UnicastAddresses)
+                        {
+                            if (ip.Address.AddressFamily == AddressFamily.InterNetwork)
+                            {
+                                byte[] addr = ip.Address.GetAddressBytes();
+                                byte[] mask;
+
+                                try
+                                {
+                                    mask = ip.IPv4Mask.GetAddressBytes();
+                                }
+                                catch (NotImplementedException)
+                                {
+                                    //method not implemented in mono framework for Linux
+                                    if (addr[0] == 10)
+                                    {
+                                        mask = new byte[] { 255, 0, 0, 0 };
+                                    }
+                                    else if ((addr[0] == 192) && (addr[1] == 168))
+                                    {
+                                        mask = new byte[] { 255, 255, 255, 0 };
+                                    }
+                                    else if ((addr[0] == 169) && (addr[1] == 254))
+                                    {
+                                        mask = new byte[] { 255, 255, 0, 0 };
+                                    }
+                                    else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
+                                    {
+                                        mask = new byte[] { 255, 240, 0, 0 };
+                                    }
+                                    else
+                                    {
+                                        mask = new byte[] { 255, 255, 255, 0 };
+                                    }
+                                }
+
+                                byte[] destination = destinationIP.GetAddressBytes();
+                                byte[] broadcast = new byte[4];
+                                bool isInSameNetwork = true;
+
+                                for (int i = 0; i < 4; i++)
+                                {
+                                    if ((addr[i] & mask[i]) != (destination[i] & mask[i]))
+                                    {
+                                        isInSameNetwork = false;
+                                        break;
+                                    }
+
+                                    broadcast[i] = (byte)(addr[i] | ~mask[i]);
+                                }
+
+                                if (isInSameNetwork)
+                                    return new NetworkInfo(ip.Address, new IPAddress(mask), new IPAddress(broadcast));
+                            }
+                        }
+
+                        break;
+                }
+            }
+
+            return GetDefaultNetworkInfo();
         }
 
         #endregion
     }
 
-    public class DefaultNetworkInfo
+    public class NetworkInfo
     {
         #region variables
 
         IPAddress _localIP;
+        IPAddress _subnetMask;
         IPAddress _broadcastIP;
         bool _isPublicIP;
 
@@ -224,11 +328,43 @@ namespace TechnitiumLibrary.Net
 
         #region constructor
 
-        public DefaultNetworkInfo(IPAddress localIP, IPAddress broadcastIP)
+        public NetworkInfo(IPAddress localIP, IPAddress subnetMask, IPAddress broadcastIP)
         {
             _localIP = localIP;
+            _subnetMask = subnetMask;
             _broadcastIP = broadcastIP;
             _isPublicIP = !NetUtilities.IsPrivateIPv4(localIP);
+        }
+
+        #endregion
+
+        #region public
+
+        public override bool Equals(object obj)
+        {
+            return Equals(obj as NetworkInfo);
+        }
+
+        public bool Equals(NetworkInfo obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            if (!_localIP.Equals(obj._localIP))
+                return false;
+
+            if (!_broadcastIP.Equals(obj._broadcastIP))
+                return false;
+
+            return true;
+        }
+
+        public override int GetHashCode()
+        {
+            return BitConverter.ToInt32(_localIP.GetAddressBytes(), 0);
         }
 
         #endregion
@@ -237,6 +373,9 @@ namespace TechnitiumLibrary.Net
 
         public IPAddress LocalIP
         { get { return _localIP; } }
+
+        public IPAddress SubnetMask
+        { get { return _subnetMask; } }
 
         public IPAddress BroadcastIP
         { get { return _broadcastIP; } }
