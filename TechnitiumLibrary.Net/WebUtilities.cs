@@ -315,5 +315,31 @@ namespace TechnitiumLibrary.Net
                 }
             }
         }
+
+        public static bool IsWebAccessible(Uri[] uriCheckList = null, IWebProxy proxy = null)
+        {
+            if (uriCheckList == null)
+                uriCheckList = new Uri[] { new Uri("https://www.google.com/"), new Uri("https://www.microsoft.com/") };
+
+            using (WebClient client = new WebClient())
+            {
+                if (proxy != null)
+                    client.Proxy = proxy;
+
+                foreach (Uri uri in uriCheckList)
+                {
+                    try
+                    {
+                        client.OpenRead(uri);
+
+                        return true;
+                    }
+                    catch (WebException)
+                    { }
+                }
+            }
+
+            return false;
+        }
     }
 }
