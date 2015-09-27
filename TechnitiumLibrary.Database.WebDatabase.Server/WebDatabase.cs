@@ -113,7 +113,7 @@ namespace TechnitiumLibrary.Database.WebDatabase.Server
                 return;
             }
 
-            throw new WebDatabaseException("Invalid auththentication token.");
+            throw new WebDatabaseException("Invalid authentication token.");
         }
 
         private static void Logout(HttpRequest Request, HttpSessionState Session)
