@@ -36,6 +36,7 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="FixMemoryStream.cs" />
     <Compile Include="IWriteStream.cs" />
     <Compile Include="Joint.cs" />
     <Compile Include="NullStream.cs" />
