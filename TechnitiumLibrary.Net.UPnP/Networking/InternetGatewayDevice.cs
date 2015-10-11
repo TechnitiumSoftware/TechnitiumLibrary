@@ -306,7 +306,6 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                 default:
                     throw new InternetGatewayDeviceException("UPnP device returned an error: (" + Response.StatusCode + ") " + Response.StatusDescription);
             }
-
         }
 
         public void DeletePortMapping(ProtocolType protocol, int externalPort)
@@ -431,6 +430,43 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
 
                 default:
                     throw new InternetGatewayDeviceException("UPnP device returned an error: (" + Response.StatusCode + ") " + Response.StatusDescription);
+            }
+        }
+
+        public bool ForwardPort(ProtocolType protocol, int externalPort, IPEndPoint internalEP, string description = "", bool force = false)
+        {
+            try
+            {
+                PortMappingEntry portMap = GetSpecificPortMappingEntry(protocol, externalPort);
+
+                if (portMap != null)
+                {
+                    if (portMap.InternalEP.Equals(internalEP))
+                    {
+                        //external port already mapped
+                        return true;
+                    }
+                    else
+                    {
+                        //external port not available
+                        if (force)
+                            DeletePortMapping(protocol, externalPort);
+                        else
+                            return false;
+                    }
+                }
+            }
+            catch
+            { }
+
+            try
+            {
+                AddPortMapping(protocol, externalPort, internalEP, description);
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
 
