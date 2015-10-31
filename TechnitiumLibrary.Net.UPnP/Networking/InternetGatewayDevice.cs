@@ -52,7 +52,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
 
         #region public static
 
-        public static InternetGatewayDevice Discover(IPAddress networkBroadcastAddress, int timeout)
+        public static InternetGatewayDevice Discover(IPAddress networkBroadcastAddress, int timeout, int maxRetries = 3)
         {
             Socket sUdp = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             sUdp.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, 1);
@@ -88,6 +88,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                         catch (Exception ex)
                         {
                             lastEx = ex;
+                            bytesRecv = 0;
                         }
 
                         if (bytesRecv > 0)
@@ -173,9 +174,9 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                         }
                     } while (true);
 
-                    retryCount += 1;
-                    if (retryCount > 3)
-                        throw new InternetGatewayDeviceException("No UPnP root device was discovered.", lastEx);
+                    retryCount++;
+                    if (retryCount > maxRetries)
+                        throw new InternetGatewayDeviceException("UPnP internet gateway device was not found.", lastEx);
 
                 } while (true);
             }
