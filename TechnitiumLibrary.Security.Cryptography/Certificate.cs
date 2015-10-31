@@ -22,6 +22,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
@@ -318,7 +319,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             #endregion
         }
 
-        public void VerifyRevocationList()
+        public void VerifyRevocationList(SocksClient proxy = null)
         {
             if (_revocationUri != null)
             {
@@ -327,10 +328,10 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                 try
                 {
-                    revoked = RevocationCertificate.IsRevoked(this, out revokeCert);
+                    revoked = RevocationCertificate.IsRevoked(this, out revokeCert, proxy);
 
                     if (_issuerSignature.SigningCertificate != null)
-                        _issuerSignature.SigningCertificate.VerifyRevocationList();
+                        _issuerSignature.SigningCertificate.VerifyRevocationList(proxy);
                 }
                 catch (InvalidCertificateException)
                 {

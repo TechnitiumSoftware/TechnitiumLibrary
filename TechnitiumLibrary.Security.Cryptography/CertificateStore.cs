@@ -64,6 +64,30 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #endregion
 
+        #region IDisposable
+
+        ~CertificateStore()
+        {
+            Dispose(false);
+        }
+
+        bool disposed = false;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (!disposed)
+            {
+                if (_privateKey != null)
+                    _privateKey.Dispose();
+
+                disposed = true;
+            }
+
+            base.Dispose(disposing);
+        }
+
+        #endregion
+
         #region private
 
         protected override void ReadPlainTextFrom(BinaryReader bR)
@@ -96,23 +120,13 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #endregion
 
-        #region public
-
-        #endregion
-
         #region properties
 
         public Certificate Certificate
-        {
-            get { return _cert; }
-            set { _cert = value; }
-        }
+        { get { return _cert; } }
 
         public AsymmetricCryptoKey PrivateKey
-        {
-            get { return _privateKey; }
-            set { _privateKey = value; }
-        }
+        { get { return _privateKey; } }
 
         #endregion
     }

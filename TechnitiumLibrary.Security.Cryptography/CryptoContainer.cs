@@ -25,7 +25,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
-    public abstract class CryptoContainer : WriteStream
+    public abstract class CryptoContainer : WriteStream, IDisposable
     {
         #region variables
 
@@ -55,6 +55,40 @@ namespace TechnitiumLibrary.Security.Cryptography
         public CryptoContainer(BinaryReader bR, string password = null)
         {
             ReadFrom(bR, password);
+        }
+
+        #endregion
+
+        #region IDisposable
+
+        ~CryptoContainer()
+        {
+            Dispose(false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        bool disposed = false;
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposed)
+            {
+                if (_containerKey != null)
+                    _containerKey.Dispose();
+
+                if (_kdf != null)
+                    _kdf.Dispose();
+
+                if (_hmac != null)
+                    _hmac.Dispose();
+
+                disposed = true;
+            }
         }
 
         #endregion

@@ -22,6 +22,8 @@ using System.IO;
 using System.Net;
 using System.Text;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net;
+using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
@@ -65,13 +67,15 @@ namespace TechnitiumLibrary.Security.Cryptography
             s.WriteByte(0); //not found
         }
 
-        public static bool IsRevoked(Certificate certToCheck, out RevocationCertificate revokeCert)
+        public static bool IsRevoked(Certificate certToCheck, out RevocationCertificate revokeCert, SocksClient proxy = null)
         {
             if (certToCheck.RevocationURL == null)
                 throw new CryptoException("Certificate does not support revocation.");
 
-            using (WebClient client = new WebClient())
+            using (WebClientEx client = new WebClientEx())
             {
+                client.SocksProxy = proxy;
+
                 byte[] buffer = client.DownloadData(certToCheck.RevocationURL.AbsoluteUri + "?sn=" + certToCheck.SerialNumber);
 
                 using (BinaryReader bR = new BinaryReader(new MemoryStream(buffer)))
