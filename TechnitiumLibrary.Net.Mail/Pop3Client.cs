@@ -81,11 +81,14 @@ namespace TechnitiumLibrary.Net.Mail
         {
             if (!disposed)
             {
-                if (disposing)
-                {
-                    if (_sock != null)
-                        _sock.Close();
-                }
+                if (_sW != null)
+                    _sW.Dispose();
+
+                if (_sR != null)
+                    _sR.Dispose();
+
+                if (_sock != null)
+                    _sock.Close();
 
                 disposed = true;
             }
