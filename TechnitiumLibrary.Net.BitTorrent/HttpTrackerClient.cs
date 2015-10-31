@@ -24,11 +24,11 @@ using System.Web;
 
 namespace TechnitiumLibrary.Net.BitTorrent
 {
-    class TCPTrackerClient : TrackerClient
+    class HttpTrackerClient : TrackerClient
     {
         #region constructor
 
-        public TCPTrackerClient(Uri trackerURI, byte[] infoHash, TrackerClientID clientID)
+        public HttpTrackerClient(Uri trackerURI, byte[] infoHash, TrackerClientID clientID)
             : base(trackerURI, infoHash, clientID)
         { }
 
@@ -115,19 +115,25 @@ namespace TechnitiumLibrary.Net.BitTorrent
             if (_clientID.NoPeerID)
                 queryString += "&no_peer_id=1";
 
-            HttpWebRequest wReq = (HttpWebRequest)HttpWebRequest.Create(_trackerURI.AbsoluteUri + queryString);
+            byte[] response;
 
-            wReq.UserAgent = _clientID.HttpUserAgent;
-            wReq.Headers.Add("Accept-Encoding", _clientID.HttpAcceptEncoding);
-            wReq.KeepAlive = false;
+            using (WebClientEx webClient = new WebClientEx())
+            {
+                if (_proxy != null)
+                    webClient.SocksProxy = _proxy;
 
-            WebResponse wR = wReq.GetResponse();
+                webClient.UserAgent = _clientID.HttpUserAgent;
+                webClient.AddHeader("Accept-Encoding", _clientID.HttpAcceptEncoding);
+                webClient.KeepAlive = false;
 
+                response = webClient.DownloadData(_trackerURI.AbsoluteUri + queryString);
+            }
+            
             switch (@event)
             {
                 case TrackerClientEvent.None:
                 case TrackerClientEvent.Started:
-                    Bencoding x = Bencoding.Decode(wR.GetResponseStream());
+                    Bencoding x = Bencoding.Decode(response);
 
                     switch (x.Type)
                     {

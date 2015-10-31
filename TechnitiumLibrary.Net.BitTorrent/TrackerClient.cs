@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.Net;
+using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.BitTorrent
 {
@@ -42,6 +43,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         protected int _interval;
         protected int _minInterval = 30;
+
+        protected SocksClient _proxy;
 
         protected int _leachers;
         protected int _seeders;
@@ -108,10 +111,10 @@ namespace TechnitiumLibrary.Net.BitTorrent
             switch (trackerURI.Scheme)
             {
                 case "udp":
-                    return new UDPTrackerClient(trackerURI, infoHash, clientID);
+                    return new UdpTrackerClient(trackerURI, infoHash, clientID);
 
                 case "http":
-                    return new TCPTrackerClient(trackerURI, infoHash, clientID);
+                    return new HttpTrackerClient(trackerURI, infoHash, clientID);
 
                 default:
                     throw new TrackerClientException("Tracker client only supports HTTP & UDP protocols.");
@@ -156,7 +159,11 @@ namespace TechnitiumLibrary.Net.BitTorrent
             }
             catch (Exception ex)
             {
-                _lastException = ex;
+                if (ex.InnerException == null)
+                    _lastException = ex;
+                else
+                    _lastException = ex.InnerException;
+
                 _interval = _minInterval;
 
                 throw;
@@ -243,6 +250,12 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     return _isUpdating;
                 }
             }
+        }
+
+        public SocksClient SocksProxy
+        {
+            get { return _proxy; }
+            set { _proxy = value; }
         }
 
         #endregion

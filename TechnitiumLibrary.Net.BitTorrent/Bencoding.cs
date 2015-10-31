@@ -195,9 +195,12 @@ namespace TechnitiumLibrary.Net.BitTorrent
             }
         }
 
-        public Bencoding Decode(byte[] data)
+        public static Bencoding Decode(byte[] data)
         {
-            return Decode(new MemoryStream(data));
+            using (MemoryStream mS = new MemoryStream(data))
+            {
+                return Decode(mS);
+            }
         }
 
         #endregion

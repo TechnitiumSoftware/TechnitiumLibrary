@@ -22,10 +22,11 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.BitTorrent
 {
-    class UDPTrackerClient : TrackerClient
+    class UdpTrackerClient : TrackerClient
     {
         #region variables
 
@@ -40,7 +41,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         #region constructor
 
-        public UDPTrackerClient(Uri trackerURI, byte[] infoHash, TrackerClientID clientID)
+        public UdpTrackerClient(Uri trackerURI, byte[] infoHash, TrackerClientID clientID)
             : base(trackerURI, infoHash, clientID)
         {
             _udp = new UdpClient();
@@ -51,27 +52,46 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         #region private
 
-        private byte[] GetConnectionID(byte[] transactionID)
+        private byte[] GetConnectionID(SocksUdpAssociateRequestHandler proxyRequestHandler, byte[] transactionID)
         {
             //Connection_id 64bit 0x41727101980 + action 32bit + transaction_id 32bit (random)
             byte[] requestPacket = new byte[] { 0x0, 0x0, 0x4, 0x17, 0x27, 0x10, 0x19, 0x80, 0x0, 0x0, 0x0, 0x0, transactionID[0], transactionID[1], transactionID[2], transactionID[3] };
 
             for (int n = 0; n < 8; n++)
             {
-                _udp.Client.ReceiveTimeout = Convert.ToInt32(15 * (2 ^ n) * 1000);
+                if (_proxy == null)
+                    _udp.Client.ReceiveTimeout = Convert.ToInt32(15 * (2 ^ n) * 1000);
+                else
+                    proxyRequestHandler.ReceiveTimeout = Convert.ToInt32(15 * (2 ^ n) * 1000);
 
                 try
                 {
                     //SEND CONNECT REQUEST
-                    _udp.Send(requestPacket, requestPacket.Length, _trackerURI.Host, _trackerURI.Port);
+                    if (_proxy == null)
+                        _udp.Send(requestPacket, requestPacket.Length, _trackerURI.Host, _trackerURI.Port);
+                    else
+                        proxyRequestHandler.SendTo(requestPacket, 0, requestPacket.Length, new SocksEndPoint(_trackerURI.Host, _trackerURI.Port));
 
                     //RECV CONNECT RESPONSE
-                    IPEndPoint remoteEP = null;
 
-                    byte[] response = _udp.Receive(ref remoteEP);
+                    byte[] response;
+                    int responseLength;
+
+                    if (_proxy == null)
+                    {
+                        IPEndPoint remoteEP = null;
+                        response = _udp.Receive(ref remoteEP);
+                        responseLength = response.Length;
+                    }
+                    else
+                    {
+                        response = new byte[128];
+                        SocksEndPoint remoteEP;
+                        responseLength = proxyRequestHandler.ReceiveFrom(response, 0, response.Length, out remoteEP);
+                    }
 
                     //check response length
-                    if (response.Length < 16)
+                    if (responseLength < 16)
                         throw new TrackerClientException("Invalid response received for connection request.");
 
                     //check transaction id
@@ -97,7 +117,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             throw new TrackerClientException("No response from tracker.");
         }
 
-        private byte[] GetAnnounceResponse(byte[] transactionID, byte[] connectionID, TrackerClientEvent @event, IPEndPoint clientEP)
+        private int GetAnnounceResponse(SocksUdpAssociateRequestHandler proxyRequestHandler, byte[] transactionID, byte[] connectionID, TrackerClientEvent @event, IPEndPoint clientEP, out byte[] response)
         {
             byte[] request = new byte[98];
 
@@ -149,16 +169,31 @@ namespace TechnitiumLibrary.Net.BitTorrent
             Array.Reverse(portBuffer);
             Buffer.BlockCopy(portBuffer, 2, request, 96, 2);
 
-            //SEND ANNOUNCE REQUEST
-            _udp.Send(request, request.Length, _trackerURI.Host, _trackerURI.Port);
+            int responseLength;
 
-            //RECV ANNOUNCE RESPONSE
-            IPEndPoint remoteEP = null;
+            if (_proxy == null)
+            {
+                //SEND ANNOUNCE REQUEST
+                _udp.Send(request, request.Length, _trackerURI.Host, _trackerURI.Port);
 
-            byte[] response = _udp.Receive(ref remoteEP);
+                //RECV ANNOUNCE RESPONSE
+                IPEndPoint remoteEP = null;
+                response = _udp.Receive(ref remoteEP);
+                responseLength = response.Length;
+            }
+            else
+            {
+                //SEND ANNOUNCE REQUEST
+                proxyRequestHandler.SendTo(request, 0, request.Length, new SocksEndPoint(_trackerURI.Host, _trackerURI.Port));
+
+                //RECV ANNOUNCE RESPONSE
+                response = new byte[1024];
+                SocksEndPoint remoteEP;
+                responseLength = proxyRequestHandler.ReceiveFrom(response, 0, response.Length, out remoteEP);
+            }
 
             //check response length
-            if (response.Length < 20)
+            if (responseLength < 20)
                 throw new TrackerClientException("Invalid response received for announce request.");
 
             //check response transaction id
@@ -170,17 +205,17 @@ namespace TechnitiumLibrary.Net.BitTorrent
             if (response[3] != 1)
                 throw new TrackerClientException("Invalid action received for announce request.");
 
-            return response;
+            return responseLength;
         }
 
-        private static List<IPEndPoint> ParsePeers(byte[] response)
+        private static List<IPEndPoint> ParsePeers(byte[] response, int responseLength)
         {
             List<IPEndPoint> peers = new List<IPEndPoint>();
             byte[] ipBuffer = new byte[4];
             byte[] portBuffer = new byte[2];
             int n = 0;
 
-            while (response.Length > (25 + 6 * n))
+            while (responseLength > (25 + 6 * n))
             {
                 Buffer.BlockCopy(response, 20 + 6 * n, ipBuffer, 0, 4);
                 Buffer.BlockCopy(response, 24 + 6 * n, portBuffer, 0, 2);
@@ -210,54 +245,71 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         protected override void UpdateTracker(TrackerClientEvent @event, IPEndPoint clientEP)
         {
-            for (int n = 0; n < 8; n++)
+            SocksUdpAssociateRequestHandler proxyRequestHandler = null;
+
+            if (_proxy != null)
+                proxyRequestHandler = _proxy.UdpAssociate();
+
+            try
             {
-                try
-                {
-                    if ((_connectionID == null) || (_connectionIDExpires <= DateTime.UtcNow))
-                    {
-                        //GET CONNECTION ID
-                        _rnd.GetBytes(_transactionID);
-                        _connectionID = GetConnectionID(_transactionID);
-                        _connectionIDExpires = DateTime.UtcNow.AddMinutes(1);
-                    }
-                }
-                catch
-                { }
-
-                _udp.Client.ReceiveTimeout = Convert.ToInt32(15 * (2 ^ n) * 1000);
-
-                if (_connectionID != null)
+                for (int n = 0; n < 8; n++)
                 {
                     try
                     {
-                        _rnd.GetBytes(_transactionID);
-                        byte[] announceResponse = GetAnnounceResponse(_transactionID, _connectionID, @event, clientEP);
-
-                        byte[] buffer = new byte[4];
-
-                        Buffer.BlockCopy(announceResponse, 8, buffer, 0, 4);
-                        Array.Reverse(buffer);
-                        _interval = BitConverter.ToInt32(buffer, 0);
-
-                        Buffer.BlockCopy(announceResponse, 12, buffer, 0, 4);
-                        Array.Reverse(buffer);
-                        _leachers = BitConverter.ToInt32(buffer, 0);
-
-                        Buffer.BlockCopy(announceResponse, 16, buffer, 0, 4);
-                        Array.Reverse(buffer);
-                        _seeders = BitConverter.ToInt32(buffer, 0);
-
-                        _peers = ParsePeers(announceResponse);
-
-                        return;
+                        if ((_connectionID == null) || (_connectionIDExpires <= DateTime.UtcNow))
+                        {
+                            //GET CONNECTION ID
+                            _rnd.GetBytes(_transactionID);
+                            _connectionID = GetConnectionID(proxyRequestHandler, _transactionID);
+                            _connectionIDExpires = DateTime.UtcNow.AddMinutes(1);
+                        }
                     }
-                    catch (SocketException)
+                    catch
                     { }
-                }
-            }
 
-            throw new TrackerClientException("No response from tracker.");
+                    if (_proxy == null)
+                        _udp.Client.ReceiveTimeout = Convert.ToInt32(15 * (2 ^ n) * 1000);
+                    else
+                        proxyRequestHandler.ReceiveTimeout = Convert.ToInt32(15 * (2 ^ n) * 1000);
+
+                    if (_connectionID != null)
+                    {
+                        try
+                        {
+                            _rnd.GetBytes(_transactionID);
+                            byte[] announceResponse;
+                            int announceResponseLength = GetAnnounceResponse(proxyRequestHandler, _transactionID, _connectionID, @event, clientEP, out announceResponse);
+
+                            byte[] buffer = new byte[4];
+
+                            Buffer.BlockCopy(announceResponse, 8, buffer, 0, 4);
+                            Array.Reverse(buffer);
+                            _interval = BitConverter.ToInt32(buffer, 0);
+
+                            Buffer.BlockCopy(announceResponse, 12, buffer, 0, 4);
+                            Array.Reverse(buffer);
+                            _leachers = BitConverter.ToInt32(buffer, 0);
+
+                            Buffer.BlockCopy(announceResponse, 16, buffer, 0, 4);
+                            Array.Reverse(buffer);
+                            _seeders = BitConverter.ToInt32(buffer, 0);
+
+                            _peers = ParsePeers(announceResponse, announceResponseLength);
+
+                            return;
+                        }
+                        catch (SocketException)
+                        { }
+                    }
+                }
+
+                throw new TrackerClientException("No response from tracker.");
+            }
+            finally
+            {
+                if (proxyRequestHandler != null)
+                    proxyRequestHandler.Dispose();
+            }
         }
 
         #endregion

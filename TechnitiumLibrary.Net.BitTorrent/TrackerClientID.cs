@@ -123,7 +123,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         public static TrackerClientID CreateDefaultID()
         {
-            return new TrackerClientID(GeneratePeerID("UT3000"), GenerateClientKey(), "uTorrent/3000(25440)", "gzip", 50, true, true);
+            return new TrackerClientID(GeneratePeerID("UT3430"), GenerateClientKey(), "uTorrent/343(109551416)(40760)", "gzip", 50, true, true);
         }
 
         #endregion
