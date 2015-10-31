@@ -63,11 +63,12 @@ namespace TechnitiumLibrary.IO
         public void Dispose()
         {
             Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         bool _disposed = false;
 
-        protected void Dispose(bool disposing)
+        private void Dispose(bool disposing)
         {
             lock (this)
             {
