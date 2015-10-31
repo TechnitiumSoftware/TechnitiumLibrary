@@ -48,7 +48,7 @@ namespace TechnitiumLibrary.Net
         Internet = 1
     }
 
-    public class DnsClient
+    public class DnsClient : IDisposable
     {
         #region variables
 
@@ -75,6 +75,33 @@ namespace TechnitiumLibrary.Net
 
             _socket.SendTimeout = 2000;
             _socket.ReceiveTimeout = 2000;
+        }
+
+        #endregion
+
+        #region IDisposable
+
+        ~DnsClient()
+        {
+            Dispose(false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        bool _disposed = false;
+
+        private void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                _socket.Dispose();
+
+                _disposed = true;
+            }
         }
 
         #endregion
