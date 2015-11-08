@@ -39,7 +39,9 @@
   <ItemGroup>
     <Compile Include="DnsClient.cs" />
     <Compile Include="NetUtilities.cs" />
+    <Compile Include="Proxy\NetProxy.cs" />
     <Compile Include="Proxy\SocksClient.cs" />
+    <Compile Include="Proxy\WebProxyEx.cs" />
     <Compile Include="WebClientEx.cs">
       <SubType>Component</SubType>
     </Compile>
