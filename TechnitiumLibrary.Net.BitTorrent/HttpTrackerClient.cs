@@ -120,7 +120,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             using (WebClientEx webClient = new WebClientEx())
             {
                 if (_proxy != null)
-                    webClient.SocksProxy = _proxy;
+                    webClient.Proxy = _proxy;
 
                 webClient.UserAgent = _clientID.HttpUserAgent;
                 webClient.AddHeader("Accept-Encoding", _clientID.HttpAcceptEncoding);

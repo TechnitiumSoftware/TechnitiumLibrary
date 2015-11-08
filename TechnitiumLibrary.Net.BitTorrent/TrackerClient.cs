@@ -44,7 +44,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
         protected int _interval;
         protected int _minInterval = 30;
 
-        protected SocksClient _proxy;
+        protected NetProxy _proxy;
 
         protected int _leachers;
         protected int _seeders;
@@ -252,7 +252,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             }
         }
 
-        public SocksClient SocksProxy
+        public NetProxy Proxy
         {
             get { return _proxy; }
             set { _proxy = value; }

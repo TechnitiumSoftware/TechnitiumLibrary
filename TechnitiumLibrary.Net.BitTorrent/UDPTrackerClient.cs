@@ -248,7 +248,20 @@ namespace TechnitiumLibrary.Net.BitTorrent
             SocksUdpAssociateRequestHandler proxyRequestHandler = null;
 
             if (_proxy != null)
-                proxyRequestHandler = _proxy.UdpAssociate();
+            {
+                switch (_proxy.Type)
+                {
+                    case NetProxyType.Socks5:
+                        proxyRequestHandler = _proxy.SocksProxy.UdpAssociate();
+                        break;
+
+                    case NetProxyType.Http:
+                        throw new NotSupportedException("Http proxy not supported by Udp tracker.");
+
+                    default:
+                        throw new NotSupportedException("Proxy type not supported by Udp tracker.");
+                }
+            }
 
             try
             {
