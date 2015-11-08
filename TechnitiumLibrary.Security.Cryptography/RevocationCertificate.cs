@@ -67,14 +67,14 @@ namespace TechnitiumLibrary.Security.Cryptography
             s.WriteByte(0); //not found
         }
 
-        public static bool IsRevoked(Certificate certToCheck, out RevocationCertificate revokeCert, SocksClient proxy = null)
+        public static bool IsRevoked(Certificate certToCheck, out RevocationCertificate revokeCert, NetProxy proxy = null)
         {
             if (certToCheck.RevocationURL == null)
                 throw new CryptoException("Certificate does not support revocation.");
 
             using (WebClientEx client = new WebClientEx())
             {
-                client.SocksProxy = proxy;
+                client.Proxy = proxy;
 
                 byte[] buffer = client.DownloadData(certToCheck.RevocationURL.AbsoluteUri + "?sn=" + certToCheck.SerialNumber);
 

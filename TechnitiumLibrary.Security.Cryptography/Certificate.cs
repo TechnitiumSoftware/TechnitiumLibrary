@@ -319,7 +319,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             #endregion
         }
 
-        public void VerifyRevocationList(SocksClient proxy = null)
+        public void VerifyRevocationList(NetProxy proxy = null)
         {
             if (_revocationUri != null)
             {
