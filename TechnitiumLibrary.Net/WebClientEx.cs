@@ -28,7 +28,7 @@ namespace TechnitiumLibrary.Net
     {
         #region variables
 
-        SocksClient _proxy;
+        NetProxy _proxy;
 
         CookieContainer _cookie;
         DateTime _ifModifiedSince;
@@ -118,22 +118,35 @@ namespace TechnitiumLibrary.Net
             }
             else
             {
-                _proxyRequestHandler = _proxy.Connect(address.Host, address.Port);
-
-                if (address.Scheme == "https")
+                switch (_proxy.Type)
                 {
-                    IWebProxy httpProxy = _proxyRequestHandler.CreateLocalHttpProxyConnectTunnel();
+                    case NetProxyType.Http:
+                        request = base.GetWebRequest(address) as HttpWebRequest;
+                        request.Proxy = _proxy.HttpProxy;
+                        break;
 
-                    request = base.GetWebRequest(address) as HttpWebRequest;
-                    request.Proxy = httpProxy;
-                }
-                else
-                {
-                    IPEndPoint localTunnelEP = _proxyRequestHandler.CreateLocalTunnel();
-                    Uri proxyUri = new Uri("http://" + localTunnelEP.Address.ToString() + ":" + localTunnelEP.Port + address.PathAndQuery);
+                    case NetProxyType.Socks5:
+                        _proxyRequestHandler = _proxy.SocksProxy.Connect(address.Host, address.Port);
 
-                    request = base.GetWebRequest(proxyUri) as HttpWebRequest;
-                    request.Host = address.Host;
+                        if (address.Scheme == "https")
+                        {
+                            IWebProxy httpProxy = _proxyRequestHandler.CreateLocalHttpProxyConnectTunnel();
+
+                            request = base.GetWebRequest(address) as HttpWebRequest;
+                            request.Proxy = httpProxy;
+                        }
+                        else
+                        {
+                            IPEndPoint localTunnelEP = _proxyRequestHandler.CreateLocalTunnel();
+                            Uri proxyUri = new Uri("http://" + localTunnelEP.Address.ToString() + ":" + localTunnelEP.Port + address.PathAndQuery);
+
+                            request = base.GetWebRequest(proxyUri) as HttpWebRequest;
+                            request.Host = address.Host;
+                        }
+                        break;
+
+                    default:
+                        throw new NotSupportedException("Proxy type not supported.");
                 }
             }
 
@@ -270,7 +283,7 @@ namespace TechnitiumLibrary.Net
             set { _maximumAutomaticRedirections = value; }
         }
 
-        public SocksClient SocksProxy
+        public new NetProxy Proxy
         {
             get { return _proxy; }
             set { _proxy = value; }

@@ -22,6 +22,7 @@ using System.IO;
 using System.Net;
 using System.Net.Mime;
 using System.Net.Sockets;
+using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net
 {
@@ -316,27 +317,32 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        public static bool IsWebAccessible(Uri[] uriCheckList = null, IWebProxy proxy = null)
+        public static bool IsWebAccessible(Uri[] uriCheckList = null, NetProxy proxy = null, bool throwException = false)
         {
             if (uriCheckList == null)
                 uriCheckList = new Uri[] { new Uri("https://www.google.com/"), new Uri("https://www.microsoft.com/") };
 
-            using (WebClient client = new WebClient())
+            using (WebClientEx client = new WebClientEx())
             {
-                if (proxy != null)
-                    client.Proxy = proxy;
+                client.Proxy = proxy;
+
+                Exception lastException = null;
 
                 foreach (Uri uri in uriCheckList)
                 {
                     try
                     {
                         client.OpenRead(uri);
-
                         return true;
                     }
-                    catch (WebException)
-                    { }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+                    }
                 }
+
+                if (throwException)
+                    throw lastException;
             }
 
             return false;
