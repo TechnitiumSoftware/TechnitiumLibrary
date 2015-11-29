@@ -29,13 +29,31 @@ namespace TechnitiumLibrary.Net
     {
         #region static
 
+        public static bool IsPrivateIP(IPAddress address)
+        {
+            switch (address.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    return IsPrivateIPv4(address);
+
+                case AddressFamily.InterNetworkV6:
+                    return !IsPublicIPv6(address);
+
+                default:
+                    throw new NotSupportedException("Address family not supported.");
+            }
+        }
+
         public static bool IsPrivateIPv4(IPAddress address)
         {
             //127.0.0.0 - 127.255.255.255
             //10.0.0.0 - 10.255.255.255
             //169.254.0.0 - 169.254.255.255
-            //172.16.0.0 - 172.16.31.255
+            //172.16.0.0 - 172.31.255.255
             //192.168.0.0 - 192.168.255.255
+
+            if (address.AddressFamily != AddressFamily.InterNetwork)
+                throw new ArgumentException("IPv4 address expected.");
 
             byte[] ip = address.GetAddressBytes();
 
@@ -46,26 +64,29 @@ namespace TechnitiumLibrary.Net
                     return true;
 
                 case 169:
-                    if (ip[1] == 254)
-                        return true;
-
-                    return false;
+                    return (ip[1] == 254);
 
                 case 172:
-                    if ((ip[1] == 16) && (ip[2] >= 16) && (ip[2] <= 31))
-                        return true;
-
-                    return false;
+                    return ((ip[1] >= 16) && (ip[1] <= 31));
 
                 case 192:
-                    if (ip[1] == 168)
-                        return true;
-
-                    return false;
+                    return (ip[1] == 168);
 
                 default:
                     return false;
             }
+        }
+
+        public static bool IsPublicIPv6(IPAddress address)
+        {
+            //2000::/3 --> Global Unicast
+
+            if (address.AddressFamily != AddressFamily.InterNetworkV6)
+                throw new ArgumentException("IPv6 address expected.");
+
+            byte[] ip = address.GetAddressBytes();
+
+            return ((ip[0] & 0x20) == 0x20);
         }
 
         public static NetworkInfo GetDefaultNetworkInfo()
@@ -75,88 +96,122 @@ namespace TechnitiumLibrary.Net
                 if (nic.OperationalStatus != OperationalStatus.Up)
                     continue;
 
-                if (!nic.Supports(NetworkInterfaceComponent.IPv4))
-                    continue;
-
                 IPInterfaceProperties ipInterface = nic.GetIPProperties();
 
                 foreach (UnicastIPAddressInformation ip in ipInterface.UnicastAddresses)
                 {
-                    if (ip.Address.AddressFamily == AddressFamily.InterNetwork)
+                    switch (ip.Address.AddressFamily)
                     {
-                        byte[] addr = ip.Address.GetAddressBytes();
-                        byte[] mask;
+                        case AddressFamily.InterNetwork:
+                            #region ipv4
+                            {
+                                byte[] addr = ip.Address.GetAddressBytes();
+                                byte[] mask;
 
-                        try
-                        {
-                            mask = ip.IPv4Mask.GetAddressBytes();
-                        }
-                        catch (NotImplementedException)
-                        {
-                            //method not implemented in mono framework for Linux
-                            if (addr[0] == 10)
-                            {
-                                mask = new byte[] { 255, 0, 0, 0 };
-                            }
-                            else if ((addr[0] == 192) && (addr[1] == 168))
-                            {
-                                mask = new byte[] { 255, 255, 255, 0 };
-                            }
-                            else if ((addr[0] == 169) && (addr[1] == 254))
-                            {
-                                mask = new byte[] { 255, 255, 0, 0 };
-                            }
-                            else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
-                            {
-                                mask = new byte[] { 255, 240, 0, 0 };
-                            }
-                            else
-                            {
-                                mask = new byte[] { 255, 255, 255, 0 };
-                            }
-                        }
-                        catch
-                        {
-                            continue;
-                        }
-
-                        foreach (GatewayIPAddressInformation gateway in ipInterface.GatewayAddresses)
-                        {
-                            if (gateway.Address.AddressFamily == AddressFamily.InterNetwork)
-                            {
-                                byte[] gatewayAddr = gateway.Address.GetAddressBytes();
-                                byte[] broadcast = new byte[4];
-                                bool isDefaultRoute = true;
-                                bool isInSameNetwork = true;
-
-                                for (int i = 0; i < 4; i++)
-                                    broadcast[i] = (byte)(addr[i] | ~mask[i]);
-
-                                for (int i = 0; i < 4; i++)
+                                try
                                 {
-                                    if (gatewayAddr[i] != 0)
+                                    mask = ip.IPv4Mask.GetAddressBytes();
+                                }
+                                catch (NotImplementedException)
+                                {
+                                    //method not implemented in mono framework for Linux
+                                    if (addr[0] == 10)
                                     {
-                                        isDefaultRoute = false;
-                                        break;
+                                        mask = new byte[] { 255, 0, 0, 0 };
+                                    }
+                                    else if ((addr[0] == 192) && (addr[1] == 168))
+                                    {
+                                        mask = new byte[] { 255, 255, 255, 0 };
+                                    }
+                                    else if ((addr[0] == 169) && (addr[1] == 254))
+                                    {
+                                        mask = new byte[] { 255, 255, 0, 0 };
+                                    }
+                                    else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
+                                    {
+                                        mask = new byte[] { 255, 240, 0, 0 };
+                                    }
+                                    else
+                                    {
+                                        mask = new byte[] { 255, 255, 255, 0 };
                                     }
                                 }
-
-                                if (isDefaultRoute)
-                                    return new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask), new IPAddress(broadcast));
-
-                                for (int i = 0; i < 4; i++)
+                                catch
                                 {
-                                    if ((addr[i] & mask[i]) != (gatewayAddr[i] & mask[i]))
-                                    {
-                                        isInSameNetwork = false;
-                                        break;
-                                    }
+                                    continue;
                                 }
 
-                                if (isInSameNetwork)
-                                    return new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask), new IPAddress(broadcast));
+                                foreach (GatewayIPAddressInformation gateway in ipInterface.GatewayAddresses)
+                                {
+                                    if (gateway.Address.AddressFamily == AddressFamily.InterNetwork)
+                                    {
+                                        byte[] gatewayAddr = gateway.Address.GetAddressBytes();
+                                        bool isDefaultRoute = true;
+                                        bool isInSameNetwork = true;
+
+                                        for (int i = 0; i < 4; i++)
+                                        {
+                                            if (gatewayAddr[i] != 0)
+                                            {
+                                                isDefaultRoute = false;
+                                                break;
+                                            }
+                                        }
+
+                                        if (isDefaultRoute)
+                                            return new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask));
+
+                                        for (int i = 0; i < 4; i++)
+                                        {
+                                            if ((addr[i] & mask[i]) != (gatewayAddr[i] & mask[i]))
+                                            {
+                                                isInSameNetwork = false;
+                                                break;
+                                            }
+                                        }
+
+                                        if (isInSameNetwork)
+                                            return new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask));
+                                    }
+                                }
                             }
-                        }
+                            #endregion
+                            break;
+
+                        case AddressFamily.InterNetworkV6:
+                            #region ipv6
+                            {
+                                if (IsPublicIPv6(ip.Address))
+                                {
+                                    if (ipInterface.GatewayAddresses.Count > 0)
+                                    {
+                                        byte[] addr = ip.Address.GetAddressBytes();
+                                        bool isValidRoute = true;
+
+                                        foreach (GatewayIPAddressInformation gateway in ipInterface.GatewayAddresses)
+                                        {
+                                            if (gateway.Address.AddressFamily == AddressFamily.InterNetworkV6)
+                                            {
+                                                byte[] gatewayAddr = gateway.Address.GetAddressBytes();
+
+                                                for (int i = 0; i < 8; i++)
+                                                {
+                                                    if (addr[i] != gatewayAddr[i])
+                                                    {
+                                                        isValidRoute = false;
+                                                        break;
+                                                    }
+                                                }
+
+                                                if (isValidRoute)
+                                                    return new NetworkInfo(nic.NetworkInterfaceType, ip.Address);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            #endregion
+                            break;
                     }
                 }
             }
@@ -164,62 +219,73 @@ namespace TechnitiumLibrary.Net
             return null;
         }
 
-        public static List<NetworkInfo> GetNetworkInfo()
+        public static List<NetworkInfo> GetNetworkInfo(AddressFamily addressFamily)
         {
-            List<NetworkInfo> networkInfoList = new List<NetworkInfo>(2);
+            List<NetworkInfo> networkInfoList = new List<NetworkInfo>(3);
 
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
                 if (nic.OperationalStatus != OperationalStatus.Up)
                     continue;
 
-                if (!nic.Supports(NetworkInterfaceComponent.IPv4))
-                    continue;
-
                 foreach (UnicastIPAddressInformation ip in nic.GetIPProperties().UnicastAddresses)
                 {
-                    if (ip.Address.AddressFamily == AddressFamily.InterNetwork)
+                    if (ip.Address.AddressFamily == addressFamily)
                     {
-                        byte[] addr = ip.Address.GetAddressBytes();
-                        byte[] mask;
-
-                        try
+                        switch (ip.Address.AddressFamily)
                         {
-                            mask = ip.IPv4Mask.GetAddressBytes();
-                        }
-                        catch (NotImplementedException)
-                        {
-                            //method not implemented in mono framework for Linux
-                            if (addr[0] == 10)
-                            {
-                                mask = new byte[] { 255, 0, 0, 0 };
-                            }
-                            else if ((addr[0] == 192) && (addr[1] == 168))
-                            {
-                                mask = new byte[] { 255, 255, 255, 0 };
-                            }
-                            else if ((addr[0] == 169) && (addr[1] == 254))
-                            {
-                                mask = new byte[] { 255, 255, 0, 0 };
-                            }
-                            else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
-                            {
-                                mask = new byte[] { 255, 240, 0, 0 };
-                            }
-                            else
-                            {
-                                mask = new byte[] { 255, 255, 255, 0 };
-                            }
-                        }
-                        catch
-                        {
-                            continue;
-                        }
+                            case AddressFamily.InterNetwork:
+                                #region ipv4
 
-                        int ip_bytes = BitConverter.ToInt32(addr, 0);
-                        int mask_bytes = BitConverter.ToInt32(mask, 0); ;
+                                byte[] addr = ip.Address.GetAddressBytes();
+                                byte[] mask;
 
-                        networkInfoList.Add(new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask), new IPAddress(BitConverter.GetBytes(ip_bytes | (~mask_bytes)))));
+                                try
+                                {
+                                    mask = ip.IPv4Mask.GetAddressBytes();
+                                }
+                                catch (NotImplementedException)
+                                {
+                                    //method not implemented in mono framework for Linux
+                                    if (addr[0] == 10)
+                                    {
+                                        mask = new byte[] { 255, 0, 0, 0 };
+                                    }
+                                    else if ((addr[0] == 192) && (addr[1] == 168))
+                                    {
+                                        mask = new byte[] { 255, 255, 255, 0 };
+                                    }
+                                    else if ((addr[0] == 169) && (addr[1] == 254))
+                                    {
+                                        mask = new byte[] { 255, 255, 0, 0 };
+                                    }
+                                    else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
+                                    {
+                                        mask = new byte[] { 255, 240, 0, 0 };
+                                    }
+                                    else
+                                    {
+                                        mask = new byte[] { 255, 255, 255, 0 };
+                                    }
+                                }
+                                catch
+                                {
+                                    continue;
+                                }
+
+                                networkInfoList.Add(new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask)));
+
+                                #endregion
+                                break;
+
+                            case AddressFamily.InterNetworkV6:
+                                #region ipv6
+
+                                networkInfoList.Add(new NetworkInfo(nic.NetworkInterfaceType, ip.Address));
+                                
+                                #endregion
+                                break;
+                        }
                     }
                 }
             }
@@ -236,67 +302,91 @@ namespace TechnitiumLibrary.Net
                 if (nic.OperationalStatus != OperationalStatus.Up)
                     continue;
 
-                if (!nic.Supports(NetworkInterfaceComponent.IPv4))
-                    continue;
-
                 IPInterfaceProperties ipInterface = nic.GetIPProperties();
 
                 foreach (UnicastIPAddressInformation ip in ipInterface.UnicastAddresses)
                 {
-                    if (ip.Address.AddressFamily == AddressFamily.InterNetwork)
+                    if (ip.Address.AddressFamily == destinationIP.AddressFamily)
                     {
-                        byte[] addr = ip.Address.GetAddressBytes();
-                        byte[] mask;
+                        switch (destinationIP.AddressFamily)
+                        {
+                            case AddressFamily.InterNetwork:
+                                #region ipv4
+                                {
+                                    byte[] addr = ip.Address.GetAddressBytes();
+                                    byte[] mask;
 
-                        try
-                        {
-                            mask = ip.IPv4Mask.GetAddressBytes();
-                        }
-                        catch (NotImplementedException)
-                        {
-                            //method not implemented in mono framework for Linux
-                            if (addr[0] == 10)
-                            {
-                                mask = new byte[] { 255, 0, 0, 0 };
-                            }
-                            else if ((addr[0] == 192) && (addr[1] == 168))
-                            {
-                                mask = new byte[] { 255, 255, 255, 0 };
-                            }
-                            else if ((addr[0] == 169) && (addr[1] == 254))
-                            {
-                                mask = new byte[] { 255, 255, 0, 0 };
-                            }
-                            else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
-                            {
-                                mask = new byte[] { 255, 240, 0, 0 };
-                            }
-                            else
-                            {
-                                mask = new byte[] { 255, 255, 255, 0 };
-                            }
-                        }
-                        catch
-                        {
-                            continue;
-                        }
+                                    try
+                                    {
+                                        mask = ip.IPv4Mask.GetAddressBytes();
+                                    }
+                                    catch (NotImplementedException)
+                                    {
+                                        //method not implemented in mono framework for Linux
+                                        if (addr[0] == 10)
+                                        {
+                                            mask = new byte[] { 255, 0, 0, 0 };
+                                        }
+                                        else if ((addr[0] == 192) && (addr[1] == 168))
+                                        {
+                                            mask = new byte[] { 255, 255, 255, 0 };
+                                        }
+                                        else if ((addr[0] == 169) && (addr[1] == 254))
+                                        {
+                                            mask = new byte[] { 255, 255, 0, 0 };
+                                        }
+                                        else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
+                                        {
+                                            mask = new byte[] { 255, 240, 0, 0 };
+                                        }
+                                        else
+                                        {
+                                            mask = new byte[] { 255, 255, 255, 0 };
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        continue;
+                                    }
 
-                        byte[] broadcast = new byte[4];
-                        bool isInSameNetwork = true;
+                                    bool isInSameNetwork = true;
 
-                        for (int i = 0; i < 4; i++)
-                        {
-                            if ((addr[i] & mask[i]) != (destination[i] & mask[i]))
-                            {
-                                isInSameNetwork = false;
+                                    for (int i = 0; i < 4; i++)
+                                    {
+                                        if ((addr[i] & mask[i]) != (destination[i] & mask[i]))
+                                        {
+                                            isInSameNetwork = false;
+                                            break;
+                                        }
+                                    }
+
+                                    if (isInSameNetwork)
+                                        return new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask));
+                                }
+                                #endregion
                                 break;
-                            }
 
-                            broadcast[i] = (byte)(addr[i] | ~mask[i]);
+                            case AddressFamily.InterNetworkV6:
+                                #region ipv6
+                                {
+                                    byte[] addr = ip.Address.GetAddressBytes();
+                                    bool isInSameNetwork = true;
+
+                                    for (int i = 0; i < 8; i++)
+                                    {
+                                        if (addr[i] != destination[i])
+                                        {
+                                            isInSameNetwork = false;
+                                            break;
+                                        }
+                                    }
+
+                                    if (isInSameNetwork)
+                                        return new NetworkInfo(nic.NetworkInterfaceType, ip.Address);
+                                }
+                                #endregion
+                                break;
                         }
-
-                        if (isInSameNetwork)
-                            return new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask), new IPAddress(broadcast));
                     }
                 }
             }
@@ -315,19 +405,37 @@ namespace TechnitiumLibrary.Net
         IPAddress _localIP;
         IPAddress _subnetMask;
         IPAddress _broadcastIP;
-        bool _isPublicIP;
 
         #endregion
 
         #region constructor
 
-        public NetworkInfo(NetworkInterfaceType type, IPAddress localIP, IPAddress subnetMask, IPAddress broadcastIP)
+        public NetworkInfo(NetworkInterfaceType type, IPAddress localIP)
         {
+            if (localIP.AddressFamily != AddressFamily.InterNetworkV6)
+                throw new NotSupportedException("Address family not supported.");
+
+            _type = type;
+            _localIP = localIP;
+        }
+
+        public NetworkInfo(NetworkInterfaceType type, IPAddress localIP, IPAddress subnetMask)
+        {
+            if (localIP.AddressFamily != AddressFamily.InterNetwork)
+                throw new NotSupportedException("Address family not supported.");
+
             _type = type;
             _localIP = localIP;
             _subnetMask = subnetMask;
-            _broadcastIP = broadcastIP;
-            _isPublicIP = !NetUtilities.IsPrivateIPv4(localIP);
+
+            byte[] broadcast = new byte[4];
+            byte[] addr = localIP.GetAddressBytes();
+            byte[] mask = subnetMask.GetAddressBytes();
+
+            for (int i = 0; i < 4; i++)
+                broadcast[i] = (byte)(addr[i] | ~mask[i]);
+
+            _broadcastIP = new IPAddress(broadcast);
         }
 
         #endregion
@@ -353,9 +461,6 @@ namespace TechnitiumLibrary.Net
             if (!_localIP.Equals(obj._localIP))
                 return false;
 
-            if (!_broadcastIP.Equals(obj._broadcastIP))
-                return false;
-
             return true;
         }
 
@@ -379,9 +484,6 @@ namespace TechnitiumLibrary.Net
 
         public IPAddress BroadcastIP
         { get { return _broadcastIP; } }
-
-        public bool IsPublicIP
-        { get { return _isPublicIP; } }
 
         #endregion
     }
