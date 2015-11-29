@@ -54,7 +54,7 @@ namespace TechnitiumLibrary.Net
 
         static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
-        Socket _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        Socket _socket;
         IPEndPoint _server;
 
         #endregion
@@ -65,6 +65,7 @@ namespace TechnitiumLibrary.Net
         {
             _server = server;
 
+            _socket = new Socket(_server.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
             _socket.SendTimeout = 2000;
             _socket.ReceiveTimeout = 2000;
         }
@@ -73,6 +74,7 @@ namespace TechnitiumLibrary.Net
         {
             _server = new IPEndPoint(serverIP, port);
 
+            _socket = new Socket(_server.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
             _socket.SendTimeout = 2000;
             _socket.ReceiveTimeout = 2000;
         }
