@@ -319,7 +319,7 @@ namespace TechnitiumLibrary.IO
                 bytesRead = source.Read(buffer, offset, count);
 
                 if (bytesRead < 1)
-                    throw new IOException("Stream reached EOF.");
+                    throw new EndOfStreamException();
 
                 offset += bytesRead;
                 count -= bytesRead;

@@ -900,7 +900,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     break;
 
                 default:
-                    throw new SocksClientException("Address family not supported.");
+                    throw new NotSupportedException("Address family not supported.");
             }
 
             _address = address.GetAddressBytes();

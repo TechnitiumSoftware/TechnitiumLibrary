@@ -92,7 +92,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     break;
 
                 default:
-                    throw new Exception("TrackerClientID data format version not supported.");
+                    throw new NotSupportedException("TrackerClientID data format version not supported.");
             }
         }
 
