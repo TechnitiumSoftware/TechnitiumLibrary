@@ -46,6 +46,10 @@ namespace TechnitiumLibrary.Security.Cryptography
             _privateKey = privateKey;
         }
 
+        public CertificateStore(string file, string password)
+            : base(file, password)
+        { }
+
         public CertificateStore(Stream s, string password)
             : base(s, password)
         { }

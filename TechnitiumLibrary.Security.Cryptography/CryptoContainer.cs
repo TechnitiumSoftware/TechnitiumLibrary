@@ -47,6 +47,14 @@ namespace TechnitiumLibrary.Security.Cryptography
             SetPassword(cryptoAlgo, keySize, password);
         }
 
+        public CryptoContainer(string file, string password = null)
+        {
+            using (FileStream fS = new FileStream(file, FileMode.Open, FileAccess.Read))
+            {
+                ReadFrom(new BinaryReader(fS), password);
+            }
+        }
+
         public CryptoContainer(Stream s, string password = null)
         {
             ReadFrom(new BinaryReader(s), password);
@@ -95,7 +103,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region protected abstract
 
-        private void ReadFrom(BinaryReader bR, string password = null)
+        private void ReadFrom(BinaryReader bR, string password)
         {
             if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "CC")
                 throw new InvalidCryptoContainerException("Invalid CryptoContainer format.");
@@ -195,6 +203,14 @@ namespace TechnitiumLibrary.Security.Cryptography
         #endregion
 
         #region public
+
+        public void SaveAs(string file)
+        {
+            using (FileStream fS = new FileStream(file, FileMode.Create, FileAccess.ReadWrite))
+            {
+                WriteTo(fS);
+            }
+        }
 
         public sealed override void WriteTo(BinaryWriter bW)
         {
