@@ -36,9 +36,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         #region private
 
-        private static List<IPEndPoint> ParseCompactPeers(byte[] data)
+        private static void ParseCompactPeersIPv4(byte[] data, List<IPEndPoint> peers)
         {
-            List<IPEndPoint> peers = new List<IPEndPoint>();
             byte[] ipBuffer = new byte[4];
             byte[] portBuffer = new byte[2];
 
@@ -60,8 +59,31 @@ namespace TechnitiumLibrary.Net.BitTorrent
                         break;
                 }
             }
+        }
 
-            return peers;
+        private static void ParseCompactPeersIPv6(byte[] data, List<IPEndPoint> peers)
+        {
+            byte[] ipBuffer = new byte[16];
+            byte[] portBuffer = new byte[2];
+
+            for (int i = 0; i < data.Length; i += 18)
+            {
+                Buffer.BlockCopy(data, i, ipBuffer, 0, 16);
+                Buffer.BlockCopy(data, i + 16, portBuffer, 0, 2);
+                Array.Reverse(portBuffer);
+
+                IPAddress peerIP = new IPAddress(ipBuffer);
+                switch (peerIP.ToString())
+                {
+                    case "::":
+                    case "::1":
+                        break;
+
+                    default:
+                        peers.Add(new IPEndPoint(peerIP, BitConverter.ToUInt16(portBuffer, 0)));
+                        break;
+                }
+            }
         }
 
         #endregion
@@ -79,6 +101,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
             {
                 case "0.0.0.0":
                 case "127.0.0.1":
+                case "::":
+                case "::1":
                     break;
 
                 default:
@@ -128,7 +152,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
                 response = webClient.DownloadData(_trackerURI.AbsoluteUri + queryString);
             }
-            
+
             switch (@event)
             {
                 case TrackerClientEvent.None:
@@ -138,6 +162,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     switch (x.Type)
                     {
                         case BencodingType.Dictionary:
+                            _peers.Clear();
+
                             foreach (var item in x.ValueDictionary)
                             {
                                 switch (item.Key)
@@ -145,12 +171,26 @@ namespace TechnitiumLibrary.Net.BitTorrent
                                     case "peers":
                                         switch (item.Value.Type)
                                         {
-                                            case BencodingType.Dictionary:
-                                                //_peers = ParseCompactPeers(item.Value.Value as byte[]);
+                                            case BencodingType.String:
+                                                ParseCompactPeersIPv4(item.Value.Value as byte[], _peers);
                                                 break;
 
+                                            case BencodingType.List:
+                                                foreach (var peerObj in item.Value.ValueList)
+                                                {
+                                                    var peer = peerObj.ValueDictionary;
+
+                                                    _peers.Add(new IPEndPoint(IPAddress.Parse(peer["ip"].ValueString), Convert.ToInt32(peer["port"].ValueInteger)));
+                                                }
+                                                break;
+                                        }
+                                        break;
+
+                                    case "peers_ipv6":
+                                        switch (item.Value.Type)
+                                        {
                                             case BencodingType.String:
-                                                _peers = ParseCompactPeers(item.Value.Value as byte[]);
+                                                ParseCompactPeersIPv6(item.Value.Value as byte[], _peers);
                                                 break;
                                         }
                                         break;
