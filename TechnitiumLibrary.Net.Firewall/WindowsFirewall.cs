@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using NetFwTypeLib;
 using System;
+using System.Collections.Generic;
 
 namespace TechnitiumLibrary.Net.Firewall
 {
@@ -51,6 +52,14 @@ namespace TechnitiumLibrary.Net.Firewall
     {
         Inbound = 0,
         Outbound = 1
+    }
+
+    public enum RuleStatus
+    {
+        DoesNotExists = 0,
+        Disabled = 1,
+        Allowed = 2,
+        Blocked = 3
     }
 
     public class WindowsFirewall
@@ -121,38 +130,47 @@ namespace TechnitiumLibrary.Net.Firewall
             firewallPolicy.Rules.Add(firewallRule);
         }
 
-        public static void RemoteRuleVista(string name)
+        public static void RemoveRuleVista(string name, string applicationPath)
         {
             INetFwPolicy2 firewallPolicy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
-            firewallPolicy.Rules.Remove(name);
-        }
 
-        public static bool RuleExistsVista(string name)
-        {
-            INetFwPolicy2 firewallPolicy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
+            List<INetFwRule> removeRules = new List<INetFwRule>(2);
 
             foreach (INetFwRule rule in firewallPolicy.Rules)
             {
-                if (rule.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase))
-                    return true;
+                if (((rule.Name != null) && rule.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)) || ((rule.ApplicationName != null) && rule.ApplicationName.Equals(applicationPath, StringComparison.CurrentCultureIgnoreCase)))
+                    removeRules.Add(rule);
             }
 
-            return false;
+            foreach (INetFwRule rule in removeRules)
+            {
+                firewallPolicy.Rules.Remove(rule.Name);
+            }
         }
 
-        public static bool RuleExistsVista(string name, string applicationPath)
+        public static RuleStatus RuleExistsVista(string name, string applicationPath)
         {
             INetFwPolicy2 firewallPolicy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
 
             foreach (INetFwRule rule in firewallPolicy.Rules)
             {
-                if (rule.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase))
+                if (((rule.Name != null) && rule.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)) || ((rule.ApplicationName != null) && rule.ApplicationName.Equals(applicationPath, StringComparison.CurrentCultureIgnoreCase)))
                 {
-                    return rule.ApplicationName.Equals(applicationPath, StringComparison.CurrentCultureIgnoreCase);
+                    if (rule.Enabled)
+                    {
+                        if (rule.Action == NET_FW_ACTION_.NET_FW_ACTION_ALLOW)
+                            return RuleStatus.Allowed;
+                        else
+                            return RuleStatus.Blocked;
+                    }
+                    else
+                    {
+                        return RuleStatus.Disabled;
+                    }
                 }
             }
 
-            return false;
+            return RuleStatus.DoesNotExists;
         }
 
         public static void AddPort(string name, Protocol protocol, int port, bool enable)
@@ -263,17 +281,22 @@ namespace TechnitiumLibrary.Net.Firewall
             firewallManager.LocalPolicy.CurrentProfile.AuthorizedApplications.Remove(path);
         }
 
-        public static bool ApplicationExists(string path)
+        public static RuleStatus ApplicationExists(string path)
         {
             INetFwMgr firewallManager = (INetFwMgr)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwMgr"));
 
             foreach (INetFwAuthorizedApplication app in firewallManager.LocalPolicy.CurrentProfile.AuthorizedApplications)
             {
                 if (app.ProcessImageFileName.Equals(path, StringComparison.CurrentCultureIgnoreCase))
-                    return true;
+                {
+                    if (app.Enabled)
+                        return RuleStatus.Allowed;
+                    else
+                        return RuleStatus.Disabled;
+                }
             }
 
-            return false;
+            return RuleStatus.DoesNotExists;
         }
     }
 }
