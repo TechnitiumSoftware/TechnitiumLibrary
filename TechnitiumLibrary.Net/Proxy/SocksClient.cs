@@ -203,6 +203,49 @@ namespace TechnitiumLibrary.Net.Proxy
             return new SocksEndPoint(response, 3);
         }
 
+        private Socket GetProxyConnection()
+        {
+            Socket socket;
+
+            switch (Environment.OSVersion.Platform)
+            {
+                case PlatformID.Win32NT:
+                    if (Environment.OSVersion.Version.Major < 6)
+                    {
+                        //below vista
+                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                    }
+                    else
+                    {
+                        //vista & above
+                        socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+                        socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
+                    }
+                    break;
+
+                case PlatformID.Unix: //mono framework
+                    if (Socket.OSSupportsIPv6)
+                        socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+                    else
+                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+                    break;
+
+                default: //unknown
+                    socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                    break;
+            }
+
+            if (_proxyEP.AddressType == SocksAddressType.DomainName)
+                socket.Connect(_proxyEP.Address, _proxyEP.Port);
+            else
+                socket.Connect(_proxyEP.GetEndPoint());
+
+            socket.NoDelay = true;
+
+            return socket;
+        }
+
         #endregion
 
         #region public
@@ -212,12 +255,10 @@ namespace TechnitiumLibrary.Net.Proxy
             try
             {
                 //connect to proxy server
-                using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+                using (Socket socket = GetProxyConnection())
                 {
-                    if (_proxyEP.AddressType == SocksAddressType.DomainName)
-                        socket.Connect(_proxyEP.Address, _proxyEP.Port);
-                    else
-                        socket.Connect(_proxyEP.GetEndPoint());
+                    socket.SendTimeout = 10000;
+                    socket.ReceiveTimeout = 10000;
 
                     Negotiate(socket);
                 }
@@ -233,12 +274,10 @@ namespace TechnitiumLibrary.Net.Proxy
         public void CheckProxyAccess()
         {
             //connect to proxy server
-            using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+            using (Socket socket = GetProxyConnection())
             {
-                if (_proxyEP.AddressType == SocksAddressType.DomainName)
-                    socket.Connect(_proxyEP.Address, _proxyEP.Port);
-                else
-                    socket.Connect(_proxyEP.GetEndPoint());
+                socket.SendTimeout = 10000;
+                socket.ReceiveTimeout = 10000;
 
                 Negotiate(socket);
             }
@@ -262,14 +301,10 @@ namespace TechnitiumLibrary.Net.Proxy
         public SocksConnectRequestHandler Connect(SocksEndPoint remoteEP)
         {
             //connect to proxy server
-            Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            Socket socket = GetProxyConnection();
 
-            if (_proxyEP.AddressType == SocksAddressType.DomainName)
-                socket.Connect(_proxyEP.Address, _proxyEP.Port);
-            else
-                socket.Connect(_proxyEP.GetEndPoint());
-
-            socket.NoDelay = true;
+            socket.SendTimeout = 30000;
+            socket.ReceiveTimeout = 30000;
 
             try
             {
@@ -288,14 +323,10 @@ namespace TechnitiumLibrary.Net.Proxy
         public SocksBindRequestHandler Bind(SocksEndPoint endpoint)
         {
             //connect to proxy server
-            Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            Socket socket = GetProxyConnection();
 
-            if (_proxyEP.AddressType == SocksAddressType.DomainName)
-                socket.Connect(_proxyEP.Address, _proxyEP.Port);
-            else
-                socket.Connect(_proxyEP.GetEndPoint());
-
-            socket.NoDelay = true;
+            socket.SendTimeout = 30000;
+            socket.ReceiveTimeout = 30000;
 
             try
             {
@@ -328,12 +359,10 @@ namespace TechnitiumLibrary.Net.Proxy
             udpSocket.Bind(localEP);
 
             //connect to proxy server
-            Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            Socket socket = GetProxyConnection();
 
-            if (_proxyEP.AddressType == SocksAddressType.DomainName)
-                socket.Connect(_proxyEP.Address, _proxyEP.Port);
-            else
-                socket.Connect(_proxyEP.GetEndPoint());
+            socket.SendTimeout = 30000;
+            socket.ReceiveTimeout = 30000;
 
             try
             {
