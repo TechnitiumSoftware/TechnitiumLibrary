@@ -55,21 +55,55 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public Socket Connect(IPEndPoint remoteEP)
         {
-            return Connect(remoteEP.Address.ToString(), remoteEP.Port);
+            if (remoteEP.AddressFamily == AddressFamily.InterNetworkV6)
+                return Connect("[" + remoteEP.Address.ToString() + "]", remoteEP.Port);
+            else
+                return Connect(remoteEP.Address.ToString(), remoteEP.Port);
         }
 
         public Socket Connect(IPAddress address, int port)
         {
-            return Connect(address.ToString(), port);
+            if (address.AddressFamily == AddressFamily.InterNetworkV6)
+                return Connect("[" + address.ToString() + "]", port);
+            else
+                return Connect(address.ToString(), port);
         }
 
         public Socket Connect(string address, int port)
         {
-            Socket socket = null;
+            Socket socket;
+
+            switch (Environment.OSVersion.Platform)
+            {
+                case PlatformID.Win32NT:
+                    if (Environment.OSVersion.Version.Major < 6)
+                    {
+                        //below vista
+                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                    }
+                    else
+                    {
+                        //vista & above
+                        socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+                        socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
+                    }
+                    break;
+
+                case PlatformID.Unix: //mono framework
+                    if (Socket.OSSupportsIPv6)
+                        socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+                    else
+                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+                    break;
+
+                default: //unknown
+                    socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                    break;
+            }
 
             try
             {
-                socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 socket.Connect(this.Address.Host, this.Address.Port);
                 socket.SendTimeout = 30000;
                 socket.ReceiveTimeout = 30000;
@@ -112,8 +146,7 @@ namespace TechnitiumLibrary.Net.Proxy
             }
             catch
             {
-                if (socket != null)
-                    socket.Dispose();
+                socket.Dispose();
 
                 throw;
             }
