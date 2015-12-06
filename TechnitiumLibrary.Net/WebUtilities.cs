@@ -317,14 +317,15 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        public static bool IsWebAccessible(Uri[] uriCheckList = null, NetProxy proxy = null, bool throwException = false)
+        public static bool IsWebAccessible(Uri[] uriCheckList = null, NetProxy proxy = null, bool throwException = false, int timeout = 30000)
         {
             if (uriCheckList == null)
-                uriCheckList = new Uri[] { new Uri("https://www.google.com/"), new Uri("https://www.microsoft.com/") };
+                uriCheckList = new Uri[] { new Uri("http://www.google.com/"), new Uri("http://www.microsoft.com/") };
 
             using (WebClientEx client = new WebClientEx())
             {
                 client.Proxy = proxy;
+                client.Timeout = timeout;
 
                 Exception lastException = null;
 
