@@ -86,7 +86,68 @@ namespace TechnitiumLibrary.Net
 
             byte[] ip = address.GetAddressBytes();
 
-            return ((ip[0] & 0x20) == 0x20);
+            return ((ip[0] & 0xE0) == 0x20);
+        }
+
+        public static bool IsIPv4MappedIPv6Address(IPAddress address)
+        {
+            //::FFFF:127.0.0.1
+
+            if (address.AddressFamily != AddressFamily.InterNetworkV6)
+                return false;
+
+            byte[] ipv6 = address.GetAddressBytes();
+
+            for (int i = 0; i < 10; i++)
+            {
+                if (ipv6[i] != 0)
+                    return false;
+            }
+
+            return ((ipv6[10] == 0xff) && (ipv6[11] == 0xff));
+        }
+
+        public static IPAddress ConvertFromIPv4MappedIPv6Address(IPAddress address)
+        {
+            switch (address.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    return address;
+
+                case AddressFamily.InterNetworkV6:
+                    byte[] ipv6 = address.GetAddressBytes();
+                    byte[] ipv4 = new byte[4];
+
+                    Buffer.BlockCopy(ipv6, 12, ipv4, 0, 4);
+
+                    return new IPAddress(ipv4);
+
+                default:
+                    throw new NotSupportedException("Address family not supported.");
+            }
+        }
+
+        public static IPAddress ConvertToIPv4MappedIPv6Address(IPAddress address)
+        {
+            switch (address.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    byte[] ipv4 = address.GetAddressBytes();
+                    byte[] ipv6 = new byte[16];
+
+                    ipv6[10] = 0xff;
+                    ipv6[11] = 0xff;
+
+                    Buffer.BlockCopy(ipv4, 0, ipv6, 12, 4);
+
+                    return new IPAddress(ipv6);
+
+                case AddressFamily.InterNetworkV6:
+                    return address;
+
+                default:
+                    throw new NotSupportedException("Address family not supported.");
+            }
         }
 
         public static NetworkInfo GetDefaultNetworkInfo()
@@ -159,7 +220,7 @@ namespace TechnitiumLibrary.Net
                                         }
 
                                         if (isDefaultRoute)
-                                            return new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask));
+                                            return new NetworkInfo(nic, ip.Address, new IPAddress(mask));
 
                                         for (int i = 0; i < 4; i++)
                                         {
@@ -171,7 +232,7 @@ namespace TechnitiumLibrary.Net
                                         }
 
                                         if (isInSameNetwork)
-                                            return new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask));
+                                            return new NetworkInfo(nic, ip.Address, new IPAddress(mask));
                                     }
                                 }
                             }
@@ -204,7 +265,7 @@ namespace TechnitiumLibrary.Net
                                                 }
 
                                                 if (isValidRoute)
-                                                    return new NetworkInfo(nic.NetworkInterfaceType, ip.Address);
+                                                    return new NetworkInfo(nic, ip.Address);
                                             }
                                         }
                                     }
@@ -219,7 +280,7 @@ namespace TechnitiumLibrary.Net
             return null;
         }
 
-        public static List<NetworkInfo> GetNetworkInfo(AddressFamily addressFamily)
+        public static List<NetworkInfo> GetNetworkInfo()
         {
             List<NetworkInfo> networkInfoList = new List<NetworkInfo>(3);
 
@@ -230,62 +291,59 @@ namespace TechnitiumLibrary.Net
 
                 foreach (UnicastIPAddressInformation ip in nic.GetIPProperties().UnicastAddresses)
                 {
-                    if (ip.Address.AddressFamily == addressFamily)
+                    switch (ip.Address.AddressFamily)
                     {
-                        switch (ip.Address.AddressFamily)
-                        {
-                            case AddressFamily.InterNetwork:
-                                #region ipv4
+                        case AddressFamily.InterNetwork:
+                            #region ipv4
 
-                                byte[] addr = ip.Address.GetAddressBytes();
-                                byte[] mask;
+                            byte[] addr = ip.Address.GetAddressBytes();
+                            byte[] mask;
 
-                                try
+                            try
+                            {
+                                mask = ip.IPv4Mask.GetAddressBytes();
+                            }
+                            catch (NotImplementedException)
+                            {
+                                //method not implemented in mono framework for Linux
+                                if (addr[0] == 10)
                                 {
-                                    mask = ip.IPv4Mask.GetAddressBytes();
+                                    mask = new byte[] { 255, 0, 0, 0 };
                                 }
-                                catch (NotImplementedException)
+                                else if ((addr[0] == 192) && (addr[1] == 168))
                                 {
-                                    //method not implemented in mono framework for Linux
-                                    if (addr[0] == 10)
-                                    {
-                                        mask = new byte[] { 255, 0, 0, 0 };
-                                    }
-                                    else if ((addr[0] == 192) && (addr[1] == 168))
-                                    {
-                                        mask = new byte[] { 255, 255, 255, 0 };
-                                    }
-                                    else if ((addr[0] == 169) && (addr[1] == 254))
-                                    {
-                                        mask = new byte[] { 255, 255, 0, 0 };
-                                    }
-                                    else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
-                                    {
-                                        mask = new byte[] { 255, 240, 0, 0 };
-                                    }
-                                    else
-                                    {
-                                        mask = new byte[] { 255, 255, 255, 0 };
-                                    }
+                                    mask = new byte[] { 255, 255, 255, 0 };
                                 }
-                                catch
+                                else if ((addr[0] == 169) && (addr[1] == 254))
                                 {
-                                    continue;
+                                    mask = new byte[] { 255, 255, 0, 0 };
                                 }
+                                else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
+                                {
+                                    mask = new byte[] { 255, 240, 0, 0 };
+                                }
+                                else
+                                {
+                                    mask = new byte[] { 255, 255, 255, 0 };
+                                }
+                            }
+                            catch
+                            {
+                                continue;
+                            }
 
-                                networkInfoList.Add(new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask)));
+                            networkInfoList.Add(new NetworkInfo(nic, ip.Address, new IPAddress(mask)));
 
-                                #endregion
-                                break;
+                            #endregion
+                            break;
 
-                            case AddressFamily.InterNetworkV6:
-                                #region ipv6
+                        case AddressFamily.InterNetworkV6:
+                            #region ipv6
 
-                                networkInfoList.Add(new NetworkInfo(nic.NetworkInterfaceType, ip.Address));
-                                
-                                #endregion
-                                break;
-                        }
+                            networkInfoList.Add(new NetworkInfo(nic, ip.Address));
+
+                            #endregion
+                            break;
                     }
                 }
             }
@@ -295,6 +353,9 @@ namespace TechnitiumLibrary.Net
 
         public static NetworkInfo GetNetworkInfo(IPAddress destinationIP)
         {
+            if (IsIPv4MappedIPv6Address(destinationIP))
+                destinationIP = ConvertFromIPv4MappedIPv6Address(destinationIP);
+
             byte[] destination = destinationIP.GetAddressBytes();
 
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
@@ -361,7 +422,7 @@ namespace TechnitiumLibrary.Net
                                     }
 
                                     if (isInSameNetwork)
-                                        return new NetworkInfo(nic.NetworkInterfaceType, ip.Address, new IPAddress(mask));
+                                        return new NetworkInfo(nic, ip.Address, new IPAddress(mask));
                                 }
                                 #endregion
                                 break;
@@ -382,7 +443,7 @@ namespace TechnitiumLibrary.Net
                                     }
 
                                     if (isInSameNetwork)
-                                        return new NetworkInfo(nic.NetworkInterfaceType, ip.Address);
+                                        return new NetworkInfo(nic, ip.Address);
                                 }
                                 #endregion
                                 break;
@@ -401,7 +462,7 @@ namespace TechnitiumLibrary.Net
     {
         #region variables
 
-        NetworkInterfaceType _type;
+        NetworkInterface _nic;
         IPAddress _localIP;
         IPAddress _subnetMask;
         IPAddress _broadcastIP;
@@ -410,21 +471,21 @@ namespace TechnitiumLibrary.Net
 
         #region constructor
 
-        public NetworkInfo(NetworkInterfaceType type, IPAddress localIP)
+        public NetworkInfo(NetworkInterface nic, IPAddress localIP)
         {
             if (localIP.AddressFamily != AddressFamily.InterNetworkV6)
                 throw new NotSupportedException("Address family not supported.");
 
-            _type = type;
+            _nic = nic;
             _localIP = localIP;
         }
 
-        public NetworkInfo(NetworkInterfaceType type, IPAddress localIP, IPAddress subnetMask)
+        public NetworkInfo(NetworkInterface nic, IPAddress localIP, IPAddress subnetMask)
         {
             if (localIP.AddressFamily != AddressFamily.InterNetwork)
                 throw new NotSupportedException("Address family not supported.");
 
-            _type = type;
+            _nic = nic;
             _localIP = localIP;
             _subnetMask = subnetMask;
 
@@ -455,7 +516,7 @@ namespace TechnitiumLibrary.Net
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (_type != obj._type)
+            if (_nic.NetworkInterfaceType != _nic.NetworkInterfaceType)
                 return false;
 
             if (!_localIP.Equals(obj._localIP))
@@ -473,8 +534,8 @@ namespace TechnitiumLibrary.Net
 
         #region properties
 
-        public NetworkInterfaceType InterfaceType
-        { get { return _type; } }
+        public NetworkInterface Interface
+        { get { return _nic; } }
 
         public IPAddress LocalIP
         { get { return _localIP; } }
