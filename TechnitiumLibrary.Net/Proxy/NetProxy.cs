@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.Net.Proxy
             switch (_type)
             {
                 case NetProxyType.Http:
-                    return WebUtilities.IsWebAccessible(null, this);
+                    return WebUtilities.IsWebAccessible(null, this, false, 5000);
 
                 case NetProxyType.Socks5:
                     return _socksProxy.IsProxyAvailable();
@@ -58,7 +58,7 @@ namespace TechnitiumLibrary.Net.Proxy
             switch (_type)
             {
                 case NetProxyType.Http:
-                    WebUtilities.IsWebAccessible(null, this, true);
+                    WebUtilities.IsWebAccessible(null, this, true, 5000);
                     break;
 
                 case NetProxyType.Socks5:

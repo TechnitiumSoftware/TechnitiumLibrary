@@ -257,8 +257,8 @@ namespace TechnitiumLibrary.Net.Proxy
                 //connect to proxy server
                 using (Socket socket = GetProxyConnection())
                 {
-                    socket.SendTimeout = 10000;
-                    socket.ReceiveTimeout = 10000;
+                    socket.SendTimeout = 5000;
+                    socket.ReceiveTimeout = 5000;
 
                     Negotiate(socket);
                 }
@@ -276,8 +276,8 @@ namespace TechnitiumLibrary.Net.Proxy
             //connect to proxy server
             using (Socket socket = GetProxyConnection())
             {
-                socket.SendTimeout = 10000;
-                socket.ReceiveTimeout = 10000;
+                socket.SendTimeout = 5000;
+                socket.ReceiveTimeout = 5000;
 
                 Negotiate(socket);
             }
