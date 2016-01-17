@@ -101,6 +101,9 @@ namespace TechnitiumLibrary.Security.Cryptography
                     _privateKey = new AsymmetricCryptoKey(s);
                     break;
 
+                case -1:
+                    throw new EndOfStreamException();
+
                 default:
                     throw new CryptoException("CertificateStore format version not supported.");
             }

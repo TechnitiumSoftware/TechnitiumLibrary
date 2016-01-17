@@ -195,6 +195,9 @@ namespace TechnitiumLibrary.Security.Cryptography
                     }
                     break;
 
+                case -1:
+                    throw new EndOfStreamException();
+
                 default:
                     throw new InvalidCryptoContainerException("CryptoContainer format version not supported.");
             }
