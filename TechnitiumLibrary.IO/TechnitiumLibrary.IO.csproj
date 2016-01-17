@@ -37,6 +37,7 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Bincoding.cs" />
     <Compile Include="FixMemoryStream.cs" />
     <Compile Include="IWriteStream.cs" />
     <Compile Include="Joint.cs" />
