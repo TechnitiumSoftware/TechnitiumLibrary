@@ -22,7 +22,7 @@ using System.IO;
 
 namespace TechnitiumLibrary.IO
 {
-    public class OffsetStream : Stream, IWriteStream
+    public class OffsetStream : Stream
     {
         #region variables
 
@@ -247,29 +247,6 @@ namespace TechnitiumLibrary.IO
             {
                 _position = previousPosition;
             }
-        }
-
-        public void WriteTo(BinaryWriter bW)
-        {
-            bW.Flush();
-            WriteTo(bW.BaseStream);
-        }
-
-        public byte[] ToArray()
-        {
-            using (MemoryStream mS = new MemoryStream())
-            {
-                WriteTo(mS);
-                return mS.ToArray();
-            }
-        }
-
-        public Stream ToStream()
-        {
-            MemoryStream mS = new MemoryStream();
-            WriteTo(mS);
-            mS.Position = 0;
-            return mS;
         }
 
         public static void StreamCopy(Stream source, Stream destination, int bufferSize = 128 * 1024, bool flushDestinationStream = false)
