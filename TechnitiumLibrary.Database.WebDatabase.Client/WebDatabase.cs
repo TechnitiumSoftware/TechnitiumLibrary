@@ -226,7 +226,7 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
                     WebDataRow DR = new WebDataRow(DT);
 
                     for (int col = 0; col < colCount; col++)
-                        DR.Items.Add(new WebDbDataItem(bR));
+                        DR.Items.Add(new WebDbDataItem(bR.BaseStream));
 
                     DT.Rows.Add(DR);
                 }

@@ -101,20 +101,8 @@ namespace TechnitiumLibrary.Database.WebDatabase
 
         public WebDbDataItem(Stream s)
         {
-            Load(new BinaryReader(s));
-        }
+            BinaryReader bR = new BinaryReader(s);
 
-        public WebDbDataItem(BinaryReader bR)
-        {
-            Load(bR);
-        }
-
-        #endregion
-
-        #region private
-
-        private void Load(BinaryReader bR)
-        {
             switch (bR.ReadByte()) //version
             {
                 case 1:
@@ -137,7 +125,14 @@ namespace TechnitiumLibrary.Database.WebDatabase
 
         #region public
 
-        public override void WriteTo(BinaryWriter bW)
+        public override void WriteTo(Stream s)
+        {
+            BinaryWriter bW = new BinaryWriter(s);
+            WriteTo(bW);
+            bW.Flush();
+        }
+
+        public void WriteTo(BinaryWriter bW)
         {
             bW.Write((byte)1);
             bW.Write((byte)_type);

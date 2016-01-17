@@ -94,11 +94,6 @@ namespace TechnitiumLibrary.IO
             ReadFrom(new BinaryReader(s));
         }
 
-        public PackageItem(BinaryReader bR)
-        {
-            ReadFrom(bR);
-        }
-
         #endregion
 
         #region IDisposable
@@ -168,8 +163,10 @@ namespace TechnitiumLibrary.IO
             return ((_attributes & attribute) > 0);
         }
 
-        public override void WriteTo(BinaryWriter bW)
+        public override void WriteTo(Stream s)
         {
+            BinaryWriter bW = new BinaryWriter(s);
+
             bW.Write((byte)1); //version
 
             byte[] buffer;
@@ -191,6 +188,8 @@ namespace TechnitiumLibrary.IO
 
             bW.Write(_data.Length);
             OffsetStream.StreamCopy(_data, bW);
+
+            bW.Flush();
         }
 
         public PackageItemTransactionLog Extract(string filepath, bool overwrite = false)

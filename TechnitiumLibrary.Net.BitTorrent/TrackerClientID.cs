@@ -63,11 +63,6 @@ namespace TechnitiumLibrary.Net.BitTorrent
             ReadFrom(new BinaryReader(s));
         }
 
-        public TrackerClientID(BinaryReader bR)
-        {
-            ReadFrom(bR);
-        }
-
         #endregion
 
         #region private
@@ -130,8 +125,10 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         #region public
 
-        public override void WriteTo(BinaryWriter bW)
+        public override void WriteTo(Stream s)
         {
+            BinaryWriter bW = new BinaryWriter(s);
+
             bW.Write(Encoding.ASCII.GetBytes("ID"));
             bW.Write(Convert.ToByte(1));
 
@@ -144,6 +141,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
             bW.Write(_numWant);
             bW.Write(_compact);
             bW.Write(_noPeerID);
+
+            bW.Flush();
         }
 
         #endregion
