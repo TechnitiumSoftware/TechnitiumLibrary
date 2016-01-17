@@ -55,20 +55,8 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public Signature(Stream s)
         {
-            ReadFrom(new BinaryReader(s));
-        }
+            BinaryReader bR = new BinaryReader(s);
 
-        public Signature(BinaryReader bR)
-        {
-            ReadFrom(bR);
-        }
-
-        #endregion
-
-        #region private
-
-        private void ReadFrom(BinaryReader bR)
-        {
             if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "SN") //format
                 throw new CryptoException("Invalid signature format.");
 
@@ -79,8 +67,8 @@ namespace TechnitiumLibrary.Security.Cryptography
                     _hashAlgo = Encoding.ASCII.GetString(bR.ReadBytes(bR.ReadByte()));
                     _signAlgo = (AsymmetricEncryptionAlgorithm)bR.ReadByte();
 
-                    if (bR.ReadByte() == 1)
-                        _signingCert = new Certificate(bR);
+                    if (s.ReadByte() == 1)
+                        _signingCert = new Certificate(s);
 
                     break;
 
@@ -115,27 +103,27 @@ namespace TechnitiumLibrary.Security.Cryptography
             return AsymmetricCryptoKey.Verify(hash, _signedHash, _hashAlgo, signingCert);
         }
 
-        public override void WriteTo(BinaryWriter bW)
+        public override void WriteTo(Stream s)
         {
-            bW.Write(Encoding.ASCII.GetBytes("SN")); //format
-            bW.Write((byte)1);
+            s.Write(Encoding.ASCII.GetBytes("SN"), 0, 2); //format
+            s.WriteByte((byte)1);
 
-            bW.Write(Convert.ToUInt16(_signedHash.Length));
-            bW.Write(_signedHash);
+            s.Write(BitConverter.GetBytes(Convert.ToUInt16(_signedHash.Length)), 0, 2);
+            s.Write(_signedHash, 0, _signedHash.Length);
 
-            bW.Write(Convert.ToByte(_hashAlgo.Length));
-            bW.Write(Encoding.ASCII.GetBytes(_hashAlgo));
+            s.WriteByte(Convert.ToByte(_hashAlgo.Length));
+            s.Write(Encoding.ASCII.GetBytes(_hashAlgo), 0, _hashAlgo.Length);
 
-            bW.Write((byte)_signAlgo);
+            s.WriteByte((byte)_signAlgo);
 
             if (_signingCert == null)
             {
-                bW.Write((byte)0);
+                s.WriteByte((byte)0);
             }
             else
             {
-                bW.Write((byte)1);
-                _signingCert.WriteTo(bW);
+                s.WriteByte((byte)1);
+                _signingCert.WriteTo(s);
             }
         }
 

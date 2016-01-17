@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
-using System.Net;
 using System.Text;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net;
@@ -50,12 +49,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public RevocationCertificate(Stream s)
         {
-            ReadFrom(new BinaryReader(s));
-        }
-
-        public RevocationCertificate(BinaryReader bR)
-        {
-            ReadFrom(bR);
+            ReadFrom(s);
         }
 
         #endregion
@@ -78,16 +72,16 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                 byte[] buffer = client.DownloadData(certToCheck.RevocationURL.AbsoluteUri + "?sn=" + certToCheck.SerialNumber);
 
-                using (BinaryReader bR = new BinaryReader(new MemoryStream(buffer)))
+                using (MemoryStream mS = new MemoryStream(buffer))
                 {
-                    switch (bR.ReadByte())
+                    switch (mS.ReadByte())
                     {
                         case 0: //not found
                             revokeCert = null;
                             return false;
 
                         case 1:
-                            revokeCert = new RevocationCertificate(bR);
+                            revokeCert = new RevocationCertificate(mS);
                             break;
 
                         default:
@@ -137,8 +131,10 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region private
 
-        private void ReadFrom(BinaryReader bR)
+        private void ReadFrom(Stream s)
         {
+            BinaryReader bR = new BinaryReader(s);
+
             if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "RC")
                 throw new InvalidCertificateException("Invalid RevocationCertificate format.");
 
@@ -170,34 +166,32 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public void WriteFoundServerResponseTo(Stream s)
         {
-            BinaryWriter bW = new BinaryWriter(s);
-            bW.Write((byte)1); //found
-            WriteTo(bW);
-            bW.Flush();
+            s.WriteByte((byte)1); //found
+            WriteTo(s);
         }
 
-        public override void WriteTo(BinaryWriter bW)
+        public override void WriteTo(Stream s)
         {
             //format
-            bW.Write(Encoding.ASCII.GetBytes("RC"));
+            s.Write(Encoding.ASCII.GetBytes("RC"), 0, 2);
 
             //version
-            bW.Write((byte)1);
+            s.WriteByte((byte)1);
 
             //serial number
-            bW.Write(Convert.ToByte(_serialNumber.Length));
-            bW.Write(Encoding.ASCII.GetBytes(_serialNumber));
+            s.WriteByte(Convert.ToByte(_serialNumber.Length));
+            s.Write(Encoding.ASCII.GetBytes(_serialNumber), 0, _serialNumber.Length);
 
             //revoked on
-            bW.Write(_revokedOnUTC.ToBinary());
+            s.Write(BitConverter.GetBytes(_revokedOnUTC.ToBinary()), 0, 8);
 
             //signature
-            bW.Write(Convert.ToUInt16(_signature.Length));
-            bW.Write(_signature);
+            s.Write(BitConverter.GetBytes(Convert.ToUInt16(_signature.Length)), 0, 2);
+            s.Write(_signature, 0, _signature.Length);
 
             //hash algo
-            bW.Write(Convert.ToByte(_hashAlgo.Length));
-            bW.Write(Encoding.ASCII.GetBytes(_hashAlgo));
+            s.WriteByte(Convert.ToByte(_hashAlgo.Length));
+            s.Write(Encoding.ASCII.GetBytes(_hashAlgo), 0, _hashAlgo.Length);
         }
 
         #endregion

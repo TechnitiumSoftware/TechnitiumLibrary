@@ -146,20 +146,17 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public CertificateProfile(Stream s)
         {
-            ReadFrom(new BinaryReader(s));
-        }
-
-        public CertificateProfile(BinaryReader bR)
-        {
-            ReadFrom(bR);
+            ReadFrom(s);
         }
 
         #endregion
 
         #region private
 
-        private void ReadFrom(BinaryReader bR)
+        private void ReadFrom(Stream s)
         {
+            BinaryReader bR = new BinaryReader(s);
+
             if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "CP")
                 throw new CryptoException("Invalid CertificateProfile format.");
 
@@ -354,9 +351,11 @@ namespace TechnitiumLibrary.Security.Cryptography
             return base.GetHashCode();
         }
 
-        public override void WriteTo(BinaryWriter bW)
+        public override void WriteTo(Stream s)
         {
             byte[] buffer = null;
+
+            BinaryWriter bW = new BinaryWriter(s);
 
             bW.Write(Encoding.ASCII.GetBytes("CP"));
             bW.Write(_version);
@@ -429,6 +428,8 @@ namespace TechnitiumLibrary.Security.Cryptography
                 bW.Write(Convert.ToByte(buffer.Length));
                 bW.Write(buffer);
             }
+
+            bW.Flush();
         }
 
         #endregion

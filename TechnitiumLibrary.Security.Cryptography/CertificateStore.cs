@@ -58,14 +58,6 @@ namespace TechnitiumLibrary.Security.Cryptography
             : base(s, null)
         { }
 
-        public CertificateStore(BinaryReader bR, string password)
-            : base(bR, password)
-        { }
-
-        public CertificateStore(BinaryReader bR)
-            : base(bR, null)
-        { }
-
         #endregion
 
         #region IDisposable
@@ -94,16 +86,19 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region private
 
-        protected override void ReadPlainTextFrom(BinaryReader bR)
+        protected override void ReadPlainTextFrom(Stream s)
         {
-            if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "CS")
+            byte[] format = new byte[2];
+            s.Read(format, 0, 2);
+
+            if (Encoding.ASCII.GetString(format) != "CS")
                 throw new InvalidCryptoContainerException("Invalid CertificateStore format.");
 
-            switch (bR.ReadByte()) //version
+            switch (s.ReadByte()) //version
             {
                 case 1:
-                    _cert = new Certificate(bR);
-                    _privateKey = new AsymmetricCryptoKey(bR);
+                    _cert = new Certificate(s);
+                    _privateKey = new AsymmetricCryptoKey(s);
                     break;
 
                 default:
@@ -111,15 +106,13 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
         }
 
-        protected override void WritePlainTextTo(BinaryWriter bW)
+        protected override void WritePlainTextTo(Stream s)
         {
-            bW.Write(Encoding.ASCII.GetBytes("CS")); //format
-            bW.Write((byte)1); //version
+            s.Write(Encoding.ASCII.GetBytes("CS"), 0, 2); //format
+            s.WriteByte((byte)1); //version
 
-            _cert.WriteTo(bW);
-            _privateKey.WriteTo(bW);
-
-            bW.Flush();
+            _cert.WriteTo(s);
+            _privateKey.WriteTo(s);
         }
 
         #endregion

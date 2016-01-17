@@ -91,20 +91,8 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public Certificate(Stream s)
         {
-            ReadFrom(new BinaryReader(s));
-        }
+            BinaryReader bR = new BinaryReader(s);
 
-        public Certificate(BinaryReader bR)
-        {
-            ReadFrom(bR);
-        }
-
-        #endregion
-
-        #region private
-
-        private void ReadFrom(BinaryReader bR)
-        {
             if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "CE")
                 throw new InvalidCertificateException("Invalid certificate format.");
 
@@ -115,7 +103,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                     _type = (CertificateType)bR.ReadByte();
 
                     _serialNumber = Encoding.ASCII.GetString(bR.ReadBytes(bR.ReadByte()));
-                    _issuedTo = new CertificateProfile(bR);
+                    _issuedTo = new CertificateProfile(s);
                     _capability = (CertificateCapability)bR.ReadByte();
 
                     _issuedOnUTC = bR.ReadUInt64();
@@ -128,8 +116,8 @@ namespace TechnitiumLibrary.Security.Cryptography
                     if (rUriLen > 0)
                         _revocationUri = new Uri(Encoding.UTF8.GetString(bR.ReadBytes(rUriLen)));
 
-                    if (bR.ReadByte() == 1)
-                        _issuerSignature = new Signature(bR);
+                    if (s.ReadByte() == 1)
+                        _issuerSignature = new Signature(s);
 
                     break;
 
@@ -140,38 +128,33 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         private void WriteCertificateTo(Stream s)
         {
-            BinaryWriter bW = new BinaryWriter(s);
-            WriteCertificateTo(bW);
-            bW.Flush();
-        }
+            s.Write(Encoding.ASCII.GetBytes("CE"), 0, 2);
+            s.WriteByte(_version);
 
-        private void WriteCertificateTo(BinaryWriter bW)
-        {
-            bW.Write(Encoding.ASCII.GetBytes("CE"));
+            s.WriteByte((byte)_type);
 
-            bW.Write(_version);
-            bW.Write((byte)_type);
+            s.WriteByte(Convert.ToByte(_serialNumber.Length));
+            s.Write(Encoding.ASCII.GetBytes(_serialNumber), 0, _serialNumber.Length);
 
-            bW.Write(Convert.ToByte(_serialNumber.Length));
-            bW.Write(Encoding.ASCII.GetBytes(_serialNumber));
-            _issuedTo.WriteTo(bW);
-            bW.Write((byte)_capability);
+            _issuedTo.WriteTo(s);
 
-            bW.Write(_issuedOnUTC);
-            bW.Write(_expiresOnUTC);
+            s.WriteByte((byte)_capability);
 
-            bW.Write((byte)_publicKeyEncryptionAlgorithm);
+            s.Write(BitConverter.GetBytes(_issuedOnUTC), 0, 8);
+            s.Write(BitConverter.GetBytes(_expiresOnUTC), 0, 8);
 
-            bW.Write(Convert.ToUInt16(_publicKeyXML.Length));
-            bW.Write(Encoding.ASCII.GetBytes(_publicKeyXML));
+            s.WriteByte((byte)_publicKeyEncryptionAlgorithm);
+
+            s.Write(BitConverter.GetBytes(Convert.ToUInt16(_publicKeyXML.Length)), 0, 2);
+            s.Write(Encoding.ASCII.GetBytes(_publicKeyXML), 0, _publicKeyXML.Length);
 
             if (_revocationUri == null)
-                bW.Write((byte)0);
+                s.WriteByte((byte)0);
             else
             {
                 byte[] buffer = Encoding.UTF8.GetBytes(_revocationUri.AbsoluteUri);
-                bW.Write(Convert.ToByte(buffer.Length));
-                bW.Write(buffer);
+                s.WriteByte(Convert.ToByte(buffer.Length));
+                s.Write(buffer, 0, buffer.Length);
             }
         }
 
@@ -421,18 +404,18 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
         }
 
-        public override void WriteTo(BinaryWriter bW)
+        public override void WriteTo(Stream s)
         {
-            WriteCertificateTo(bW);
+            WriteCertificateTo(s);
 
             if (_issuerSignature == null)
             {
-                bW.Write((byte)0);
+                s.WriteByte((byte)0);
             }
             else
             {
-                bW.Write((byte)1);
-                _issuerSignature.WriteTo(bW);
+                s.WriteByte((byte)1);
+                _issuerSignature.WriteTo(s);
             }
         }
 

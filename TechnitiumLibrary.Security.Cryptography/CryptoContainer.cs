@@ -51,18 +51,13 @@ namespace TechnitiumLibrary.Security.Cryptography
         {
             using (FileStream fS = new FileStream(file, FileMode.Open, FileAccess.Read))
             {
-                ReadFrom(new BinaryReader(fS), password);
+                ReadFrom(fS, password);
             }
         }
 
         public CryptoContainer(Stream s, string password = null)
         {
-            ReadFrom(new BinaryReader(s), password);
-        }
-
-        public CryptoContainer(BinaryReader bR, string password = null)
-        {
-            ReadFrom(bR, password);
+            ReadFrom(s, password);
         }
 
         #endregion
@@ -103,17 +98,18 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region protected abstract
 
-        private void ReadFrom(BinaryReader bR, string password)
+        private void ReadFrom(Stream s, string password)
         {
-            if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "CC")
+            byte[] format = new byte[2];
+            s.Read(format, 0, 2);
+
+            if (Encoding.ASCII.GetString(format) != "CC")
                 throw new InvalidCryptoContainerException("Invalid CryptoContainer format.");
 
-            byte version = bR.ReadByte();
-
-            switch (version) //version
+            switch (s.ReadByte()) //version
             {
                 case 0:
-                    ReadPlainTextFrom(bR);
+                    ReadPlainTextFrom(s);
                     break;
 
                 case 1: //depricated version
@@ -122,12 +118,14 @@ namespace TechnitiumLibrary.Security.Cryptography
                             throw new InvalidCryptoContainerException("Password required.");
 
                         //CryptoAlgo
-                        SymmetricEncryptionAlgorithm cryptoAlgo = (SymmetricEncryptionAlgorithm)bR.ReadByte();
+                        SymmetricEncryptionAlgorithm cryptoAlgo = (SymmetricEncryptionAlgorithm)s.ReadByte();
 
                         //KeySizeBytes
-                        int keySizeBytes = bR.ReadByte();
+                        int keySizeBytes = s.ReadByte();
 
-                        byte[] IV = bR.ReadBytes(bR.ReadByte());
+                        byte[] IV = new byte[s.ReadByte()];
+                        s.Read(IV, 0, IV.Length);
+
                         byte[] key;
 
                         switch (keySizeBytes)
@@ -145,7 +143,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                         }
 
                         _containerKey = new SymmetricCryptoKey(cryptoAlgo, key, IV);
-                        ReadPlainTextFrom(new BinaryReader(_containerKey.GetCryptoStreamReader(bR.BaseStream)));
+                        ReadPlainTextFrom(_containerKey.GetCryptoStreamReader(s));
 
                         //auto upgrade to version 2 with PBKDF2-HMAC-SHA256 when calling WriteTo
                         _kdf = PBKDF2.CreateHMACSHA256(password, keySizeBytes, PBKDF2_ITERATION_COUNT);
@@ -161,22 +159,28 @@ namespace TechnitiumLibrary.Security.Cryptography
                             throw new InvalidCryptoContainerException("Password required.");
 
                         //CryptoAlgo
-                        SymmetricEncryptionAlgorithm cryptoAlgo = (SymmetricEncryptionAlgorithm)bR.ReadByte();
+                        SymmetricEncryptionAlgorithm cryptoAlgo = (SymmetricEncryptionAlgorithm)s.ReadByte();
 
                         //KeySizeBytes
-                        int keySizeBytes = bR.ReadByte();
+                        int keySizeBytes = s.ReadByte();
 
-                        byte[] IV = bR.ReadBytes(bR.ReadByte());
-                        byte[] salt = bR.ReadBytes(bR.ReadByte());
-                        byte[] HMAC = bR.ReadBytes(bR.ReadByte());
+                        byte[] IV = new byte[s.ReadByte()];
+                        s.Read(IV, 0, IV.Length);
+
+                        byte[] salt = new byte[s.ReadByte()];
+                        s.Read(salt, 0, salt.Length);
+
+                        byte[] HMAC = new byte[s.ReadByte()];
+                        s.Read(HMAC, 0, HMAC.Length);
+
                         _kdf = PBKDF2.CreateHMACSHA256(password, salt, PBKDF2_ITERATION_COUNT);
                         byte[] key = _kdf.GetBytes(keySizeBytes);
 
                         //authenticate data
                         _hmac = new HMACSHA256(key);
-                        long startPosition = bR.BaseStream.Position;
-                        byte[] computedHMAC = _hmac.ComputeHash(bR.BaseStream);
-                        bR.BaseStream.Position = startPosition;
+                        long startPosition = s.Position;
+                        byte[] computedHMAC = _hmac.ComputeHash(s);
+                        s.Position = startPosition;
 
                         //verify hmac
                         for (int i = 0; i < HMAC.Length; i++)
@@ -187,7 +191,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                         //decrypt data
                         _containerKey = new SymmetricCryptoKey(cryptoAlgo, key, IV);
-                        ReadPlainTextFrom(new BinaryReader(_containerKey.GetCryptoStreamReader(bR.BaseStream)));
+                        ReadPlainTextFrom(_containerKey.GetCryptoStreamReader(s));
                     }
                     break;
 
@@ -196,9 +200,9 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
         }
 
-        protected abstract void ReadPlainTextFrom(BinaryReader bR);
+        protected abstract void ReadPlainTextFrom(Stream s);
 
-        protected abstract void WritePlainTextTo(BinaryWriter bW);
+        protected abstract void WritePlainTextTo(Stream s);
 
         #endregion
 
@@ -212,50 +216,43 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
         }
 
-        public sealed override void WriteTo(BinaryWriter bW)
+        public sealed override void WriteTo(Stream s)
         {
-            bW.Write(Encoding.ASCII.GetBytes("CC"), 0, 2); //format
+            s.Write(Encoding.ASCII.GetBytes("CC"), 0, 2); //format
 
             if (_containerKey == null)
             {
-                bW.Write((byte)0); //version 0 = plain text
-                WritePlainTextTo(bW);
+                s.WriteByte((byte)0); //version 0 = plain text
+                WritePlainTextTo(s);
             }
             else
             {
-                bW.Flush();
-                Stream baseStream = bW.BaseStream;
-
-                baseStream.WriteByte(2); //version uses PBKDF2-HMAC-SHA256
-                baseStream.WriteByte((byte)_containerKey.Algorithm); //CryptoAlgoName
-                baseStream.WriteByte(Convert.ToByte(_containerKey.KeySize / 8)); //KeySizeBytes
-                baseStream.WriteByte(Convert.ToByte(_containerKey.IV.Length)); //IV Size
-                baseStream.Write(_containerKey.IV, 0, _containerKey.IV.Length); //IV
-                baseStream.WriteByte(Convert.ToByte(_kdf.Salt.Length)); //salt size
-                baseStream.Write(_kdf.Salt, 0, _kdf.Salt.Length); //salt
+                s.WriteByte(2); //version uses PBKDF2-HMAC-SHA256
+                s.WriteByte((byte)_containerKey.Algorithm); //CryptoAlgoName
+                s.WriteByte(Convert.ToByte(_containerKey.KeySize / 8)); //KeySizeBytes
+                s.WriteByte(Convert.ToByte(_containerKey.IV.Length)); //IV Size
+                s.Write(_containerKey.IV, 0, _containerKey.IV.Length); //IV
+                s.WriteByte(Convert.ToByte(_kdf.Salt.Length)); //salt size
+                s.Write(_kdf.Salt, 0, _kdf.Salt.Length); //salt
 
                 //write placeholder for HMAC
                 byte[] computedHMAC = new byte[32];
-                baseStream.WriteByte(32);
-                long hmacPosition = baseStream.Position;
-                baseStream.Write(computedHMAC, 0, 32);
-                long cipherPosition = baseStream.Position;
+                s.WriteByte(32);
+                long hmacPosition = s.Position;
+                s.Write(computedHMAC, 0, 32);
+                long cipherPosition = s.Position;
 
                 //encrypt data
-                CryptoStream c = _containerKey.GetCryptoStreamWriter(baseStream);
-
-                BinaryWriter bW2 = new BinaryWriter(c);
-                WritePlainTextTo(bW2);
-                bW2.Flush();
-
+                CryptoStream c = _containerKey.GetCryptoStreamWriter(s);
+                WritePlainTextTo(c);
                 c.FlushFinalBlock();
 
                 //compute HMAC and write it into placeholder
-                baseStream.Position = cipherPosition;
-                computedHMAC = _hmac.ComputeHash(baseStream);
+                s.Position = cipherPosition;
+                computedHMAC = _hmac.ComputeHash(s);
 
-                baseStream.Position = hmacPosition;
-                baseStream.Write(computedHMAC, 0, 32);
+                s.Position = hmacPosition;
+                s.Write(computedHMAC, 0, 32);
             }
         }
 

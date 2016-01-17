@@ -71,45 +71,8 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public AsymmetricCryptoKey(Stream s)
         {
-            ReadFrom(new BinaryReader(s));
-        }
+            BinaryReader bR = new BinaryReader(s);
 
-        public AsymmetricCryptoKey(BinaryReader bR)
-        {
-            ReadFrom(bR);
-        }
-
-        #endregion
-
-        #region IDisposable
-
-        bool _disposed = false;
-
-        ~AsymmetricCryptoKey()
-        {
-            Dispose(false);
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-        }
-
-        private void Dispose(bool Disposing)
-        {
-            if (!_disposed)
-            {
-                _asymAlgo.Clear();
-                _disposed = true;
-            }
-        }
-
-        #endregion
-
-        #region private
-
-        private void ReadFrom(BinaryReader bR)
-        {
             if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "AK")
                 throw new CryptoException("Invalid AsymmetricCryptoKey format.");
 
@@ -144,6 +107,31 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                 default:
                     throw new CryptoException("AsymmetricCryptoKey format version not supported.");
+            }
+        }
+
+        #endregion
+
+        #region IDisposable
+
+        bool _disposed = false;
+
+        ~AsymmetricCryptoKey()
+        {
+            Dispose(false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+
+        private void Dispose(bool Disposing)
+        {
+            if (!_disposed)
+            {
+                _asymAlgo.Dispose();
+                _disposed = true;
             }
         }
 
@@ -270,15 +258,15 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region public
 
-        public override void WriteTo(BinaryWriter bW)
+        public override void WriteTo(Stream s)
         {
-            bW.Write(Encoding.ASCII.GetBytes("AK"));
-            bW.Write((byte)1); //version
-            bW.Write((byte)_cryptoAlgo);
+            s.Write(Encoding.ASCII.GetBytes("AK"), 0, 2);
+            s.WriteByte((byte)1); //version
+            s.WriteByte((byte)_cryptoAlgo);
 
-            string Key = _asymAlgo.ToXmlString(true);
-            bW.Write(Convert.ToUInt16(Key.Length));
-            bW.Write(Encoding.ASCII.GetBytes(Key));
+            byte[] key = Encoding.ASCII.GetBytes(_asymAlgo.ToXmlString(true));
+            s.Write(BitConverter.GetBytes(Convert.ToUInt16(key.Length)), 0, 2);
+            s.Write(key, 0, key.Length);
         }
 
         public string GetPublicKey()

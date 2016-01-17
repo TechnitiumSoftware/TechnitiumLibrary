@@ -76,45 +76,8 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public SymmetricCryptoKey(Stream s)
         {
-            ReadFrom(new BinaryReader(s));
-        }
+            BinaryReader bR = new BinaryReader(s);
 
-        public SymmetricCryptoKey(BinaryReader bR)
-        {
-            ReadFrom(bR);
-        }
-
-        #endregion
-
-        #region IDisposable
-
-        bool _disposed = false;
-
-        ~SymmetricCryptoKey()
-        {
-            Dispose(false);
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-        }
-
-        private void Dispose(bool Disposing)
-        {
-            if (!_disposed)
-            {
-                _symAlgo.Clear();
-                _disposed = true;
-            }
-        }
-
-        #endregion
-
-        #region private
-
-        private void ReadFrom(BinaryReader bR)
-        {
             if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "SK")
                 throw new CryptoException("Invalid SymmetricCryptoKey format.");
 
@@ -150,28 +113,51 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #endregion
 
+        #region IDisposable
+
+        bool _disposed = false;
+
+        ~SymmetricCryptoKey()
+        {
+            Dispose(false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+
+        private void Dispose(bool Disposing)
+        {
+            if (!_disposed)
+            {
+                _symAlgo.Dispose();
+                _disposed = true;
+            }
+        }
+
+        #endregion
+
         #region public
 
-        public override void WriteTo(BinaryWriter bW)
+        public override void WriteTo(Stream s)
         {
-            bW.Write(Encoding.ASCII.GetBytes("SK")); //format
-            bW.Write((byte)2); //version
+            s.Write(Encoding.ASCII.GetBytes("SK"), 0, 2); //format
+            s.WriteByte((byte)2); //version
 
             //algorithm
-            bW.Write((byte)_cryptoAlgo);
+            s.WriteByte((byte)_cryptoAlgo);
 
             //key
-            byte[] Key = _symAlgo.Key;
-            bW.Write(Convert.ToByte(Key.Length));
-            bW.Write(Key);
+            s.WriteByte(Convert.ToByte(_symAlgo.Key.Length));
+            s.Write(_symAlgo.Key, 0, _symAlgo.Key.Length);
 
             //IV
-            byte[] IV = _symAlgo.IV;
-            bW.Write(Convert.ToByte(IV.Length));
-            bW.Write(IV);
+            s.WriteByte(Convert.ToByte(_symAlgo.IV.Length));
+            s.Write(_symAlgo.IV, 0, _symAlgo.IV.Length);
 
             //padding
-            bW.Write(Convert.ToByte(_symAlgo.Padding));
+            s.WriteByte(Convert.ToByte(_symAlgo.Padding));
         }
 
         #endregion
