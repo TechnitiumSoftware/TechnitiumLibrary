@@ -24,7 +24,6 @@ namespace TechnitiumLibrary.IO
     public interface IWriteStream
     {
         void WriteTo(Stream s);
-        void WriteTo(BinaryWriter bW);
         byte[] ToArray();
         Stream ToStream();
     }

@@ -23,14 +23,7 @@ namespace TechnitiumLibrary.IO
 {
     public abstract class WriteStream : IWriteStream
     {
-        public virtual void WriteTo(Stream s)
-        {
-            BinaryWriter bW = new BinaryWriter(s);
-            WriteTo(bW);
-            bW.Flush();
-        }
-
-        public abstract void WriteTo(BinaryWriter bW);
+        public abstract void WriteTo(Stream s);
 
         public byte[] ToArray()
         {
