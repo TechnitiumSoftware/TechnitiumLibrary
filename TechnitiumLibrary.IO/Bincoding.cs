@@ -275,7 +275,12 @@ namespace TechnitiumLibrary.IO
 
         #region constructor
 
-        public BincodingEncoder(Stream s, string format = "BE", byte version = 0)
+        public BincodingEncoder(Stream s)
+        {
+            _s = s;
+        }
+
+        public BincodingEncoder(Stream s, string format, byte version)
         {
             if (format.Length != 2)
                 throw new ArgumentException("Argument 'format' must be of 2 characters.");
@@ -286,6 +291,33 @@ namespace TechnitiumLibrary.IO
             _s = s;
             _format = format;
             _version = version;
+        }
+
+        #endregion
+
+        #region private
+
+        private void WriteLength(Stream s, int valueLength)
+        {
+            if (valueLength < 128)
+            {
+                s.WriteByte((byte)valueLength);
+            }
+            else
+            {
+                byte[] bytesValueLength = BitConverter.GetBytes(valueLength);
+                Array.Reverse(bytesValueLength);
+
+                for (int i = 0; i < bytesValueLength.Length; i++)
+                {
+                    if (bytesValueLength[i] != 0)
+                    {
+                        s.WriteByte((byte)(0x80 | (bytesValueLength.Length - i)));
+                        s.Write(bytesValueLength, i, bytesValueLength.Length - i);
+                        break;
+                    }
+                }
+            }
         }
 
         #endregion
@@ -303,23 +335,21 @@ namespace TechnitiumLibrary.IO
 
                 case BincodingType.BINARY:
                 case BincodingType.STRING:
-                    _s.Write(BitConverter.GetBytes(value.Value.Length), 0, 4);
+                    WriteLength(_s, value.Value.Length);
                     _s.Write(value.Value, 0, value.Value.Length);
                     break;
 
                 case BincodingType.STREAM:
                     Stream stream = value.GetValueStream();
 
-                    long count = stream.Length - stream.Position;
-                    _s.Write(BitConverter.GetBytes(count), 0, 8);
-
+                    WriteLength(_s, Convert.ToInt32(stream.Length - stream.Position));
                     OffsetStream.StreamCopy(stream, _s);
                     break;
 
                 case BincodingType.LIST:
                     List<Bincoding> list = value.GetList();
 
-                    _s.Write(BitConverter.GetBytes(list.Count), 0, 4);
+                    WriteLength(_s, list.Count);
 
                     foreach (Bincoding item in list)
                         Encode(item);
@@ -340,7 +370,7 @@ namespace TechnitiumLibrary.IO
                 case BincodingType.DICTIONARY:
                     Dictionary<string, Bincoding> dictionary = value.GetDictionary();
 
-                    _s.Write(BitConverter.GetBytes(dictionary.Count), 0, 4);
+                    WriteLength(_s, dictionary.Count);
 
                     foreach (KeyValuePair<string, Bincoding> item in dictionary)
                         Encode(item);
@@ -531,7 +561,12 @@ namespace TechnitiumLibrary.IO
 
         #region constructor
 
-        public BincodingDecoder(Stream s, string format = "BE")
+        public BincodingDecoder(Stream s)
+        {
+            _s = s;
+        }
+
+        public BincodingDecoder(Stream s, string format)
         {
             if (format.Length != 2)
                 throw new ArgumentException("Argument 'format' must be of 2 characters.");
@@ -545,6 +580,48 @@ namespace TechnitiumLibrary.IO
             _s = s;
             _format = format;
             _version = (byte)s.ReadByte();
+        }
+
+        #endregion
+
+        #region private
+
+        private int ReadLength(Stream s)
+        {
+            int length1 = s.ReadByte();
+
+            if (length1 > 127)
+            {
+                int numberLenBytes = length1 & 0x7F;
+
+                byte[] valueBytes = new byte[8];
+                s.Read(valueBytes, 0, numberLenBytes);
+
+                switch (numberLenBytes)
+                {
+                    case 1:
+                        return valueBytes[0];
+
+                    case 2:
+                        Array.Reverse(valueBytes, 0, 2);
+                        return BitConverter.ToInt16(valueBytes, 0);
+
+                    case 3:
+                        Array.Reverse(valueBytes, 0, 3);
+                        return BitConverter.ToInt32(valueBytes, 0);
+
+                    case 4:
+                        Array.Reverse(valueBytes, 0, 4);
+                        return BitConverter.ToInt32(valueBytes, 0);
+
+                    default:
+                        throw new IOException("Bincoding encoding length not supported.");
+                }
+            }
+            else
+            {
+                return length1;
+            }
         }
 
         #endregion
@@ -605,9 +682,7 @@ namespace TechnitiumLibrary.IO
                 case BincodingType.BINARY:
                 case BincodingType.STRING:
                     {
-                        byte[] buffer = new byte[4];
-                        OffsetStream.StreamRead(_s, buffer, 0, 4);
-                        int count = BitConverter.ToInt32(buffer, 0);
+                        int count = ReadLength(_s);
 
                         byte[] value = new byte[count];
                         OffsetStream.StreamRead(_s, value, 0, count);
@@ -617,9 +692,7 @@ namespace TechnitiumLibrary.IO
 
                 case BincodingType.STREAM:
                     {
-                        byte[] buffer = new byte[8];
-                        OffsetStream.StreamRead(_s, buffer, 0, 8);
-                        long count = BitConverter.ToInt64(buffer, 0);
+                        int count = ReadLength(_s);
 
                         _lastStream = new OffsetStream(_s, _s.Position, count, true, false);
 
@@ -628,9 +701,7 @@ namespace TechnitiumLibrary.IO
 
                 case BincodingType.LIST:
                     {
-                        byte[] buffer = new byte[4];
-                        OffsetStream.StreamRead(_s, buffer, 0, 4);
-                        int count = BitConverter.ToInt32(buffer, 0);
+                        int count = ReadLength(_s);
 
                         List<Bincoding> list = new List<Bincoding>(count);
 
@@ -654,9 +725,7 @@ namespace TechnitiumLibrary.IO
 
                 case BincodingType.DICTIONARY:
                     {
-                        byte[] buffer = new byte[4];
-                        OffsetStream.StreamRead(_s, buffer, 0, 4);
-                        int count = BitConverter.ToInt32(buffer, 0);
+                        int count = ReadLength(_s);
 
                         Dictionary<string, Bincoding> dictionary = new Dictionary<string, Bincoding>(count);
                         int keyLen;
