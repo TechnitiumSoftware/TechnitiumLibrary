@@ -140,6 +140,11 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region public
 
+        public void GenerateIV()
+        {
+            _symAlgo.GenerateIV();
+        }
+
         public override void WriteTo(Stream s)
         {
             s.Write(Encoding.ASCII.GetBytes("SK"), 0, 2); //format
@@ -212,7 +217,10 @@ namespace TechnitiumLibrary.Security.Cryptography
         { get { return _symAlgo.KeySize; } }
 
         public byte[] IV
-        { get { return _symAlgo.IV; } }
+        {
+            get { return _symAlgo.IV; }
+            set { _symAlgo.IV = value; }
+        }
 
         #endregion
     }
