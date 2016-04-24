@@ -20,7 +20,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Specialized;
 using System.IO;
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -40,12 +39,6 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
         #endregion
 
         #region constructor
-
-        static WebDatabase()
-        {
-            if (ServicePointManager.MaxServicePoints < 100)
-                ServicePointManager.MaxServicePoints = 100;
-        }
 
         public WebDatabase(Uri webDatabaseUri, string sharedSecret)
         {

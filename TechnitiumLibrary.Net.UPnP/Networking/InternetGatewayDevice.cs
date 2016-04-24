@@ -40,11 +40,6 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
 
         #region constructor
 
-        static InternetGatewayDevice()
-        {
-            ServicePointManager.DefaultConnectionLimit = 100;
-        }
-
         private InternetGatewayDevice()
         { }
 

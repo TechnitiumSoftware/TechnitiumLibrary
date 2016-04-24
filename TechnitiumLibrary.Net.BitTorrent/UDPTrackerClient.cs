@@ -55,12 +55,12 @@ namespace TechnitiumLibrary.Net.BitTorrent
             //Connection_id 64bit 0x41727101980 + action 32bit + transaction_id 32bit (random)
             byte[] requestPacket = new byte[] { 0x0, 0x0, 0x4, 0x17, 0x27, 0x10, 0x19, 0x80, 0x0, 0x0, 0x0, 0x0, transactionID[0], transactionID[1], transactionID[2], transactionID[3] };
 
-            for (int n = 0; n < 8; n++)
+            for (int n = 0; n < 2; n++)
             {
                 if (_proxy == null)
-                    udpClient.Client.ReceiveTimeout = Convert.ToInt32(15 * (2 ^ n) * 1000);
+                    udpClient.Client.ReceiveTimeout = 15 * (2 ^ n) * 1000;
                 else
-                    proxyRequestHandler.ReceiveTimeout = Convert.ToInt32(15 * (2 ^ n) * 1000);
+                    proxyRequestHandler.ReceiveTimeout = 15 * (2 ^ n) * 1000;
 
                 try
                 {
@@ -108,8 +108,11 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
                     return connectionID;
                 }
-                catch (SocketException)
-                { }
+                catch (SocketException ex)
+                {
+                    if (ex.ErrorCode != (int)SocketError.TimedOut)
+                        throw new TrackerClientException(ex.Message, ex);
+                }
             }
 
             throw new TrackerClientException("No response from tracker.");
@@ -266,55 +269,50 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
             try
             {
-                for (int n = 0; n < 8; n++)
+                for (int n = 0; n < 2; n++)
                 {
-                    try
+                    if ((_connectionID == null) || (_connectionIDExpires <= DateTime.UtcNow))
                     {
-                        if ((_connectionID == null) || (_connectionIDExpires <= DateTime.UtcNow))
-                        {
-                            //GET CONNECTION ID
-                            _rnd.GetBytes(_transactionID);
-                            _connectionID = GetConnectionID(udpClient, proxyRequestHandler, _transactionID);
-                            _connectionIDExpires = DateTime.UtcNow.AddMinutes(1);
-                        }
+                        //GET CONNECTION ID
+                        _rnd.GetBytes(_transactionID);
+                        _connectionID = GetConnectionID(udpClient, proxyRequestHandler, _transactionID);
+                        _connectionIDExpires = DateTime.UtcNow.AddMinutes(1);
                     }
-                    catch
-                    { }
 
                     if (_proxy == null)
-                        udpClient.Client.ReceiveTimeout = Convert.ToInt32(15 * (2 ^ n) * 1000);
+                        udpClient.Client.ReceiveTimeout = 15 * (2 ^ n) * 1000;
                     else
-                        proxyRequestHandler.ReceiveTimeout = Convert.ToInt32(15 * (2 ^ n) * 1000);
+                        proxyRequestHandler.ReceiveTimeout = 15 * (2 ^ n) * 1000;
 
-                    if (_connectionID != null)
+                    try
                     {
-                        try
-                        {
-                            _rnd.GetBytes(_transactionID);
-                            byte[] announceResponse;
-                            int announceResponseLength = GetAnnounceResponse(udpClient, proxyRequestHandler, _transactionID, _connectionID, @event, clientEP, out announceResponse);
+                        _rnd.GetBytes(_transactionID);
+                        byte[] announceResponse;
+                        int announceResponseLength = GetAnnounceResponse(udpClient, proxyRequestHandler, _transactionID, _connectionID, @event, clientEP, out announceResponse);
 
-                            byte[] buffer = new byte[4];
+                        byte[] buffer = new byte[4];
 
-                            Buffer.BlockCopy(announceResponse, 8, buffer, 0, 4);
-                            Array.Reverse(buffer);
-                            _interval = BitConverter.ToInt32(buffer, 0);
+                        Buffer.BlockCopy(announceResponse, 8, buffer, 0, 4);
+                        Array.Reverse(buffer);
+                        _interval = BitConverter.ToInt32(buffer, 0);
 
-                            Buffer.BlockCopy(announceResponse, 12, buffer, 0, 4);
-                            Array.Reverse(buffer);
-                            _leachers = BitConverter.ToInt32(buffer, 0);
+                        Buffer.BlockCopy(announceResponse, 12, buffer, 0, 4);
+                        Array.Reverse(buffer);
+                        _leachers = BitConverter.ToInt32(buffer, 0);
 
-                            Buffer.BlockCopy(announceResponse, 16, buffer, 0, 4);
-                            Array.Reverse(buffer);
-                            _seeders = BitConverter.ToInt32(buffer, 0);
+                        Buffer.BlockCopy(announceResponse, 16, buffer, 0, 4);
+                        Array.Reverse(buffer);
+                        _seeders = BitConverter.ToInt32(buffer, 0);
 
-                            _peers.Clear();
-                            ParsePeers(announceResponse, announceResponseLength, _peers);
+                        _peers.Clear();
+                        ParsePeers(announceResponse, announceResponseLength, _peers);
 
-                            return;
-                        }
-                        catch (SocketException)
-                        { }
+                        return;
+                    }
+                    catch (SocketException ex)
+                    {
+                        if (ex.ErrorCode != (int)SocketError.TimedOut)
+                            throw new TrackerClientException(ex.Message, ex);
                     }
                 }
 
