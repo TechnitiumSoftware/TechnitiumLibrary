@@ -247,7 +247,9 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                 //encrypt data
                 CryptoStream c = _containerKey.GetCryptoStreamWriter(s);
-                WritePlainTextTo(c);
+                BufferedStream bS = new BufferedStream(c, 16384);
+                WritePlainTextTo(bS);
+                bS.Flush();
                 c.FlushFinalBlock();
 
                 //compute HMAC and write it into placeholder
