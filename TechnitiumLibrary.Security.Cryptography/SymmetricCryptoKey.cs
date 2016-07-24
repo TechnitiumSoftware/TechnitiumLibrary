@@ -35,7 +35,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         Rijndael = 5
     }
 
-    public sealed class SymmetricCryptoKey : WriteStream, IDisposable
+    public sealed class SymmetricCryptoKey : IWriteStream, IDisposable
     {
         #region variables
 
@@ -145,7 +145,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             _symAlgo.GenerateIV();
         }
 
-        public override void WriteTo(Stream s)
+        public void WriteTo(Stream s)
         {
             s.Write(Encoding.ASCII.GetBytes("SK"), 0, 2); //format
             s.WriteByte((byte)2); //version
@@ -165,6 +165,22 @@ namespace TechnitiumLibrary.Security.Cryptography
             s.WriteByte(Convert.ToByte(_symAlgo.Padding));
         }
 
+        public byte[] ToArray()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                WriteTo(mS);
+                return mS.ToArray();
+            }
+        }
+
+        public Stream ToStream()
+        {
+            MemoryStream mS = new MemoryStream();
+            WriteTo(mS);
+            mS.Position = 0;
+            return mS;
+        }
         #endregion
 
         #region Symmetric Crypto Key Methods

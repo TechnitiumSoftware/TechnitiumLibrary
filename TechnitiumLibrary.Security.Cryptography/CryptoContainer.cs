@@ -25,7 +25,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
-    public abstract class CryptoContainer : WriteStream, IDisposable
+    public abstract class CryptoContainer : IWriteStream, IDisposable
     {
         #region variables
 
@@ -219,7 +219,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
         }
 
-        public sealed override void WriteTo(Stream s)
+        public void WriteTo(Stream s)
         {
             s.Write(Encoding.ASCII.GetBytes("CC"), 0, 2); //format
 
@@ -259,6 +259,23 @@ namespace TechnitiumLibrary.Security.Cryptography
                 s.Position = hmacPosition;
                 s.Write(computedHMAC, 0, 32);
             }
+        }
+
+        public byte[] ToArray()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                WriteTo(mS);
+                return mS.ToArray();
+            }
+        }
+
+        public Stream ToStream()
+        {
+            MemoryStream mS = new MemoryStream();
+            WriteTo(mS);
+            mS.Position = 0;
+            return mS;
         }
 
         public void SetPassword(SymmetricEncryptionAlgorithm cryptoAlgo, int keySize, string password)

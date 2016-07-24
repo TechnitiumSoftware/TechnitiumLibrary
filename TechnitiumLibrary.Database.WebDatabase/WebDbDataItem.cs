@@ -25,7 +25,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Database.WebDatabase
 {
-    public class WebDbDataItem : WriteStream
+    public class WebDbDataItem : IWriteStream
     {
         #region variables
 
@@ -125,7 +125,7 @@ namespace TechnitiumLibrary.Database.WebDatabase
 
         #region public
 
-        public override void WriteTo(Stream s)
+        public void WriteTo(Stream s)
         {
             BinaryWriter bW = new BinaryWriter(s);
             WriteTo(bW);
@@ -144,6 +144,23 @@ namespace TechnitiumLibrary.Database.WebDatabase
                 bW.Write(_value.Length);
                 bW.Write(_value);
             }
+        }
+
+        public byte[] ToArray()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                WriteTo(mS);
+                return mS.ToArray();
+            }
+        }
+
+        public Stream ToStream()
+        {
+            MemoryStream mS = new MemoryStream();
+            WriteTo(mS);
+            mS.Position = 0;
+            return mS;
         }
 
         #endregion

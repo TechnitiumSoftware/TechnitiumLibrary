@@ -42,7 +42,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         KeyExchange = 4
     }
 
-    public sealed class Certificate : WriteStream
+    public sealed class Certificate : IWriteStream
     {
         #region variables
 
@@ -404,7 +404,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
         }
 
-        public override void WriteTo(Stream s)
+        public void WriteTo(Stream s)
         {
             WriteCertificateTo(s);
 
@@ -417,6 +417,23 @@ namespace TechnitiumLibrary.Security.Cryptography
                 s.WriteByte((byte)1);
                 _issuerSignature.WriteTo(s);
             }
+        }
+
+        public byte[] ToArray()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                WriteTo(mS);
+                return mS.ToArray();
+            }
+        }
+
+        public Stream ToStream()
+        {
+            MemoryStream mS = new MemoryStream();
+            WriteTo(mS);
+            mS.Position = 0;
+            return mS;
         }
 
         #endregion

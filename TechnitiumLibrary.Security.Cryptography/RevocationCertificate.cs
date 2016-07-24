@@ -26,7 +26,7 @@ using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
-    public sealed class RevocationCertificate : WriteStream
+    public sealed class RevocationCertificate : IWriteStream
     {
         #region variables
 
@@ -170,7 +170,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             WriteTo(s);
         }
 
-        public override void WriteTo(Stream s)
+        public void WriteTo(Stream s)
         {
             //format
             s.Write(Encoding.ASCII.GetBytes("RC"), 0, 2);
@@ -192,6 +192,23 @@ namespace TechnitiumLibrary.Security.Cryptography
             //hash algo
             s.WriteByte(Convert.ToByte(_hashAlgo.Length));
             s.Write(Encoding.ASCII.GetBytes(_hashAlgo), 0, _hashAlgo.Length);
+        }
+
+        public byte[] ToArray()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                WriteTo(mS);
+                return mS.ToArray();
+            }
+        }
+
+        public Stream ToStream()
+        {
+            MemoryStream mS = new MemoryStream();
+            WriteTo(mS);
+            mS.Position = 0;
+            return mS;
         }
 
         #endregion

@@ -32,7 +32,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         DSA = 2,
     }
 
-    public sealed class AsymmetricCryptoKey : WriteStream, IDisposable
+    public sealed class AsymmetricCryptoKey : IWriteStream, IDisposable
     {
         #region variables
 
@@ -258,7 +258,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region public
 
-        public override void WriteTo(Stream s)
+        public void WriteTo(Stream s)
         {
             s.Write(Encoding.ASCII.GetBytes("AK"), 0, 2);
             s.WriteByte((byte)1); //version
@@ -267,6 +267,23 @@ namespace TechnitiumLibrary.Security.Cryptography
             byte[] key = Encoding.ASCII.GetBytes(_asymAlgo.ToXmlString(true));
             s.Write(BitConverter.GetBytes(Convert.ToUInt16(key.Length)), 0, 2);
             s.Write(key, 0, key.Length);
+        }
+
+        public byte[] ToArray()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                WriteTo(mS);
+                return mS.ToArray();
+            }
+        }
+
+        public Stream ToStream()
+        {
+            MemoryStream mS = new MemoryStream();
+            WriteTo(mS);
+            mS.Position = 0;
+            return mS;
         }
 
         public string GetPublicKey()

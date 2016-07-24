@@ -30,7 +30,7 @@ namespace TechnitiumLibrary.IO
         ExecuteFile = 2
     }
 
-    public class PackageItem : WriteStream, IDisposable
+    public class PackageItem : IWriteStream, IDisposable
     {
         #region variables
 
@@ -163,7 +163,7 @@ namespace TechnitiumLibrary.IO
             return ((_attributes & attribute) > 0);
         }
 
-        public override void WriteTo(Stream s)
+        public void WriteTo(Stream s)
         {
             BinaryWriter bW = new BinaryWriter(s);
 
@@ -190,6 +190,23 @@ namespace TechnitiumLibrary.IO
             OffsetStream.StreamCopy(_data, bW);
 
             bW.Flush();
+        }
+
+        public byte[] ToArray()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                WriteTo(mS);
+                return mS.ToArray();
+            }
+        }
+
+        public Stream ToStream()
+        {
+            MemoryStream mS = new MemoryStream();
+            WriteTo(mS);
+            mS.Position = 0;
+            return mS;
         }
 
         public PackageItemTransactionLog Extract(string filepath, bool overwrite = false)

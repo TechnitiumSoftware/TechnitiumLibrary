@@ -24,7 +24,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
-    public sealed class Signature : WriteStream
+    public sealed class Signature : IWriteStream
     {
         #region variables
 
@@ -103,7 +103,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             return AsymmetricCryptoKey.Verify(hash, _signedHash, _hashAlgo, signingCert);
         }
 
-        public override void WriteTo(Stream s)
+        public void WriteTo(Stream s)
         {
             s.Write(Encoding.ASCII.GetBytes("SN"), 0, 2); //format
             s.WriteByte((byte)1);
@@ -125,6 +125,23 @@ namespace TechnitiumLibrary.Security.Cryptography
                 s.WriteByte((byte)1);
                 _signingCert.WriteTo(s);
             }
+        }
+
+        public byte[] ToArray()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                WriteTo(mS);
+                return mS.ToArray();
+            }
+        }
+
+        public Stream ToStream()
+        {
+            MemoryStream mS = new MemoryStream();
+            WriteTo(mS);
+            mS.Position = 0;
+            return mS;
         }
 
         public override bool Equals(object obj)

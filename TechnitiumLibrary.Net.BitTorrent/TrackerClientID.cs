@@ -25,7 +25,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.BitTorrent
 {
-    public class TrackerClientID : WriteStream
+    public class TrackerClientID : IWriteStream
     {
         #region variables
 
@@ -125,7 +125,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         #region public
 
-        public override void WriteTo(Stream s)
+        public void WriteTo(Stream s)
         {
             BinaryWriter bW = new BinaryWriter(s);
 
@@ -143,6 +143,23 @@ namespace TechnitiumLibrary.Net.BitTorrent
             bW.Write(_noPeerID);
 
             bW.Flush();
+        }
+
+        public byte[] ToArray()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                WriteTo(mS);
+                return mS.ToArray();
+            }
+        }
+
+        public Stream ToStream()
+        {
+            MemoryStream mS = new MemoryStream();
+            WriteTo(mS);
+            mS.Position = 0;
+            return mS;
         }
 
         #endregion

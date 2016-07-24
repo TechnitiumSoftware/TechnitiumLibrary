@@ -48,7 +48,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         Organization = 2
     }
 
-    public sealed class CertificateProfile : WriteStream
+    public sealed class CertificateProfile : IWriteStream
     {
         #region variables
 
@@ -351,7 +351,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             return base.GetHashCode();
         }
 
-        public override void WriteTo(Stream s)
+        public void WriteTo(Stream s)
         {
             byte[] buffer = null;
 
@@ -430,6 +430,23 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
 
             bW.Flush();
+        }
+
+        public byte[] ToArray()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                WriteTo(mS);
+                return mS.ToArray();
+            }
+        }
+
+        public Stream ToStream()
+        {
+            MemoryStream mS = new MemoryStream();
+            WriteTo(mS);
+            mS.Position = 0;
+            return mS;
         }
 
         #endregion
