@@ -167,6 +167,21 @@ namespace TechnitiumLibrary.Security.Cryptography
             s.Write(value, 0, valueLength);
         }
 
+        public static void EncodeIntegerValue(byte[] value, Stream s)
+        {
+            if ((value[0] & 0x80) > 0)
+            {
+                byte[] valInt = new byte[value.Length + 1];
+                Buffer.BlockCopy(value, 0, valInt, 1, value.Length);
+
+                Encode(DEREncodingASN1Type.INTEGER, valInt, s);
+            }
+            else
+            {
+                Encode(DEREncodingASN1Type.INTEGER, value, s);
+            }
+        }
+
         #endregion
 
         #region public
@@ -183,7 +198,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public byte[] GetIntegerValue()
         {
-            if (_value[0] == 0)
+            if (((_value.Length & 0x1) > 0) && (_value[0] == 0))
             {
                 byte[] valInt = new byte[_value.Length - 1];
                 Buffer.BlockCopy(_value, 1, valInt, 0, valInt.Length);

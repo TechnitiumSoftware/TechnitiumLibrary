@@ -79,5 +79,57 @@ namespace TechnitiumLibrary.Security.Cryptography
                 }
             }
         }
+
+        public static void WriteRSAPrivateKey(RSAParameters parameters, Stream s)
+        {
+            byte[] header = Encoding.UTF8.GetBytes("-----BEGIN RSA PRIVATE KEY-----\n");
+            byte[] footer = Encoding.UTF8.GetBytes("-----END RSA PRIVATE KEY-----\n");
+            byte[] base64data;
+
+            //encode using DER Encoding
+            using (MemoryStream derStream = new MemoryStream())
+            {
+                using (MemoryStream seqStream = new MemoryStream())
+                {
+                    DEREncoding.Encode(DEREncodingASN1Type.INTEGER, new byte[] { 0 }, seqStream); //version
+
+                    DEREncoding.EncodeIntegerValue(parameters.Modulus, seqStream);
+                    DEREncoding.EncodeIntegerValue(parameters.Exponent, seqStream);
+                    DEREncoding.EncodeIntegerValue(parameters.D, seqStream);
+                    DEREncoding.EncodeIntegerValue(parameters.P, seqStream);
+                    DEREncoding.EncodeIntegerValue(parameters.Q, seqStream);
+                    DEREncoding.EncodeIntegerValue(parameters.DP, seqStream);
+                    DEREncoding.EncodeIntegerValue(parameters.DQ, seqStream);
+                    DEREncoding.EncodeIntegerValue(parameters.InverseQ, seqStream);
+
+                    //write sequence
+                    DEREncoding.Encode(DEREncodingASN1Type.SEQUENCE, seqStream.ToArray(), derStream);
+                }
+
+                //get base64 formatted DER data
+                base64data = Encoding.UTF8.GetBytes(Convert.ToBase64String(derStream.ToArray()));
+            }
+
+            //write PEM format
+            s.Write(header, 0, header.Length);
+
+            int offset = 0;
+            int bytesRemaining = base64data.Length;
+            int count = 65;
+
+            while (bytesRemaining > 0)
+            {
+                if (bytesRemaining < count)
+                    count = bytesRemaining;
+
+                s.Write(base64data, offset, count);
+                s.WriteByte(0x0A);
+
+                offset += count;
+                bytesRemaining -= count;
+            }
+
+            s.Write(footer, 0, footer.Length);
+        }
     }
 }
