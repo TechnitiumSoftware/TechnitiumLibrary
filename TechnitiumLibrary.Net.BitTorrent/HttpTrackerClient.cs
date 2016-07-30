@@ -28,8 +28,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
     {
         #region constructor
 
-        public HttpTrackerClient(Uri trackerURI, byte[] infoHash, TrackerClientID clientID)
-            : base(trackerURI, infoHash, clientID)
+        public HttpTrackerClient(Uri trackerURI, byte[] infoHash, TrackerClientID clientID, int customUpdateInterval = 0)
+            : base(trackerURI, infoHash, clientID, customUpdateInterval)
         { }
 
         #endregion

@@ -39,8 +39,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         #region constructor
 
-        public UdpTrackerClient(Uri trackerURI, byte[] infoHash, TrackerClientID clientID)
-            : base(trackerURI, infoHash, clientID)
+        public UdpTrackerClient(Uri trackerURI, byte[] infoHash, TrackerClientID clientID, int customUpdateInterval = 0)
+            : base(trackerURI, infoHash, clientID, customUpdateInterval)
         {
             if ((trackerURI.Scheme == "udp") && (trackerURI.Port == -1))
                 _trackerURI = new Uri("udp://" + trackerURI.Host + ":80" + trackerURI.AbsolutePath);

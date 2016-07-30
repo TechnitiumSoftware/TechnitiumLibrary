@@ -41,6 +41,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
         protected byte[] _infoHash;
         protected TrackerClientID _clientID;
 
+        int _customUpdateInterval;
+
         protected int _interval;
         protected int _minInterval = 30;
 
@@ -59,12 +61,14 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         #region constructor
 
-        public TrackerClient(Uri trackerURI, byte[] infoHash, TrackerClientID clientID)
+        protected TrackerClient(Uri trackerURI, byte[] infoHash, TrackerClientID clientID, int customUpdateInterval)
         {
             _trackerURI = trackerURI;
 
             _infoHash = infoHash;
             _clientID = clientID;
+
+            _customUpdateInterval = customUpdateInterval;
 
             _peers = new List<IPEndPoint>();
 
@@ -106,15 +110,15 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         #region static
 
-        public static TrackerClient Create(Uri trackerURI, byte[] infoHash, TrackerClientID clientID)
+        public static TrackerClient Create(Uri trackerURI, byte[] infoHash, TrackerClientID clientID, int customUpdateInterval = 0)
         {
             switch (trackerURI.Scheme)
             {
                 case "udp":
-                    return new UdpTrackerClient(trackerURI, infoHash, clientID);
+                    return new UdpTrackerClient(trackerURI, infoHash, clientID, customUpdateInterval);
 
                 case "http":
-                    return new HttpTrackerClient(trackerURI, infoHash, clientID);
+                    return new HttpTrackerClient(trackerURI, infoHash, clientID, customUpdateInterval);
 
                 default:
                     throw new TrackerClientException("Tracker client only supports HTTP & UDP protocols.");
@@ -173,6 +177,9 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 _lastClientEP = clientEP;
                 _lastUpdated = DateTime.UtcNow;
 
+                if (_customUpdateInterval > 0)
+                    _interval = _customUpdateInterval;
+
                 lock (this)
                 {
                     _isUpdating = false;
@@ -216,6 +223,9 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         public TrackerClientID ClientID
         { get { return _clientID; } }
+
+        public int CustomUpdateInterval
+        { get { return _customUpdateInterval; } }
 
         public int Interval
         { get { return _interval; } }
