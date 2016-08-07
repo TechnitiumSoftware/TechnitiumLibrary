@@ -52,6 +52,8 @@ namespace TechnitiumLibrary.Net
     {
         #region variables
 
+        static readonly string[] ROOTSERVERS = new string[] { "198.41.0.4", "192.228.79.201", "192.33.4.12", "199.7.91.13", "192.203.230.10", "192.5.5.241", "192.112.36.4", "198.97.190.53", "192.36.148.17", "192.58.128.30", "193.0.14.129", "199.7.83.42", "202.12.27.33" };
+
         static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         Socket _socket;
@@ -104,6 +106,61 @@ namespace TechnitiumLibrary.Net
 
                 _disposed = true;
             }
+        }
+
+        #endregion
+
+        #region static
+
+        public static DnsDatagram ResolveViaRootServers(string domain, DnsRecordType queryType, int retries = 3)
+        {
+            Random rnd = new Random();
+            int hopCount = 0;
+            DnsClient client = new DnsClient(IPAddress.Parse(ROOTSERVERS[rnd.Next() % 13]));
+
+            while ((hopCount++) < 64)
+            {
+                DnsDatagram response = client.Resolve(domain, queryType, retries);
+
+                switch (response.Header.RCODE)
+                {
+                    case DnsResponseCode.NoError:
+                        if (response.AnswerSection.Count > 0)
+                            return response;
+
+                        if ((response.NameServerSection.Count == 0) || (response.NameServerSection[0].Type != DnsRecordType.NS))
+                            throw new NameErrorDnsClientException("No answer received from DNS server for domain: " + domain + "; DNS Server: " + client.Server.Address.ToString());
+
+                        //select a name server
+                        string nameserver = ((DnsNSRecord)response.NameServerSection[rnd.Next() % response.NameServerSection.Count].RData).NSDomainName;
+
+                        //find ip address of name server from additional records
+                        IPAddress nameserverIp = null;
+
+                        foreach (DnsResourceRecord record in response.AdditionalRecordsSection)
+                        {
+                            if ((record.Type == DnsRecordType.A) && (record.DomainName.Equals(nameserver, StringComparison.CurrentCultureIgnoreCase)))
+                            {
+                                nameserverIp = ((DnsARecord)record.RData).Address;
+                                break;
+                            }
+                        }
+
+                        if (nameserverIp == null)
+                            throw new NameErrorDnsClientException("No answer received from DNS server for domain: " + domain + "; DNS Server: " + client.Server.Address.ToString());
+
+                        client.Server.Address = nameserverIp;
+                        break;
+
+                    case DnsResponseCode.NameError:
+                        throw new NameErrorDnsClientException("Domain does not exists: " + domain);
+
+                    default:
+                        throw new DnsClientException("DNS Server error. DNS opcode: " + Enum.GetName(typeof(DnsResponseCode), response.Header.RCODE) + " (" + response.Header.RCODE + ")");
+                }
+            }
+
+            throw new DnsClientException("Dns client exceeded the maximum hop count to resolve the domain: " + domain);
         }
 
         #endregion
@@ -188,20 +245,20 @@ namespace TechnitiumLibrary.Net
                         return mxDomain;
 
                     //check glue records
-                    for (int i = 0; i < response.AdditionalRecordsSection.Count; i++)
+                    foreach (DnsResourceRecord record in response.AdditionalRecordsSection)
                     {
-                        if (response.AdditionalRecordsSection[i].DomainName.Equals(mxDomain, StringComparison.CurrentCultureIgnoreCase))
+                        if (record.DomainName.Equals(mxDomain, StringComparison.CurrentCultureIgnoreCase))
                         {
-                            switch (response.AdditionalRecordsSection[i].Type)
+                            switch (record.Type)
                             {
                                 case DnsRecordType.A:
                                     if (!ipv6)
-                                        return ((DnsARecord)response.AdditionalRecordsSection[i].RData).Address.ToString();
+                                        return ((DnsARecord)record.RData).Address.ToString();
 
                                     break;
 
                                 case DnsRecordType.AAAA:
-                                    return ((DnsAAAARecord)response.AdditionalRecordsSection[i].RData).Address.ToString();
+                                    return ((DnsAAAARecord)record.RData).Address.ToString();
                             }
                         }
                     }
@@ -248,20 +305,20 @@ namespace TechnitiumLibrary.Net
                         case DnsRecordType.CNAME:
                             string cnameDomain = ((DnsCNAMERecord)response.AnswerSection[0].RData).CNAMEDomainName;
 
-                            for (int i = 1; i < response.AnswerSection.Count; i++)
+                            foreach (DnsResourceRecord record in response.AnswerSection)
                             {
-                                if (response.AnswerSection[i].DomainName.Equals(cnameDomain, StringComparison.CurrentCultureIgnoreCase))
+                                if (record.DomainName.Equals(cnameDomain, StringComparison.CurrentCultureIgnoreCase))
                                 {
-                                    switch (response.AnswerSection[i].Type)
+                                    switch (record.Type)
                                     {
                                         case DnsRecordType.A:
-                                            return ((DnsARecord)response.AnswerSection[i].RData).Address;
+                                            return ((DnsARecord)record.RData).Address;
 
                                         case DnsRecordType.AAAA:
-                                            return ((DnsAAAARecord)response.AnswerSection[i].RData).Address;
+                                            return ((DnsAAAARecord)record.RData).Address;
 
                                         case DnsRecordType.CNAME:
-                                            cnameDomain = ((DnsCNAMERecord)response.AnswerSection[i].RData).CNAMEDomainName;
+                                            cnameDomain = ((DnsCNAMERecord)record.RData).CNAMEDomainName;
                                             break;
                                     }
                                 }
@@ -796,6 +853,10 @@ namespace TechnitiumLibrary.Net
                     obj._RData = DnsPTRRecord.Parse(s);
                     break;
 
+                case DnsRecordType.NS:
+                    obj._RData = DnsNSRecord.Parse(s);
+                    break;
+
                 default:
                     byte[] RDATA = new byte[RDLENGTH];
 
@@ -1039,6 +1100,47 @@ namespace TechnitiumLibrary.Net
 
         public string PTRDomainName
         { get { return _PTRDomainName; } }
+
+        #endregion
+    }
+
+    public class DnsNSRecord
+    {
+        #region variables
+
+        string _NSDomainName;
+
+        #endregion
+
+        #region constructor
+
+        private DnsNSRecord()
+        { }
+
+        public DnsNSRecord(string NSDomainName)
+        {
+            _NSDomainName = NSDomainName;
+        }
+
+        #endregion
+
+        #region static
+
+        public static DnsNSRecord Parse(Stream s)
+        {
+            DnsNSRecord obj = new DnsNSRecord();
+
+            obj._NSDomainName = DnsDatagram.ConvertLabelToDomain(s);
+
+            return obj;
+        }
+
+        #endregion
+
+        #region properties
+
+        public string NSDomainName
+        { get { return _NSDomainName; } }
 
         #endregion
     }
