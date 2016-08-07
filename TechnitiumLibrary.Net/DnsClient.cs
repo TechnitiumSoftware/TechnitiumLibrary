@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -158,57 +158,59 @@ namespace TechnitiumLibrary.Net
             } while (true);
         }
 
-        public string ResolveMX(MailAddress emailAddress, bool resolveIP = false)
+        public string ResolveMX(MailAddress emailAddress, bool resolveIP = false, bool ipv6 = false)
+        {
+            return ResolveMX(emailAddress.Host, resolveIP, ipv6);
+        }
+
+        public string ResolveMX(string domain, bool resolveIP = false, bool ipv6 = false)
         {
             IPAddress parsedIP = null;
 
-            if (IPAddress.TryParse(emailAddress.Host, out parsedIP))
+            if (IPAddress.TryParse(domain, out parsedIP))
             {
                 //host is valid ip address
-                return emailAddress.Host;
+                return domain;
             }
 
             //host is domain
-            DnsDatagram response = Resolve(emailAddress.Host, DnsRecordType.MX);
+            DnsDatagram response = Resolve(domain, DnsRecordType.MX);
 
             switch (response.Header.RCODE)
             {
                 case DnsResponseCode.NoError:
-                    if (response.Header.ANCOUNT > 0)
+                    if ((response.Header.ANCOUNT == 0) || !response.AnswerSection[0].DomainName.Equals(domain, StringComparison.CurrentCultureIgnoreCase) || (response.AnswerSection[0].Type != DnsRecordType.MX))
+                        throw new NameErrorDnsClientException("No answer received from DNS server for domain: " + domain + "; DNS Server: " + _server.Address.ToString());
+
+                    string mxDomain = ((DnsMXRecord)response.AnswerSection[0].RData).Exchange;
+
+                    if (!resolveIP)
+                        return mxDomain;
+
+                    //check glue records
+                    for (int i = 0; i < response.AdditionalRecordsSection.Count; i++)
                     {
-                        if (response.AnswerSection[0].DomainName.Equals(emailAddress.Host, StringComparison.CurrentCultureIgnoreCase) && response.AnswerSection[0].Type == DnsRecordType.MX)
+                        if (response.AdditionalRecordsSection[i].DomainName.Equals(mxDomain, StringComparison.CurrentCultureIgnoreCase))
                         {
-                            string mxDomain = ((DnsMXRecord)response.AnswerSection[0].RData).Exchange;
-
-                            if (resolveIP)
+                            switch (response.AdditionalRecordsSection[i].Type)
                             {
-                                //check glue records
-
-                                for (int i = 0; i < response.AdditionalRecordsSection.Count; i++)
-                                {
-                                    if (response.AdditionalRecordsSection[i].DomainName.Equals(mxDomain, StringComparison.CurrentCultureIgnoreCase) && response.AdditionalRecordsSection[i].Type == DnsRecordType.A)
+                                case DnsRecordType.A:
+                                    if (!ipv6)
                                         return ((DnsARecord)response.AdditionalRecordsSection[i].RData).Address.ToString();
-                                }
 
-                                return ResolveA(mxDomain).ToString();
-                            }
-                            else
-                            {
-                                return mxDomain;
+                                    break;
+
+                                case DnsRecordType.AAAA:
+                                    return ((DnsAAAARecord)response.AdditionalRecordsSection[i].RData).Address.ToString();
                             }
                         }
-                        else
-                        {
-                            throw new DnsClientException("Invalid response from DNS Server: " + _server.Address.ToString() + "; for domain: " + emailAddress.Host);
-                        }
                     }
-                    else
-                    {
-                        throw new NameErrorDnsClientException("No answer from server for domain: " + emailAddress.Host + "; DNS Server: " + _server.Address.ToString());
-                    }
+
+                    //no glue record found so resolve ip
+                    return ResolveIP(mxDomain, ipv6).ToString();
 
                 case DnsResponseCode.NameError:
-                    throw new NameErrorDnsClientException("Domain does not exists: " + emailAddress.Host);
+                    throw new NameErrorDnsClientException("Domain does not exists: " + domain);
 
                 default:
                     throw new DnsClientException("DNS Server error. DNS opcode: " + Enum.GetName(typeof(DnsResponseCode), response.Header.RCODE) + " (" + response.Header.RCODE + ")");
@@ -225,39 +227,50 @@ namespace TechnitiumLibrary.Net
                 throw new NameErrorDnsClientException("Cannot resolve PTR for ip: " + ip.ToString());
         }
 
-        public IPAddress ResolveA(string domain)
+        public IPAddress ResolveIP(string domain, bool ipv6 = false)
         {
-            DnsDatagram response = Resolve(domain, DnsRecordType.A);
+            DnsDatagram response = Resolve(domain, ipv6 ? DnsRecordType.AAAA : DnsRecordType.A);
 
             switch (response.Header.RCODE)
             {
                 case DnsResponseCode.NoError:
-                    if (response.Header.ANCOUNT > 0)
+                    if ((response.Header.ANCOUNT == 0) || !response.AnswerSection[0].DomainName.Equals(domain, StringComparison.CurrentCultureIgnoreCase))
+                        throw new NameErrorDnsClientException("No answer received from DNS server for domain: " + domain + "; DNS Server: " + _server.Address.ToString());
+
+                    switch (response.AnswerSection[0].Type)
                     {
-                        if (response.AnswerSection[0].DomainName.Equals(domain, StringComparison.CurrentCultureIgnoreCase) && response.AnswerSection[0].Type == DnsRecordType.A)
-                        {
+                        case DnsRecordType.A:
                             return ((DnsARecord)response.AnswerSection[0].RData).Address;
-                        }
-                        else if (response.AnswerSection[0].Type == DnsRecordType.CNAME)
-                        {
+
+                        case DnsRecordType.AAAA:
+                            return ((DnsAAAARecord)response.AnswerSection[0].RData).Address;
+
+                        case DnsRecordType.CNAME:
                             string cnameDomain = ((DnsCNAMERecord)response.AnswerSection[0].RData).CNAMEDomainName;
 
                             for (int i = 1; i < response.AnswerSection.Count; i++)
                             {
-                                if (response.AnswerSection[i].DomainName.Equals(cnameDomain, StringComparison.CurrentCultureIgnoreCase) && response.AnswerSection[i].Type == DnsRecordType.A)
-                                    return ((DnsARecord)response.AnswerSection[i].RData).Address;
+                                if (response.AnswerSection[i].DomainName.Equals(cnameDomain, StringComparison.CurrentCultureIgnoreCase))
+                                {
+                                    switch (response.AnswerSection[i].Type)
+                                    {
+                                        case DnsRecordType.A:
+                                            return ((DnsARecord)response.AnswerSection[i].RData).Address;
+
+                                        case DnsRecordType.AAAA:
+                                            return ((DnsAAAARecord)response.AnswerSection[i].RData).Address;
+
+                                        case DnsRecordType.CNAME:
+                                            cnameDomain = ((DnsCNAMERecord)response.AnswerSection[i].RData).CNAMEDomainName;
+                                            break;
+                                    }
+                                }
                             }
 
-                            return ResolveA(cnameDomain);
-                        }
-                        else
-                        {
-                            throw new DnsClientException("Invalid response from DNS Server: " + _server.Address.ToString() + "; for domain: " + domain);
-                        }
-                    }
-                    else
-                    {
-                        throw new NameErrorDnsClientException("No answer from server for domain: " + domain + "; DNS Server: " + _server.Address.ToString());
+                            return ResolveIP(cnameDomain);
+
+                        default:
+                            throw new NameErrorDnsClientException("No answer received from DNS server for domain: " + domain + "; DNS Server: " + _server.Address.ToString());
                     }
 
                 case DnsResponseCode.NameError:
@@ -767,6 +780,10 @@ namespace TechnitiumLibrary.Net
                     obj._RData = DnsARecord.Parse(s);
                     break;
 
+                case DnsRecordType.AAAA:
+                    obj._RData = DnsAAAARecord.Parse(s);
+                    break;
+
                 case DnsRecordType.CNAME:
                     obj._RData = DnsCNAMERecord.Parse(s);
                     break;
@@ -839,6 +856,49 @@ namespace TechnitiumLibrary.Net
 
             byte[] buffer = new byte[4];
             s.Read(buffer, 0, 4);
+            obj._address = new IPAddress(buffer);
+
+            return obj;
+        }
+
+        #endregion
+
+        #region properties
+
+        public IPAddress Address
+        { get { return _address; } }
+
+        #endregion
+    }
+
+    public class DnsAAAARecord
+    {
+        #region variables
+
+        IPAddress _address;
+
+        #endregion
+
+        #region constructor
+
+        private DnsAAAARecord()
+        { }
+
+        public DnsAAAARecord(IPAddress address)
+        {
+            _address = address;
+        }
+
+        #endregion
+
+        #region static
+
+        public static DnsAAAARecord Parse(Stream s)
+        {
+            DnsAAAARecord obj = new DnsAAAARecord();
+
+            byte[] buffer = new byte[16];
+            s.Read(buffer, 0, 16);
             obj._address = new IPAddress(buffer);
 
             return obj;
