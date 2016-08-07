@@ -112,11 +112,16 @@ namespace TechnitiumLibrary.Net
 
         #region static
 
-        public static DnsDatagram ResolveViaRootServers(string domain, DnsRecordType queryType, int retries = 3)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsRecordType queryType, int retries = 3)
+        {
+            return ResolveViaNameServers(ROOTSERVERS, domain, queryType, retries);
+        }
+
+        public static DnsDatagram ResolveViaNameServers(string[] nameServers, string domain, DnsRecordType queryType, int retries = 3)
         {
             Random rnd = new Random();
             int hopCount = 0;
-            DnsClient client = new DnsClient(IPAddress.Parse(ROOTSERVERS[rnd.Next() % 13]));
+            DnsClient client = new DnsClient(IPAddress.Parse(nameServers[rnd.Next() % nameServers.Length]));
 
             while ((hopCount++) < 64)
             {
