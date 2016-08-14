@@ -40,12 +40,15 @@ namespace TechnitiumLibrary.IO
         STREAM = 11,
         LIST = 12,
         KEY_VALUE_PAIR = 13,
-        DICTIONARY = 14
+        DICTIONARY = 14,
+        DATETIME = 15
     }
 
     public class Bincoding
     {
         #region variables
+
+        static readonly DateTime _epoch = new DateTime(1970, 1, 1);
 
         BincodingType _type;
         byte[] _value;
@@ -137,6 +140,11 @@ namespace TechnitiumLibrary.IO
             return new Bincoding(BincodingType.ULONG, BitConverter.GetBytes(value));
         }
 
+        public static Bincoding GetValue(DateTime value)
+        {
+            return new Bincoding(BincodingType.DATETIME, BitConverter.GetBytes(Convert.ToInt64((value - _epoch).TotalMilliseconds)));
+        }
+
         public static Bincoding GetValue(byte[] value)
         {
             return new Bincoding(BincodingType.BINARY, value);
@@ -160,6 +168,16 @@ namespace TechnitiumLibrary.IO
         public static Bincoding GetValue(List<Bincoding> value)
         {
             return new Bincoding(value);
+        }
+
+        public static Bincoding GetValue(IWriteStream[] value)
+        {
+            List<Bincoding> value2 = new List<Bincoding>(value.Length);
+
+            foreach (IWriteStream item in value)
+                value2.Add(Bincoding.GetValue(item));
+
+            return new Bincoding(value2);
         }
 
         public static Bincoding GetValue(KeyValuePair<string, Bincoding> value)
@@ -227,6 +245,11 @@ namespace TechnitiumLibrary.IO
         public ulong GetULongValue()
         {
             return BitConverter.ToUInt64(_value, 0);
+        }
+
+        public DateTime GetDateTimeValue()
+        {
+            return _epoch.AddMilliseconds(BitConverter.ToInt64(_value, 0));
         }
 
         public string GetStringValue()
@@ -428,6 +451,11 @@ namespace TechnitiumLibrary.IO
             Encode(Bincoding.GetValue(value));
         }
 
+        public void Encode(DateTime value)
+        {
+            Encode(Bincoding.GetValue(value));
+        }
+
         public void Encode(byte[] value)
         {
             Encode(Bincoding.GetValue(value));
@@ -449,6 +477,11 @@ namespace TechnitiumLibrary.IO
         }
 
         public void Encode(List<Bincoding> value)
+        {
+            Encode(Bincoding.GetValue(value));
+        }
+
+        public void Encode(IWriteStream[] value)
         {
             Encode(Bincoding.GetValue(value));
         }
@@ -503,6 +536,11 @@ namespace TechnitiumLibrary.IO
             Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
         }
 
+        public void Encode(string key, DateTime value)
+        {
+            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+        }
+
         public void Encode(string key, byte[] value)
         {
             Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
@@ -519,6 +557,11 @@ namespace TechnitiumLibrary.IO
         }
 
         public void Encode(string key, List<Bincoding> value)
+        {
+            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+        }
+
+        public void Encode(string key, IWriteStream[] value)
         {
             Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
         }
@@ -672,6 +715,7 @@ namespace TechnitiumLibrary.IO
 
                 case BincodingType.LONG:
                 case BincodingType.ULONG:
+                case BincodingType.DATETIME:
                     {
                         byte[] value = new byte[8];
                         OffsetStream.StreamRead(_s, value, 0, 8);
