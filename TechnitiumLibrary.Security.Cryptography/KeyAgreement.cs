@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -65,56 +65,45 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region public
 
-        public byte[] DeriveKeyMaterial(string otherPartyPublicKeyXML)
+        public byte[] DeriveKeyMaterial(byte[] otherPartyPublicKey)
         {
             HashAlgorithm hash;
 
-            switch (_kdFunc)
+            switch (_kdHashAlgo)
             {
-                case KeyAgreementKeyDerivationFunction.Hash:
-                    switch (_kdHashAlgo)
-                    {
-                        case KeyAgreementKeyDerivationHashAlgorithm.SHA256:
-                            hash = HashAlgorithm.Create("SHA256");
-                            break;
+                case KeyAgreementKeyDerivationHashAlgorithm.SHA256:
+                    hash = HashAlgorithm.Create("SHA256");
+                    break;
 
-                        case KeyAgreementKeyDerivationHashAlgorithm.SHA384:
-                            hash = HashAlgorithm.Create("SHA384");
-                            break;
+                case KeyAgreementKeyDerivationHashAlgorithm.SHA384:
+                    hash = HashAlgorithm.Create("SHA384");
+                    break;
 
-                        case KeyAgreementKeyDerivationHashAlgorithm.SHA512:
-                            hash = HashAlgorithm.Create("SHA512");
-                            break;
-
-                        default:
-                            throw new CryptoException("Key derivation hash algorithm not supported.");
-                    }
-
-                    return hash.ComputeHash(ComputeKey(otherPartyPublicKeyXML));
-
-                case KeyAgreementKeyDerivationFunction.Hmac:
-                    switch (_kdHashAlgo)
-                    {
-                        case KeyAgreementKeyDerivationHashAlgorithm.SHA256:
-                            hash = new HMACSHA256(ComputeKey(otherPartyPublicKeyXML));
-                            break;
-
-                        case KeyAgreementKeyDerivationHashAlgorithm.SHA384:
-                            hash = new HMACSHA384(ComputeKey(otherPartyPublicKeyXML));
-                            break;
-
-                        case KeyAgreementKeyDerivationHashAlgorithm.SHA512:
-                            hash = new HMACSHA512(ComputeKey(otherPartyPublicKeyXML));
-                            break;
-
-                        default:
-                            throw new CryptoException("Key derivation hash algorithm not supported.");
-                    }
-
-                    return hash.ComputeHash(_hmacMessage);
+                case KeyAgreementKeyDerivationHashAlgorithm.SHA512:
+                    hash = HashAlgorithm.Create("SHA512");
+                    break;
 
                 default:
-                    throw new CryptoException("Key derivation function not supported.");
+                    throw new CryptoException("Key derivation hash algorithm not supported.");
+            }
+
+            try
+            {
+                switch (_kdFunc)
+                {
+                    case KeyAgreementKeyDerivationFunction.Hash:
+                        return hash.ComputeHash(ComputeKey(otherPartyPublicKey));
+
+                    case KeyAgreementKeyDerivationFunction.Hmac:
+                        return hash.ComputeHash(_hmacMessage);
+
+                    default:
+                        throw new CryptoException("Key derivation function not supported.");
+                }
+            }
+            finally
+            {
+                hash.Dispose();
             }
         }
 
@@ -122,9 +111,9 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region abstract
 
-        public abstract string GetPublicKeyXML();
+        public abstract byte[] GetPublicKey();
 
-        protected abstract byte[] ComputeKey(string otherPartyPublicKeyXML);
+        protected abstract byte[] ComputeKey(byte[] otherPartyPublicKey);
 
         #endregion
 

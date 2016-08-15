@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -63,14 +63,14 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region overrides
 
-        public override string GetPublicKeyXML()
+        public override byte[] GetPublicKey()
         {
-            return ((ECDiffieHellmanCng)_ecdh).PublicKey.ToXmlString();
+            return ((ECDiffieHellmanCng)_ecdh).PublicKey.ToByteArray();
         }
 
-        protected override byte[] ComputeKey(string otherPartyPublicKeyXML)
+        protected override byte[] ComputeKey(byte[] otherPartyPublicKey)
         {
-            return ((ECDiffieHellmanCng)_ecdh).DeriveKeyMaterial(ECDiffieHellmanCngPublicKey.FromXmlString(otherPartyPublicKeyXML));
+            return ((ECDiffieHellmanCng)_ecdh).DeriveKeyMaterial(ECDiffieHellmanCngPublicKey.FromByteArray(otherPartyPublicKey, CngKeyBlobFormat.EccPublicBlob));
         }
 
         #endregion

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,8 +18,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.IO;
 using System.Numerics;
-using System.Xml;
+using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
@@ -58,40 +59,43 @@ namespace TechnitiumLibrary.Security.Cryptography
             VerifyPublicKey(_keySize, _p, _g, _x);
         }
 
-        public DiffieHellmanPublicKey(string publicKeyXML)
+        public DiffieHellmanPublicKey(byte[] publicKey)
         {
-            XmlDocument xmlDoc = new XmlDocument();
-            xmlDoc.LoadXml(publicKeyXML);
-
-            XmlNode DHPublicKey = xmlDoc.SelectSingleNode("DHPublicKey");
-
-            _keySize = int.Parse(DHPublicKey.Attributes["keySize"].Value);
-
-            if (DHPublicKey.Attributes["group"] == null)
-                _group = DiffieHellmanGroupType.None;
-            else
-                _group = (DiffieHellmanGroupType)int.Parse(DHPublicKey.Attributes["group"].Value);
-
-            switch (DHPublicKey.Attributes["encoding"].Value)
+            using (MemoryStream mS = new MemoryStream(publicKey, false))
             {
-                case "base64":
-                    if (_group == DiffieHellmanGroupType.None)
-                    {
-                        _p = ReadPositiveNumber(DHPublicKey.SelectSingleNode("P").InnerText);
-                        _g = ReadPositiveNumber(DHPublicKey.SelectSingleNode("G").InnerText);
-                    }
-                    else
-                    {
-                        DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(_group, _keySize);
-                        _p = dhg.P;
-                        _g = dhg.G;
-                    }
+                BincodingDecoder decoder = new BincodingDecoder(mS, "DH");
 
-                    _x = ReadPositiveNumber(DHPublicKey.SelectSingleNode("X").InnerText);
-                    break;
+                switch (decoder.Version)
+                {
+                    case 1:
+                        _keySize = decoder.DecodeNext().GetIntegerValue();
+                        _group = (DiffieHellmanGroupType)decoder.DecodeNext().GetByteValue();
 
-                default:
-                    throw new CryptoException("DiffieHellman public key xml encoding not supported.");
+                        switch (_group)
+                        {
+                            case DiffieHellmanGroupType.RFC3526:
+                                DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(_group, _keySize);
+                                _p = dhg.P;
+                                _g = dhg.G;
+                                _x = ReadPositiveNumber(decoder.DecodeNext().Value);
+                                break;
+
+                            case DiffieHellmanGroupType.None:
+                                _p = ReadPositiveNumber(decoder.DecodeNext().Value);
+                                _g = ReadPositiveNumber(decoder.DecodeNext().Value);
+                                _x = ReadPositiveNumber(decoder.DecodeNext().Value);
+                                break;
+
+                            default:
+                                throw new NotSupportedException("DiffieHellmanGroup type not supported.");
+                        }
+
+
+                        break;
+
+                    default:
+                        throw new InvalidDataException("DiffieHellmanPublicKey data format version not supported.");
+                }
             }
 
             VerifyPublicKey(_keySize, _p, _g, _x);
@@ -101,10 +105,8 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region private
 
-        private static BigInteger ReadPositiveNumber(string base64Data)
+        private static BigInteger ReadPositiveNumber(byte[] buffer)
         {
-            byte[] buffer = Convert.FromBase64String(base64Data);
-
             if (buffer[buffer.Length - 1] == 0)
                 return new BigInteger(buffer);
 
@@ -131,23 +133,29 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region public
 
-        public string PublicKeyXML()
+        public byte[] PublicKey()
         {
-            switch (_group)
+            using (MemoryStream mS = new MemoryStream(4096))
             {
-                case DiffieHellmanGroupType.RFC3526:
-                    return @"<?xml version=""1.0"" encoding=""UTF-8""?>
-<DHPublicKey keySize=""" + _keySize + @""" group=""" + (int)_group + @""" encoding=""base64"">
-    <X>" + Convert.ToBase64String(_x.ToByteArray()) + @"</X>
-</DHPublicKey>";
+                BincodingEncoder encoder = new BincodingEncoder(mS, "DH", 1);
 
-                default:
-                    return @"<?xml version=""1.0"" encoding=""UTF-8""?>
-<DHPublicKey keySize=""" + _keySize + @""" encoding=""base64"">
-    <P>" + Convert.ToBase64String(_p.ToByteArray()) + @"</P>
-    <G>" + Convert.ToBase64String(_g.ToByteArray()) + @"</G>
-    <X>" + Convert.ToBase64String(_x.ToByteArray()) + @"</X>
-</DHPublicKey>";
+                encoder.Encode(_keySize);
+                encoder.Encode((byte)_group);
+
+                switch (_group)
+                {
+                    case DiffieHellmanGroupType.RFC3526:
+                        encoder.Encode(_x.ToByteArray());
+                        break;
+
+                    default:
+                        encoder.Encode(_p.ToByteArray());
+                        encoder.Encode(_g.ToByteArray());
+                        encoder.Encode(_x.ToByteArray());
+                        break;
+                }
+
+                return mS.ToArray();
             }
         }
 

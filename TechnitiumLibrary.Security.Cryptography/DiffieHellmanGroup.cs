@@ -21,7 +21,7 @@ using System.Numerics;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
-    public enum DiffieHellmanGroupType
+    public enum DiffieHellmanGroupType : byte
     {
         None = 0,
         RFC3526 = 1
@@ -31,7 +31,7 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region rfc3526 MODP groups
 
-        static byte[] p2048 = new byte[] { 
+        static byte[] p2048 = new byte[] {
                                     0xFF, 0xFF, 0xFF, 0xFF,
                                     0xFF, 0xFF, 0xFF, 0xFF,
                                     0xC9, 0x0F, 0xDA, 0xA2,

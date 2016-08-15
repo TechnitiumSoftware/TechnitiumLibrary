@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -88,32 +88,32 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region public
 
-        public override string GetPublicKeyXML()
+        public override byte[] GetPublicKey()
         {
             if (_group == DiffieHellmanGroupType.None)
-                return (new DiffieHellmanPublicKey(_keySize, _p, _g, BigInteger.ModPow(_g, _privateKey, _p))).PublicKeyXML();
+                return (new DiffieHellmanPublicKey(_keySize, _p, _g, BigInteger.ModPow(_g, _privateKey, _p))).PublicKey();
             else
-                return (new DiffieHellmanPublicKey(_group, _keySize, BigInteger.ModPow(_g, _privateKey, _p))).PublicKeyXML();
+                return (new DiffieHellmanPublicKey(_group, _keySize, BigInteger.ModPow(_g, _privateKey, _p))).PublicKey();
         }
 
         #endregion
 
         #region protected
 
-        protected override byte[] ComputeKey(string otherPartyPublicKeyXML)
+        protected override byte[] ComputeKey(byte[] otherPartyPublicKey)
         {
-            DiffieHellmanPublicKey otherPartyPublicKey = new DiffieHellmanPublicKey(otherPartyPublicKeyXML);
+            DiffieHellmanPublicKey opPublicKey = new DiffieHellmanPublicKey(otherPartyPublicKey);
 
-            if (otherPartyPublicKey.Group != _group)
+            if (opPublicKey.Group != _group)
                 throw new CryptoException("DiffieHellman group mismatch.");
 
-            if (otherPartyPublicKey.KeySize != _keySize)
+            if (opPublicKey.KeySize != _keySize)
                 throw new CryptoException("DiffieHellman key size mismatch.");
 
-            if (otherPartyPublicKey.P != _p)
+            if (opPublicKey.P != _p)
                 throw new CryptoException("DiffieHellman public key parameter P doesn't match.");
 
-            if (otherPartyPublicKey.G != _g)
+            if (opPublicKey.G != _g)
                 throw new CryptoException("DiffieHellman public key parameter G doesn't match.");
 
             HashAlgorithm hash;
@@ -136,7 +136,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                     throw new CryptoException("Hash algorithm not supported.");
             }
 
-            return hash.ComputeHash(BigInteger.ModPow(otherPartyPublicKey.X, _privateKey, _p).ToByteArray());
+            return hash.ComputeHash(BigInteger.ModPow(opPublicKey.X, _privateKey, _p).ToByteArray());
         }
 
         #endregion
