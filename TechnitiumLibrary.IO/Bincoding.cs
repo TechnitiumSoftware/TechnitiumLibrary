@@ -637,7 +637,7 @@ namespace TechnitiumLibrary.IO
             {
                 int numberLenBytes = length1 & 0x7F;
 
-                byte[] valueBytes = new byte[8];
+                byte[] valueBytes = new byte[4];
                 s.Read(valueBytes, 0, numberLenBytes);
 
                 switch (numberLenBytes)
@@ -647,7 +647,7 @@ namespace TechnitiumLibrary.IO
 
                     case 2:
                         Array.Reverse(valueBytes, 0, 2);
-                        return BitConverter.ToInt16(valueBytes, 0);
+                        return BitConverter.ToInt32(valueBytes, 0);
 
                     case 3:
                         Array.Reverse(valueBytes, 0, 3);
