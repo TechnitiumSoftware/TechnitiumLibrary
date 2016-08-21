@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -95,7 +95,9 @@ namespace TechnitiumLibrary.Security.Cryptography
                 return true;
             }
             else
+            {
                 return false;
+            }
         }
 
         public bool Verify(byte[] hash, Certificate signingCert)
@@ -146,7 +148,10 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public override bool Equals(object obj)
         {
-            if (base.Equals(obj))
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
                 return true;
 
             Signature s = obj as Signature;

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 {
     public enum CertificateType : byte
     {
-        Normal = 0,
+        User = 0,
         RootCA = 1,
         CA = 2
     }
@@ -37,14 +37,17 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         None = 0,
         SignCACertificate = 1,
-        SignNormalCertificate = 2,
-        SignFile = 3,
-        KeyExchange = 4
+        SignAnyUserCertificate = 2,
+        SignDocument = 3,
+        UserAuthentication = 4,
+        SignDomainUserCertificate = 5
     }
 
     public sealed class Certificate : IWriteStream
     {
         #region variables
+
+        static readonly DateTime _epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         byte _version;
         CertificateType _type;
@@ -63,8 +66,8 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         Signature _issuerSignature;
 
-        byte[] _LastHash;
-        string _LastHashAlgo;
+        byte[] _lastHash;
+        string _lastHashAlgo;
 
         #endregion
 
@@ -125,6 +128,10 @@ namespace TechnitiumLibrary.Security.Cryptography
                     throw new InvalidCertificateException("Certificate format version not supported.");
             }
         }
+
+        #endregion
+
+        #region private
 
         private void WriteCertificateTo(Stream s)
         {
@@ -189,8 +196,22 @@ namespace TechnitiumLibrary.Security.Cryptography
                     break;
 
                 default:
-                    if (signingCert._capability != CertificateCapability.SignNormalCertificate)
-                        throw new CryptoException("Signing certificate must have normal certificate signing capability.");
+                    switch (signingCert._capability)
+                    {
+                        case CertificateCapability.SignAnyUserCertificate:
+                            break;
+
+                        case CertificateCapability.SignDomainUserCertificate:
+                            //check if issuer email domain matches with user email domain
+
+                            if (!_issuedTo.FieldExists(CertificateProfileFlags.EmailAddress) || !signingCert.IssuedTo.EmailAddress.Host.Equals(_issuedTo.EmailAddress.Host, StringComparison.CurrentCultureIgnoreCase))
+                                throw new CryptoException("Signing certificate domain must match with user certificate email address domain.");
+
+                            break;
+
+                        default:
+                            throw new CryptoException("Signing certificate must have user certificate signing capability.");
+                    }
                     break;
             }
 
@@ -206,7 +227,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public void Verify(Certificate[] trustedRootCAs)
         {
-            Certificate IssuerCert = _issuerSignature.SigningCertificate;
+            Certificate issuerCert = _issuerSignature.SigningCertificate;
 
             #region verify signature
 
@@ -219,12 +240,12 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                 case CertificateType.CA:
                     if (!_issuerSignature.Verify(GetHash(_issuerSignature.HashAlgorithm), trustedRootCAs))
-                        throw new InvalidCertificateException("CA certificate issued to '" + _issuedTo.Name + "' by issuer '" + IssuerCert._issuedTo.Name + "' has invalid signature.");
+                        throw new InvalidCertificateException("CA certificate issued to '" + _issuedTo.Name + "' by issuer '" + issuerCert._issuedTo.Name + "' has invalid signature.");
                     break;
 
                 default:
                     if (!_issuerSignature.Verify(GetHash(_issuerSignature.HashAlgorithm), trustedRootCAs))
-                        throw new InvalidCertificateException("Certificate issued to '" + _issuedTo.Name + "' by issuer '" + IssuerCert._issuedTo.Name + "' has invalid signature.");
+                        throw new InvalidCertificateException("Certificate issued to '" + _issuedTo.Name + "' by issuer '" + issuerCert._issuedTo.Name + "' has invalid signature.");
                     break;
             }
 
@@ -239,27 +260,55 @@ namespace TechnitiumLibrary.Security.Cryptography
                     if (_capability != CertificateCapability.SignCACertificate)
                         throw new InvalidCertificateException("Root CA certificate can only be used to sign a CA certificate.");
 
-                    // root ca doesnt have issuer
+                    //root ca doesnt have issuer
                     break;
 
                 case CertificateType.CA:
                     //self
-                    if ((_capability != CertificateCapability.SignCACertificate) && (_capability != CertificateCapability.SignNormalCertificate))
-                        throw new InvalidCertificateException("CA certificates can only be used to sign a CA or normal certificate.");
+                    switch (_capability)
+                    {
+                        case CertificateCapability.SignCACertificate:
+                        case CertificateCapability.SignAnyUserCertificate:
+                        case CertificateCapability.SignDomainUserCertificate:
+                            break;
+
+                        default:
+                            throw new InvalidCertificateException("CA certificates can only be used to sign a CA or user certificate.");
+                    }
 
                     //ca issuer must have ca signing capability
-                    if (IssuerCert._capability != CertificateCapability.SignCACertificate)
-                        throw new InvalidCertificateException("CA certificate issued to '" + _issuedTo.Name + "' by issuer '" + IssuerCert._issuedTo.Name + "' doesn't have capability to sign CA certificate.");
+                    if (issuerCert._capability != CertificateCapability.SignCACertificate)
+                        throw new InvalidCertificateException("CA certificate issuer '" + issuerCert._issuedTo.Name + "' doesn't have capability to sign CA certificate.");
                     break;
 
                 default:
                     //self
-                    if ((_capability == CertificateCapability.SignCACertificate) || (_capability == CertificateCapability.SignNormalCertificate))
-                        throw new InvalidCertificateException("Normal certificates cannot sign other certificates.");
+                    switch (_capability)
+                    {
+                        case CertificateCapability.SignCACertificate:
+                        case CertificateCapability.SignAnyUserCertificate:
+                        case CertificateCapability.SignDomainUserCertificate:
+                            throw new InvalidCertificateException("User certificate cannot sign other certificates.");
+                    }
 
                     //issuer
-                    if (IssuerCert._capability != CertificateCapability.SignNormalCertificate)
-                        throw new InvalidCertificateException("Certificate issued to '" + _issuedTo.Name + "' by issuer '" + IssuerCert._issuedTo.Name + "' doesn't have capability to sign certificate.");
+                    switch (issuerCert._capability)
+                    {
+                        case CertificateCapability.SignAnyUserCertificate:
+                            break;
+
+                        case CertificateCapability.SignDomainUserCertificate:
+                            //check if issuer email domain matches with user email domain
+
+                            if (!_issuedTo.FieldExists(CertificateProfileFlags.EmailAddress) || !issuerCert.IssuedTo.EmailAddress.Host.Equals(_issuedTo.EmailAddress.Host, StringComparison.CurrentCultureIgnoreCase))
+                                throw new CryptoException("Certificate issuer '" + issuerCert._issuedTo.Name + "' domain must match with user certificate email address domain.");
+
+                            break;
+
+                        default:
+                            throw new InvalidCertificateException("Certificate issuer '" + issuerCert._issuedTo.Name + "' doesn't have capability to sign user certificate.");
+                    }
+
                     break;
             }
 
@@ -287,16 +336,17 @@ namespace TechnitiumLibrary.Security.Cryptography
                     break;
 
                 default:
-                    if ((IssuerCert._issuedOnUTC > _issuedOnUTC) || (_issuedOnUTC > IssuerCert._expiresOnUTC))
-                        throw new InvalidCertificateException("Issuer '" + IssuerCert._issuedTo.Name + "' certificate was expired during signing certificate for '" + _issuedTo.Name + "'.");
+                    if ((issuerCert._issuedOnUTC > _issuedOnUTC) || (_issuedOnUTC > issuerCert._expiresOnUTC))
+                        throw new InvalidCertificateException("Issuer '" + issuerCert._issuedTo.Name + "' certificate was expired during signing certificate for '" + _issuedTo.Name + "'.");
+
                     break;
             }
 
             #endregion
 
-            #region check if normal cert is expired
+            #region check if user cert is expired
 
-            if ((_type == CertificateType.Normal) && HasExpired())
+            if ((_type == CertificateType.User) && HasExpired())
                 throw new InvalidCertificateException("Certificate issued to '" + _issuedTo.Name + "' has expired.");
 
             #endregion
@@ -341,45 +391,48 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public override bool Equals(object obj)
         {
-            if (base.Equals(obj))
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
                 return true;
 
-            Certificate Cert = obj as Certificate;
+            Certificate cert = obj as Certificate;
 
-            if (Cert == null)
+            if (cert == null)
                 return false;
 
-            if (_version != Cert._version)
+            if (_version != cert._version)
                 return false;
 
-            if (_type != Cert._type)
+            if (_type != cert._type)
                 return false;
 
-            if (_serialNumber != Cert._serialNumber)
+            if (_serialNumber != cert._serialNumber)
                 return false;
 
-            if (!_issuedTo.Equals(Cert._issuedTo))
+            if (!_issuedTo.Equals(cert._issuedTo))
                 return false;
 
-            if (_capability != Cert._capability)
+            if (_capability != cert._capability)
                 return false;
 
-            if (_issuedOnUTC != Cert._issuedOnUTC)
+            if (_issuedOnUTC != cert._issuedOnUTC)
                 return false;
 
-            if (_expiresOnUTC != Cert._expiresOnUTC)
+            if (_expiresOnUTC != cert._expiresOnUTC)
                 return false;
 
-            if (_publicKeyEncryptionAlgorithm != Cert._publicKeyEncryptionAlgorithm)
+            if (_publicKeyEncryptionAlgorithm != cert._publicKeyEncryptionAlgorithm)
                 return false;
 
-            if (_publicKeyXML != Cert._publicKeyXML)
+            if (_publicKeyXML != cert._publicKeyXML)
                 return false;
 
-            if (_issuerSignature == Cert._issuerSignature)
+            if (_issuerSignature == cert._issuerSignature)
                 return true;
 
-            return _issuerSignature.Equals(Cert._issuerSignature);
+            return _issuerSignature.Equals(cert._issuerSignature);
         }
 
         public override int GetHashCode()
@@ -389,18 +442,18 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public byte[] GetHash(string hashAlgorithm)
         {
-            if (hashAlgorithm == _LastHashAlgo)
-                return _LastHash;
+            if (hashAlgorithm == _lastHashAlgo)
+                return _lastHash;
 
             using (MemoryStream mS = new MemoryStream())
             {
                 WriteCertificateTo(mS);
                 mS.Position = 0;
 
-                _LastHashAlgo = hashAlgorithm;
-                _LastHash = HashAlgorithm.Create(hashAlgorithm).ComputeHash(mS);
+                _lastHashAlgo = hashAlgorithm;
+                _lastHash = HashAlgorithm.Create(hashAlgorithm).ComputeHash(mS);
 
-                return _LastHash;
+                return _lastHash;
             }
         }
 
@@ -456,10 +509,10 @@ namespace TechnitiumLibrary.Security.Cryptography
         { get { return _capability; } }
 
         public DateTime IssuedOnUTC
-        { get { return new System.DateTime(1970, 1, 1).AddSeconds(_issuedOnUTC); } }
+        { get { return _epoch.AddSeconds(_issuedOnUTC); } }
 
         public DateTime ExpiresOnUTC
-        { get { return new System.DateTime(1970, 1, 1).AddSeconds(_expiresOnUTC); } }
+        { get { return _epoch.AddSeconds(_expiresOnUTC); } }
 
         public AsymmetricEncryptionAlgorithm PublicKeyEncryptionAlgorithm
         { get { return _publicKeyEncryptionAlgorithm; } }
