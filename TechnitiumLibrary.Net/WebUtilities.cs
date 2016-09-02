@@ -30,6 +30,9 @@ namespace TechnitiumLibrary.Net
     {
         public static string GetFormattedSize(double size, int roundToDigits = 2)
         {
+            if (size < 1000)
+                return Math.Round(size, roundToDigits) + " B";
+
             size = size / 1024;
             if (size < 1000)
                 return Math.Round(size, roundToDigits) + " KB";
@@ -48,6 +51,9 @@ namespace TechnitiumLibrary.Net
             {
                 bytesPerSecond = bytesPerSecond * 8;
 
+                if (bytesPerSecond < 1000)
+                    return Math.Round(bytesPerSecond, roundToDigits) + " bps";
+
                 bytesPerSecond = bytesPerSecond / 1000;
                 if (bytesPerSecond < 1000)
                     return Math.Round(bytesPerSecond, roundToDigits) + " kbps";
@@ -61,6 +67,9 @@ namespace TechnitiumLibrary.Net
             }
             else
             {
+                if (bytesPerSecond < 1000)
+                    return Math.Round(bytesPerSecond, roundToDigits) + " B/s";
+
                 bytesPerSecond = bytesPerSecond / 1024;
                 if (bytesPerSecond < 1000)
                     return Math.Round(bytesPerSecond, roundToDigits) + " KB/s";
