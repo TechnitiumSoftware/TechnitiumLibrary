@@ -430,20 +430,28 @@ namespace TechnitiumLibrary.Net
                             case AddressFamily.InterNetworkV6:
                                 #region ipv6
                                 {
-                                    byte[] addr = ip.Address.GetAddressBytes();
-                                    bool isInSameNetwork = true;
-
-                                    for (int i = 0; i < 8; i++)
+                                    if (destinationIP.ScopeId > 0)
                                     {
-                                        if (addr[i] != destination[i])
-                                        {
-                                            isInSameNetwork = false;
-                                            break;
-                                        }
+                                        if (destinationIP.ScopeId == ip.Address.ScopeId)
+                                            return new NetworkInfo(nic, ip.Address);
                                     }
+                                    else
+                                    {
+                                        byte[] addr = ip.Address.GetAddressBytes();
+                                        bool isInSameNetwork = true;
 
-                                    if (isInSameNetwork)
-                                        return new NetworkInfo(nic, ip.Address);
+                                        for (int i = 0; i < 8; i++)
+                                        {
+                                            if (addr[i] != destination[i])
+                                            {
+                                                isInSameNetwork = false;
+                                                break;
+                                            }
+                                        }
+
+                                        if (isInSameNetwork)
+                                            return new NetworkInfo(nic, ip.Address);
+                                    }
                                 }
                                 #endregion
                                 break;
