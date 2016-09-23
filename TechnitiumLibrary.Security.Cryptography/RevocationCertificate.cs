@@ -61,7 +61,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             s.WriteByte(0); //not found
         }
 
-        public static bool IsRevoked(Certificate certToCheck, out RevocationCertificate revokeCert, NetProxy proxy = null)
+        public static bool IsRevoked(Certificate certToCheck, out RevocationCertificate revokeCert, NetProxy proxy = null, int timeout = 10000)
         {
             if (certToCheck.RevocationURL == null)
                 throw new CryptoException("Certificate does not support revocation.");
@@ -69,6 +69,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             using (WebClientEx client = new WebClientEx())
             {
                 client.Proxy = proxy;
+                client.Timeout = timeout;
 
                 byte[] buffer = client.DownloadData(certToCheck.RevocationURL.AbsoluteUri + "?sn=" + certToCheck.SerialNumber);
 

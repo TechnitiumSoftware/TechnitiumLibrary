@@ -352,7 +352,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             #endregion
         }
 
-        public void VerifyRevocationList(NetProxy proxy = null)
+        public void VerifyRevocationList(NetProxy proxy = null, int timeout = 10000)
         {
             if (_revocationUri != null)
             {
@@ -361,10 +361,10 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                 try
                 {
-                    revoked = RevocationCertificate.IsRevoked(this, out revokeCert, proxy);
+                    revoked = RevocationCertificate.IsRevoked(this, out revokeCert, proxy, timeout);
 
                     if (_issuerSignature.SigningCertificate != null)
-                        _issuerSignature.SigningCertificate.VerifyRevocationList(proxy);
+                        _issuerSignature.SigningCertificate.VerifyRevocationList(proxy, timeout);
                 }
                 catch (InvalidCertificateException)
                 {
