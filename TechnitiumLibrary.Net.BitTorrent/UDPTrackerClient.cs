@@ -249,7 +249,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             if (_proxy == null)
             {
                 udpClient = new UdpClient();
-                udpClient.Client.SendTimeout = 30000;
+                udpClient.Client.ReceiveTimeout = 10000;
             }
             else
             {
@@ -257,6 +257,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 {
                     case NetProxyType.Socks5:
                         proxyRequestHandler = _proxy.SocksProxy.UdpAssociate();
+                        proxyRequestHandler.ReceiveTimeout = 10000;
                         break;
 
                     case NetProxyType.Http:
@@ -278,11 +279,6 @@ namespace TechnitiumLibrary.Net.BitTorrent
                         _connectionID = GetConnectionID(udpClient, proxyRequestHandler, _transactionID);
                         _connectionIDExpires = DateTime.UtcNow.AddMinutes(1);
                     }
-
-                    if (_proxy == null)
-                        udpClient.Client.ReceiveTimeout = 15 * (2 ^ n) * 1000;
-                    else
-                        proxyRequestHandler.ReceiveTimeout = 15 * (2 ^ n) * 1000;
 
                     try
                     {

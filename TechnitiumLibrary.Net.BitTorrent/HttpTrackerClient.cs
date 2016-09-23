@@ -146,6 +146,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 if (_proxy != null)
                     webClient.Proxy = _proxy;
 
+                webClient.Timeout = 30000; //30 sec timeout
                 webClient.UserAgent = _clientID.HttpUserAgent;
                 webClient.AddHeader("Accept-Encoding", _clientID.HttpAcceptEncoding);
                 webClient.KeepAlive = false;
