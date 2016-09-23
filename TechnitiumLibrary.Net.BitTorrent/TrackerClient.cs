@@ -56,6 +56,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
         DateTime _lastUpdated;
         Exception _lastException;
         bool _isUpdating = false;
+        int _retriesDone;
 
         #endregion
 
@@ -72,7 +73,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
             _peers = new List<IPEndPoint>();
 
-            _lastUpdated = DateTime.UtcNow;
+            ScheduleUpdateNow();
         }
 
         #endregion
@@ -127,6 +128,18 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         #endregion
 
+        #region private
+
+        private int GetUpdateInterval()
+        {
+            if (_customUpdateInterval > 0)
+                return _customUpdateInterval;
+
+            return _interval;
+        }
+
+        #endregion
+
         #region public
 
         public void ScheduleUpdateNow()
@@ -137,12 +150,12 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     return;
             }
 
-            _lastUpdated = DateTime.UtcNow.AddSeconds(_interval * -1);
+            _lastUpdated = DateTime.UtcNow.AddSeconds(GetUpdateInterval() * -1);
         }
 
         public TimeSpan NextUpdateIn()
         {
-            return _lastUpdated.AddSeconds(_interval) - DateTime.UtcNow;
+            return _lastUpdated.AddSeconds(GetUpdateInterval()) - DateTime.UtcNow;
         }
 
         public void Update(TrackerClientEvent @event, IPEndPoint clientEP)
@@ -160,6 +173,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 UpdateTracker(@event, clientEP);
 
                 _lastException = null;
+                _retriesDone = 0;
             }
             catch (Exception ex)
             {
@@ -168,6 +182,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 else
                     _lastException = ex.InnerException;
 
+                _retriesDone++;
                 _interval = _minInterval;
 
                 throw;
@@ -176,9 +191,6 @@ namespace TechnitiumLibrary.Net.BitTorrent
             {
                 _lastClientEP = clientEP;
                 _lastUpdated = DateTime.UtcNow;
-
-                if (_customUpdateInterval > 0)
-                    _interval = _customUpdateInterval;
 
                 lock (this)
                 {
@@ -225,7 +237,10 @@ namespace TechnitiumLibrary.Net.BitTorrent
         { get { return _clientID; } }
 
         public int CustomUpdateInterval
-        { get { return _customUpdateInterval; } }
+        {
+            get { return _customUpdateInterval; }
+            set { _customUpdateInterval = value; }
+        }
 
         public int Interval
         { get { return _interval; } }
@@ -261,6 +276,9 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 }
             }
         }
+
+        public int RetriesDone
+        { get { return _retriesDone; } }
 
         public NetProxy Proxy
         {
