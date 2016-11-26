@@ -83,6 +83,23 @@ namespace TechnitiumLibrary.Net
             }
         }
 
+        public static string GetFormattedTime(double seconds, bool bitsPerSecond = true, int roundToDigits = 2)
+        {
+            if (seconds < 60)
+                return seconds + " sec";
+
+            seconds = seconds / 60;
+            if (seconds < 60)
+                return Math.Round(seconds, roundToDigits) + " min" + (seconds > 1 ? "s" : "");
+
+            seconds = seconds / 60;
+            if (seconds < 24)
+                return Math.Round(seconds, roundToDigits) + " hour" + (seconds > 1 ? "s" : "");
+
+            seconds = seconds / 24;
+            return Math.Round(seconds, roundToDigits) + " day" + (seconds > 1 ? "s" : "");
+        }
+
         public static ContentType GetContentType(string fileName)
         {
             string MimeType = null;
