@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Text;
 using System.Web;
 
 namespace TechnitiumLibrary.Net.BitTorrent
@@ -94,8 +95,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
         {
             string queryString;
 
-            queryString = "?info_hash=" + HttpUtility.UrlEncode(_infoHash) +
-                          "&peer_id=" + HttpUtility.UrlEncode(_clientID.PeerID);
+            queryString = "?info_hash=" + Uri.EscapeDataString(Encoding.ASCII.GetString(_infoHash)) +
+                          "&peer_id=" + Uri.EscapeDataString(Encoding.ASCII.GetString(_clientID.PeerID));
 
             switch (clientEP.Address.ToString())
             {
