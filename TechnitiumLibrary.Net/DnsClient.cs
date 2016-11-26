@@ -928,8 +928,12 @@ namespace TechnitiumLibrary.Net
         public string Name
         { get { return _name; } }
 
-        public int TTL
+        [IgnoreDataMember]
+        public int TTLValue
         { get { return _ttl; } }
+
+        public string TTL
+        { get { return _ttl + " (" + WebUtilities.GetFormattedTime(_ttl) + ")"; } }
 
         public DnsRecordType Type
         { get { return _type; } }
