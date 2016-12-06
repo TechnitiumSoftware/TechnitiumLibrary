@@ -48,135 +48,248 @@ namespace TechnitiumLibrary.Net
         Internet = 1
     }
 
-    public class DnsClient : IDisposable
+    public class NameServerAddress
     {
         #region variables
 
-        static readonly string[] ROOTSERVERS = new string[] { "198.41.0.4", "192.228.79.201", "192.33.4.12", "199.7.91.13", "192.203.230.10", "192.5.5.241", "192.112.36.4", "198.97.190.53", "192.36.148.17", "192.58.128.30", "193.0.14.129", "199.7.83.42", "202.12.27.33" };
-
-        static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
-
-        Socket _socket;
-        IPEndPoint _server;
+        string _domainName;
+        IPEndPoint _endPoint;
 
         #endregion
 
-        #region constructor
+        #region constructors
 
-        public DnsClient(string server, ushort port = 53, bool tcp = false)
-            : this(new IPEndPoint(IPAddress.Parse(server), port), tcp)
+        public NameServerAddress(IPAddress address, ushort port = 53)
+            : this(null, new IPEndPoint(address, port))
         { }
 
-        public DnsClient(IPAddress server, ushort port = 53, bool tcp = false)
-            : this(new IPEndPoint(server, port), tcp)
+        public NameServerAddress(IPEndPoint endPoint)
+            : this(null, endPoint)
         { }
 
-        public DnsClient(IPEndPoint server, bool tcp = false)
+        public NameServerAddress(string domainName, IPAddress address, ushort port = 53)
+            : this(domainName, new IPEndPoint(address, port))
+        { }
+
+        public NameServerAddress(string domainName, IPEndPoint endPoint)
         {
-            _server = server;
-
-            if (tcp)
-            {
-                _socket = new Socket(_server.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                _socket.Connect(_server);
-                _socket.NoDelay = true;
-            }
-            else
-            {
-                _socket = new Socket(_server.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-            }
-
-            _socket.SendTimeout = 2000;
-            _socket.ReceiveTimeout = 2000;
-        }
-
-        #endregion
-
-        #region IDisposable
-
-        ~DnsClient()
-        {
-            Dispose(false);
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        bool _disposed = false;
-
-        private void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                _socket.Dispose();
-
-                _disposed = true;
-            }
+            _domainName = domainName;
+            _endPoint = endPoint;
         }
 
         #endregion
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsRecordType queryType, int retries = 3, bool tcp = false)
+        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response)
         {
-            return ResolveViaNameServers(ROOTSERVERS, domain, queryType, retries, tcp);
+            bool ipv6 = (response.NameServerAddress._endPoint.AddressFamily == AddressFamily.InterNetworkV6);
+            List<NameServerAddress> nameServers = new List<NameServerAddress>(4);
+
+            foreach (DnsResourceRecord authorityRecord in response.Authority)
+            {
+                DnsNSRecord nsRecord = (DnsNSRecord)authorityRecord.Data;
+                IPEndPoint _endPoint = null;
+
+                //find ip address of authoritative name server from additional records
+                foreach (DnsResourceRecord rr in response.Additional)
+                {
+                    if (rr.Name.Equals(nsRecord.NSDomainName, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        switch (rr.Type)
+                        {
+                            case DnsRecordType.A:
+                                _endPoint = new IPEndPoint(((DnsARecord)rr.Data).Address, 53);
+                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, _endPoint));
+                                break;
+
+                            case DnsRecordType.AAAA:
+                                if (ipv6)
+                                {
+                                    _endPoint = new IPEndPoint(((DnsAAAARecord)rr.Data).Address, 53);
+                                    nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, _endPoint));
+                                }
+                                break;
+                        }
+                    }
+                }
+
+                if (_endPoint == null)
+                {
+                    try
+                    {
+                        if (ipv6)
+                        {
+                            DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(nsRecord.NSDomainName, DnsRecordType.AAAA, true);
+                            if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Count > 0) && (nsResponse.Answer[0].Type == DnsRecordType.AAAA))
+                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, new IPEndPoint((nsResponse.Answer[0].Data as DnsAAAARecord).Address, 53)));
+                        }
+
+                        {
+                            DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(nsRecord.NSDomainName, DnsRecordType.A);
+                            if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Count > 0) && (nsResponse.Answer[0].Type == DnsRecordType.A))
+                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, new IPEndPoint((nsResponse.Answer[0].Data as DnsARecord).Address, 53)));
+                        }
+                    }
+                    catch
+                    { }
+                }
+            }
+
+            if (nameServers.Count == 0)
+                throw new DnsClientException("Could not resolve atleast one name server address.");
+
+            return nameServers.ToArray();
         }
 
-        public static DnsDatagram ResolveViaNameServers(string[] nameServers, string domain, DnsRecordType queryType, int retries = 3, bool tcp = false)
+        #endregion
+
+        #region public
+
+        public override string ToString()
         {
-            Random rnd = new Random();
+            if (string.IsNullOrEmpty(_domainName))
+                return _endPoint.Address.ToString();
+            else
+                return _domainName + " [" + _endPoint.Address.ToString() + "]";
+        }
+
+        #endregion
+
+        #region properties
+
+        public string DomainName
+        { get { return _domainName; } }
+
+        public IPEndPoint EndPoint
+        { get { return _endPoint; } }
+
+        #endregion
+    }
+
+    public class DnsClient
+    {
+        #region variables
+
+        static readonly NameServerAddress[] ROOT_NAME_SERVERS_IPv4;
+        static readonly NameServerAddress[] ROOT_NAME_SERVERS_IPv6;
+
+        static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+
+        NameServerAddress[] _servers;
+        bool _tcp;
+
+        #endregion
+
+        #region constructor
+
+        static DnsClient()
+        {
+            ROOT_NAME_SERVERS_IPv4 = new NameServerAddress[13];
+
+            ROOT_NAME_SERVERS_IPv4[0] = new NameServerAddress("a.root-servers.net", IPAddress.Parse("198.41.0.4")); //VeriSign, Inc.
+            ROOT_NAME_SERVERS_IPv4[1] = new NameServerAddress("b.root-servers.net", IPAddress.Parse("192.228.79.201")); //University of Southern California (ISI)
+            ROOT_NAME_SERVERS_IPv4[2] = new NameServerAddress("c.root-servers.net", IPAddress.Parse("192.33.4.12")); //Cogent Communications
+            ROOT_NAME_SERVERS_IPv4[3] = new NameServerAddress("d.root-servers.net", IPAddress.Parse("199.7.91.13")); //University of Maryland
+            ROOT_NAME_SERVERS_IPv4[4] = new NameServerAddress("e.root-servers.net", IPAddress.Parse("192.203.230.10")); //NASA (Ames Research Center)
+            ROOT_NAME_SERVERS_IPv4[5] = new NameServerAddress("f.root-servers.net", IPAddress.Parse("192.5.5.241")); //Internet Systems Consortium, Inc.
+            ROOT_NAME_SERVERS_IPv4[6] = new NameServerAddress("g.root-servers.net", IPAddress.Parse("192.112.36.4")); //US Department of Defense (NIC)
+            ROOT_NAME_SERVERS_IPv4[7] = new NameServerAddress("h.root-servers.net", IPAddress.Parse("198.97.190.53")); //US Army (Research Lab)
+            ROOT_NAME_SERVERS_IPv4[8] = new NameServerAddress("i.root-servers.net", IPAddress.Parse("192.36.148.17")); //Netnod
+            ROOT_NAME_SERVERS_IPv4[9] = new NameServerAddress("j.root-servers.net", IPAddress.Parse("192.58.128.30")); //VeriSign, Inc.
+            ROOT_NAME_SERVERS_IPv4[10] = new NameServerAddress("k.root-servers.net", IPAddress.Parse("193.0.14.129")); //RIPE NCC
+            ROOT_NAME_SERVERS_IPv4[11] = new NameServerAddress("l.root-servers.net", IPAddress.Parse("199.7.83.42")); //ICANN
+            ROOT_NAME_SERVERS_IPv4[12] = new NameServerAddress("m.root-servers.net", IPAddress.Parse("202.12.27.33")); //WIDE Project
+
+
+            ROOT_NAME_SERVERS_IPv6 = new NameServerAddress[13];
+
+            ROOT_NAME_SERVERS_IPv6[0] = new NameServerAddress("a.root-servers.net", IPAddress.Parse("2001:503:ba3e::2:30")); //VeriSign, Inc.
+            ROOT_NAME_SERVERS_IPv6[1] = new NameServerAddress("b.root-servers.net", IPAddress.Parse("2001:500:84::b")); //University of Southern California (ISI)
+            ROOT_NAME_SERVERS_IPv6[2] = new NameServerAddress("c.root-servers.net", IPAddress.Parse("2001:500:2::c")); //Cogent Communications
+            ROOT_NAME_SERVERS_IPv6[3] = new NameServerAddress("d.root-servers.net", IPAddress.Parse("2001:500:2d::d")); //University of Maryland
+            ROOT_NAME_SERVERS_IPv6[4] = new NameServerAddress("e.root-servers.net", IPAddress.Parse("2001:500:a8::e")); //NASA (Ames Research Center)
+            ROOT_NAME_SERVERS_IPv6[5] = new NameServerAddress("f.root-servers.net", IPAddress.Parse("2001:500:2f::f")); //Internet Systems Consortium, Inc.
+            ROOT_NAME_SERVERS_IPv6[6] = new NameServerAddress("g.root-servers.net", IPAddress.Parse("2001:500:12::d0d")); //US Department of Defense (NIC)
+            ROOT_NAME_SERVERS_IPv6[7] = new NameServerAddress("h.root-servers.net", IPAddress.Parse("2001:500:1::53")); //US Army (Research Lab)
+            ROOT_NAME_SERVERS_IPv6[8] = new NameServerAddress("i.root-servers.net", IPAddress.Parse("2001:7fe::53")); //Netnod
+            ROOT_NAME_SERVERS_IPv6[9] = new NameServerAddress("j.root-servers.net", IPAddress.Parse("2001:503:c27::2:30")); //VeriSign, Inc.
+            ROOT_NAME_SERVERS_IPv6[10] = new NameServerAddress("k.root-servers.net", IPAddress.Parse("2001:7fd::1")); //RIPE NCC
+            ROOT_NAME_SERVERS_IPv6[11] = new NameServerAddress("l.root-servers.net", IPAddress.Parse("2001:500:9f::42")); //ICANN
+            ROOT_NAME_SERVERS_IPv6[12] = new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")); //WIDE Project
+        }
+
+        public DnsClient(IPAddress[] servers, bool tcp = false, ushort port = 53)
+        {
+            if (servers.Length == 0)
+                throw new DnsClientException("Atleast one name server must be available for Dns Client.");
+
+            _servers = new NameServerAddress[servers.Length];
+            _tcp = tcp;
+
+            for (int i = 0; i < servers.Length; i++)
+                _servers[i] = new NameServerAddress(servers[i], port);
+        }
+
+        public DnsClient(IPAddress server, bool tcp = false, ushort port = 53)
+            : this(new NameServerAddress(server, port), tcp)
+        { }
+
+        public DnsClient(IPEndPoint server, bool tcp = false)
+            : this(new NameServerAddress(server), tcp)
+        { }
+
+        public DnsClient(NameServerAddress server, bool tcp = false)
+        {
+            _servers = new NameServerAddress[] { server };
+            _tcp = tcp;
+        }
+
+        public DnsClient(NameServerAddress[] servers, bool tcp = false)
+        {
+            if (servers.Length == 0)
+                throw new DnsClientException("Atleast one name server must be available for Dns Client.");
+
+            _servers = servers;
+            _tcp = tcp;
+        }
+
+        #endregion
+
+        #region static
+
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsRecordType queryType, bool ipv6 = false, bool tcp = false, int retries = 3)
+        {
+            if (ipv6)
+                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv6, domain, queryType, tcp, retries);
+            else
+                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv4, domain, queryType, tcp, retries);
+        }
+
+        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsRecordType queryType, bool tcp = false, int retries = 3)
+        {
             int hopCount = 0;
-            IPAddress nextNameServer = IPAddress.Parse(nameServers[rnd.Next() % nameServers.Length]);
 
             while ((hopCount++) < 64)
             {
-                using (DnsClient client = new DnsClient(nextNameServer, 53, tcp))
+                DnsClient client = new DnsClient(nameServers, tcp);
+
+                DnsDatagram response = client.Resolve(domain, queryType, retries);
+
+                switch (response.Header.RCODE)
                 {
-                    DnsDatagram response = client.Resolve(domain, queryType, retries);
-
-                    switch (response.Header.RCODE)
-                    {
-                        case DnsResponseCode.NoError:
-                            if (response.Answer.Count > 0)
-                                return response;
-
-                            if ((response.Authority.Count == 0) || (response.Authority[0].Type != DnsRecordType.NS))
-                                return response;
-
-                            //select an authoritative name server
-                            string nameserver = ((DnsNSRecord)response.Authority[rnd.Next() % response.Authority.Count].Data).NSDomainName;
-
-                            //find ip address of authoritative name server from additional records
-                            IPAddress nameserverIp = null;
-
-                            foreach (DnsResourceRecord record in response.Additional)
-                            {
-                                if ((record.Type == DnsRecordType.A) && (record.Name.Equals(nameserver, StringComparison.CurrentCultureIgnoreCase)))
-                                {
-                                    nameserverIp = ((DnsARecord)record.Data).Address;
-                                    break;
-                                }
-                            }
-
-                            if (nameserverIp == null)
-                            {
-                                DnsDatagram nsResponse = ResolveViaNameServers(nameServers, nameserver, DnsRecordType.A, retries, tcp);
-                                if ((nsResponse.Header.RCODE != DnsResponseCode.NoError) || (nsResponse.Answer.Count == 0) || (nsResponse.Answer[0].Type != DnsRecordType.A))
-                                    return response;
-
-                                nameserverIp = (nsResponse.Answer[0].Data as DnsARecord).Address;
-                            }
-
-                            nextNameServer = nameserverIp;
-                            break;
-
-                        default:
+                    case DnsResponseCode.NoError:
+                        if (response.Answer.Count > 0)
                             return response;
-                    }
+
+                        if (response.Authority.Count == 0)
+                            return response;
+
+                        nameServers = NameServerAddress.GetNameServersFromResponse(response);
+                        break;
+
+                    default:
+                        return response;
                 }
             }
 
@@ -190,44 +303,98 @@ namespace TechnitiumLibrary.Net
         public DnsDatagram Resolve(string domain, DnsRecordType queryType, int retries = 3)
         {
             byte[] buffer = new byte[2];
+            int bytesRecv;
+            byte[] recvbuffer = new byte[64 * 1024];
 
             int retry = 1;
             do
             {
-                _rnd.GetBytes(buffer);
                 short id = BitConverter.ToInt16(buffer, 0);
-
-                DnsHeader header = new DnsHeader(id, false, DnsOpcode.StandardQuery, false, false, true, false, DnsResponseCode.NoError, 1, 0, 0, 0);
-                DnsQuestionRecord question = new DnsQuestionRecord(domain, queryType, DnsClass.Internet);
+                byte[] sendBuffer;
 
                 using (MemoryStream dnsQueryStream = new MemoryStream(128))
                 {
-                    header.WriteTo(dnsQueryStream);
-                    question.WriteTo(dnsQueryStream);
+                    _rnd.GetBytes(buffer);
 
-                    if (_socket.ProtocolType == ProtocolType.Tcp)
-                        _socket.Send(dnsQueryStream.ToArray());
-                    else
-                        _socket.SendTo(dnsQueryStream.ToArray(), _server);
+                    if (_tcp)
+                        dnsQueryStream.Write(buffer, 0, 2);
+
+                    (new DnsHeader(id, false, DnsOpcode.StandardQuery, false, false, true, false, DnsResponseCode.NoError, 1, 0, 0, 0)).WriteTo(dnsQueryStream);
+                    (new DnsQuestionRecord(domain, queryType, DnsClass.Internet)).WriteTo(dnsQueryStream);
+
+                    sendBuffer = dnsQueryStream.ToArray();
+
+                    if (_tcp)
+                    {
+                        byte[] length = BitConverter.GetBytes(Convert.ToInt16(sendBuffer.Length - 2));
+
+                        sendBuffer[0] = length[1];
+                        sendBuffer[1] = length[0];
+                    }
                 }
 
-                byte[] recvbuffer = new byte[32 * 1024];
-                EndPoint remoteEP = new IPEndPoint(0, 0);
+                //select server
+                NameServerAddress server;
+
+                if (_servers.Length > 1)
+                {
+                    byte[] select = new byte[1];
+                    _rnd.GetBytes(select);
+
+                    server = _servers[select[0] % _servers.Length];
+                }
+                else
+                {
+                    server = _servers[0];
+                }
+
+                //query server
+                Socket _socket = null;
 
                 try
                 {
                     retry += 1;
 
-                    int bytesRecv;
+                    if (_tcp)
+                    {
+                        _socket = new Socket(server.EndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-                    if (_socket.ProtocolType == ProtocolType.Tcp)
-                        bytesRecv = _socket.Receive(recvbuffer);
+                        _socket.NoDelay = true;
+                        _socket.SendTimeout = 2000;
+                        _socket.ReceiveTimeout = 2000;
+
+                        _socket.Connect(server.EndPoint);
+                        _socket.Send(sendBuffer);
+
+                        bytesRecv = _socket.Receive(recvbuffer, 0, 2, SocketFlags.None);
+
+                        Array.Reverse(recvbuffer, 0, 2);
+                        short length = BitConverter.ToInt16(recvbuffer, 0);
+
+                        bytesRecv = _socket.Receive(recvbuffer, 0, length, SocketFlags.None);
+                    }
                     else
+                    {
+                        _socket = new Socket(server.EndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+
+                        _socket.SendTimeout = 2000;
+                        _socket.ReceiveTimeout = 2000;
+
+                        _socket.SendTo(sendBuffer, server.EndPoint);
+
+                        EndPoint remoteEP;
+
+                        if (server.EndPoint.AddressFamily == AddressFamily.InterNetworkV6)
+                            remoteEP = new IPEndPoint(IPAddress.IPv6Any, 0);
+                        else
+                            remoteEP = new IPEndPoint(IPAddress.Any, 0);
+
                         bytesRecv = _socket.ReceiveFrom(recvbuffer, ref remoteEP);
+                    }
 
                     using (MemoryStream mS = new MemoryStream(recvbuffer, 0, bytesRecv, false))
                     {
-                        DnsDatagram response = DnsDatagram.Parse(mS, _server);
+                        DnsDatagram response = DnsDatagram.Parse(mS, server);
 
                         if (response.Header.Identifier == id)
                             return response;
@@ -239,6 +406,11 @@ namespace TechnitiumLibrary.Net
                     {
                         throw;
                     }
+                }
+                finally
+                {
+                    if (_socket != null)
+                        _socket.Dispose();
                 }
             }
             while (true);
@@ -266,7 +438,7 @@ namespace TechnitiumLibrary.Net
             {
                 case DnsResponseCode.NoError:
                     if ((response.Header.ANCOUNT == 0) || !response.Answer[0].Name.Equals(domain, StringComparison.CurrentCultureIgnoreCase) || (response.Answer[0].Type != DnsRecordType.MX))
-                        throw new NameErrorDnsClientException("No answer received from DNS server for domain: " + domain + "; DNS Server: " + _server.Address.ToString());
+                        throw new NameErrorDnsClientException("No answer received from name server for domain: " + domain + "; Name Server: " + response.NameServerAddress.ToString());
 
                     string mxDomain = ((DnsMXRecord)response.Answer[0].Data).Exchange;
 
@@ -296,10 +468,10 @@ namespace TechnitiumLibrary.Net
                     return ResolveIP(mxDomain, ipv6).ToString();
 
                 case DnsResponseCode.NameError:
-                    throw new NameErrorDnsClientException("Domain does not exists: " + domain);
+                    throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name Server: " + response.NameServerAddress.ToString());
 
                 default:
-                    throw new DnsClientException("DNS Server error. DNS opcode: " + Enum.GetName(typeof(DnsResponseCode), response.Header.RCODE) + " (" + response.Header.RCODE + ")");
+                    throw new DnsClientException("Name Server error. DNS opcode: " + Enum.GetName(typeof(DnsResponseCode), response.Header.RCODE) + " (" + response.Header.RCODE + ")");
             }
         }
 
@@ -310,7 +482,7 @@ namespace TechnitiumLibrary.Net
             if ((response.Header.RCODE == DnsResponseCode.NoError) && (response.Header.ANCOUNT > 0) && (response.Answer[0].Type == DnsRecordType.PTR))
                 return ((DnsPTRRecord)response.Answer[0].Data).PTRDomainName;
             else
-                throw new NameErrorDnsClientException("Cannot resolve PTR for ip: " + ip.ToString());
+                throw new NameErrorDnsClientException("Cannot resolve PTR for ip: " + ip.ToString() + "; Name Server: " + response.NameServerAddress.ToString());
         }
 
         public IPAddress ResolveIP(string domain, bool ipv6 = false)
@@ -321,7 +493,7 @@ namespace TechnitiumLibrary.Net
             {
                 case DnsResponseCode.NoError:
                     if ((response.Header.ANCOUNT == 0) || !response.Answer[0].Name.Equals(domain, StringComparison.CurrentCultureIgnoreCase))
-                        throw new NameErrorDnsClientException("No answer received from DNS server for domain: " + domain + "; DNS Server: " + _server.Address.ToString());
+                        throw new NameErrorDnsClientException("No answer received from name server for domain: " + domain + "; Name Server: " + response.NameServerAddress.ToString());
 
                     switch (response.Answer[0].Type)
                     {
@@ -356,14 +528,14 @@ namespace TechnitiumLibrary.Net
                             return ResolveIP(cnameDomain);
 
                         default:
-                            throw new NameErrorDnsClientException("No answer received from DNS server for domain: " + domain + "; DNS Server: " + _server.Address.ToString());
+                            throw new NameErrorDnsClientException("No answer received from name server for domain: " + domain + "; Name Server: " + response.NameServerAddress.ToString());
                     }
 
                 case DnsResponseCode.NameError:
-                    throw new NameErrorDnsClientException("Domain does not exists: " + domain);
+                    throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name Server: " + response.NameServerAddress.ToString());
 
                 default:
-                    throw new DnsClientException("DNS Server error. DNS opcode: " + Enum.GetName(typeof(DnsResponseCode), response.Header.RCODE) + " (" + response.Header.RCODE + ")");
+                    throw new DnsClientException("Name Server error. DNS opcode: " + Enum.GetName(typeof(DnsResponseCode), response.Header.RCODE) + " (" + response.Header.RCODE + ")");
             }
         }
 
@@ -371,8 +543,8 @@ namespace TechnitiumLibrary.Net
 
         #region property
 
-        public IPEndPoint Server
-        { get { return _server; } }
+        public NameServerAddress[] Servers
+        { get { return _servers; } }
 
         #endregion
     }
@@ -561,7 +733,7 @@ namespace TechnitiumLibrary.Net
     {
         #region variables
 
-        IPEndPoint _server;
+        NameServerAddress _server;
 
         DnsHeader _header;
 
@@ -581,7 +753,7 @@ namespace TechnitiumLibrary.Net
 
         #region static
 
-        internal static DnsDatagram Parse(Stream s, IPEndPoint server)
+        internal static DnsDatagram Parse(Stream s, NameServerAddress server)
         {
             DnsDatagram obj = new DnsDatagram();
 
@@ -729,11 +901,14 @@ namespace TechnitiumLibrary.Net
         #region properties
 
         [IgnoreDataMember]
-        public IPEndPoint Server
+        public NameServerAddress NameServerAddress
         { get { return _server; } }
 
-        public string ServerIPAddress
-        { get { return _server.Address.ToString(); } }
+        public string NameServer
+        { get { return _server.DomainName; } }
+
+        public string NameServerIPAddress
+        { get { return _server.EndPoint.Address.ToString(); } }
 
         public DnsHeader Header
         { get { return _header; } }
