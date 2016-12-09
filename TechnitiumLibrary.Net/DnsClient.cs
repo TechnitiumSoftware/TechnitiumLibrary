@@ -30,7 +30,7 @@ using System.Text;
 
 namespace TechnitiumLibrary.Net
 {
-    public enum DnsRecordType : short
+    public enum DnsRecordType : ushort
     {
         A = 1,
         NS = 2,
@@ -43,128 +43,9 @@ namespace TechnitiumLibrary.Net
         ANY = 255
     }
 
-    public enum DnsClass : short
+    public enum DnsClass : ushort
     {
         Internet = 1
-    }
-
-    public class NameServerAddress
-    {
-        #region variables
-
-        string _domainName;
-        IPEndPoint _endPoint;
-
-        #endregion
-
-        #region constructors
-
-        public NameServerAddress(IPAddress address, ushort port = 53)
-            : this(null, new IPEndPoint(address, port))
-        { }
-
-        public NameServerAddress(IPEndPoint endPoint)
-            : this(null, endPoint)
-        { }
-
-        public NameServerAddress(string domainName, IPAddress address, ushort port = 53)
-            : this(domainName, new IPEndPoint(address, port))
-        { }
-
-        public NameServerAddress(string domainName, IPEndPoint endPoint)
-        {
-            _domainName = domainName;
-            _endPoint = endPoint;
-        }
-
-        #endregion
-
-        #region static
-
-        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response)
-        {
-            bool ipv6 = (response.NameServerAddress._endPoint.AddressFamily == AddressFamily.InterNetworkV6);
-            List<NameServerAddress> nameServers = new List<NameServerAddress>(4);
-
-            foreach (DnsResourceRecord authorityRecord in response.Authority)
-            {
-                DnsNSRecord nsRecord = (DnsNSRecord)authorityRecord.Data;
-                IPEndPoint _endPoint = null;
-
-                //find ip address of authoritative name server from additional records
-                foreach (DnsResourceRecord rr in response.Additional)
-                {
-                    if (rr.Name.Equals(nsRecord.NSDomainName, StringComparison.CurrentCultureIgnoreCase))
-                    {
-                        switch (rr.Type)
-                        {
-                            case DnsRecordType.A:
-                                _endPoint = new IPEndPoint(((DnsARecord)rr.Data).Address, 53);
-                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, _endPoint));
-                                break;
-
-                            case DnsRecordType.AAAA:
-                                if (ipv6)
-                                {
-                                    _endPoint = new IPEndPoint(((DnsAAAARecord)rr.Data).Address, 53);
-                                    nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, _endPoint));
-                                }
-                                break;
-                        }
-                    }
-                }
-
-                if (_endPoint == null)
-                {
-                    try
-                    {
-                        if (ipv6)
-                        {
-                            DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(nsRecord.NSDomainName, DnsRecordType.AAAA, true);
-                            if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Count > 0) && (nsResponse.Answer[0].Type == DnsRecordType.AAAA))
-                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, new IPEndPoint((nsResponse.Answer[0].Data as DnsAAAARecord).Address, 53)));
-                        }
-
-                        {
-                            DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(nsRecord.NSDomainName, DnsRecordType.A);
-                            if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Count > 0) && (nsResponse.Answer[0].Type == DnsRecordType.A))
-                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, new IPEndPoint((nsResponse.Answer[0].Data as DnsARecord).Address, 53)));
-                        }
-                    }
-                    catch
-                    { }
-                }
-            }
-
-            if (nameServers.Count == 0)
-                throw new DnsClientException("Could not resolve atleast one name server address.");
-
-            return nameServers.ToArray();
-        }
-
-        #endregion
-
-        #region public
-
-        public override string ToString()
-        {
-            if (string.IsNullOrEmpty(_domainName))
-                return _endPoint.Address.ToString();
-            else
-                return _domainName + " [" + _endPoint.Address.ToString() + "]";
-        }
-
-        #endregion
-
-        #region properties
-
-        public string DomainName
-        { get { return _domainName; } }
-
-        public IPEndPoint EndPoint
-        { get { return _endPoint; } }
-
-        #endregion
     }
 
     public class DnsClient
@@ -258,7 +139,7 @@ namespace TechnitiumLibrary.Net
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsRecordType queryType, bool ipv6 = false, bool tcp = false, int retries = 3)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsRecordType queryType, bool ipv6 = false, bool tcp = false, int retries = 2)
         {
             if (ipv6)
                 return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv6, domain, queryType, tcp, retries);
@@ -266,7 +147,7 @@ namespace TechnitiumLibrary.Net
                 return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv4, domain, queryType, tcp, retries);
         }
 
-        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsRecordType queryType, bool tcp = false, int retries = 3)
+        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsRecordType queryType, bool tcp = false, int retries = 2)
         {
             int hopCount = 0;
 
@@ -285,7 +166,7 @@ namespace TechnitiumLibrary.Net
                         if (response.Authority.Count == 0)
                             return response;
 
-                        nameServers = NameServerAddress.GetNameServersFromResponse(response);
+                        nameServers = client.GetNameServersFromResponse(response);
                         break;
 
                     default:
@@ -298,24 +179,108 @@ namespace TechnitiumLibrary.Net
 
         #endregion
 
+        #region private
+
+        private NameServerAddress[] GetNameServersFromResponse(DnsDatagram response)
+        {
+            bool ipv6 = (response.NameServerAddress.EndPoint.AddressFamily == AddressFamily.InterNetworkV6);
+
+            List<NameServerAddress> nameServers = new List<NameServerAddress>(4);
+            List<string> nameServersWithoutIP = new List<string>(4);
+
+            foreach (DnsResourceRecord authorityRecord in response.Authority)
+            {
+                DnsNSRecord nsRecord = (DnsNSRecord)authorityRecord.Data;
+                IPEndPoint _endPoint = null;
+
+                //find ip address of authoritative name server from additional records
+                foreach (DnsResourceRecord rr in response.Additional)
+                {
+                    if (rr.Name.Equals(nsRecord.NSDomainName, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        switch (rr.Type)
+                        {
+                            case DnsRecordType.A:
+                                _endPoint = new IPEndPoint(((DnsARecord)rr.Data).Address, 53);
+                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, _endPoint));
+                                break;
+
+                            case DnsRecordType.AAAA:
+                                if (ipv6)
+                                {
+                                    _endPoint = new IPEndPoint(((DnsAAAARecord)rr.Data).Address, 53);
+                                    nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, _endPoint));
+                                }
+                                break;
+                        }
+                    }
+                }
+
+                if (_endPoint == null)
+                    nameServersWithoutIP.Add(nsRecord.NSDomainName);
+            }
+
+            if (nameServers.Count == 0)
+            {
+                //resolve name server ip addresses
+                foreach (string nameServer in nameServersWithoutIP)
+                {
+                    try
+                    {
+                        if (ipv6)
+                        {
+                            DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(nameServer, DnsRecordType.AAAA, true, _tcp);
+                            if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Count > 0) && (nsResponse.Answer[0].Type == DnsRecordType.AAAA))
+                                nameServers.Add(new NameServerAddress(nameServer, new IPEndPoint((nsResponse.Answer[0].Data as DnsAAAARecord).Address, 53)));
+                        }
+
+                        {
+                            DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(nameServer, DnsRecordType.A, false, _tcp);
+                            if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Count > 0) && (nsResponse.Answer[0].Type == DnsRecordType.A))
+                                nameServers.Add(new NameServerAddress(nameServer, new IPEndPoint((nsResponse.Answer[0].Data as DnsARecord).Address, 53)));
+                        }
+                    }
+                    catch
+                    { }
+                }
+
+                if (nameServers.Count == 0)
+                    throw new DnsClientException("Could not resolve IP address for any name server: " + string.Join(", ", nameServersWithoutIP.ToArray()));
+            }
+
+            return nameServers.ToArray();
+        }
+
+        #endregion
+
         #region public
 
-        public DnsDatagram Resolve(string domain, DnsRecordType queryType, int retries = 3)
+        public DnsDatagram Resolve(string domain, DnsRecordType queryType, int retries = 2)
         {
             byte[] buffer = new byte[2];
             int bytesRecv;
             byte[] recvbuffer = new byte[64 * 1024];
+            int lastServerIndex = 0;
+
+            if (_servers.Length > 1)
+            {
+                retries = retries * _servers.Length; //retries on per server basis
+
+                byte[] select = new byte[1];
+                _rnd.GetBytes(select);
+
+                lastServerIndex = select[0] % _servers.Length;
+            }
 
             int retry = 1;
             do
             {
-                short id = BitConverter.ToInt16(buffer, 0);
+                _rnd.GetBytes(buffer);
+                ushort id = BitConverter.ToUInt16(buffer, 0);
                 byte[] sendBuffer;
 
                 using (MemoryStream dnsQueryStream = new MemoryStream(128))
                 {
-                    _rnd.GetBytes(buffer);
-
                     if (_tcp)
                         dnsQueryStream.Write(buffer, 0, 2);
 
@@ -338,10 +303,8 @@ namespace TechnitiumLibrary.Net
 
                 if (_servers.Length > 1)
                 {
-                    byte[] select = new byte[1];
-                    _rnd.GetBytes(select);
-
-                    server = _servers[select[0] % _servers.Length];
+                    server = _servers[lastServerIndex];
+                    lastServerIndex = (lastServerIndex + 1) % _servers.Length;
                 }
                 else
                 {
@@ -400,11 +363,11 @@ namespace TechnitiumLibrary.Net
                             return response;
                     }
                 }
-                catch (SocketException)
+                catch (SocketException ex)
                 {
                     if (retry > retries)
                     {
-                        throw;
+                        throw new DnsClientException("A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. Name Server: " + server.ToString(), ex);
                     }
                 }
                 finally
@@ -549,6 +512,60 @@ namespace TechnitiumLibrary.Net
         #endregion
     }
 
+    public class NameServerAddress
+    {
+        #region variables
+
+        string _domainName;
+        IPEndPoint _endPoint;
+
+        #endregion
+
+        #region constructors
+
+        public NameServerAddress(IPAddress address, ushort port = 53)
+            : this(null, new IPEndPoint(address, port))
+        { }
+
+        public NameServerAddress(IPEndPoint endPoint)
+            : this(null, endPoint)
+        { }
+
+        public NameServerAddress(string domainName, IPAddress address, ushort port = 53)
+            : this(domainName, new IPEndPoint(address, port))
+        { }
+
+        public NameServerAddress(string domainName, IPEndPoint endPoint)
+        {
+            _domainName = domainName;
+            _endPoint = endPoint;
+        }
+
+        #endregion
+
+        #region public
+
+        public override string ToString()
+        {
+            if (string.IsNullOrEmpty(_domainName))
+                return _endPoint.Address.ToString();
+            else
+                return _domainName + " [" + _endPoint.Address.ToString() + "]";
+        }
+
+        #endregion
+
+        #region properties
+
+        public string DomainName
+        { get { return _domainName; } }
+
+        public IPEndPoint EndPoint
+        { get { return _endPoint; } }
+
+        #endregion
+    }
+
     public enum DnsOpcode : byte
     {
         StandardQuery = 0,
@@ -570,7 +587,7 @@ namespace TechnitiumLibrary.Net
     {
         #region variables
 
-        short _ID;
+        ushort _ID;
 
         byte _QR;
         DnsOpcode _opcode;
@@ -581,10 +598,10 @@ namespace TechnitiumLibrary.Net
         byte _Z;
         DnsResponseCode _RCODE;
 
-        short _QDCOUNT;
-        short _ANCOUNT;
-        short _NSCOUNT;
-        short _ARCOUNT;
+        ushort _QDCOUNT;
+        ushort _ANCOUNT;
+        ushort _NSCOUNT;
+        ushort _ARCOUNT;
 
         #endregion
 
@@ -593,7 +610,7 @@ namespace TechnitiumLibrary.Net
         private DnsHeader()
         { }
 
-        internal DnsHeader(short ID, bool isResponse, DnsOpcode opcode, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, DnsResponseCode RCODE, short QDCOUNT, short ANCOUNT, short NSCOUNT, short ARCOUNT)
+        internal DnsHeader(ushort ID, bool isResponse, DnsOpcode opcode, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, DnsResponseCode RCODE, ushort QDCOUNT, ushort ANCOUNT, ushort NSCOUNT, ushort ARCOUNT)
         {
             _ID = ID;
 
@@ -680,11 +697,9 @@ namespace TechnitiumLibrary.Net
 
         #region properties
 
-        [IgnoreDataMember]
-        public short Identifier
+        public ushort Identifier
         { get { return _ID; } }
 
-        [IgnoreDataMember]
         public bool IsResponse
         { get { return _QR == 1; } }
 
@@ -703,27 +718,22 @@ namespace TechnitiumLibrary.Net
         public bool RecursionAvailable
         { get { return _RA == 1; } }
 
-        [IgnoreDataMember]
         public byte Z
         { get { return _Z; } }
 
         public DnsResponseCode RCODE
         { get { return _RCODE; } }
 
-        [IgnoreDataMember]
-        public short QDCOUNT
+        public ushort QDCOUNT
         { get { return _QDCOUNT; } }
 
-        [IgnoreDataMember]
-        public short ANCOUNT
+        public ushort ANCOUNT
         { get { return _ANCOUNT; } }
 
-        [IgnoreDataMember]
-        public short NSCOUNT
+        public ushort NSCOUNT
         { get { return _NSCOUNT; } }
 
-        [IgnoreDataMember]
-        public short ARCOUNT
+        public ushort ARCOUNT
         { get { return _ARCOUNT; } }
 
         #endregion
@@ -791,7 +801,7 @@ namespace TechnitiumLibrary.Net
             return obj;
         }
 
-        internal static short ReadInt16NetworkOrder(Stream s)
+        internal static ushort ReadInt16NetworkOrder(Stream s)
         {
             byte[] b = new byte[2];
 
@@ -799,10 +809,10 @@ namespace TechnitiumLibrary.Net
                 throw new EndOfStreamException();
 
             Array.Reverse(b);
-            return BitConverter.ToInt16(b, 0);
+            return BitConverter.ToUInt16(b, 0);
         }
 
-        internal static void WriteInt16NetworkOrder(Stream s, short value)
+        internal static void WriteInt16NetworkOrder(Stream s, ushort value)
         {
             byte[] b = BitConverter.GetBytes(value);
             Array.Reverse(b);
@@ -996,8 +1006,8 @@ namespace TechnitiumLibrary.Net
         {
             byte[] Label = DnsDatagram.ConvertDomainToLabel(_name);
             s.Write(Label, 0, Label.Length);
-            DnsDatagram.WriteInt16NetworkOrder(s, (short)_type);
-            DnsDatagram.WriteInt16NetworkOrder(s, (short)_class);
+            DnsDatagram.WriteInt16NetworkOrder(s, (ushort)_type);
+            DnsDatagram.WriteInt16NetworkOrder(s, (ushort)_class);
         }
 
         #endregion
@@ -1047,7 +1057,7 @@ namespace TechnitiumLibrary.Net
             obj._class = (DnsClass)DnsDatagram.ReadInt16NetworkOrder(s);
             obj._ttl = DnsDatagram.ReadInt32NetworkOrder(s);
 
-            short length = DnsDatagram.ReadInt16NetworkOrder(s);
+            ushort length = DnsDatagram.ReadInt16NetworkOrder(s);
 
             switch (obj._type)
             {
@@ -1339,7 +1349,7 @@ namespace TechnitiumLibrary.Net
     {
         #region variables
 
-        short _preference;
+        ushort _preference;
         string _exchange;
 
         #endregion
@@ -1367,7 +1377,7 @@ namespace TechnitiumLibrary.Net
 
         #region properties
 
-        public short Preference
+        public ushort Preference
         { get { return _preference; } }
 
         public string Exchange
