@@ -167,6 +167,10 @@ namespace TechnitiumLibrary.Net
                             return response;
 
                         nameServers = client.GetNameServersFromResponse(response);
+
+                        if (nameServers.Length == 0)
+                            return response;
+
                         break;
 
                     default:
@@ -190,34 +194,37 @@ namespace TechnitiumLibrary.Net
 
             foreach (DnsResourceRecord authorityRecord in response.Authority)
             {
-                DnsNSRecord nsRecord = (DnsNSRecord)authorityRecord.Data;
-                IPEndPoint _endPoint = null;
-
-                //find ip address of authoritative name server from additional records
-                foreach (DnsResourceRecord rr in response.Additional)
+                if (authorityRecord.Type == DnsRecordType.NS)
                 {
-                    if (rr.Name.Equals(nsRecord.NSDomainName, StringComparison.CurrentCultureIgnoreCase))
-                    {
-                        switch (rr.Type)
-                        {
-                            case DnsRecordType.A:
-                                _endPoint = new IPEndPoint(((DnsARecord)rr.Data).Address, 53);
-                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, _endPoint));
-                                break;
+                    DnsNSRecord nsRecord = (DnsNSRecord)authorityRecord.Data;
+                    IPEndPoint _endPoint = null;
 
-                            case DnsRecordType.AAAA:
-                                if (ipv6)
-                                {
-                                    _endPoint = new IPEndPoint(((DnsAAAARecord)rr.Data).Address, 53);
+                    //find ip address of authoritative name server from additional records
+                    foreach (DnsResourceRecord rr in response.Additional)
+                    {
+                        if (rr.Name.Equals(nsRecord.NSDomainName, StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            switch (rr.Type)
+                            {
+                                case DnsRecordType.A:
+                                    _endPoint = new IPEndPoint(((DnsARecord)rr.Data).Address, 53);
                                     nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, _endPoint));
-                                }
-                                break;
+                                    break;
+
+                                case DnsRecordType.AAAA:
+                                    if (ipv6)
+                                    {
+                                        _endPoint = new IPEndPoint(((DnsAAAARecord)rr.Data).Address, 53);
+                                        nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, _endPoint));
+                                    }
+                                    break;
+                            }
                         }
                     }
-                }
 
-                if (_endPoint == null)
-                    nameServersWithoutIP.Add(nsRecord.NSDomainName);
+                    if (_endPoint == null)
+                        nameServersWithoutIP.Add(nsRecord.NSDomainName);
+                }
             }
 
             if (nameServers.Count == 0)
@@ -243,9 +250,6 @@ namespace TechnitiumLibrary.Net
                     catch
                     { }
                 }
-
-                if (nameServers.Count == 0)
-                    throw new DnsClientException("Could not resolve IP address for any name server: " + string.Join(", ", nameServersWithoutIP.ToArray()));
             }
 
             return nameServers.ToArray();
