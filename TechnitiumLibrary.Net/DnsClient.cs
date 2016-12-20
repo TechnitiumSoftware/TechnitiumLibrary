@@ -150,12 +150,21 @@ namespace TechnitiumLibrary.Net
         public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsRecordType queryType, bool tcp = false, int retries = 2)
         {
             int hopCount = 0;
+            IPAddress ptrIP = null;
+
+            if (queryType == DnsRecordType.PTR)
+                ptrIP = IPAddress.Parse(domain);
 
             while ((hopCount++) < 64)
             {
                 DnsClient client = new DnsClient(nameServers, tcp);
 
-                DnsDatagram response = client.Resolve(domain, queryType, retries);
+                DnsDatagram response;
+
+                if (queryType == DnsRecordType.PTR)
+                    response = client.Resolve(new DnsQuestionRecord(ptrIP, DnsClass.Internet), retries);
+                else
+                    response = client.Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.Internet), retries);
 
                 switch (response.Header.RCODE)
                 {
@@ -255,11 +264,7 @@ namespace TechnitiumLibrary.Net
             return nameServers.ToArray();
         }
 
-        #endregion
-
-        #region public
-
-        public DnsDatagram Resolve(string domain, DnsRecordType queryType, int retries = 2)
+        private DnsDatagram Resolve(DnsQuestionRecord query, int retries)
         {
             byte[] buffer = new byte[2];
             int bytesRecv;
@@ -289,7 +294,7 @@ namespace TechnitiumLibrary.Net
                         dnsQueryStream.Write(buffer, 0, 2);
 
                     (new DnsHeader(id, false, DnsOpcode.StandardQuery, false, false, true, false, DnsResponseCode.NoError, 1, 0, 0, 0)).WriteTo(dnsQueryStream);
-                    (new DnsQuestionRecord(domain, queryType, DnsClass.Internet)).WriteTo(dnsQueryStream);
+                    query.WriteTo(dnsQueryStream);
 
                     sendBuffer = dnsQueryStream.ToArray();
 
@@ -383,12 +388,24 @@ namespace TechnitiumLibrary.Net
             while (true);
         }
 
-        public string ResolveMX(MailAddress emailAddress, bool resolveIP = false, bool ipv6 = false)
+        #endregion
+
+        #region public
+
+        public DnsDatagram Resolve(string domain, DnsRecordType queryType, int retries = 2)
         {
-            return ResolveMX(emailAddress.Host, resolveIP, ipv6);
+            if (queryType == DnsRecordType.PTR)
+                return Resolve(new DnsQuestionRecord(IPAddress.Parse(domain), DnsClass.Internet), retries);
+            else
+                return Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.Internet), retries);
         }
 
-        public string ResolveMX(string domain, bool resolveIP = false, bool ipv6 = false)
+        public string ResolveMX(MailAddress emailAddress, bool resolveIP = false, bool ipv6 = false, int retries = 2)
+        {
+            return ResolveMX(emailAddress.Host, resolveIP, ipv6, retries);
+        }
+
+        public string ResolveMX(string domain, bool resolveIP = false, bool ipv6 = false, int retries = 2)
         {
             IPAddress parsedIP = null;
 
@@ -399,7 +416,7 @@ namespace TechnitiumLibrary.Net
             }
 
             //host is domain
-            DnsDatagram response = Resolve(domain, DnsRecordType.MX);
+            DnsDatagram response = Resolve(new DnsQuestionRecord(domain, DnsRecordType.MX, DnsClass.Internet), retries);
 
             switch (response.Header.RCODE)
             {
@@ -432,7 +449,7 @@ namespace TechnitiumLibrary.Net
                     }
 
                     //no glue record found so resolve ip
-                    return ResolveIP(mxDomain, ipv6).ToString();
+                    return ResolveIP(mxDomain, ipv6, retries).ToString();
 
                 case DnsResponseCode.NameError:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name Server: " + response.NameServerAddress.ToString());
@@ -442,19 +459,19 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        public string ResolvePTR(IPAddress ip)
+        public string ResolvePTR(IPAddress ip, int retries = 2)
         {
-            DnsDatagram response = Resolve(ip.ToString(), DnsRecordType.PTR);
+            DnsDatagram response = Resolve(new DnsQuestionRecord(ip, DnsClass.Internet), retries);
 
             if ((response.Header.RCODE == DnsResponseCode.NoError) && (response.Header.ANCOUNT > 0) && (response.Answer[0].Type == DnsRecordType.PTR))
                 return ((DnsPTRRecord)response.Answer[0].Data).PTRDomainName;
             else
-                throw new NameErrorDnsClientException("Cannot resolve PTR for ip: " + ip.ToString() + "; Name Server: " + response.NameServerAddress.ToString());
+                throw new NameErrorDnsClientException("PTR record does not exists for ip: " + ip.ToString() + "; Name Server: " + response.NameServerAddress.ToString());
         }
 
-        public IPAddress ResolveIP(string domain, bool ipv6 = false)
+        public IPAddress ResolveIP(string domain, bool ipv6 = false, int retries = 2)
         {
-            DnsDatagram response = Resolve(domain, ipv6 ? DnsRecordType.AAAA : DnsRecordType.A);
+            DnsDatagram response = Resolve(new DnsQuestionRecord(domain, ipv6 ? DnsRecordType.AAAA : DnsRecordType.A, DnsClass.Internet), retries);
 
             switch (response.Header.RCODE)
             {
@@ -963,17 +980,36 @@ namespace TechnitiumLibrary.Net
             _class = @class;
 
             if (_type == DnsRecordType.PTR)
-            {
-                string[] IPAddr = name.Split(new char[] { '.' });
-
-                for (int i = IPAddr.Length - 1; i >= 0; i += -1)
-                    _name += IPAddr[i] + ".";
-
-                _name += "IN-ADDR.ARPA";
-            }
+                throw new DnsClientException("Invalid type selected for question record");
             else
-            {
                 _name = name;
+        }
+
+        internal DnsQuestionRecord(IPAddress ip, DnsClass @class)
+        {
+            _type = DnsRecordType.PTR;
+            _class = @class;
+
+            byte[] ipBytes = ip.GetAddressBytes();
+
+            switch (ip.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    for (int i = ipBytes.Length - 1; i >= 0; i += -1)
+                        _name += ipBytes[i] + ".";
+
+                    _name += "IN-ADDR.ARPA";
+                    break;
+
+                case AddressFamily.InterNetworkV6:
+                    for (int i = ipBytes.Length - 1; i >= 0; i += -1)
+                        _name += (ipBytes[i] & 0x0F).ToString("X") + "." + (ipBytes[i] >> 4).ToString("X") + ".";
+
+                    _name += "IP6.ARPA";
+                    break;
+
+                default:
+                    throw new DnsClientException("IP address family not supported for PTR query.");
             }
         }
 
