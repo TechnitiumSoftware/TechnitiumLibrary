@@ -71,6 +71,7 @@ namespace TechnitiumLibrary.Net
         A6 = 38,
         DNAME = 39,
         SINK = 40,
+        OPT = 41,
         APL = 42,
         DS = 43,
         SSHFP = 44,
@@ -82,35 +83,47 @@ namespace TechnitiumLibrary.Net
         NSEC3 = 50,
         NSEC3PARAM = 51,
         TLSA = 52,
+        SMIMEA = 53,
         HIP = 55,
+        NINFO = 56,
+        RKEY = 57,
+        TALINK = 58,
         CDS = 59,
         CDNSKEY = 60,
+        OPENPGPKEY = 61,
+        CSYNC = 62,
         SPF = 99,
         UINFO = 100,
         UID = 101,
         GID = 102,
         UNSPEC = 103,
+        NID = 104,
+        L32 = 105,
+        L64 = 106,
+        LP = 107,
+        EUI48 = 108,
+        EUI64 = 109,
         TKEY = 249,
         TSIG = 250,
-        URI = 256,
-        CAA = 257,
-        TA = 32768,
-        DLV = 32769,
-
-        OPT = 41,
+        IXFR = 251,
         AXFR = 252,
         MAILB = 253,
         MAILA = 254,
-        ANY = 255
+        ANY = 255,
+        URI = 256,
+        CAA = 257,
+        AVC = 258,
+        TA = 32768,
+        DLV = 32769
     }
 
     public enum DnsClass : ushort
     {
-        IN = 1,
-        CS = 2,
-        CH = 3,
-        HS = 4,
+        Internet = 1,
+        Chaos = 3,
+        Hesiod = 4,
 
+        NONE = 254,
         ANY = 255
     }
 
@@ -228,9 +241,9 @@ namespace TechnitiumLibrary.Net
                 DnsDatagram response;
 
                 if (queryType == DnsRecordType.PTR)
-                    response = client.Resolve(new DnsQuestionRecord(ptrIP, DnsClass.IN), retries);
+                    response = client.Resolve(new DnsQuestionRecord(ptrIP, DnsClass.Internet), retries);
                 else
-                    response = client.Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.IN), retries);
+                    response = client.Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.Internet), retries);
 
                 switch (response.Header.RCODE)
                 {
@@ -360,7 +373,7 @@ namespace TechnitiumLibrary.Net
                         dnsQueryStream.Position = 2;
 
                     //write dns datagram
-                    (new DnsHeader(id, false, DnsOpcode.StandardQuery, false, false, true, false, DnsResponseCode.NoError, 1, 0, 0, 0)).WriteTo(dnsQueryStream);
+                    (new DnsHeader(id, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0)).WriteTo(dnsQueryStream);
                     query.WriteTo(dnsQueryStream);
 
                     sendBuffer = dnsQueryStream.ToArray();
@@ -389,6 +402,7 @@ namespace TechnitiumLibrary.Net
 
                 //query server
                 Socket _socket = null;
+                double rtt;
 
                 try
                 {
@@ -402,6 +416,7 @@ namespace TechnitiumLibrary.Net
                         _socket.SendTimeout = 2000;
                         _socket.ReceiveTimeout = 2000;
 
+                        DateTime sentAt = DateTime.UtcNow;
                         _socket.Connect(server.EndPoint);
                         _socket.Send(sendBuffer);
 
@@ -418,6 +433,7 @@ namespace TechnitiumLibrary.Net
                         }
 
                         bytesRecv = length;
+                        rtt = (DateTime.UtcNow - sentAt).TotalMilliseconds;
                     }
                     else
                     {
@@ -426,6 +442,7 @@ namespace TechnitiumLibrary.Net
                         _socket.SendTimeout = 2000;
                         _socket.ReceiveTimeout = 2000;
 
+                        DateTime sentAt = DateTime.UtcNow;
                         _socket.SendTo(sendBuffer, server.EndPoint);
 
                         EndPoint remoteEP;
@@ -436,11 +453,12 @@ namespace TechnitiumLibrary.Net
                             remoteEP = new IPEndPoint(IPAddress.Any, 0);
 
                         bytesRecv = _socket.ReceiveFrom(recvbuffer, ref remoteEP);
+                        rtt = (DateTime.UtcNow - sentAt).TotalMilliseconds;
                     }
 
                     using (MemoryStream mS = new MemoryStream(recvbuffer, 0, bytesRecv, false))
                     {
-                        DnsDatagram response = new DnsDatagram(mS, server);
+                        DnsDatagram response = new DnsDatagram(mS, server, (_tcp ? ProtocolType.Tcp : ProtocolType.Udp), rtt);
 
                         if (response.Header.Identifier == id)
                             return response;
@@ -469,9 +487,9 @@ namespace TechnitiumLibrary.Net
         public DnsDatagram Resolve(string domain, DnsRecordType queryType, int retries = 2)
         {
             if (queryType == DnsRecordType.PTR)
-                return Resolve(new DnsQuestionRecord(IPAddress.Parse(domain), DnsClass.IN), retries);
+                return Resolve(new DnsQuestionRecord(IPAddress.Parse(domain), DnsClass.Internet), retries);
             else
-                return Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.IN), retries);
+                return Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.Internet), retries);
         }
 
         public string ResolveMX(MailAddress emailAddress, bool resolveIP = false, bool ipv6 = false, int retries = 2)
@@ -490,7 +508,7 @@ namespace TechnitiumLibrary.Net
             }
 
             //host is domain
-            DnsDatagram response = Resolve(new DnsQuestionRecord(domain, DnsRecordType.MX, DnsClass.IN), retries);
+            DnsDatagram response = Resolve(new DnsQuestionRecord(domain, DnsRecordType.MX, DnsClass.Internet), retries);
 
             switch (response.Header.RCODE)
             {
@@ -535,7 +553,7 @@ namespace TechnitiumLibrary.Net
 
         public string ResolvePTR(IPAddress ip, int retries = 2)
         {
-            DnsDatagram response = Resolve(new DnsQuestionRecord(ip, DnsClass.IN), retries);
+            DnsDatagram response = Resolve(new DnsQuestionRecord(ip, DnsClass.Internet), retries);
 
             if ((response.Header.RCODE == DnsResponseCode.NoError) && (response.Header.ANCOUNT > 0) && (response.Answer[0].Type == DnsRecordType.PTR))
                 return ((DnsPTRRecord)response.Answer[0].RDATA).PTRDomainName;
@@ -545,7 +563,7 @@ namespace TechnitiumLibrary.Net
 
         public IPAddress ResolveIP(string domain, bool ipv6 = false, int retries = 2)
         {
-            DnsDatagram response = Resolve(new DnsQuestionRecord(domain, ipv6 ? DnsRecordType.AAAA : DnsRecordType.A, DnsClass.IN), retries);
+            DnsDatagram response = Resolve(new DnsQuestionRecord(domain, ipv6 ? DnsRecordType.AAAA : DnsRecordType.A, DnsClass.Internet), retries);
 
             switch (response.Header.RCODE)
             {
@@ -666,6 +684,8 @@ namespace TechnitiumLibrary.Net
         #region variables
 
         NameServerAddress _server;
+        ProtocolType _protocol;
+        double _rtt;
 
         DnsHeader _header;
 
@@ -688,9 +708,11 @@ namespace TechnitiumLibrary.Net
             _additional = additional;
         }
 
-        public DnsDatagram(Stream s, NameServerAddress server = null)
+        public DnsDatagram(Stream s, NameServerAddress server = null, ProtocolType protocol = ProtocolType.Udp, double rtt = 0)
         {
             _server = server;
+            _protocol = protocol;
+            _rtt = rtt;
             _header = new DnsHeader(s);
 
             _question = new DnsQuestionRecord[_header.QDCOUNT];
@@ -832,6 +854,16 @@ namespace TechnitiumLibrary.Net
         public string NameServerIPAddress
         { get { return _server.EndPoint.Address.ToString(); } }
 
+        public ProtocolType Protocol
+        { get { return _protocol; } }
+
+        [IgnoreDataMember]
+        public double RTT
+        { get { return _rtt; } }
+
+        public string RoundTripTime
+        { get { return Math.Round(_rtt, 2) + " ms"; } }
+
         public DnsHeader Header
         { get { return _header; } }
 
@@ -854,7 +886,9 @@ namespace TechnitiumLibrary.Net
     {
         StandardQuery = 0,
         InverseQuery = 1,
-        ServerStatusRequest = 2
+        ServerStatusRequest = 2,
+        Notify = 4,
+        Update = 5
     }
 
     public enum DnsResponseCode : byte
@@ -864,7 +898,20 @@ namespace TechnitiumLibrary.Net
         ServerFailure = 2,
         NameError = 3,
         NotImplemented = 4,
-        Refused = 5
+        Refused = 5,
+        YXDomain = 6,
+        YXRRSet = 7,
+        NXRRSet = 8,
+        NotAuthorized = 9,
+        NotZone = 10,
+        BADSIG = 16,
+        BADKEY = 17,
+        BADTIME = 18,
+        BADMODE = 19,
+        BADNAME = 20,
+        BADALG = 21,
+        BADTRUNC = 22,
+        BADCOOKIE = 23
     }
 
     public class DnsHeader
@@ -880,6 +927,8 @@ namespace TechnitiumLibrary.Net
         byte _RD;
         byte _RA;
         byte _Z;
+        byte _AD;
+        byte _CD;
         DnsResponseCode _RCODE;
 
         ushort _QDCOUNT;
@@ -891,7 +940,7 @@ namespace TechnitiumLibrary.Net
 
         #region constructor
 
-        public DnsHeader(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, DnsResponseCode RCODE, ushort QDCOUNT, ushort ANCOUNT, ushort NSCOUNT, ushort ARCOUNT)
+        public DnsHeader(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, ushort QDCOUNT, ushort ANCOUNT, ushort NSCOUNT, ushort ARCOUNT)
         {
             _ID = ID;
 
@@ -911,6 +960,12 @@ namespace TechnitiumLibrary.Net
 
             if (recursionAvailable)
                 _RA = 1;
+
+            if (authenticData)
+                _AD = 1;
+
+            if (checkingDisabled)
+                _CD = 1;
 
             _RCODE = RCODE;
 
@@ -933,7 +988,9 @@ namespace TechnitiumLibrary.Net
 
             int rB = s.ReadByte();
             _RA = Convert.ToByte((rB & 0x80) >> 7);
-            _Z = Convert.ToByte((rB & 0x70) >> 4);
+            _Z = Convert.ToByte((rB & 0x40) >> 6);
+            _AD = Convert.ToByte((rB & 0x20) >> 5);
+            _CD = Convert.ToByte((rB & 0x10) >> 4);
             _RCODE = (DnsResponseCode)(rB & 0xf);
 
             _QDCOUNT = DnsDatagram.ReadInt16NetworkOrder(s);
@@ -950,7 +1007,7 @@ namespace TechnitiumLibrary.Net
         {
             DnsDatagram.WriteInt16NetworkOrder(_ID, s);
             s.WriteByte(Convert.ToByte((_QR << 7) | ((byte)_OPCODE << 3) | (_AA << 2) | (_TC << 1) | _RD));
-            s.WriteByte(Convert.ToByte((_RA << 7) | (_Z << 4) | (byte)_RCODE));
+            s.WriteByte(Convert.ToByte((_RA << 7) | (_Z << 6) | (_AD << 5) | (_CD << 4) | (byte)_RCODE));
             DnsDatagram.WriteInt16NetworkOrder(_QDCOUNT, s);
             DnsDatagram.WriteInt16NetworkOrder(_ANCOUNT, s);
             DnsDatagram.WriteInt16NetworkOrder(_NSCOUNT, s);
@@ -984,6 +1041,12 @@ namespace TechnitiumLibrary.Net
 
         public byte Z
         { get { return _Z; } }
+
+        public bool AuthenticData
+        { get { return _AD == 1; } }
+
+        public bool CheckingDisabled
+        { get { return _CD == 1; } }
 
         public DnsResponseCode RCODE
         { get { return _RCODE; } }
