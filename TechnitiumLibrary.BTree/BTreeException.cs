@@ -21,42 +21,27 @@ using System;
 
 namespace TechnitiumLibrary.BTree
 {
-    public class BTreeNodeValue<T>
+    public class BTreeException : Exception
     {
-        #region variables
+        #region constructors
 
-        byte[] _key;
-        T _value;
+        public BTreeException()
+            : base()
+        { }
 
-        #endregion
+        public BTreeException(string message)
+            : base(message)
+        { }
 
-        #region constructor
+        public BTreeException(string message, Exception innerException)
+            : base(message, innerException)
+        { }
 
-        public BTreeNodeValue(byte[] key, T value)
-        {
-            _key = key;
-            _value = value;
-        }
-
-        #endregion
-
-        #region public
-
-        public override string ToString()
-        {
-            return BitConverter.ToString(_key).Replace("-", "").ToLower() + ": " + _value.ToString();
-        }
-
-        #endregion
-
-        #region properties
-
-        public byte[] Key
-        { get { return _key; } }
-
-        public T Value
-        { get { return _value; } }
+        protected BTreeException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+            : base(info, context)
+        { }
 
         #endregion
     }
+
 }

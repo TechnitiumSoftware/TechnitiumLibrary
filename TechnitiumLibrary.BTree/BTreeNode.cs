@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,9 +17,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace TechnitiumLibrary.BTree
 {
@@ -35,11 +35,18 @@ namespace TechnitiumLibrary.BTree
         BTreeNodeValue<T> _holdValue;
         BTreeNodeValue<T> _nodeValue;
 
+        ReaderWriterLockSlim _nodeLock = new ReaderWriterLockSlim();
+        ReaderWriterLockSlim _nodeValueLock = new ReaderWriterLockSlim();
+
         #endregion
 
         #region constructor
 
-        public BTreeNode(BTreeNode<T> parentNode, byte k)
+        public BTreeNode()
+            : this(null, 0)
+        { }
+
+        private BTreeNode(BTreeNode<T> parentNode, byte k)
         {
             if (parentNode == null)
             {
@@ -64,16 +71,25 @@ namespace TechnitiumLibrary.BTree
 
             for (int i = this._depth; i < key.Length; i++)
             {
-                if (currentNode._childNodes == null)
-                    return currentNode;
+                ReaderWriterLockSlim _currentNodeLock = currentNode._nodeLock;
+                _currentNodeLock.EnterReadLock();
+                try
+                {
+                    if (currentNode._childNodes == null)
+                        return currentNode;
 
-                int k = key[i];
-                BTreeNode<T> childNode = currentNode._childNodes[k];
+                    int k = key[i];
+                    BTreeNode<T> childNode = currentNode._childNodes[k];
 
-                if (childNode == null)
-                    return currentNode;
+                    if (childNode == null)
+                        return currentNode;
 
-                currentNode = childNode;
+                    currentNode = childNode;
+                }
+                finally
+                {
+                    _currentNodeLock.ExitReadLock();
+                }
             }
 
             return currentNode;
@@ -85,40 +101,57 @@ namespace TechnitiumLibrary.BTree
 
             while (true)
             {
-                BTreeNode<T>[] childNodes = currentNode._childNodes;
-
-                if (childNodes == null)
-                    return currentNode; //current node is last node
-
-                //find last child of current node
-                BTreeNode<T> lastChildNode = null;
-
-                for (int k = 255; k > -1; k--)
+                ReaderWriterLockSlim _currentNodeLock = currentNode._nodeLock;
+                _currentNodeLock.EnterReadLock();
+                try
                 {
-                    if (childNodes[k] != null)
+                    BTreeNode<T>[] childNodes = currentNode._childNodes;
+
+                    if (childNodes == null)
+                        return currentNode; //current node is last node
+
+                    //find last child of current node
+                    BTreeNode<T> lastChildNode = null;
+
+                    for (int k = 255; k > -1; k--)
                     {
-                        lastChildNode = childNodes[k];
-                        break;
+                        if (childNodes[k] != null)
+                        {
+                            lastChildNode = childNodes[k];
+                            break;
+                        }
                     }
+
+                    if (lastChildNode == null)
+                        return currentNode; //current node doesnt have any child nodes so its last node
+
+                    currentNode = lastChildNode;
                 }
-
-                if (lastChildNode == null)
-                    return currentNode; //current node doesnt have any child nodes so its last node
-
-                currentNode = lastChildNode;
+                finally
+                {
+                    _currentNodeLock.ExitReadLock();
+                }
             }
         }
 
         private BTreeNode<T> GetNextNode()
         {
-            if (_childNodes != null)
+            _nodeLock.EnterReadLock();
+            try
             {
-                //return first child node
-                foreach (BTreeNode<T> childNode in _childNodes)
+                if (_childNodes != null)
                 {
-                    if (childNode != null)
-                        return childNode;
+                    //return first non-null child node
+                    foreach (BTreeNode<T> childNode in _childNodes)
+                    {
+                        if (childNode != null)
+                            return childNode;
+                    }
                 }
+            }
+            finally
+            {
+                _nodeLock.ExitReadLock();
             }
 
             //no child nodes available, move up to parent node & find next sibling node
@@ -131,13 +164,21 @@ namespace TechnitiumLibrary.BTree
                 if (parentNode == null)
                     return null; //current node is root node
 
-                //find next sibling node
-                BTreeNode<T>[] childNodes = parentNode._childNodes;
-
-                for (int k = currentNode._k + 1; k < 256; k++)
+                parentNode._nodeLock.EnterReadLock();
+                try
                 {
-                    if (childNodes[k] != null)
-                        return childNodes[k];
+                    //find next sibling node
+                    BTreeNode<T>[] childNodes = parentNode._childNodes;
+
+                    for (int k = currentNode._k + 1; k < 256; k++)
+                    {
+                        if (childNodes[k] != null)
+                            return childNodes[k];
+                    }
+                }
+                finally
+                {
+                    parentNode._nodeLock.ExitReadLock();
                 }
 
                 //no next sibling available; move up to parent node
@@ -160,21 +201,41 @@ namespace TechnitiumLibrary.BTree
                 if (parentNode == null)
                     return currentNode; //current node is root node
 
-                //find previous sibling node
-                BTreeNode<T>[] childNodes = parentNode._childNodes;
-
-                for (int k = currentNode._k - 1; k > -1; k--)
+                parentNode._nodeLock.EnterReadLock();
+                try
                 {
-                    if (childNodes[k] != null)
-                        return childNodes[k].GetLastNode();
+                    //find previous sibling node
+                    BTreeNode<T>[] childNodes = parentNode._childNodes;
+
+                    for (int k = currentNode._k - 1; k > -1; k--)
+                    {
+                        if (childNodes[k] != null)
+                            return childNodes[k].GetLastNode();
+                    }
+                }
+                finally
+                {
+                    parentNode._nodeLock.ExitReadLock();
                 }
 
-                //no previous sibling available; move up to parent node
+                //no previous sibling available; check if parent has value set
+                _parentNode._nodeValueLock.EnterReadLock();
+                try
+                {
+                    if (_parentNode._nodeValue != null)
+                        return _parentNode;
+                }
+                finally
+                {
+                    _parentNode._nodeValueLock.ExitReadLock();
+                }
+
+                //move up to parent node
                 currentNode = parentNode;
             }
         }
 
-        private void SetValue(byte[] key, T value)
+        private BTreeNodeValue<T> SetValue(byte[] key, T value)
         {
             BTreeNode<T> currentNode = this;
 
@@ -182,104 +243,214 @@ namespace TechnitiumLibrary.BTree
             {
                 if (key.Length == currentNode._depth)
                 {
-                    currentNode._nodeValue = new BTreeNodeValue<T>(key, value);
-                    return;
+                    currentNode._nodeValueLock.EnterWriteLock();
+                    try
+                    {
+                        BTreeNodeValue<T> oldValue = currentNode._nodeValue;
+                        currentNode._nodeValue = new BTreeNodeValue<T>(key, value);
+
+                        return oldValue;
+                    }
+                    finally
+                    {
+                        currentNode._nodeValueLock.ExitWriteLock();
+                    }
                 }
 
                 if (key.Length < currentNode._depth)
-                    return;
+                    throw new BTreeException("Cannot set value since the key length is less than node depth.");
 
-                if (currentNode._childNodes == null)
+                ReaderWriterLockSlim currentNodeLock = currentNode._nodeLock;
+                currentNodeLock.EnterWriteLock();
+                try
                 {
-                    if (currentNode._holdValue == null)
+                    if (currentNode._childNodes == null)
                     {
-                        currentNode._holdValue = new BTreeNodeValue<T>(key, value);
-                        return;
+                        if (currentNode._holdValue == null)
+                        {
+                            //set value into current node hold
+                            BTreeNodeValue<T> oldValue = currentNode._holdValue;
+                            currentNode._holdValue = new BTreeNodeValue<T>(key, value);
+
+                            return oldValue;
+                        }
+
+                        //explode current node & move hold value to child node
+                        {
+                            currentNode._childNodes = new BTreeNode<T>[256];
+
+                            byte k = currentNode._holdValue.Key[currentNode._depth];
+
+                            BTreeNode<T> childNode = new BTreeNode<T>(currentNode, k);
+                            currentNode._childNodes[k] = childNode;
+
+                            if (currentNode._holdValue.Key.Length == childNode._depth)
+                                childNode._nodeValue = currentNode._holdValue;
+                            else
+                                childNode._holdValue = currentNode._holdValue;
+
+                            currentNode._holdValue = null;
+                        }
                     }
-                    else
+
+                    //set child node as current node
                     {
-                        currentNode._childNodes = new BTreeNode<T>[256];
+                        byte k = key[currentNode._depth];
+                        BTreeNode<T> childNode = currentNode._childNodes[k];
 
-                        byte k = currentNode._holdValue.Key[currentNode._depth];
+                        if (childNode == null)
+                        {
+                            childNode = new BTreeNode<T>(currentNode, k);
+                            currentNode._childNodes[k] = childNode;
+                        }
 
-                        BTreeNode<T> childNode = new BTreeNode<T>(currentNode, k);
-                        currentNode._childNodes[k] = childNode;
-
-                        childNode.SetValue(currentNode._holdValue.Key, currentNode._holdValue.Value);
-                        currentNode._holdValue = null;
+                        currentNode = childNode;
                     }
                 }
-
+                finally
                 {
-                    byte k = key[currentNode._depth];
-                    BTreeNode<T> childNode = currentNode._childNodes[k];
-
-                    if (childNode == null)
-                    {
-                        childNode = new BTreeNode<T>(currentNode, k);
-                        currentNode._childNodes[k] = childNode;
-                    }
-
-                    currentNode = childNode;
+                    currentNodeLock.ExitWriteLock();
                 }
             }
         }
 
         private BTreeNodeValue<T> GetValue(byte[] key)
         {
-            if (key.Length == this._depth)
+            BTreeNode<T> currentNode = this;
+
+            while (true)
             {
-                return _nodeValue;
-            }
-            else
-            {
-                if (_holdValue == null)
-                    return null;
-
-                byte[] holdKey = _holdValue.Key;
-
-                if (holdKey.Length != key.Length)
-                    return null;
-
-                for (int i = 0; i < key.Length; i++)
+                if (key.Length == currentNode._depth)
                 {
-                    if (holdKey[i] != key[i])
-                        return null;
+                    currentNode._nodeValueLock.EnterReadLock();
+                    try
+                    {
+                        return currentNode._nodeValue;
+                    }
+                    finally
+                    {
+                        currentNode._nodeValueLock.ExitReadLock();
+                    }
                 }
 
-                return _holdValue;
+                if (key.Length < currentNode._depth)
+                    throw new BTreeException("Cannot get value since the key length is less than node depth.");
+
+                ReaderWriterLockSlim currentNodeLock = currentNode._nodeLock;
+                currentNodeLock.EnterReadLock();
+                try
+                {
+                    if (currentNode._childNodes == null)
+                    {
+                        //check and return hold value
+                        if (currentNode._holdValue == null)
+                            return null;
+
+                        byte[] holdKey = currentNode._holdValue.Key;
+
+                        if (holdKey.Length != key.Length)
+                            return null;
+
+                        for (int i = 0; i < key.Length; i++)
+                        {
+                            if (holdKey[i] != key[i])
+                                return null;
+                        }
+
+                        return currentNode._holdValue;
+                    }
+
+                    //set child node as current node
+                    {
+                        byte k = key[currentNode._depth];
+                        BTreeNode<T> childNode = currentNode._childNodes[k];
+
+                        if (childNode == null)
+                        {
+                            //no value set in child node
+                            return null;
+                        }
+
+                        currentNode = childNode;
+                    }
+                }
+                finally
+                {
+                    currentNodeLock.ExitReadLock();
+                }
             }
         }
 
         private BTreeNodeValue<T> RemoveValue(byte[] key)
         {
-            if (key.Length == this._depth)
+            BTreeNode<T> currentNode = this;
+
+            while (true)
             {
-                BTreeNodeValue<T> value = _nodeValue;
-                _nodeValue = null;
-
-                return value;
-            }
-            else
-            {
-                if (_holdValue == null)
-                    return null;
-
-                byte[] holdKey = _holdValue.Key;
-
-                if (holdKey.Length != key.Length)
-                    return null;
-
-                for (int i = 0; i < key.Length; i++)
+                if (key.Length == currentNode._depth)
                 {
-                    if (holdKey[i] != key[i])
-                        return null;
+                    currentNode._nodeValueLock.EnterWriteLock();
+                    try
+                    {
+                        BTreeNodeValue<T> oldValue = currentNode._nodeValue;
+                        currentNode._nodeValue = null;
+
+                        return oldValue;
+                    }
+                    finally
+                    {
+                        currentNode._nodeValueLock.ExitWriteLock();
+                    }
                 }
 
-                BTreeNodeValue<T> value = _holdValue;
-                _holdValue = null;
+                if (key.Length < currentNode._depth)
+                    throw new BTreeException("Cannot remove value since the key length is less than node depth.");
 
-                return value;
+                ReaderWriterLockSlim currentNodeLock = currentNode._nodeLock;
+                currentNodeLock.EnterWriteLock();
+                try
+                {
+                    if (currentNode._childNodes == null)
+                    {
+                        //check and remove hold value
+                        if (currentNode._holdValue == null)
+                            return null;
+
+                        byte[] holdKey = currentNode._holdValue.Key;
+
+                        if (holdKey.Length != key.Length)
+                            return null;
+
+                        for (int i = 0; i < key.Length; i++)
+                        {
+                            if (holdKey[i] != key[i])
+                                return null;
+                        }
+
+                        BTreeNodeValue<T> oldValue = currentNode._holdValue;
+                        currentNode._holdValue = null;
+
+                        return oldValue;
+                    }
+
+                    //set child node as current node
+                    {
+                        byte k = key[currentNode._depth];
+                        BTreeNode<T> childNode = currentNode._childNodes[k];
+
+                        if (childNode == null)
+                        {
+                            //no value set in child node
+                            return null;
+                        }
+
+                        currentNode = childNode;
+                    }
+                }
+                finally
+                {
+                    currentNodeLock.ExitWriteLock();
+                }
             }
         }
 
@@ -293,16 +464,16 @@ namespace TechnitiumLibrary.BTree
             BTreeNodeValue<T> v = node.GetValue(key);
 
             if (v != null)
-                throw new Exception("Value already exists.");
+                throw new BTreeException("Value already exists.");
 
             node.SetValue(key, value);
         }
 
-        public void Upsert(byte[] key, T value)
+        public T Upsert(byte[] key, T value)
         {
             BTreeNode<T> node = FindClosestNode(key);
 
-            node.SetValue(key, value);
+            return node.SetValue(key, value).Value;
         }
 
         public bool Exists(byte[] key)
@@ -345,12 +516,44 @@ namespace TechnitiumLibrary.BTree
             return new BTreeNodeForwardEnumerator(this);
         }
 
-        public IEnumerator<BTreeNodeValue<T>> GetReverseEnumerator()
+        public IEnumerable<BTreeNodeValue<T>> GetReverseEnumerable()
         {
-            return new BTreeNodeReverseEnumerator(this);
+            return new ReverseBTree(this);
         }
 
         #endregion
+
+        private class ReverseBTree : IEnumerable<BTreeNodeValue<T>>
+        {
+            #region variables
+
+            BTreeNode<T> _node;
+
+            #endregion
+
+            #region constructor
+
+            public ReverseBTree(BTreeNode<T> node)
+            {
+                _node = node;
+            }
+
+            #endregion
+
+            #region public
+
+            public IEnumerator<BTreeNodeValue<T>> GetEnumerator()
+            {
+                return new BTreeNodeReverseEnumerator(_node);
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return new BTreeNodeReverseEnumerator(_node);
+            }
+
+            #endregion
+        }
 
         private abstract class BTreeNodeEnumerator : IEnumerator<BTreeNodeValue<T>>
         {
@@ -437,26 +640,51 @@ namespace TechnitiumLibrary.BTree
 
                     if (_currentValueType == ValueType.None)
                     {
-                        if (_currentNode._nodeValue != null)
+                        _currentNode._nodeValueLock.EnterReadLock();
+                        try
                         {
-                            _currentValue = _currentNode._nodeValue;
-                            _currentValueType = ValueType.NodeValue;
-                            return true;
+                            if (_currentNode._nodeValue != null)
+                            {
+                                _currentValue = _currentNode._nodeValue;
+                                _currentValueType = ValueType.NodeValue;
+                                return true;
+                            }
                         }
-                        else if (_currentNode._holdValue != null)
+                        finally
                         {
-                            _currentValue = _currentNode._holdValue;
-                            _currentValueType = ValueType.HoldValue;
-                            return true;
+                            _currentNode._nodeValueLock.ExitReadLock();
+                        }
+
+                        _currentNode._nodeLock.EnterReadLock();
+                        try
+                        {
+                            if (_currentNode._holdValue != null)
+                            {
+                                _currentValue = _currentNode._holdValue;
+                                _currentValueType = ValueType.HoldValue;
+                                return true;
+                            }
+                        }
+                        finally
+                        {
+                            _currentNode._nodeLock.ExitReadLock();
                         }
                     }
                     else if (_currentValueType == ValueType.NodeValue)
                     {
-                        if (_currentNode._holdValue != null)
+                        _currentNode._nodeLock.EnterReadLock();
+                        try
                         {
-                            _currentValue = _currentNode._holdValue;
-                            _currentValueType = ValueType.HoldValue;
-                            return true;
+                            if (_currentNode._holdValue != null)
+                            {
+                                _currentValue = _currentNode._holdValue;
+                                _currentValueType = ValueType.HoldValue;
+                                return true;
+                            }
+                        }
+                        finally
+                        {
+                            _currentNode._nodeLock.ExitReadLock();
                         }
                     }
 
@@ -493,26 +721,52 @@ namespace TechnitiumLibrary.BTree
 
                     if (_currentValueType == ValueType.None)
                     {
-                        if (_currentNode._holdValue != null)
+                        _currentNode._nodeLock.EnterReadLock();
+                        try
                         {
-                            _currentValue = _currentNode._holdValue;
-                            _currentValueType = ValueType.HoldValue;
-                            return true;
+                            if (_currentNode._holdValue != null)
+                            {
+                                _currentValue = _currentNode._holdValue;
+                                _currentValueType = ValueType.HoldValue;
+                                return true;
+                            }
                         }
-                        else if (_currentNode._nodeValue != null)
+                        finally
                         {
-                            _currentValue = _currentNode._nodeValue;
-                            _currentValueType = ValueType.NodeValue;
-                            return true;
+                            _currentNode._nodeLock.ExitReadLock();
+                        }
+
+
+                        _currentNode._nodeValueLock.EnterReadLock();
+                        try
+                        {
+                            if (_currentNode._nodeValue != null)
+                            {
+                                _currentValue = _currentNode._nodeValue;
+                                _currentValueType = ValueType.NodeValue;
+                                return true;
+                            }
+                        }
+                        finally
+                        {
+                            _currentNode._nodeValueLock.ExitReadLock();
                         }
                     }
                     else if (_currentValueType == ValueType.HoldValue)
                     {
-                        if (_currentNode._nodeValue != null)
+                        _currentNode._nodeValueLock.EnterReadLock();
+                        try
                         {
-                            _currentValue = _currentNode._nodeValue;
-                            _currentValueType = ValueType.NodeValue;
-                            return true;
+                            if (_currentNode._nodeValue != null)
+                            {
+                                _currentValue = _currentNode._nodeValue;
+                                _currentValueType = ValueType.NodeValue;
+                                return true;
+                            }
+                        }
+                        finally
+                        {
+                            _currentNode._nodeValueLock.ExitReadLock();
                         }
                     }
 

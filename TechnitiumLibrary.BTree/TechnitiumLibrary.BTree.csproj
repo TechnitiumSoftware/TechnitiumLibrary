@@ -33,6 +33,7 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BTreeException.cs" />
     <Compile Include="BTreeNode.cs" />
     <Compile Include="BTreeNodeValue.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
