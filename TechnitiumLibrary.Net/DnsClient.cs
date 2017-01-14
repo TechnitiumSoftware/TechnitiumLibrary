@@ -1407,10 +1407,8 @@ namespace TechnitiumLibrary.Net
 
         #region constructor
 
-        protected DnsResourceRecordData(ushort length)
-        {
-            _length = length;
-        }
+        protected DnsResourceRecordData()
+        { }
 
         public DnsResourceRecordData(Stream s)
         {
@@ -1435,26 +1433,16 @@ namespace TechnitiumLibrary.Net
 
         public void WriteTo(Stream s)
         {
-            if (_length < 1)
+            using (MemoryStream mS = new MemoryStream(32))
             {
-                using (MemoryStream mS = new MemoryStream(32))
-                {
-                    WriteRecordData(mS);
+                WriteRecordData(mS);
 
-                    //write RDLENGTH
-                    _length = Convert.ToUInt16(mS.Length);
-                    DnsDatagram.WriteInt16NetworkOrder(_length, s);
-
-                    //write RDATA
-                    mS.WriteTo(s);
-                }
-            }
-            else
-            {
                 //write RDLENGTH
-                DnsDatagram.WriteInt16NetworkOrder(_length, s);
+                ushort length = Convert.ToUInt16(mS.Length);
+                DnsDatagram.WriteInt16NetworkOrder(length, s);
+
                 //write RDATA
-                WriteRecordData(s);
+                mS.WriteTo(s);
             }
         }
 
@@ -1480,7 +1468,6 @@ namespace TechnitiumLibrary.Net
         #region constructor
 
         public DnsUnknownRecord(byte[] data)
-            : base(Convert.ToUInt16(data.Length))
         {
             _data = data;
         }
@@ -1527,7 +1514,6 @@ namespace TechnitiumLibrary.Net
         #region constructor
 
         public DnsARecord(IPAddress address)
-            : base(4)
         {
             _address = address;
         }
@@ -1578,7 +1564,6 @@ namespace TechnitiumLibrary.Net
         #region constructor
 
         public DnsNSRecord(string nsDomainName)
-            : base(0)
         {
             _nsDomainName = nsDomainName;
         }
@@ -1622,7 +1607,6 @@ namespace TechnitiumLibrary.Net
         #region constructor
 
         public DnsCNAMERecord(string cnameDomainName)
-            : base(0)
         {
             _cnameDomainName = cnameDomainName;
         }
@@ -1672,7 +1656,6 @@ namespace TechnitiumLibrary.Net
         #region constructor
 
         public DnsSOARecord(string masterNameServer, string responsiblePerson, uint serial, uint refresh, uint retry, uint expire, uint minimum)
-            : base(0)
         {
             _masterNameServer = masterNameServer;
             _responsiblePerson = responsiblePerson;
@@ -1752,7 +1735,6 @@ namespace TechnitiumLibrary.Net
         #region constructor
 
         public DnsPTRRecord(string ptrDomainName)
-            : base(0)
         {
             _ptrDomainName = ptrDomainName;
         }
@@ -1797,7 +1779,6 @@ namespace TechnitiumLibrary.Net
         #region constructor
 
         public DnsMXRecord(ushort preference, string exchange)
-            : base(0)
         {
             _preference = preference;
             _exchange = exchange;
@@ -1847,7 +1828,6 @@ namespace TechnitiumLibrary.Net
         #region constructor
 
         public DnsTXTRecord(string txtData)
-            : base(Convert.ToUInt16(1 + txtData.Length))
         {
             _txtData = txtData;
         }
@@ -1900,7 +1880,6 @@ namespace TechnitiumLibrary.Net
         #region constructor
 
         public DnsAAAARecord(IPAddress address)
-            : base(16)
         {
             _address = address;
         }
