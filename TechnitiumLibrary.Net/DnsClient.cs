@@ -825,7 +825,7 @@ namespace TechnitiumLibrary.Net
 
         #region static
 
-        internal static ushort ReadInt16NetworkOrder(Stream s)
+        internal static ushort ReadUInt16NetworkOrder(Stream s)
         {
             byte[] b = new byte[2];
 
@@ -836,14 +836,14 @@ namespace TechnitiumLibrary.Net
             return BitConverter.ToUInt16(b, 0);
         }
 
-        internal static void WriteInt16NetworkOrder(ushort value, Stream s)
+        internal static void WriteUInt16NetworkOrder(ushort value, Stream s)
         {
             byte[] b = BitConverter.GetBytes(value);
             Array.Reverse(b);
             s.Write(b, 0, b.Length);
         }
 
-        internal static uint ReadInt32NetworkOrder(Stream s)
+        internal static uint ReadUInt32NetworkOrder(Stream s)
         {
             byte[] b = new byte[4];
 
@@ -854,7 +854,7 @@ namespace TechnitiumLibrary.Net
             return BitConverter.ToUInt32(b, 0);
         }
 
-        internal static void WriteInt32NetworkOrder(uint value, Stream s)
+        internal static void WriteUInt32NetworkOrder(uint value, Stream s)
         {
             byte[] b = BitConverter.GetBytes(value);
             Array.Reverse(b);
@@ -1150,7 +1150,7 @@ namespace TechnitiumLibrary.Net
 
         public DnsHeader(Stream s)
         {
-            _ID = DnsDatagram.ReadInt16NetworkOrder(s);
+            _ID = DnsDatagram.ReadUInt16NetworkOrder(s);
 
             int lB = s.ReadByte();
             _QR = Convert.ToByte((lB & 0x80) >> 7);
@@ -1166,10 +1166,10 @@ namespace TechnitiumLibrary.Net
             _CD = Convert.ToByte((rB & 0x10) >> 4);
             _RCODE = (DnsResponseCode)(rB & 0xf);
 
-            _QDCOUNT = DnsDatagram.ReadInt16NetworkOrder(s);
-            _ANCOUNT = DnsDatagram.ReadInt16NetworkOrder(s);
-            _NSCOUNT = DnsDatagram.ReadInt16NetworkOrder(s);
-            _ARCOUNT = DnsDatagram.ReadInt16NetworkOrder(s);
+            _QDCOUNT = DnsDatagram.ReadUInt16NetworkOrder(s);
+            _ANCOUNT = DnsDatagram.ReadUInt16NetworkOrder(s);
+            _NSCOUNT = DnsDatagram.ReadUInt16NetworkOrder(s);
+            _ARCOUNT = DnsDatagram.ReadUInt16NetworkOrder(s);
         }
 
         #endregion
@@ -1178,13 +1178,13 @@ namespace TechnitiumLibrary.Net
 
         public void WriteTo(Stream s)
         {
-            DnsDatagram.WriteInt16NetworkOrder(_ID, s);
+            DnsDatagram.WriteUInt16NetworkOrder(_ID, s);
             s.WriteByte(Convert.ToByte((_QR << 7) | ((byte)_OPCODE << 3) | (_AA << 2) | (_TC << 1) | _RD));
             s.WriteByte(Convert.ToByte((_RA << 7) | (_Z << 6) | (_AD << 5) | (_CD << 4) | (byte)_RCODE));
-            DnsDatagram.WriteInt16NetworkOrder(_QDCOUNT, s);
-            DnsDatagram.WriteInt16NetworkOrder(_ANCOUNT, s);
-            DnsDatagram.WriteInt16NetworkOrder(_NSCOUNT, s);
-            DnsDatagram.WriteInt16NetworkOrder(_ARCOUNT, s);
+            DnsDatagram.WriteUInt16NetworkOrder(_QDCOUNT, s);
+            DnsDatagram.WriteUInt16NetworkOrder(_ANCOUNT, s);
+            DnsDatagram.WriteUInt16NetworkOrder(_NSCOUNT, s);
+            DnsDatagram.WriteUInt16NetworkOrder(_ARCOUNT, s);
         }
 
         #endregion
@@ -1293,8 +1293,8 @@ namespace TechnitiumLibrary.Net
         public DnsQuestionRecord(Stream s)
         {
             _name = DnsDatagram.ConvertLabelToDomain(s);
-            _type = (DnsResourceRecordType)DnsDatagram.ReadInt16NetworkOrder(s);
-            _class = (DnsClass)DnsDatagram.ReadInt16NetworkOrder(s);
+            _type = (DnsResourceRecordType)DnsDatagram.ReadUInt16NetworkOrder(s);
+            _class = (DnsClass)DnsDatagram.ReadUInt16NetworkOrder(s);
         }
 
         #endregion
@@ -1304,8 +1304,8 @@ namespace TechnitiumLibrary.Net
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
             DnsDatagram.ConvertDomainToLabel(_name, s, domainEntries);
-            DnsDatagram.WriteInt16NetworkOrder((ushort)_type, s);
-            DnsDatagram.WriteInt16NetworkOrder((ushort)_class, s);
+            DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
+            DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
         }
 
         #endregion
@@ -1353,9 +1353,9 @@ namespace TechnitiumLibrary.Net
         public DnsResourceRecord(Stream s)
         {
             _name = DnsDatagram.ConvertLabelToDomain(s);
-            _type = (DnsResourceRecordType)DnsDatagram.ReadInt16NetworkOrder(s);
-            _class = (DnsClass)DnsDatagram.ReadInt16NetworkOrder(s);
-            _ttl = DnsDatagram.ReadInt32NetworkOrder(s);
+            _type = (DnsResourceRecordType)DnsDatagram.ReadUInt16NetworkOrder(s);
+            _class = (DnsClass)DnsDatagram.ReadUInt16NetworkOrder(s);
+            _ttl = DnsDatagram.ReadUInt32NetworkOrder(s);
 
             switch (_type)
             {
@@ -1410,9 +1410,9 @@ namespace TechnitiumLibrary.Net
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
             DnsDatagram.ConvertDomainToLabel(_name, s, domainEntries);
-            DnsDatagram.WriteInt16NetworkOrder((ushort)_type, s);
-            DnsDatagram.WriteInt16NetworkOrder((ushort)_class, s);
-            DnsDatagram.WriteInt32NetworkOrder(TTLValue, s);
+            DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
+            DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
+            DnsDatagram.WriteUInt32NetworkOrder(TTLValue, s);
 
             _data.WriteTo(s, domainEntries);
         }
@@ -1479,7 +1479,7 @@ namespace TechnitiumLibrary.Net
         public DnsResourceRecordData(Stream s)
         {
             //read RDLENGTH
-            _length = DnsDatagram.ReadInt16NetworkOrder(s);
+            _length = DnsDatagram.ReadUInt16NetworkOrder(s);
 
             //read RDATA
             Parse(s);
@@ -1512,7 +1512,7 @@ namespace TechnitiumLibrary.Net
             //write actual RDLENGTH
             ushort length = Convert.ToUInt16(finalPosition - originalPosition - 2);
             s.Position = originalPosition;
-            DnsDatagram.WriteInt16NetworkOrder(length, s);
+            DnsDatagram.WriteUInt16NetworkOrder(length, s);
 
             s.Position = finalPosition;
         }
@@ -1749,22 +1749,22 @@ namespace TechnitiumLibrary.Net
         {
             _masterNameServer = DnsDatagram.ConvertLabelToDomain(s);
             _responsiblePerson = DnsDatagram.ConvertLabelToDomain(s);
-            _serial = DnsDatagram.ReadInt32NetworkOrder(s);
-            _refresh = DnsDatagram.ReadInt32NetworkOrder(s);
-            _retry = DnsDatagram.ReadInt32NetworkOrder(s);
-            _expire = DnsDatagram.ReadInt32NetworkOrder(s);
-            _minimum = DnsDatagram.ReadInt32NetworkOrder(s);
+            _serial = DnsDatagram.ReadUInt32NetworkOrder(s);
+            _refresh = DnsDatagram.ReadUInt32NetworkOrder(s);
+            _retry = DnsDatagram.ReadUInt32NetworkOrder(s);
+            _expire = DnsDatagram.ReadUInt32NetworkOrder(s);
+            _minimum = DnsDatagram.ReadUInt32NetworkOrder(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
             DnsDatagram.ConvertDomainToLabel(_masterNameServer, s, domainEntries);
             DnsDatagram.ConvertDomainToLabel(_responsiblePerson, s, domainEntries);
-            DnsDatagram.WriteInt32NetworkOrder(_serial, s);
-            DnsDatagram.WriteInt32NetworkOrder(_refresh, s);
-            DnsDatagram.WriteInt32NetworkOrder(_retry, s);
-            DnsDatagram.WriteInt32NetworkOrder(_expire, s);
-            DnsDatagram.WriteInt32NetworkOrder(_minimum, s);
+            DnsDatagram.WriteUInt32NetworkOrder(_serial, s);
+            DnsDatagram.WriteUInt32NetworkOrder(_refresh, s);
+            DnsDatagram.WriteUInt32NetworkOrder(_retry, s);
+            DnsDatagram.WriteUInt32NetworkOrder(_expire, s);
+            DnsDatagram.WriteUInt32NetworkOrder(_minimum, s);
         }
 
         #endregion
@@ -1865,13 +1865,13 @@ namespace TechnitiumLibrary.Net
 
         protected override void Parse(Stream s)
         {
-            _preference = DnsDatagram.ReadInt16NetworkOrder(s);
+            _preference = DnsDatagram.ReadUInt16NetworkOrder(s);
             _exchange = DnsDatagram.ConvertLabelToDomain(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.WriteInt16NetworkOrder(_preference, s);
+            DnsDatagram.WriteUInt16NetworkOrder(_preference, s);
             DnsDatagram.ConvertDomainToLabel(_exchange, s, domainEntries);
         }
 
