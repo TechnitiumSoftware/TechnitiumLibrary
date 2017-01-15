@@ -861,20 +861,49 @@ namespace TechnitiumLibrary.Net
             s.Write(b, 0, b.Length);
         }
 
-        internal static void ConvertDomainToLabel(string domain, Stream s)
+        internal static void ConvertDomainToLabel(string domain, Stream s, List<DnsDomainOffset> domainEntries)
         {
-            if (!string.IsNullOrEmpty(domain))
+            while (!string.IsNullOrEmpty(domain))
             {
-                foreach (string label in domain.Split('.'))
+                //search domain list
+                foreach (DnsDomainOffset domainEntry in domainEntries)
                 {
-                    byte[] Lbl = Encoding.ASCII.GetBytes(label);
+                    if (domain.Equals(domainEntry.Domain, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        //found matching domain offset for compression
+                        ushort pointer = 0xC000;
+                        pointer |= domainEntry.Offset;
 
-                    if (Lbl.Length > 63)
-                        throw new DnsClientException("ConvertDomainToLabel: Invalid domain name. Label cannot exceed 63 bytes.");
+                        byte[] pointerBytes = BitConverter.GetBytes(pointer);
+                        Array.Reverse(pointerBytes); //convert to network order
 
-                    s.WriteByte(Convert.ToByte(Lbl.Length));
-                    s.Write(Lbl, 0, Lbl.Length);
+                        //write pointer
+                        s.Write(pointerBytes, 0, 2);
+                        return;
+                    }
                 }
+
+                domainEntries.Add(new DnsDomainOffset(Convert.ToUInt16(s.Position), domain));
+
+                string label;
+                int i = domain.IndexOf('.');
+                if (i < 0)
+                {
+                    label = domain;
+                    domain = null;
+                }
+                else
+                {
+                    label = domain.Substring(0, i);
+                    domain = domain.Substring(i + 1);
+                }
+
+                byte[] labelBytes = Encoding.ASCII.GetBytes(label);
+                if (labelBytes.Length > 63)
+                    throw new DnsClientException("ConvertDomainToLabel: Invalid domain name. Label cannot exceed 63 bytes.");
+
+                s.WriteByte(Convert.ToByte(labelBytes.Length));
+                s.Write(labelBytes, 0, labelBytes.Length);
             }
 
             s.WriteByte(Convert.ToByte(0));
@@ -888,9 +917,9 @@ namespace TechnitiumLibrary.Net
 
             while (labelLength > 0)
             {
-                if ((labelLength & 192) == 192)
+                if ((labelLength & 0xC0) == 0xC0)
                 {
-                    short Offset = BitConverter.ToInt16(new byte[] { Convert.ToByte(s.ReadByte()), Convert.ToByte((labelLength & 63)) }, 0);
+                    short Offset = BitConverter.ToInt16(new byte[] { Convert.ToByte(s.ReadByte()), Convert.ToByte((labelLength & 0x3F)) }, 0);
                     long CurrentPosition = s.Position;
                     s.Position = Offset;
                     domain.Append(ConvertLabelToDomain(s) + ".");
@@ -919,17 +948,19 @@ namespace TechnitiumLibrary.Net
         {
             _header.WriteTo(s);
 
+            List<DnsDomainOffset> domainEntries = new List<DnsDomainOffset>(1);
+
             for (int i = 0; i < _header.QDCOUNT; i++)
-                _question[i].WriteTo(s);
+                _question[i].WriteTo(s, domainEntries);
 
             for (int i = 0; i < _header.ANCOUNT; i++)
-                _answer[i].WriteTo(s);
+                _answer[i].WriteTo(s, domainEntries);
 
             for (int i = 0; i < _header.NSCOUNT; i++)
-                _authority[i].WriteTo(s);
+                _authority[i].WriteTo(s, domainEntries);
 
             for (int i = 0; i < _header.ARCOUNT; i++)
-                _additional[i].WriteTo(s);
+                _additional[i].WriteTo(s, domainEntries);
         }
 
         #endregion
@@ -977,6 +1008,41 @@ namespace TechnitiumLibrary.Net
 
         public DnsResourceRecord[] Additional
         { get { return _additional; } }
+
+        #endregion
+    }
+
+    public class DnsDomainOffset
+    {
+        #region variables
+
+        ushort _offset;
+        string _domain;
+
+        #endregion
+
+        #region constructor
+
+        public DnsDomainOffset(ushort offset, string domain)
+        {
+            _offset = offset;
+            _domain = domain;
+        }
+
+        #endregion
+
+        public override string ToString()
+        {
+            return _domain;
+        }
+
+        #region properties
+
+        public ushort Offset
+        { get { return _offset; } }
+
+        public string Domain
+        { get { return _domain; } }
 
         #endregion
     }
@@ -1235,9 +1301,9 @@ namespace TechnitiumLibrary.Net
 
         #region public
 
-        public void WriteTo(Stream s)
+        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.ConvertDomainToLabel(_name, s);
+            DnsDatagram.ConvertDomainToLabel(_name, s, domainEntries);
             DnsDatagram.WriteInt16NetworkOrder((ushort)_type, s);
             DnsDatagram.WriteInt16NetworkOrder((ushort)_class, s);
         }
@@ -1341,14 +1407,14 @@ namespace TechnitiumLibrary.Net
             _dateExpires = DateTime.UtcNow.AddSeconds(_ttl);
         }
 
-        public void WriteTo(Stream s)
+        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.ConvertDomainToLabel(_name, s);
+            DnsDatagram.ConvertDomainToLabel(_name, s, domainEntries);
             DnsDatagram.WriteInt16NetworkOrder((ushort)_type, s);
             DnsDatagram.WriteInt16NetworkOrder((ushort)_class, s);
             DnsDatagram.WriteInt32NetworkOrder(TTLValue, s);
 
-            _data.WriteTo(s);
+            _data.WriteTo(s, domainEntries);
         }
 
         #endregion
@@ -1425,25 +1491,30 @@ namespace TechnitiumLibrary.Net
 
         protected abstract void Parse(Stream s);
 
-        protected abstract void WriteRecordData(Stream s);
+        protected abstract void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries);
 
         #endregion
 
         #region public
 
-        public void WriteTo(Stream s)
+        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            using (MemoryStream mS = new MemoryStream(32))
-            {
-                WriteRecordData(mS);
+            long originalPosition = s.Position;
 
-                //write RDLENGTH
-                ushort length = Convert.ToUInt16(mS.Length);
-                DnsDatagram.WriteInt16NetworkOrder(length, s);
+            //write dummy RDLENGTH
+            s.Write(new byte[] { 0, 0 }, 0, 2);
 
-                //write RDATA
-                mS.WriteTo(s);
-            }
+            //write RDATA
+            WriteRecordData(s, domainEntries);
+
+            long finalPosition = s.Position;
+
+            //write actual RDLENGTH
+            ushort length = Convert.ToUInt16(finalPosition - originalPosition - 2);
+            s.Position = originalPosition;
+            DnsDatagram.WriteInt16NetworkOrder(length, s);
+
+            s.Position = finalPosition;
         }
 
         #endregion
@@ -1488,7 +1559,7 @@ namespace TechnitiumLibrary.Net
                 throw new EndOfStreamException();
         }
 
-        protected override void WriteRecordData(Stream s)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
             s.Write(_data, 0, _data.Length);
         }
@@ -1533,7 +1604,7 @@ namespace TechnitiumLibrary.Net
             _address = new IPAddress(buffer);
         }
 
-        protected override void WriteRecordData(Stream s)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
             byte[] addr = _address.GetAddressBytes();
             s.Write(addr, 0, 4);
@@ -1581,9 +1652,9 @@ namespace TechnitiumLibrary.Net
             _nsDomainName = DnsDatagram.ConvertLabelToDomain(s);
         }
 
-        protected override void WriteRecordData(Stream s)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.ConvertDomainToLabel(_nsDomainName, s);
+            DnsDatagram.ConvertDomainToLabel(_nsDomainName, s, domainEntries);
         }
 
         #endregion
@@ -1624,9 +1695,9 @@ namespace TechnitiumLibrary.Net
             _cnameDomainName = DnsDatagram.ConvertLabelToDomain(s);
         }
 
-        protected override void WriteRecordData(Stream s)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.ConvertDomainToLabel(_cnameDomainName, s);
+            DnsDatagram.ConvertDomainToLabel(_cnameDomainName, s, domainEntries);
         }
 
         #endregion
@@ -1685,10 +1756,10 @@ namespace TechnitiumLibrary.Net
             _minimum = DnsDatagram.ReadInt32NetworkOrder(s);
         }
 
-        protected override void WriteRecordData(Stream s)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.ConvertDomainToLabel(_masterNameServer, s);
-            DnsDatagram.ConvertDomainToLabel(_responsiblePerson, s);
+            DnsDatagram.ConvertDomainToLabel(_masterNameServer, s, domainEntries);
+            DnsDatagram.ConvertDomainToLabel(_responsiblePerson, s, domainEntries);
             DnsDatagram.WriteInt32NetworkOrder(_serial, s);
             DnsDatagram.WriteInt32NetworkOrder(_refresh, s);
             DnsDatagram.WriteInt32NetworkOrder(_retry, s);
@@ -1752,9 +1823,9 @@ namespace TechnitiumLibrary.Net
             _ptrDomainName = DnsDatagram.ConvertLabelToDomain(s);
         }
 
-        protected override void WriteRecordData(Stream s)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.ConvertDomainToLabel(_ptrDomainName, s);
+            DnsDatagram.ConvertDomainToLabel(_ptrDomainName, s, domainEntries);
         }
 
         #endregion
@@ -1798,10 +1869,10 @@ namespace TechnitiumLibrary.Net
             _exchange = DnsDatagram.ConvertLabelToDomain(s);
         }
 
-        protected override void WriteRecordData(Stream s)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
             DnsDatagram.WriteInt16NetworkOrder(_preference, s);
-            DnsDatagram.ConvertDomainToLabel(_exchange, s);
+            DnsDatagram.ConvertDomainToLabel(_exchange, s, domainEntries);
         }
 
         #endregion
@@ -1851,7 +1922,7 @@ namespace TechnitiumLibrary.Net
             _txtData = Encoding.ASCII.GetString(data, 0, length);
         }
 
-        protected override void WriteRecordData(Stream s)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
             byte[] data = Encoding.ASCII.GetBytes(_txtData);
 
@@ -1903,7 +1974,7 @@ namespace TechnitiumLibrary.Net
             _address = new IPAddress(buffer);
         }
 
-        protected override void WriteRecordData(Stream s)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
             byte[] addr = _address.GetAddressBytes();
             s.Write(addr, 0, 16);
