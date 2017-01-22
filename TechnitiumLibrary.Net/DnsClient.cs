@@ -1031,10 +1031,14 @@ namespace TechnitiumLibrary.Net
 
         #endregion
 
+        #region public
+
         public override string ToString()
         {
             return _domain;
         }
+
+        #endregion
 
         #region properties
 
