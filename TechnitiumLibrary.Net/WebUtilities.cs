@@ -102,194 +102,209 @@ namespace TechnitiumLibrary.Net
 
         public static ContentType GetContentType(string fileName)
         {
-            string MimeType = null;
+            string mimeType = null;
 
             switch (Path.GetExtension(fileName).ToLower())
             {
+                case ".js":
+                    mimeType = "application/javascript";
+                    break;
+
+                case ".css":
+                    mimeType = "text/css";
+                    break;
+
                 case ".jpg":
-                    MimeType = "image/jpeg";
+                    mimeType = "image/jpeg";
                     break;
                 case ".gif":
-                    MimeType = "image/gif";
+                    mimeType = "image/gif";
                     break;
                 case ".png":
-                    MimeType = "image/png";
+                    mimeType = "image/png";
                     break;
                 case ".bmp":
-                    MimeType = "image/bmp";
+                    mimeType = "image/bmp";
+                    break;
+                case ".svg":
+                    mimeType = "image/svg+xml";
                     break;
 
                 case ".wmv":
-                    MimeType = "video/x-ms-wmv";
+                    mimeType = "video/x-ms-wmv";
                     break;
                 case ".avi":
-                    MimeType = "video/avi";
+                    mimeType = "video/avi";
                     break;
                 case ".mpg":
                 case ".mpeg":
                 case ".mpe":
-                    MimeType = "video/mpeg";
+                    mimeType = "video/mpeg";
                     break;
                 case ".flv":
-                    MimeType = "video/x-flv";
+                    mimeType = "video/x-flv";
                     break;
                 case ".mp4":
-                    MimeType = "video/mp4";
+                    mimeType = "video/mp4";
                     break;
                 case ".3gpp":
-                    MimeType = "video/3gpp";
+                    mimeType = "video/3gpp";
                     break;
                 case ".vob":
-                    MimeType = "video/dvd";
+                    mimeType = "video/dvd";
                     break;
 
                 case ".mp3":
-                    MimeType = "audio/mpeg";
+                    mimeType = "audio/mpeg";
                     break;
                 case ".wav":
-                    MimeType = "audio/wav";
+                    mimeType = "audio/wav";
                     break;
 
                 case ".zip":
-                    MimeType = "application/x-zip-compressed";
+                    mimeType = "application/x-zip-compressed";
                     break;
                 case ".rar":
-                    MimeType = "application/x-rar-compressed";
+                    mimeType = "application/x-rar-compressed";
                     break;
                 case ".7z":
-                    MimeType = "application/x-7z-compressed";
+                    mimeType = "application/x-7z-compressed";
                     break;
                 case ".gz":
-                    MimeType = "application/x-compressed";
+                    mimeType = "application/x-compressed";
                     break;
                 case ".gzip":
-                    MimeType = "application/x-gzip-compressed";
+                    mimeType = "application/x-gzip-compressed";
                     break;
 
                 case ".txt":
                 case ".log":
-                    MimeType = "text/plain";
+                    mimeType = "text/plain";
                     break;
                 case ".html":
                 case ".htm":
                 case ".hta":
-                    MimeType = "text/html";
+                    mimeType = "text/html";
                     break;
                 case ".xml":
-                    MimeType = "text/xml";
+                    mimeType = "text/xml";
                     break;
 
                 case ".rtf":
-                    MimeType = "text/richtext";
+                    mimeType = "text/richtext";
                     break;
 
                 case ".aiff":
-                    MimeType = "audio/x-aiff";
+                    mimeType = "audio/x-aiff";
                     break;
                 case ".mid":
                 case ".midi":
-                    MimeType = "audio/mid";
+                    mimeType = "audio/mid";
                     break;
                 case ".tiff":
-                    MimeType = "image/tiff";
+                    mimeType = "image/tiff";
                     break;
                 case ".wmf":
-                    MimeType = "image/x-wmf";
+                    mimeType = "image/x-wmf";
                     break;
                 case ".ai":
                 case ".ps":
                 case ".eps":
-                    MimeType = "application/postscript";
+                    mimeType = "application/postscript";
                     break;
                 case ".pdf":
-                    MimeType = "application/pdf";
+                    mimeType = "application/pdf";
                     break;
                 case ".class":
-                    MimeType = "application/java";
+                    mimeType = "application/java";
                     break;
 
                 case ".doc":
                 case ".dot":
-                    MimeType = "application/msword";
+                    mimeType = "application/msword";
                     break;
                 case ".docx":
-                    MimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                    mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
                     break;
                 case ".dotx":
-                    MimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.template";
+                    mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.template";
                     break;
                 case ".docm":
-                    MimeType = "application/vnd.ms-word.document.macroEnabled.12";
+                    mimeType = "application/vnd.ms-word.document.macroEnabled.12";
                     break;
                 case ".dotm":
-                    MimeType = "application/vnd.ms-word.template.macroEnabled.12";
+                    mimeType = "application/vnd.ms-word.template.macroEnabled.12";
                     break;
 
                 case ".xls":
                 case ".xlt":
                 case ".xla":
-                    MimeType = "application/vnd.ms-excel";
+                    mimeType = "application/vnd.ms-excel";
                     break;
                 case ".xlsx":
-                    MimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                    mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
                     break;
                 case ".xltx":
-                    MimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.template";
+                    mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.template";
                     break;
                 case ".xlsm":
-                    MimeType = "application/vnd.ms-excel.sheet.macroEnabled.12";
+                    mimeType = "application/vnd.ms-excel.sheet.macroEnabled.12";
                     break;
                 case ".xltm":
-                    MimeType = "application/vnd.ms-excel.template.macroEnabled.12";
+                    mimeType = "application/vnd.ms-excel.template.macroEnabled.12";
                     break;
                 case ".xlam":
-                    MimeType = "application/vnd.ms-excel.addin.macroEnabled.12";
+                    mimeType = "application/vnd.ms-excel.addin.macroEnabled.12";
                     break;
                 case ".xlsb":
-                    MimeType = "application/vnd.ms-excel.sheet.binary.macroEnabled.12";
+                    mimeType = "application/vnd.ms-excel.sheet.binary.macroEnabled.12";
                     break;
 
                 case ".ppt":
                 case ".pot":
                 case ".pps":
                 case ".ppa":
-                    MimeType = "application/vnd.ms-powerpoint";
+                    mimeType = "application/vnd.ms-powerpoint";
                     break;
                 case ".pptx":
-                    MimeType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+                    mimeType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
                     break;
                 case ".potx":
-                    MimeType = "application/vnd.openxmlformats-officedocument.presentationml.template";
+                    mimeType = "application/vnd.openxmlformats-officedocument.presentationml.template";
                     break;
                 case ".ppsx":
-                    MimeType = "application/vnd.openxmlformats-officedocument.presentationml.slideshow";
+                    mimeType = "application/vnd.openxmlformats-officedocument.presentationml.slideshow";
                     break;
                 case ".ppam":
-                    MimeType = "application/vnd.ms-powerpoint.addin.macroEnabled.12";
+                    mimeType = "application/vnd.ms-powerpoint.addin.macroEnabled.12";
                     break;
                 case ".pptm":
-                    MimeType = "application/vnd.ms-powerpoint.presentation.macroEnabled.12";
+                    mimeType = "application/vnd.ms-powerpoint.presentation.macroEnabled.12";
                     break;
                 case ".potm":
-                    MimeType = "application/vnd.ms-powerpoint.template.macroEnabled.12";
+                    mimeType = "application/vnd.ms-powerpoint.template.macroEnabled.12";
                     break;
                 case ".ppsm":
-                    MimeType = "application/vnd.ms-powerpoint.slideshow.macroEnabled.12";
+                    mimeType = "application/vnd.ms-powerpoint.slideshow.macroEnabled.12";
                     break;
 
                 case ".xpi":
-                    MimeType = "application/x-xpinstall";
+                    mimeType = "application/x-xpinstall";
                     break;
                 case ".torrent":
-                    MimeType = "application/x-bittorrent";
+                    mimeType = "application/x-bittorrent";
+                    break;
+
+                case ".woff":
+                    mimeType = "font/x-woff";
                     break;
 
                 default:
-                    MimeType = "application/octet-stream";
+                    mimeType = "application/octet-stream";
                     break;
             }
 
-            return new ContentType(MimeType);
+            return new ContentType(mimeType);
         }
 
         public static Uri GetURIRedirectLocation(Uri sourceUri, WebProxy proxy = null, int timeout = 30000)
