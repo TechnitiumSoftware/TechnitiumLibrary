@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 {
                     //SEND CONNECT REQUEST
                     if (_proxy == null)
-                        udpClient.Send(requestPacket, requestPacket.Length, _trackerURI.Host, _trackerURI.Port);
+                        udpClient.Send(requestPacket, requestPacket.Length);
                     else
                         proxyRequestHandler.SendTo(requestPacket, 0, requestPacket.Length, new SocksEndPoint(_trackerURI.Host, _trackerURI.Port));
 
@@ -175,7 +175,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             if (_proxy == null)
             {
                 //SEND ANNOUNCE REQUEST
-                udpClient.Send(request, request.Length, _trackerURI.Host, _trackerURI.Port);
+                udpClient.Send(request, request.Length);
 
                 //RECV ANNOUNCE RESPONSE
                 IPEndPoint remoteEP = null;
@@ -209,7 +209,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             return responseLength;
         }
 
-        private static void ParsePeers(byte[] response, int responseLength, List<IPEndPoint> peers)
+        private static void ParsePeersIPv4(byte[] response, int responseLength, List<IPEndPoint> peers)
         {
             byte[] ipBuffer = new byte[4];
             byte[] portBuffer = new byte[2];
@@ -237,6 +237,34 @@ namespace TechnitiumLibrary.Net.BitTorrent
             }
         }
 
+        private static void ParsePeersIPv6(byte[] response, int responseLength, List<IPEndPoint> peers)
+        {
+            byte[] ipBuffer = new byte[16];
+            byte[] portBuffer = new byte[2];
+            int n = 0;
+
+            while (responseLength > (37 + 18 * n))
+            {
+                Buffer.BlockCopy(response, 20 + 18 * n, ipBuffer, 0, 16);
+                Buffer.BlockCopy(response, 36 + 18 * n, portBuffer, 0, 2);
+                Array.Reverse(portBuffer);
+
+                IPAddress peerIP = new IPAddress(ipBuffer);
+                switch (peerIP.ToString())
+                {
+                    case "::":
+                    case "::1":
+                        break;
+
+                    default:
+                        peers.Add(new IPEndPoint(peerIP, BitConverter.ToUInt16(portBuffer, 0)));
+                        break;
+                }
+
+                n++;
+            }
+        }
+
         #endregion
 
         #region protected
@@ -248,7 +276,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
             if (_proxy == null)
             {
-                udpClient = new UdpClient();
+                udpClient = new UdpClient(_trackerURI.Host, _trackerURI.Port);
                 udpClient.Client.ReceiveTimeout = 10000;
             }
             else
@@ -301,7 +329,11 @@ namespace TechnitiumLibrary.Net.BitTorrent
                         _seeders = BitConverter.ToInt32(buffer, 0);
 
                         _peers.Clear();
-                        ParsePeers(announceResponse, announceResponseLength, _peers);
+
+                        if (udpClient.Client.AddressFamily == AddressFamily.InterNetworkV6)
+                            ParsePeersIPv6(announceResponse, announceResponseLength, _peers);
+                        else
+                            ParsePeersIPv4(announceResponse, announceResponseLength, _peers);
 
                         return;
                     }

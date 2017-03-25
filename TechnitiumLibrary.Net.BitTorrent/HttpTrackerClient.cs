@@ -107,7 +107,11 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     break;
 
                 default:
-                    queryString += "&ip=" + clientEP.Address.ToString();
+                    if (clientEP.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+                        queryString += "&ipv6=" + clientEP.Address.ToString();
+                    else
+                        queryString += "&ip=" + clientEP.Address.ToString();
+
                     break;
             }
 
@@ -189,6 +193,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                                         break;
 
                                     case "peers_ipv6":
+                                    case "peers6":
                                         switch (item.Value.Type)
                                         {
                                             case BencodingType.String:
