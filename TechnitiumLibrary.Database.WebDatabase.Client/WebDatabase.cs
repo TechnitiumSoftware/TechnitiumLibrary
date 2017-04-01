@@ -45,12 +45,34 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
             _webDatabaseUri = webDatabaseUri;
             _webClient = new WebClientEx();
 
+            //get server challenge
+            byte[] challenge;
+            _webClient.QueryString.Add("cmd", "challenge");
+
+            using (BinaryReader bR = new BinaryReader(new MemoryStream(_webClient.DownloadData(_webDatabaseUri))))
+            {
+                int errorCode = bR.ReadInt32();
+                if (errorCode != 0)
+                {
+                    string message = Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadInt32()));
+                    string remoteStackTrace = Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadInt32()));
+
+                    throw new WebDatabaseException(message, errorCode, remoteStackTrace);
+                }
+
+                challenge = bR.ReadBytes(32);
+            }
+
+            //authenticate
+            _webClient.QueryString.Clear();
             _webClient.QueryString.Add("cmd", "login");
-            _webClient.QueryString.Add("code", BitConverter.ToString(HashAlgorithm.Create("SHA1").ComputeHash(Encoding.ASCII.GetBytes(DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm") + sharedSecret))).Replace("-", "").ToLower());
 
-            byte[] buffer = _webClient.DownloadData(_webDatabaseUri);
+            using (HMAC hmac = new HMACSHA256(Encoding.UTF8.GetBytes(sharedSecret)))
+            {
+                _webClient.QueryString.Add("code", BitConverter.ToString(hmac.ComputeHash(challenge)).Replace("-", "").ToLower());
+            }
 
-            using (BinaryReader bR = new BinaryReader(new MemoryStream(buffer)))
+            using (BinaryReader bR = new BinaryReader(new MemoryStream(_webClient.DownloadData(_webDatabaseUri))))
             {
                 int errorCode = bR.ReadInt32();
                 if (errorCode != 0)

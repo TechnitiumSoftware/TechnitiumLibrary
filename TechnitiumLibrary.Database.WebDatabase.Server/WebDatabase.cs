@@ -30,33 +30,63 @@ namespace TechnitiumLibrary.Database.WebDatabase.Server
 {
     public static class WebDatabase
     {
-        public static void ProcessRequest(HttpRequest Request, HttpSessionState Session, SqlConnection conn, string sharedSecret, Stream output)
+        private static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+
+        public static void ProcessRequest(HttpRequest request, HttpResponse response, HttpSessionState session, SqlConnection conn, string sharedSecret)
         {
+            response.ContentType = "application/octet-stream";
+
             try
             {
-                switch (Request.QueryString["cmd"])
+                switch (request.QueryString["cmd"])
                 {
+                    case "challenge":
+                        byte[] buffer = new byte[32];
+                        _rnd.GetBytes(buffer);
+
+                        session["challenge"] = buffer;
+                        response.OutputStream.Write(new byte[4], 0, 4);
+                        response.OutputStream.Write(buffer, 0, 32);
+                        break;
+
                     case "login":
-                        WebDatabase.Login(Request, Session, sharedSecret);
-                        output.Write(new byte[4], 0, 4);
+                        byte[] challenge = session["challenge"] as byte[];
+                        if (challenge == null)
+                            throw new WebDatabaseException("Challenge not initialized.");
+
+                        session["challenge"] = null;
+
+                        string authCode = request.QueryString["code"];
+                        if (authCode == null)
+                            throw new WebDatabaseException("Authentication code missing.");
+
+                        using (HMAC hmac = new HMACSHA256(Encoding.UTF8.GetBytes(sharedSecret)))
+                        {
+                            string computedAuthCode = BitConverter.ToString(hmac.ComputeHash(challenge)).Replace("-", "").ToLower();
+                            if (authCode != computedAuthCode)
+                                throw new WebDatabaseException("Invalid authentication code.");
+                        }
+
+                        session["token"] = request.ServerVariables["REMOTE_ADDR"];
+                        response.OutputStream.Write(new byte[4], 0, 4);
                         break;
 
                     case "logout":
-                        WebDatabase.Logout(Request, Session);
-                        output.Write(new byte[4], 0, 4);
+                        session.Abandon();
+                        response.OutputStream.Write(new byte[4], 0, 4);
                         break;
 
                     default:
                         using (SqlDatabase DB = new SqlDatabase(conn))
                         {
-                            WebDatabase.ExecuteQuery(DB, Request, Session, output);
+                            WebDatabase.ExecuteQuery(DB, request, response, session);
                         }
                         break;
                 }
             }
             catch (Exception ex)
             {
-                BinaryWriter bW = new BinaryWriter(output);
+                BinaryWriter bW = new BinaryWriter(response.OutputStream);
 
                 //sql error code
                 SqlException sqlEx = ex as SqlException;
@@ -74,71 +104,30 @@ namespace TechnitiumLibrary.Database.WebDatabase.Server
                 //stack trace message
                 string remoteStackTrace = ex.ToString();
                 bW.Write(remoteStackTrace.Length);
-                bW.Write(System.Text.Encoding.UTF8.GetBytes(remoteStackTrace));
+                bW.Write(Encoding.UTF8.GetBytes(remoteStackTrace));
 
                 bW.Flush();
             }
         }
 
-        private static void Login(HttpRequest Request, HttpSessionState Session, string sharedSecret)
-        {
-            string authCode = Request.QueryString["code"];
-
-            HashAlgorithm hash = HashAlgorithm.Create("SHA1");
-            DateTime current = DateTime.UtcNow;
-            string computedAuthCode;
-
-            computedAuthCode = BitConverter.ToString(hash.ComputeHash(Encoding.ASCII.GetBytes(current.ToString("yyyy-MM-dd-HH-mm") + sharedSecret))).Replace("-", "").ToLower();
-            if (authCode == computedAuthCode)
-            {
-                Session["token"] = Request.ServerVariables["REMOTE_ADDR"];
-                return;
-            }
-
-            current = current.AddMinutes(-1);
-
-            computedAuthCode = BitConverter.ToString(hash.ComputeHash(Encoding.ASCII.GetBytes(current.ToString("yyyy-MM-dd-HH-mm") + sharedSecret))).Replace("-", "").ToLower();
-            if (authCode == computedAuthCode)
-            {
-                Session["token"] = Request.ServerVariables["REMOTE_ADDR"];
-                return;
-            }
-
-            current = current.AddMinutes(+2);
-
-            computedAuthCode = BitConverter.ToString(hash.ComputeHash(Encoding.ASCII.GetBytes(current.ToString("yyyy-MM-dd-HH-mm") + sharedSecret))).Replace("-", "").ToLower();
-            if (authCode == computedAuthCode)
-            {
-                Session["token"] = Request.ServerVariables["REMOTE_ADDR"];
-                return;
-            }
-
-            throw new WebDatabaseException("Invalid authentication token.");
-        }
-
-        private static void Logout(HttpRequest Request, HttpSessionState Session)
-        {
-            Session.Abandon();
-        }
-
-        private static void ExecuteQuery(SqlDatabase DB, HttpRequest Request, HttpSessionState Session, Stream output)
+        private static void ExecuteQuery(SqlDatabase DB, HttpRequest request, HttpResponse response, HttpSessionState session)
         {
             #region check token
 
-            if ((string)Session["token"] != Request.ServerVariables["REMOTE_ADDR"])
+            if ((string)session["token"] != request.ServerVariables["REMOTE_ADDR"])
                 throw new WebDatabaseException("Access denied.");
 
             #endregion
 
             #region prepare sql command
 
-            SqlCommand cmd = new SqlCommand(Request.Form["q"]);
+            SqlCommand cmd = new SqlCommand(request.Form["q"]);
 
-            foreach (string key in Request.Form.AllKeys)
+            foreach (string key in request.Form.AllKeys)
             {
                 if (key != "q")
                 {
-                    using (MemoryStream mS = new MemoryStream(Convert.FromBase64String(Request.Form[key])))
+                    using (MemoryStream mS = new MemoryStream(Convert.FromBase64String(request.Form[key])))
                     {
                         WebDbDataItem parameter = new WebDbDataItem(mS);
 
@@ -161,7 +150,7 @@ namespace TechnitiumLibrary.Database.WebDatabase.Server
                 DataTable DT = DB.TableQuery(cmd);
 
                 //write output
-                BinaryWriter bW = new BinaryWriter(output);
+                BinaryWriter bW = new BinaryWriter(response.OutputStream);
 
                 //error code
                 bW.Write(0);
@@ -240,7 +229,7 @@ namespace TechnitiumLibrary.Database.WebDatabase.Server
                 int rowsAffected = DB.Command(cmd);
 
                 //write output
-                BinaryWriter bW = new BinaryWriter(output);
+                BinaryWriter bW = new BinaryWriter(response.OutputStream);
                 bW.Write(0); //error code
                 bW.Write(rowsAffected);
                 bW.Flush();
