@@ -34,11 +34,11 @@ namespace TechnitiumLibrary.IO
 
         #region constructor
 
-        public FixMemoryStream(int size)
+        public FixMemoryStream(int capacity)
         {
-            _buffer = new byte[size];
+            _buffer = new byte[capacity];
             _position = 0;
-            _length = size;
+            _length = 0;
         }
 
         #endregion
@@ -70,10 +70,13 @@ namespace TechnitiumLibrary.IO
             }
             set
             {
-                if (value > _length)
+                if (value > _buffer.Length)
                     throw new EndOfStreamException();
-                else
-                    _position = Convert.ToInt32(value);
+
+                _position = Convert.ToInt32(value);
+
+                if (_position > _length)
+                    _length = _position;
             }
         }
 
@@ -129,8 +132,11 @@ namespace TechnitiumLibrary.IO
         {
             if ((value > _buffer.Length) || (value < 0))
                 throw new EndOfStreamException();
-            else
-                _length = Convert.ToInt32(value);
+
+            _length = Convert.ToInt32(value);
+
+            if (_position > _length)
+                _position = _length;
         }
 
         public override void Write(byte[] buffer, int offset, int count)
@@ -140,11 +146,27 @@ namespace TechnitiumLibrary.IO
 
             int pos = _position + count;
 
-            if (pos > _length)
+            if (pos > _buffer.Length)
                 throw new EndOfStreamException("Stream reached end of stream.");
 
             System.Buffer.BlockCopy(buffer, offset, _buffer, _position, count);
             _position = pos;
+
+            if (_position > _length)
+                _length = _position;
+        }
+
+        #endregion
+
+        #region public
+
+        public byte[] ToArray()
+        {
+            byte[] buffer = new byte[_length];
+
+            System.Buffer.BlockCopy(_buffer, 0, buffer, 0, _length);
+
+            return buffer;
         }
 
         #endregion
@@ -153,6 +175,9 @@ namespace TechnitiumLibrary.IO
 
         public byte[] Buffer
         { get { return _buffer; } }
+
+        public int Capacity
+        { get { return _buffer.Length; } }
 
         #endregion
     }
