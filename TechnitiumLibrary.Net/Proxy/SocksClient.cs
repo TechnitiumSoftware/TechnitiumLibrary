@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -66,6 +66,7 @@ namespace TechnitiumLibrary.Net.Proxy
         #region variables
 
         public const byte SOCKS_VERSION = 5;
+        const int CONNECTION_TIMEOUT = 10000;
 
         SocksEndPoint _proxyEP;
         NetworkCredential _credentials;
@@ -203,43 +204,65 @@ namespace TechnitiumLibrary.Net.Proxy
             return new SocksEndPoint(response, 3);
         }
 
-        private Socket GetProxyConnection()
+        private Socket GetProxyConnection(int timeout)
         {
             Socket socket;
+            IAsyncResult result;
 
-            switch (Environment.OSVersion.Platform)
+            switch (_proxyEP.AddressType)
             {
-                case PlatformID.Win32NT:
-                    if (Environment.OSVersion.Version.Major < 6)
-                    {
-                        //below vista
-                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                    }
-                    else
-                    {
-                        //vista & above
-                        socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
-                        socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
-                    }
-                    break;
-
-                case PlatformID.Unix: //mono framework
-                    if (Socket.OSSupportsIPv6)
-                        socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
-                    else
-                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-                    break;
-
-                default: //unknown
+                case SocksAddressType.IPv4Address:
                     socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                    result = socket.BeginConnect(_proxyEP.GetEndPoint(), null, null);
                     break;
+
+                case SocksAddressType.IPv6Address:
+                    socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+                    result = socket.BeginConnect(_proxyEP.GetEndPoint(), null, null);
+                    break;
+
+                case SocksAddressType.DomainName:
+                    switch (Environment.OSVersion.Platform)
+                    {
+                        case PlatformID.Win32NT:
+                            if (Environment.OSVersion.Version.Major < 6)
+                            {
+                                //below vista
+                                socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                            }
+                            else
+                            {
+                                //vista & above
+                                socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+                                socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
+                            }
+                            break;
+
+                        case PlatformID.Unix: //mono framework
+                            if (Socket.OSSupportsIPv6)
+                                socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+                            else
+                                socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+                            break;
+
+                        default: //unknown
+                            socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                            break;
+                    }
+
+                    result = socket.BeginConnect(_proxyEP.Address, _proxyEP.Port, null, null);
+                    break;
+
+                default:
+                    throw new SocksClientException("Invalid socks address type.");
             }
 
-            if (_proxyEP.AddressType == SocksAddressType.DomainName)
-                socket.Connect(_proxyEP.Address, _proxyEP.Port);
-            else
-                socket.Connect(_proxyEP.GetEndPoint());
+            if (!result.AsyncWaitHandle.WaitOne(timeout))
+                throw new SocketException((int)SocketError.TimedOut);
+
+            if (!socket.Connected)
+                throw new SocketException((int)SocketError.ConnectionRefused);
 
             socket.NoDelay = true;
 
@@ -255,7 +278,7 @@ namespace TechnitiumLibrary.Net.Proxy
             try
             {
                 //connect to proxy server
-                using (Socket socket = GetProxyConnection())
+                using (Socket socket = GetProxyConnection(5000))
                 {
                     socket.SendTimeout = 5000;
                     socket.ReceiveTimeout = 5000;
@@ -274,7 +297,7 @@ namespace TechnitiumLibrary.Net.Proxy
         public void CheckProxyAccess()
         {
             //connect to proxy server
-            using (Socket socket = GetProxyConnection())
+            using (Socket socket = GetProxyConnection(5000))
             {
                 socket.SendTimeout = 5000;
                 socket.ReceiveTimeout = 5000;
@@ -301,7 +324,7 @@ namespace TechnitiumLibrary.Net.Proxy
         public SocksConnectRequestHandler Connect(SocksEndPoint remoteEP)
         {
             //connect to proxy server
-            Socket socket = GetProxyConnection();
+            Socket socket = GetProxyConnection(CONNECTION_TIMEOUT);
 
             socket.SendTimeout = 30000;
             socket.ReceiveTimeout = 30000;
@@ -323,7 +346,7 @@ namespace TechnitiumLibrary.Net.Proxy
         public SocksBindRequestHandler Bind(SocksEndPoint endpoint)
         {
             //connect to proxy server
-            Socket socket = GetProxyConnection();
+            Socket socket = GetProxyConnection(CONNECTION_TIMEOUT);
 
             socket.SendTimeout = 30000;
             socket.ReceiveTimeout = 30000;
@@ -359,7 +382,7 @@ namespace TechnitiumLibrary.Net.Proxy
             udpSocket.Bind(localEP);
 
             //connect to proxy server
-            Socket socket = GetProxyConnection();
+            Socket socket = GetProxyConnection(CONNECTION_TIMEOUT);
 
             socket.SendTimeout = 30000;
             socket.ReceiveTimeout = 30000;
