@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -30,155 +31,155 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
     {
         #region variables
 
-        IPAddress _deviceIP;
-        IPAddress _networkBroadcastAddress;
-
-        private Uri _controlURLIP;
-        private Uri _controlURLPPP;
-
-        #endregion
-
-        #region constructor
-
-        private InternetGatewayDevice()
-        { }
-
-        #endregion
-
-        #region public static
-
-        public static InternetGatewayDevice Discover(IPAddress networkBroadcastAddress, int timeout, int maxRetries = 3)
-        {
-            Socket sUdp = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            sUdp.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, 1);
-            sUdp.ReceiveTimeout = timeout;
-
-            byte[] request = Encoding.ASCII.GetBytes("M-SEARCH * HTTP/1.1\r\n" +
+        private readonly static IPEndPoint uPnPMulticastEP = new IPEndPoint(IPAddress.Parse("239.255.255.250"), 1900);
+        private readonly static byte[] uPnPRequest = Encoding.ASCII.GetBytes("M-SEARCH * HTTP/1.1\r\n" +
                                                                 "HOST: 239.255.255.250:1900\r\n" +
                                                                 "ST:upnp:rootdevice\r\n" +
                                                                 "MAN:\"ssdp:discover\"\r\n" +
                                                                 "MX:3\r\n\r\n");
 
+        private IPAddress _deviceIP;
+        private IPAddress _localIP;
+        private Uri _controlUrlWanIP;
+        private Uri _controlUrlWanPPP;
+
+        #endregion
+
+        #region constructor
+
+        private InternetGatewayDevice(IPAddress deviceIP, IPAddress localIP, Uri controlUrlWanIP, Uri controlUrlWanPPP)
+        {
+            _deviceIP = deviceIP;
+            _localIP = localIP;
+            _controlUrlWanIP = controlUrlWanIP;
+            _controlUrlWanPPP = controlUrlWanPPP;
+        }
+
+        #endregion
+
+        #region public static
+
+        public static InternetGatewayDevice[] Discover(IPAddress localIP, IPAddress expectedDeviceIP = null, int timeout = 2000, int maxTries = 3)
+        {
+            Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+
+            socket.Bind(new IPEndPoint(localIP, 0));
+            socket.ReceiveTimeout = timeout;
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(uPnPMulticastEP.Address, localIP));
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+
+            Dictionary<IPAddress, InternetGatewayDevice> devices = new Dictionary<IPAddress, InternetGatewayDevice>();
+            EndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
             byte[] buffer = new byte[8 * 1024];
+            int bytesRecv;
 
             try
             {
-                int retryCount = 1;
-                //retry loop
-                do
+                for (int i = 0; i < maxTries; i++)
                 {
-                    Exception lastEx = null;
-                    EndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
-                    int bytesRecv = 0;
+                    //send request
+                    socket.SendTo(uPnPRequest, uPnPMulticastEP);
 
-                    sUdp.SendTo(request, new IPEndPoint(networkBroadcastAddress, 1900));
-
-                    //read all responses loop
-                    do
+                    //read all responses
+                    while (true)
                     {
                         try
                         {
-                            bytesRecv = sUdp.ReceiveFrom(buffer, 0, buffer.Length, SocketFlags.None, ref remoteEP);
-                        }
-                        catch (Exception ex)
-                        {
-                            lastEx = ex;
-                            bytesRecv = 0;
-                        }
+                            bytesRecv = socket.ReceiveFrom(buffer, 0, buffer.Length, SocketFlags.None, ref remoteEP);
+                            if (bytesRecv < 1)
+                                break;
 
-                        if (bytesRecv > 0)
-                        {
-                            try
+                            //parse response
+                            Uri descriptionUri = null;
+                            bool isRootDevice = false;
+
+                            using (StreamReader sR = new StreamReader(new MemoryStream(buffer, 0, bytesRecv, false)))
                             {
-                                Uri descriptionUri = null;
-                                Uri controlURLIP = null;
-                                Uri controlURLPPP = null;
-                                bool isRootDevice = false;
-
-                                using (StreamReader sR = new StreamReader(new MemoryStream(buffer, 0, bytesRecv, false)))
+                                while (true)
                                 {
-                                    do
-                                    {
-                                        string tmp = sR.ReadLine();
+                                    string tmp = sR.ReadLine();
+                                    if (tmp == null)
+                                        break;
 
-                                        if (tmp == null)
-                                            break;
-
-                                        if (tmp.StartsWith("location:", StringComparison.CurrentCultureIgnoreCase))
-                                            descriptionUri = new Uri(tmp.Substring(9).Trim());
-
-                                        else if (tmp.StartsWith("st:", StringComparison.CurrentCultureIgnoreCase))
-                                            isRootDevice = tmp.Substring(3).Trim().Equals("upnp:rootdevice", StringComparison.CurrentCultureIgnoreCase);
-
-                                    } while (true);
+                                    if (tmp.StartsWith("location:", StringComparison.CurrentCultureIgnoreCase))
+                                        descriptionUri = new Uri(tmp.Substring(9).Trim());
+                                    else if (tmp.StartsWith("st:", StringComparison.CurrentCultureIgnoreCase))
+                                        isRootDevice = tmp.Substring(3).Trim().Equals("upnp:rootdevice", StringComparison.CurrentCultureIgnoreCase);
                                 }
+                            }
 
-                                if (isRootDevice)
+                            if (isRootDevice)
+                            {
+                                //find service URL
+                                XmlDocument desc = new XmlDocument();
+                                desc.Load(WebRequest.Create(descriptionUri).GetResponse().GetResponseStream());
+
+                                XmlNamespaceManager nsMgr = new XmlNamespaceManager(desc.NameTable);
+                                nsMgr.AddNamespace("tns", "urn:schemas-upnp-org:device-1-0");
+
+                                XmlNode typen = desc.SelectSingleNode("//tns:device/tns:deviceType/text()", nsMgr);
+                                if (typen.Value.Contains("InternetGatewayDevice"))
                                 {
-                                    //find service URL
-                                    XmlDocument desc = new XmlDocument();
-                                    desc.Load(WebRequest.Create(descriptionUri).GetResponse().GetResponseStream());
-
-                                    XmlNamespaceManager nsMgr = new XmlNamespaceManager(desc.NameTable);
-                                    nsMgr.AddNamespace("tns", "urn:schemas-upnp-org:device-1-0");
-
-                                    XmlNode typen = desc.SelectSingleNode("//tns:device/tns:deviceType/text()", nsMgr);
-                                    if (!typen.Value.Contains("InternetGatewayDevice"))
-                                        throw new InternetGatewayDeviceException("Error while parsing XML response from UPnP root device. Cannot find InternetGatewayDevice node.");
-
+                                    Uri controlUrlWanIP = null;
+                                    Uri controlUrlWanPPP = null;
                                     XmlNode node;
-
-                                    node = desc.SelectSingleNode("//tns:service[tns:serviceType=\"urn:schemas-upnp-org:service:WANPPPConnection:1\"]/tns:controlURL/text()", nsMgr);
-                                    if (node != null)
-                                    {
-                                        if (node.Value.StartsWith("http:", StringComparison.CurrentCultureIgnoreCase))
-                                            controlURLPPP = new Uri(node.Value);
-                                        else
-                                            controlURLPPP = new Uri(descriptionUri, node.Value);
-                                    }
 
                                     node = desc.SelectSingleNode("//tns:service[tns:serviceType=\"urn:schemas-upnp-org:service:WANIPConnection:1\"]/tns:controlURL/text()", nsMgr);
                                     if (node != null)
                                     {
                                         if (node.Value.StartsWith("http:", StringComparison.CurrentCultureIgnoreCase))
-                                            controlURLIP = new Uri(node.Value);
+                                            controlUrlWanIP = new Uri(node.Value);
                                         else
-                                            controlURLIP = new Uri(descriptionUri, node.Value);
+                                            controlUrlWanIP = new Uri(descriptionUri, node.Value);
                                     }
 
-                                    if ((controlURLIP == null) && (controlURLPPP == null))
-                                        throw new InternetGatewayDeviceException("Cannot find control URL in XML response from UPnP root device.");
-
-                                    return new InternetGatewayDevice
+                                    node = desc.SelectSingleNode("//tns:service[tns:serviceType=\"urn:schemas-upnp-org:service:WANPPPConnection:1\"]/tns:controlURL/text()", nsMgr);
+                                    if (node != null)
                                     {
-                                        _deviceIP = (remoteEP as IPEndPoint).Address,
-                                        _networkBroadcastAddress = networkBroadcastAddress,
-                                        _controlURLIP = controlURLIP,
-                                        _controlURLPPP = controlURLPPP
-                                    };
+                                        if (node.Value.StartsWith("http:", StringComparison.CurrentCultureIgnoreCase))
+                                            controlUrlWanPPP = new Uri(node.Value);
+                                        else
+                                            controlUrlWanPPP = new Uri(descriptionUri, node.Value);
+                                    }
+
+                                    if ((controlUrlWanIP != null) || (controlUrlWanPPP != null))
+                                    {
+                                        IPAddress deviceIP = (remoteEP as IPEndPoint).Address;
+
+                                        if (deviceIP.Equals(expectedDeviceIP))
+                                            return new InternetGatewayDevice[] { new InternetGatewayDevice(deviceIP, localIP, controlUrlWanIP, controlUrlWanPPP) };
+
+                                        if (!devices.ContainsKey(deviceIP))
+                                            devices.Add(deviceIP, new InternetGatewayDevice(deviceIP, localIP, controlUrlWanIP, controlUrlWanPPP));
+                                    }
                                 }
                             }
-                            catch (Exception ex)
-                            {
-                                lastEx = ex;
-                            }
                         }
-                        else
+                        catch (SocketException)
                         {
                             break;
                         }
-                    } while (true);
-
-                    retryCount++;
-                    if (retryCount > maxRetries)
-                        throw new InternetGatewayDeviceException("UPnP internet gateway device was not found.", lastEx);
-
-                } while (true);
+                        catch
+                        {
+                            //ignore other errors
+                        }
+                    }
+                }
             }
             finally
             {
-                sUdp.Close();
+                socket.Close();
             }
+
+            if (devices.Count > 0)
+            {
+                InternetGatewayDevice[] igDevices = new InternetGatewayDevice[devices.Count];
+                devices.Values.CopyTo(igDevices, 0);
+
+                return igDevices;
+            }
+
+            return new InternetGatewayDevice[] { };
         }
 
         #endregion
@@ -189,11 +190,11 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
         {
             Exception exPPP = null;
 
-            if (_controlURLPPP != null)
+            if (_controlUrlWanPPP != null)
             {
                 try
                 {
-                    return SOAPRequest(_controlURLPPP, SOAP, functionName, "WANPPPConnection");
+                    return SOAPRequest(_controlUrlWanPPP, SOAP, functionName, "WANPPPConnection");
                 }
                 catch (WebException ex)
                 {
@@ -201,11 +202,11 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                 }
             }
 
-            if (_controlURLIP != null)
+            if (_controlUrlWanIP != null)
             {
                 try
                 {
-                    return SOAPRequest(_controlURLIP, SOAP.Replace("service:WANPPPConnection:1", "service:WANIPConnection:1"), functionName, "WANIPConnection");
+                    return SOAPRequest(_controlUrlWanIP, SOAP.Replace("service:WANPPPConnection:1", "service:WANIPConnection:1"), functionName, "WANIPConnection");
                 }
                 catch (WebException ex)
                 {
@@ -544,8 +545,8 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
         public IPAddress DeviceIP
         { get { return _deviceIP; } }
 
-        public IPAddress NetworkBroadcastAddress
-        { get { return _networkBroadcastAddress; } }
+        public IPAddress LocalIP
+        { get { return _localIP; } }
 
         #endregion
     }
