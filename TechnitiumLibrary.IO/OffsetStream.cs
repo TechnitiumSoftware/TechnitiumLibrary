@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -107,16 +107,18 @@ namespace TechnitiumLibrary.IO
         public override long Position
         {
             get
-            { return _position; }
+            {
+                return _position;
+            }
             set
             {
                 if (value > _length)
                     throw new EndOfStreamException();
-                else
-                    if (_stream.CanSeek)
-                        _position = value;
-                    else
-                        throw new NotSupportedException("Cannot seek stream.");
+
+                if (!_stream.CanSeek)
+                    throw new NotSupportedException("Cannot seek stream.");
+
+                _position = value;
             }
         }
 
@@ -124,14 +126,14 @@ namespace TechnitiumLibrary.IO
         {
             if (_readOnly)
                 throw new IOException("OffsetStream is read only.");
-            else
-                _stream.Flush();
+
+            _stream.Flush();
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
             if (count < 1)
-                throw new IOException("Count must be atleast 1 byte.");
+                return 0;
 
             if (_position >= _length)
                 return 0;
@@ -142,46 +144,44 @@ namespace TechnitiumLibrary.IO
             if (_stream.CanSeek)
                 _stream.Position = _offset + _position;
 
-            int no = _stream.Read(buffer, offset, count);
-            _position += no;
+            int bytesRead = _stream.Read(buffer, offset, count);
+            _position += bytesRead;
 
-            return no;
+            return bytesRead;
         }
 
         public override long Seek(long offset, SeekOrigin origin)
         {
-            if (_stream.CanSeek)
-            {
-                long pos;
-
-                switch (origin)
-                {
-                    case SeekOrigin.Begin:
-                        pos = offset;
-                        break;
-
-                    case SeekOrigin.Current:
-                        pos = _position + offset;
-                        break;
-
-                    case SeekOrigin.End:
-                        pos = _length + offset;
-                        break;
-
-                    default:
-                        pos = 0;
-                        break;
-                }
-
-                if ((pos < 0) || (pos >= _length))
-                    throw new EndOfStreamException("OffsetStream reached begining/end of stream.");
-                else
-                    _position = pos;
-
-                return pos;
-            }
-            else
+            if (!_stream.CanSeek)
                 throw new NotSupportedException("Cannot seek stream.");
+
+            long pos;
+
+            switch (origin)
+            {
+                case SeekOrigin.Begin:
+                    pos = offset;
+                    break;
+
+                case SeekOrigin.Current:
+                    pos = _position + offset;
+                    break;
+
+                case SeekOrigin.End:
+                    pos = _length + offset;
+                    break;
+
+                default:
+                    pos = 0;
+                    break;
+            }
+
+            if ((pos < 0) || (pos >= _length))
+                throw new EndOfStreamException("OffsetStream reached begining/end of stream.");
+
+            _position = pos;
+
+            return pos;
         }
 
         public override void SetLength(long value)
