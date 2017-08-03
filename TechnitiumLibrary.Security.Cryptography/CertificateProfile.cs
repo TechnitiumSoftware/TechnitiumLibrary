@@ -422,8 +422,6 @@ namespace TechnitiumLibrary.Security.Cryptography
                 bW.Write(Convert.ToByte(buffer.Length));
                 bW.Write(buffer);
             }
-
-            bW.Flush();
         }
 
         public byte[] ToArray()
