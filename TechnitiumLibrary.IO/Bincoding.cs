@@ -676,7 +676,7 @@ namespace TechnitiumLibrary.IO
             if (_lastStream != null)
             {
                 if ((_lastStream.Length - _lastStream.Position) > 0)
-                    OffsetStream.StreamCopy(_lastStream, new NullStream());
+                    OffsetStream.StreamCopy(_lastStream, Stream.Null, 4096, false);
 
                 _lastStream = null;
             }
