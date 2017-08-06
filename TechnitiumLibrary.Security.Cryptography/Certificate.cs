@@ -56,8 +56,8 @@ namespace TechnitiumLibrary.Security.Cryptography
         CertificateProfile _issuedTo;
         CertificateCapability _capability;
 
-        UInt64 _issuedOnUTC;
-        UInt64 _expiresOnUTC;
+        ulong _issuedOnUTC;
+        ulong _expiresOnUTC;
 
         AsymmetricEncryptionAlgorithm _publicKeyEncryptionAlgorithm;
         string _publicKeyXML;
@@ -380,8 +380,8 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public bool HasExpired()
         {
-            UInt64 currDate = Convert.ToUInt64((DateTime.UtcNow - new System.DateTime(1970, 1, 1)).TotalSeconds);
-            return ((currDate < _issuedOnUTC) || (currDate > _expiresOnUTC));
+            ulong currDate = Convert.ToUInt64((DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds);
+            return (((currDate + 7200) < _issuedOnUTC) || (currDate > _expiresOnUTC)); //adding 7200 sec (2 hr) margin to allow clients with out of sync system clocks to verify recently created cert.
         }
 
         public bool IsSigned()
