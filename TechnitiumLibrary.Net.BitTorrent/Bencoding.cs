@@ -74,7 +74,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                         return Convert.ToInt64(TMP);
 
                     case -1:
-                        throw new IOException("End of stream.");
+                        throw new EndOfStreamException();
                 }
 
                 TMP += Convert.ToChar(b);
@@ -176,7 +176,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             switch (b)
             {
                 case -1:
-                    throw new IOException("End of stream.");
+                    throw new EndOfStreamException();
 
                 case 105: //i = integer
                     return new Bencoding(BencodingType.Integer, DecodeInteger(s));

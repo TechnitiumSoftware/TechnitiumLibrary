@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -152,7 +152,12 @@ namespace TechnitiumLibrary.IO
 
         public static Bincoding GetValue(IWriteStream value)
         {
-            return new Bincoding(BincodingType.BINARY, value.ToArray());
+            using (MemoryStream mS = new MemoryStream())
+            {
+                value.WriteTo(mS);
+
+                return new Bincoding(BincodingType.BINARY, mS.ToArray());
+            }
         }
 
         public static Bincoding GetValue(string value)

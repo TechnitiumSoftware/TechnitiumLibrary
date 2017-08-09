@@ -21,11 +21,10 @@ using System;
 using System.Data;
 using System.IO;
 using System.Text;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Database.WebDatabase
 {
-    public class WebDbDataItem : IWriteStream
+    public class WebDbDataItem
     {
         #region variables
 
@@ -127,9 +126,7 @@ namespace TechnitiumLibrary.Database.WebDatabase
 
         public void WriteTo(Stream s)
         {
-            BinaryWriter bW = new BinaryWriter(s);
-            WriteTo(bW);
-            bW.Flush();
+            WriteTo(new BinaryWriter(s));
         }
 
         public void WriteTo(BinaryWriter bW)
@@ -138,29 +135,14 @@ namespace TechnitiumLibrary.Database.WebDatabase
             bW.Write((byte)_type);
 
             if (_value == null)
+            {
                 bW.Write(-1);
+            }
             else
             {
                 bW.Write(_value.Length);
                 bW.Write(_value);
             }
-        }
-
-        public byte[] ToArray()
-        {
-            using (MemoryStream mS = new MemoryStream())
-            {
-                WriteTo(mS);
-                return mS.ToArray();
-            }
-        }
-
-        public Stream ToStream()
-        {
-            MemoryStream mS = new MemoryStream();
-            WriteTo(mS);
-            mS.Position = 0;
-            return mS;
         }
 
         #endregion

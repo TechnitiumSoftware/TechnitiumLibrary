@@ -165,22 +165,6 @@ namespace TechnitiumLibrary.Security.Cryptography
             s.WriteByte(Convert.ToByte(_symAlgo.Padding));
         }
 
-        public byte[] ToArray()
-        {
-            using (MemoryStream mS = new MemoryStream())
-            {
-                WriteTo(mS);
-                return mS.ToArray();
-            }
-        }
-
-        public Stream ToStream()
-        {
-            MemoryStream mS = new MemoryStream();
-            WriteTo(mS);
-            mS.Position = 0;
-            return mS;
-        }
         #endregion
 
         #region Symmetric Crypto Key Methods

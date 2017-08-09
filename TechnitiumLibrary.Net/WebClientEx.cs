@@ -127,7 +127,7 @@ namespace TechnitiumLibrary.Net
         public Stream GetResponseStream()
         {
             if (_openResponseStream == null)
-                throw new WebException("No response stream available. Call OpenWriteEx() to create response stream.");
+                throw new WebException("No response stream available. Call OpenWriteEx() and close write stream to create response stream .");
 
             Stream s = _openResponseStream;
             _openResponseStream = null; //clear stream handle

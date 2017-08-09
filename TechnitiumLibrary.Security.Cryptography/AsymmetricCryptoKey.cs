@@ -268,24 +268,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             s.Write(BitConverter.GetBytes(Convert.ToUInt16(key.Length)), 0, 2);
             s.Write(key, 0, key.Length);
         }
-
-        public byte[] ToArray()
-        {
-            using (MemoryStream mS = new MemoryStream())
-            {
-                WriteTo(mS);
-                return mS.ToArray();
-            }
-        }
-
-        public Stream ToStream()
-        {
-            MemoryStream mS = new MemoryStream();
-            WriteTo(mS);
-            mS.Position = 0;
-            return mS;
-        }
-
+        
         public string GetPublicKey()
         {
             return _asymAlgo.ToXmlString(false);

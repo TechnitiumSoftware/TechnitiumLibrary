@@ -52,10 +52,6 @@
       <Project>{01b4af8a-df03-40f7-9b5d-438c649b2b1d}</Project>
       <Name>TechnitiumLibrary.Database</Name>
     </ProjectReference>
-    <ProjectReference Include="..\TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj">
-      <Project>{e0ba5456-feaa-4380-92bb-6b1c4bc3dc70}</Project>
-      <Name>TechnitiumLibrary.IO</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

@@ -130,9 +130,6 @@ namespace TechnitiumLibrary.IO
         {
             switch (bR.ReadByte())
             {
-                case 0: //eof reached
-                    break;
-
                 case 1:
                     _name = Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadByte()));
                     _lastModifiedUTC = DateTime.FromBinary(bR.ReadInt64());
@@ -188,25 +185,6 @@ namespace TechnitiumLibrary.IO
 
             bW.Write(_data.Length);
             OffsetStream.StreamCopy(_data, bW);
-
-            bW.Flush();
-        }
-
-        public byte[] ToArray()
-        {
-            using (MemoryStream mS = new MemoryStream())
-            {
-                WriteTo(mS);
-                return mS.ToArray();
-            }
-        }
-
-        public Stream ToStream()
-        {
-            MemoryStream mS = new MemoryStream();
-            WriteTo(mS);
-            mS.Position = 0;
-            return mS;
         }
 
         public PackageItemTransactionLog Extract(string filepath, bool overwrite = false)

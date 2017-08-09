@@ -71,18 +71,19 @@ namespace TechnitiumLibrary.Security.Cryptography
                 client.Proxy = proxy;
                 client.Timeout = timeout;
 
-                byte[] buffer = client.DownloadData(certToCheck.RevocationURL.AbsoluteUri + "?sn=" + certToCheck.SerialNumber);
-
-                using (MemoryStream mS = new MemoryStream(buffer))
+                using (Stream s = client.OpenRead(certToCheck.RevocationURL.AbsoluteUri + "?sn=" + certToCheck.SerialNumber))
                 {
-                    switch (mS.ReadByte())
+                    switch (s.ReadByte())
                     {
+                        case -1:
+                            throw new EndOfStreamException();
+
                         case 0: //not found
                             revokeCert = null;
                             return false;
 
                         case 1:
-                            revokeCert = new RevocationCertificate(mS);
+                            revokeCert = new RevocationCertificate(s);
                             break;
 
                         default:
@@ -118,8 +119,6 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                 //revoked on
                 bW.Write(revokedOnUTC.ToBinary());
-
-                bW.Flush();
 
                 //reset
                 mS.Position = 0;
@@ -193,23 +192,6 @@ namespace TechnitiumLibrary.Security.Cryptography
             //hash algo
             s.WriteByte(Convert.ToByte(_hashAlgo.Length));
             s.Write(Encoding.ASCII.GetBytes(_hashAlgo), 0, _hashAlgo.Length);
-        }
-
-        public byte[] ToArray()
-        {
-            using (MemoryStream mS = new MemoryStream())
-            {
-                WriteTo(mS);
-                return mS.ToArray();
-            }
-        }
-
-        public Stream ToStream()
-        {
-            MemoryStream mS = new MemoryStream();
-            WriteTo(mS);
-            mS.Position = 0;
-            return mS;
         }
 
         #endregion

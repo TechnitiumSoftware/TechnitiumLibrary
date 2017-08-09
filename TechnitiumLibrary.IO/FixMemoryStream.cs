@@ -83,7 +83,7 @@ namespace TechnitiumLibrary.IO
         public override int Read(byte[] buffer, int offset, int count)
         {
             if (count < 1)
-                throw new IOException("Count must be atleast 1 byte.");
+                return 0;
 
             if (_position >= _length)
                 return 0;

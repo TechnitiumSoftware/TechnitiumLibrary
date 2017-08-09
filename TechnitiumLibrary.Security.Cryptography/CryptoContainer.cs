@@ -260,24 +260,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                 s.Write(computedHMAC, 0, 32);
             }
         }
-
-        public byte[] ToArray()
-        {
-            using (MemoryStream mS = new MemoryStream())
-            {
-                WriteTo(mS);
-                return mS.ToArray();
-            }
-        }
-
-        public Stream ToStream()
-        {
-            MemoryStream mS = new MemoryStream();
-            WriteTo(mS);
-            mS.Position = 0;
-            return mS;
-        }
-
+        
         public void SetPassword(SymmetricEncryptionAlgorithm cryptoAlgo, int keySize, string password)
         {
             int keySizeBytes = keySize / 8;

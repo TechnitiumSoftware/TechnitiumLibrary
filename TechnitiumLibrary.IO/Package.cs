@@ -213,6 +213,9 @@ namespace TechnitiumLibrary.IO
 
             switch (_s.ReadByte()) //version
             {
+                case -1:
+                    throw new EndOfStreamException();
+
                 case 1:
                     do
                     {

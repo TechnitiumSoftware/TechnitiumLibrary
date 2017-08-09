@@ -20,10 +20,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Specialized;
 using System.IO;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
-using TechnitiumLibrary.Net;
 
 namespace TechnitiumLibrary.Database.WebDatabase.Client
 {
@@ -32,7 +32,7 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
         #region variables
 
         Uri _webDatabaseUri;
-        WebClientEx _webClient;
+        WebClient _webClient;
 
         bool _inTransaction;
 
@@ -43,13 +43,13 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
         public WebDatabase(Uri webDatabaseUri, string sharedSecret)
         {
             _webDatabaseUri = webDatabaseUri;
-            _webClient = new WebClientEx();
+            _webClient = new WebClient();
 
             //get server challenge
             byte[] challenge;
             _webClient.QueryString.Add("cmd", "challenge");
 
-            using (BinaryReader bR = new BinaryReader(new MemoryStream(_webClient.DownloadData(_webDatabaseUri))))
+            using (BinaryReader bR = new BinaryReader(_webClient.OpenRead(_webDatabaseUri)))
             {
                 int errorCode = bR.ReadInt32();
                 if (errorCode != 0)
@@ -72,7 +72,7 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
                 _webClient.QueryString.Add("code", BitConverter.ToString(hmac.ComputeHash(challenge)).Replace("-", "").ToLower());
             }
 
-            using (BinaryReader bR = new BinaryReader(new MemoryStream(_webClient.DownloadData(_webDatabaseUri))))
+            using (BinaryReader bR = new BinaryReader(_webClient.OpenRead(_webDatabaseUri)))
             {
                 int errorCode = bR.ReadInt32();
                 if (errorCode != 0)
@@ -85,7 +85,7 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
             }
         }
 
-        public WebDatabase(Uri webDatabaseUri, WebClientEx webClient)
+        public WebDatabase(Uri webDatabaseUri, WebClient webClient)
         {
             _webDatabaseUri = webDatabaseUri;
             _webClient = webClient;
@@ -284,14 +284,22 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
 
         private NameValueCollection GetPostValues(WebSqlCommand sqlCmd)
         {
-            NameValueCollection Values = new NameValueCollection();
+            NameValueCollection values = new NameValueCollection();
 
-            Values.Add("q", sqlCmd.SqlQuery);
+            values.Add("q", sqlCmd.SqlQuery);
 
-            for (int i = 0; i < sqlCmd.Parameters.Count; i++)
-                Values.Add(sqlCmd.Parameters.Keys[i], Convert.ToBase64String(((WebDbDataItem)sqlCmd.Parameters[i]).ToArray()));
+            using (MemoryStream mS = new MemoryStream())
+            {
+                for (int i = 0; i < sqlCmd.Parameters.Count; i++)
+                {
+                    mS.SetLength(0);
+                    sqlCmd.Parameters[i].WriteTo(mS);
 
-            return Values;
+                    values.Add(sqlCmd.Parameters.Keys[i], Convert.ToBase64String(mS.ToArray()));
+                }
+            }
+
+            return values;
         }
 
         #endregion
@@ -301,7 +309,7 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
         public Uri WebDatabaseUri
         { get { return _webDatabaseUri; } }
 
-        public WebClientEx WebClient
+        public WebClient WebClient
         { get { return _webClient; } }
 
         public bool InTransaction

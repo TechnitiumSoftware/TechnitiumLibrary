@@ -141,25 +141,6 @@ namespace TechnitiumLibrary.Net.BitTorrent
             bW.Write(_numWant);
             bW.Write(_compact);
             bW.Write(_noPeerID);
-
-            bW.Flush();
-        }
-
-        public byte[] ToArray()
-        {
-            using (MemoryStream mS = new MemoryStream())
-            {
-                WriteTo(mS);
-                return mS.ToArray();
-            }
-        }
-
-        public Stream ToStream()
-        {
-            MemoryStream mS = new MemoryStream();
-            WriteTo(mS);
-            mS.Position = 0;
-            return mS;
         }
 
         #endregion
