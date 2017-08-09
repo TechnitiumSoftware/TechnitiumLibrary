@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -39,6 +40,7 @@ namespace TechnitiumLibrary.Net
         int _maximumAutomaticRedirections = 10;
 
         SocksConnectRequestHandler _proxyRequestHandler;
+        Stream _openResponseStream;
 
         #endregion
 
@@ -68,10 +70,13 @@ namespace TechnitiumLibrary.Net
         {
             try
             {
-                if (_proxyRequestHandler != null)
+                if (disposing)
                 {
-                    _proxyRequestHandler.Dispose();
-                    _proxyRequestHandler = null;
+                    if (_proxyRequestHandler != null)
+                        _proxyRequestHandler.Dispose();
+
+                    if (_openResponseStream != null)
+                        _openResponseStream.Dispose();
                 }
             }
             finally
@@ -102,6 +107,31 @@ namespace TechnitiumLibrary.Net
         public void ClearHeaders()
         {
             _headers.Clear();
+        }
+
+        public Stream OpenWriteEx(string address, string method = "POST")
+        {
+            return OpenWriteEx(new Uri(address), method);
+        }
+
+        public Stream OpenWriteEx(Uri address, string method = "POST")
+        {
+            WebRequest request = GetWebRequest(address);
+            request.Method = method;
+
+            _openResponseStream = null; //clear previous stream if any
+
+            return new WebClientWriteStream(this, request);
+        }
+
+        public Stream GetResponseStream()
+        {
+            if (_openResponseStream == null)
+                throw new WebException("No response stream available. Call OpenWriteEx() to create response stream.");
+
+            Stream s = _openResponseStream;
+            _openResponseStream = null; //clear stream handle
+            return s;
         }
 
         #endregion
@@ -290,5 +320,95 @@ namespace TechnitiumLibrary.Net
         }
 
         #endregion
+
+        class WebClientWriteStream : Stream
+        {
+            #region variables
+
+            readonly WebClientEx _webClient;
+            readonly WebRequest _request;
+            readonly Stream _requestStream;
+
+            #endregion
+
+            #region constructor
+
+            public WebClientWriteStream(WebClientEx webClient, WebRequest request)
+            {
+                _webClient = webClient;
+                _request = request;
+                _requestStream = request.GetRequestStream();
+            }
+
+            #endregion
+
+            #region public
+
+            protected override void Dispose(bool disposing)
+            {
+                try
+                {
+                    if (disposing)
+                    {
+                        _requestStream.Close();
+                        WebResponse response = _webClient.GetWebResponse(_request);
+                        _webClient._openResponseStream = response.GetResponseStream();
+                    }
+                }
+                finally
+                {
+                    base.Dispose(disposing);
+                }
+            }
+
+            #endregion
+
+            #region stream support
+
+            public override bool CanRead
+            { get { return false; } }
+
+            public override bool CanSeek
+            { get { return false; } }
+
+            public override bool CanWrite
+            { get { return true; } }
+
+            public override long Length
+            { get { throw new NotImplementedException(); } }
+
+            public override long Position
+            {
+                get { throw new NotImplementedException(); }
+                set { throw new NotImplementedException(); }
+            }
+
+            public override void Flush()
+            {
+                _requestStream.Flush();
+            }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override long Seek(long offset, SeekOrigin origin)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void SetLength(long value)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                _requestStream.Write(buffer, offset, count);
+            }
+
+            #endregion
+        }
     }
 }
