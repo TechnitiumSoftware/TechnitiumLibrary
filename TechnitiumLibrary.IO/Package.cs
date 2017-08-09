@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -63,7 +63,7 @@ namespace TechnitiumLibrary.IO
 
         List<PackageItem> _items = new List<PackageItem>();
 
-        bool _flushed = false;
+        bool _closed = false;
 
         #endregion
 
@@ -119,8 +119,8 @@ namespace TechnitiumLibrary.IO
             {
                 if (_s != null)
                 {
-                    if ((_mode == PackageMode.Create) && !_flushed)
-                        Flush();
+                    if ((_mode == PackageMode.Create) && !_closed)
+                        Close();
 
                     _s.Dispose();
                 }
@@ -219,9 +219,9 @@ namespace TechnitiumLibrary.IO
                 case 1:
                     do
                     {
-                        PackageItem item = new PackageItem(_s);
+                        PackageItem item = PackageItem.Parse(_s);
 
-                        if (item.Name == null)
+                        if (item == null)
                             break;
 
                         _items.Add(item);
@@ -241,21 +241,24 @@ namespace TechnitiumLibrary.IO
 
         public void AddItem(PackageItem item)
         {
+            if (_closed)
+                throw new ObjectDisposedException("Package");
+
             if (_mode != PackageMode.Create)
                 throw new IOException("Package is not in create mode.");
 
             item.WriteTo(_s);
         }
 
-        public void Flush()
+        public void Close()
         {
             if (_mode != PackageMode.Create)
                 throw new IOException("Package is not in create mode.");
 
-            if (!_flushed)
+            if (!_closed)
             {
                 _s.WriteByte(0); //eof
-                _flushed = true;
+                _closed = true;
             }
         }
 

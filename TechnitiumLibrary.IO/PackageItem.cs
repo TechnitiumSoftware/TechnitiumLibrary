@@ -89,10 +89,8 @@ namespace TechnitiumLibrary.IO
             _ownStream = true;
         }
 
-        public PackageItem(Stream s)
-        {
-            ReadFrom(new BinaryReader(s));
-        }
+        private PackageItem()
+        { }
 
         #endregion
 
@@ -124,27 +122,34 @@ namespace TechnitiumLibrary.IO
 
         #endregion
 
-        #region private
+        #region static
 
-        private void ReadFrom(BinaryReader bR)
+        public static PackageItem Parse(Stream s)
         {
+            BinaryReader bR = new BinaryReader(s);
+
             switch (bR.ReadByte())
             {
-                case 1:
-                    _name = Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadByte()));
-                    _lastModifiedUTC = DateTime.FromBinary(bR.ReadInt64());
-                    _attributes = (PackageItemAttributes)bR.ReadByte();
+                case 0: //eof reached
+                    return null;
 
-                    _extractTo = (ExtractLocation)bR.ReadByte();
-                    if (_extractTo == ExtractLocation.Custom)
-                        _extractToCustomLocation = Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadByte()));
+                case 1:
+                    PackageItem item = new PackageItem();
+
+                    item._name = Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadByte()));
+                    item._lastModifiedUTC = DateTime.FromBinary(bR.ReadInt64());
+                    item._attributes = (PackageItemAttributes)bR.ReadByte();
+
+                    item._extractTo = (ExtractLocation)bR.ReadByte();
+                    if (item._extractTo == ExtractLocation.Custom)
+                        item._extractToCustomLocation = Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadByte()));
 
                     long length = bR.ReadInt64();
-                    _data = new OffsetStream(bR.BaseStream, bR.BaseStream.Position, length, true);
+                    item._data = new OffsetStream(bR.BaseStream, bR.BaseStream.Position, length, true);
 
                     bR.BaseStream.Position += length;
 
-                    break;
+                    return item;
 
                 default:
                     throw new IOException("PackageItem version not supported.");
