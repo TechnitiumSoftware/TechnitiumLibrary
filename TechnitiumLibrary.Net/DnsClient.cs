@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Mail;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Security.Cryptography;
@@ -183,6 +184,26 @@ namespace TechnitiumLibrary.Net
             ROOT_NAME_SERVERS_IPv6[10] = new NameServerAddress("k.root-servers.net", IPAddress.Parse("2001:7fd::1")); //RIPE NCC
             ROOT_NAME_SERVERS_IPv6[11] = new NameServerAddress("l.root-servers.net", IPAddress.Parse("2001:500:9f::42")); //ICANN
             ROOT_NAME_SERVERS_IPv6[12] = new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")); //WIDE Project
+        }
+
+        public DnsClient(bool enableIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
+        {
+            NetworkInfo defaultNetworkInfo = NetUtilities.GetDefaultNetworkInfo();
+            if (defaultNetworkInfo == null)
+                throw new DnsClientException("No default network connection was found on this computer.");
+
+            IPAddressCollection servers = defaultNetworkInfo.Interface.GetIPProperties().DnsAddresses;
+
+            if (servers.Count == 0)
+                throw new DnsClientException("Default network does not have any DNS server configured.");
+
+            _servers = new NameServerAddress[servers.Count];
+            _enableIPv6 = enableIPv6;
+            _tcp = tcp;
+            _retries = retries;
+
+            for (int i = 0; i < servers.Count; i++)
+                _servers[i] = new NameServerAddress(servers[i], port);
         }
 
         public DnsClient(IPAddress[] servers, bool enableIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
