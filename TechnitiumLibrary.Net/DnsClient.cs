@@ -210,7 +210,7 @@ namespace TechnitiumLibrary.Net
         public DnsClient(IPAddress[] servers, bool enableIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
         {
             if (servers.Length == 0)
-                throw new DnsClientException("Atleast one name server must be available for Dns Client.");
+                throw new DnsClientException("Atleast one name server must be available for DnsClient.");
 
             _servers = new NameServerAddress[servers.Length];
             _enableIPv6 = enableIPv6;
@@ -239,7 +239,7 @@ namespace TechnitiumLibrary.Net
         public DnsClient(NameServerAddress[] servers, bool enableIPv6 = false, bool tcp = false, int retries = 2)
         {
             if (servers.Length == 0)
-                throw new DnsClientException("Atleast one name server must be available for Dns Client.");
+                throw new DnsClientException("Atleast one name server must be available for DnsClient.");
 
             _servers = servers;
             _enableIPv6 = enableIPv6;
@@ -299,7 +299,7 @@ namespace TechnitiumLibrary.Net
                 }
             }
 
-            throw new DnsClientException("Dns client exceeded the maximum hop count to resolve the domain: " + domain);
+            throw new DnsClientException("DnsClient exceeded the maximum hop count to resolve the domain: " + domain);
         }
 
         #endregion
@@ -455,7 +455,7 @@ namespace TechnitiumLibrary.Net
                 }
             }
 
-            throw new DnsClientException("Dns Client failed to resolve the request: exceeded retry limit.");
+            throw new DnsClientException("DnsClient failed to resolve the request: exceeded retry limit.");
         }
 
         #endregion
@@ -517,7 +517,7 @@ namespace TechnitiumLibrary.Net
                                         break;
 
                                     default:
-                                        throw new DnsClientException("DNS Server [" + response.NameServerAddress.ToString() + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
+                                        throw new DnsClientException("Name server [" + response.NameServerAddress.ToString() + "] returned unexpected record type [" + record.Type.ToString() + "] for domain: " + domain);
                                 }
                             }
                         }
@@ -546,8 +546,11 @@ namespace TechnitiumLibrary.Net
                                             switch (record.Type)
                                             {
                                                 case DnsResourceRecordType.A:
-                                                    mxEntries.Add(((DnsARecord)record.RDATA).Address.ToString());
-                                                    glueRecordFound = true;
+                                                    if (!preferIPv6)
+                                                    {
+                                                        mxEntries.Add(((DnsARecord)record.RDATA).Address.ToString());
+                                                        glueRecordFound = true;
+                                                    }
                                                     break;
 
                                                 case DnsResourceRecordType.AAAA:
@@ -595,10 +598,10 @@ namespace TechnitiumLibrary.Net
                         break;
 
                     case DnsResponseCode.NameError:
-                        throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name Server: " + response.NameServerAddress.ToString());
+                        throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name server: " + response.NameServerAddress.ToString());
 
                     default:
-                        throw new DnsClientException("Name Server error. DNS opcode: " + Enum.GetName(typeof(DnsResponseCode), response.Header.RCODE) + " (" + response.Header.RCODE + ")");
+                        throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
                 }
             }
 
@@ -618,10 +621,10 @@ namespace TechnitiumLibrary.Net
                     return null;
 
                 case DnsResponseCode.NameError:
-                    throw new NameErrorDnsClientException("PTR record does not exists for ip: " + ip.ToString() + "; Name Server: " + response.NameServerAddress.ToString());
+                    throw new NameErrorDnsClientException("PTR record does not exists for ip: " + ip.ToString() + "; Name server: " + response.NameServerAddress.ToString());
 
                 default:
-                    throw new DnsClientException("Name Server error. DNS opcode: " + Enum.GetName(typeof(DnsResponseCode), response.Header.RCODE) + " (" + response.Header.RCODE + ")");
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
             }
         }
 
@@ -669,7 +672,7 @@ namespace TechnitiumLibrary.Net
                                         break;
 
                                     default:
-                                        throw new DnsClientException("DNS Server [" + response.NameServerAddress.ToString() + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
+                                        throw new DnsClientException("Name server [" + response.NameServerAddress.ToString() + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
                                 }
                             }
                         }
@@ -680,10 +683,10 @@ namespace TechnitiumLibrary.Net
                         break;
 
                     case DnsResponseCode.NameError:
-                        throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name Server: " + response.NameServerAddress.ToString());
+                        throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name server: " + response.NameServerAddress.ToString());
 
                     default:
-                        throw new DnsClientException("Name Server error. DNS opcode: " + Enum.GetName(typeof(DnsResponseCode), response.Header.RCODE) + " (" + response.Header.RCODE + ")");
+                        throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
                 }
             }
 
@@ -1365,7 +1368,7 @@ namespace TechnitiumLibrary.Net
             _class = @class;
 
             if (_type == DnsResourceRecordType.PTR)
-                throw new DnsClientException("Invalid type selected for question record");
+                throw new DnsClientException("Invalid type selected for question record.");
             else
                 _name = name;
         }
