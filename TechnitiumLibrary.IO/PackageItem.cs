@@ -126,15 +126,18 @@ namespace TechnitiumLibrary.IO
 
         public static PackageItem Parse(Stream s)
         {
-            BinaryReader bR = new BinaryReader(s);
-
-            switch (bR.ReadByte())
+            switch (s.ReadByte())
             {
+                case -1:
+                    throw new EndOfStreamException();
+
                 case 0: //eof reached
                     return null;
 
                 case 1:
                     PackageItem item = new PackageItem();
+
+                    BinaryReader bR = new BinaryReader(s);
 
                     item._name = Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadByte()));
                     item._lastModifiedUTC = DateTime.FromBinary(bR.ReadInt64());

@@ -63,6 +63,7 @@ namespace TechnitiumLibrary.IO
 
         List<PackageItem> _items = new List<PackageItem>();
 
+        readonly bool _ownStream;
         bool _closed = false;
 
         #endregion
@@ -72,6 +73,7 @@ namespace TechnitiumLibrary.IO
         public Package(string filepath, PackageMode mode)
         {
             _mode = mode;
+            _ownStream = true;
 
             if (_mode == PackageMode.Create)
             {
@@ -85,10 +87,11 @@ namespace TechnitiumLibrary.IO
             }
         }
 
-        public Package(Stream s, PackageMode mode)
+        public Package(Stream s, PackageMode mode, bool ownStream = false)
         {
             _s = s;
             _mode = mode;
+            _ownStream = ownStream;
 
             if (mode == PackageMode.Create)
                 WriteHeader();
@@ -118,12 +121,7 @@ namespace TechnitiumLibrary.IO
             if (!_disposed)
             {
                 if (_s != null)
-                {
-                    if ((_mode == PackageMode.Create) && !_closed)
-                        Close();
-
-                    _s.Dispose();
-                }
+                    Close();
 
                 _disposed = true;
             }
@@ -252,14 +250,14 @@ namespace TechnitiumLibrary.IO
 
         public void Close()
         {
-            if (_mode != PackageMode.Create)
-                throw new IOException("Package is not in create mode.");
-
-            if (!_closed)
+            if ((_mode == PackageMode.Create) && !_closed)
             {
                 _s.WriteByte(0); //eof
                 _closed = true;
             }
+
+            if (_ownStream)
+                _s.Dispose();
         }
 
         public void ExtractAll(ExtractLocation extractTo, string extractToCustomLocation = null, bool overwrite = false)
