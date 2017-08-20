@@ -25,11 +25,16 @@ using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net
 {
+    public enum WebClientExNetworkType
+    {
+        Default = 0,
+        IPv4Only = 1,
+        IPv6Only = 2
+    }
+
     public class WebClientEx : WebClient
     {
         #region variables
-
-        NetProxy _proxy;
 
         CookieContainer _cookie;
         DateTime _ifModifiedSince;
@@ -38,6 +43,9 @@ namespace TechnitiumLibrary.Net
         Dictionary<string, string> _headers = new Dictionary<string, string>();
         int _timeout = 0;
         int _maximumAutomaticRedirections = 10;
+
+        NetProxy _proxy;
+        WebClientExNetworkType _networkType = WebClientExNetworkType.Default;
 
         SocksConnectRequestHandler _proxyRequestHandler;
         Stream _openResponseStream;
@@ -54,12 +62,6 @@ namespace TechnitiumLibrary.Net
         public WebClientEx(CookieContainer cookie)
         {
             _cookie = cookie;
-        }
-
-        public WebClientEx(int timeout)
-        {
-            _cookie = new CookieContainer();
-            _timeout = timeout;
         }
 
         #endregion
@@ -140,11 +142,94 @@ namespace TechnitiumLibrary.Net
 
         protected override WebRequest GetWebRequest(Uri address)
         {
-            HttpWebRequest request;
+            HttpWebRequest request = null;
 
             if (_proxy == null)
             {
-                request = base.GetWebRequest(address) as HttpWebRequest;
+                switch (_networkType)
+                {
+                    case WebClientExNetworkType.IPv4Only:
+                        if (IPAddress.TryParse(address.Host, out IPAddress ipv4))
+                        {
+                            if (ipv4.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+                                throw new WebException("WebClientEx current network type does not allow url address family: " + ipv4.AddressFamily.ToString());
+
+                            request = base.GetWebRequest(address) as HttpWebRequest;
+                        }
+                        else
+                        {
+                            try
+                            {
+                                DnsClient dns = new DnsClient();
+                                IPAddress[] ipAddresses = dns.ResolveIP(address.Host);
+
+                                if (ipAddresses.Length == 0)
+                                    throw new WebException("WebClientEx could not resolve IPv4 address for host: " + address.Host);
+
+                                foreach (IPAddress ipAddress in ipAddresses)
+                                {
+                                    if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                                    {
+                                        Uri newAddress = new Uri(address.Scheme + "://" + ipAddress.ToString() + ":" + address.Port + address.PathAndQuery);
+                                        request = base.GetWebRequest(newAddress) as HttpWebRequest;
+                                        request.Host = address.Host;
+                                        break;
+                                    }
+                                }
+                            }
+                            catch (DnsClientException ex)
+                            {
+                                throw new WebException("WebClientEx could not resolve IPv4 address for host: " + address.Host, ex);
+                            }
+
+                            if (request == null)
+                                throw new WebException("WebClientEx could not resolve IPv4 address for host: " + address.Host);
+                        }
+                        break;
+
+                    case WebClientExNetworkType.IPv6Only:
+                        if (IPAddress.TryParse(address.Host, out IPAddress ipv6))
+                        {
+                            if (ipv6.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6)
+                                throw new WebException("WebClientEx current network type does not allow url address family: " + ipv6.AddressFamily.ToString());
+
+                            request = base.GetWebRequest(address) as HttpWebRequest;
+                        }
+                        else
+                        {
+                            try
+                            {
+                                DnsClient dns = new DnsClient(true);
+                                IPAddress[] ipAddresses = dns.ResolveIP(address.Host, true);
+
+                                if (ipAddresses.Length == 0)
+                                    throw new WebException("WebClientEx could not resolve IPv6 address for host: " + address.Host);
+
+                                foreach (IPAddress ipAddress in ipAddresses)
+                                {
+                                    if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+                                    {
+                                        Uri newAddress = new Uri(address.Scheme + "://[" + ipAddress.ToString() + "]:" + address.Port + address.PathAndQuery);
+                                        request = base.GetWebRequest(newAddress) as HttpWebRequest;
+                                        request.Host = address.Host;
+                                        break;
+                                    }
+                                }
+                            }
+                            catch (DnsClientException ex)
+                            {
+                                throw new WebException("WebClientEx could not resolve IPv6 address for host: " + address.Host, ex);
+                            }
+
+                            if (request == null)
+                                throw new WebException("WebClientEx could not resolve IPv6 address for host: " + address.Host);
+                        }
+                        break;
+
+                    default:
+                        request = base.GetWebRequest(address) as HttpWebRequest;
+                        break;
+                }
             }
             else
             {
@@ -317,6 +402,12 @@ namespace TechnitiumLibrary.Net
         {
             get { return _proxy; }
             set { _proxy = value; }
+        }
+
+        public WebClientExNetworkType NetworkType
+        {
+            get { return _networkType; }
+            set { _networkType = value; }
         }
 
         #endregion
