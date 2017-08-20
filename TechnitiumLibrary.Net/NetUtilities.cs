@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -149,16 +149,7 @@ namespace TechnitiumLibrary.Net
                     throw new NotSupportedException("Address family not supported.");
             }
         }
-
-        public static NetworkInfo GetDefaultNetworkInfo()
-        {
-            NetworkInfo networkInfo = GetDefaultIPv4NetworkInfo();
-            if (networkInfo != null)
-                return networkInfo;
-
-            return GetDefaultIPv6NetworkInfo();
-        }
-
+        
         public static NetworkInfo GetDefaultIPv4NetworkInfo()
         {
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
