@@ -139,7 +139,7 @@ namespace TechnitiumLibrary.Net
         internal static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         NameServerAddress[] _servers;
-        bool _enableIPv6;
+        bool _preferIPv6;
         bool _tcp;
         int _retries;
 
@@ -187,9 +187,22 @@ namespace TechnitiumLibrary.Net
             ROOT_NAME_SERVERS_IPv6[12] = new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")); //WIDE Project
         }
 
-        public DnsClient(bool enableIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
+        public DnsClient(bool preferIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
         {
-            NetworkInfo defaultNetworkInfo = NetUtilities.GetDefaultNetworkInfo();
+            NetworkInfo defaultNetworkInfo;
+
+            if (preferIPv6)
+            {
+                defaultNetworkInfo = NetUtilities.GetDefaultIPv6NetworkInfo();
+
+                if ((defaultNetworkInfo == null) || (defaultNetworkInfo.Interface.GetIPProperties().DnsAddresses.Count == 0))
+                    defaultNetworkInfo = NetUtilities.GetDefaultIPv4NetworkInfo();
+            }
+            else
+            {
+                defaultNetworkInfo = NetUtilities.GetDefaultIPv4NetworkInfo();
+            }
+
             if (defaultNetworkInfo == null)
                 throw new DnsClientException("No default network connection was found on this computer.");
 
@@ -199,7 +212,7 @@ namespace TechnitiumLibrary.Net
                 throw new DnsClientException("Default network does not have any DNS server configured.");
 
             _servers = new NameServerAddress[servers.Count];
-            _enableIPv6 = enableIPv6;
+            _preferIPv6 = preferIPv6;
             _tcp = tcp;
             _retries = retries;
 
@@ -207,13 +220,13 @@ namespace TechnitiumLibrary.Net
                 _servers[i] = new NameServerAddress(servers[i], port);
         }
 
-        public DnsClient(IPAddress[] servers, bool enableIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
+        public DnsClient(IPAddress[] servers, bool preferIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
         {
             if (servers.Length == 0)
                 throw new DnsClientException("Atleast one name server must be available for DnsClient.");
 
             _servers = new NameServerAddress[servers.Length];
-            _enableIPv6 = enableIPv6;
+            _preferIPv6 = preferIPv6;
             _tcp = tcp;
             _retries = retries;
 
@@ -221,28 +234,28 @@ namespace TechnitiumLibrary.Net
                 _servers[i] = new NameServerAddress(servers[i], port);
         }
 
-        public DnsClient(IPAddress server, bool enableIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
-            : this(new NameServerAddress(server, port), enableIPv6, tcp, retries)
+        public DnsClient(IPAddress server, bool preferIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
+            : this(new NameServerAddress(server, port), preferIPv6, tcp, retries)
         { }
 
-        public DnsClient(IPEndPoint server, bool enableIPv6 = false, bool tcp = false, int retries = 2)
-            : this(new NameServerAddress(server), enableIPv6, tcp, retries)
+        public DnsClient(IPEndPoint server, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+            : this(new NameServerAddress(server), preferIPv6, tcp, retries)
         { }
 
-        public DnsClient(NameServerAddress server, bool enableIPv6 = false, bool tcp = false, int retries = 2)
+        public DnsClient(NameServerAddress server, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
             _servers = new NameServerAddress[] { server };
             _tcp = tcp;
             _retries = retries;
         }
 
-        public DnsClient(NameServerAddress[] servers, bool enableIPv6 = false, bool tcp = false, int retries = 2)
+        public DnsClient(NameServerAddress[] servers, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
             if (servers.Length == 0)
                 throw new DnsClientException("Atleast one name server must be available for DnsClient.");
 
             _servers = servers;
-            _enableIPv6 = enableIPv6;
+            _preferIPv6 = preferIPv6;
             _tcp = tcp;
             _retries = retries;
         }
@@ -251,15 +264,15 @@ namespace TechnitiumLibrary.Net
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, bool enableIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
-            if (enableIPv6)
-                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv6, domain, queryType, enableIPv6, tcp, retries);
+            if (preferIPv6)
+                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv6, domain, queryType, preferIPv6, tcp, retries);
             else
-                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv4, domain, queryType, enableIPv6, tcp, retries);
+                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv4, domain, queryType, preferIPv6, tcp, retries);
         }
 
-        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsResourceRecordType queryType, bool enableIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsResourceRecordType queryType, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
             int hopCount = 0;
             IPAddress ptrIP = null;
@@ -269,7 +282,7 @@ namespace TechnitiumLibrary.Net
 
             while ((hopCount++) < 64)
             {
-                DnsClient client = new DnsClient(nameServers, enableIPv6, tcp, retries);
+                DnsClient client = new DnsClient(nameServers, preferIPv6, tcp, retries);
 
                 DnsDatagram response;
 
@@ -287,7 +300,7 @@ namespace TechnitiumLibrary.Net
                         if (response.Authority.Length == 0)
                             return response;
 
-                        nameServers = NameServerAddress.GetNameServersFromResponse(response, enableIPv6);
+                        nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6);
 
                         if (nameServers.Length == 0)
                             return response;
@@ -363,7 +376,7 @@ namespace TechnitiumLibrary.Net
 
                 if (server.EndPoint == null)
                 {
-                    server.ResolveAddress(_enableIPv6, _tcp, _retries);
+                    server.ResolveAddress(_preferIPv6, _tcp, _retries);
 
                     if (server.EndPoint == null)
                     {
@@ -700,10 +713,10 @@ namespace TechnitiumLibrary.Net
         public NameServerAddress[] Servers
         { get { return _servers; } }
 
-        public bool EnableIPv6
+        public bool PreferIPv6
         {
-            get { return _enableIPv6; }
-            set { _enableIPv6 = value; }
+            get { return _preferIPv6; }
+            set { _preferIPv6 = value; }
         }
 
         public bool Tcp
@@ -779,7 +792,7 @@ namespace TechnitiumLibrary.Net
 
         #region static
 
-        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool enableIPv6)
+        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool preferIPv6)
         {
             List<NameServerAddress> nameServers = new List<NameServerAddress>(4);
 
@@ -791,24 +804,26 @@ namespace TechnitiumLibrary.Net
                     IPEndPoint endPoint = null;
 
                     //find ip address of authoritative name server from additional records
-                    foreach (DnsResourceRecord rr in response.Additional)
+                    if (preferIPv6)
                     {
-                        if (rr.Name.Equals(nsRecord.NSDomainName, StringComparison.CurrentCultureIgnoreCase))
+                        foreach (DnsResourceRecord rr in response.Additional)
                         {
-                            switch (rr.Type)
+                            if ((rr.Name.Equals(nsRecord.NSDomainName, StringComparison.CurrentCultureIgnoreCase)) && (rr.Type == DnsResourceRecordType.AAAA))
                             {
-                                case DnsResourceRecordType.A:
-                                    endPoint = new IPEndPoint(((DnsARecord)rr.RDATA).Address, 53);
-                                    nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, endPoint));
-                                    break;
+                                endPoint = new IPEndPoint(((DnsAAAARecord)rr.RDATA).Address, 53);
+                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, endPoint));
+                            }
+                        }
+                    }
 
-                                case DnsResourceRecordType.AAAA:
-                                    if (enableIPv6)
-                                    {
-                                        endPoint = new IPEndPoint(((DnsAAAARecord)rr.RDATA).Address, 53);
-                                        nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, endPoint));
-                                    }
-                                    break;
+                    if (endPoint == null)
+                    {
+                        foreach (DnsResourceRecord rr in response.Additional)
+                        {
+                            if ((rr.Name.Equals(nsRecord.NSDomainName, StringComparison.CurrentCultureIgnoreCase)) && (rr.Type == DnsResourceRecordType.A))
+                            {
+                                endPoint = new IPEndPoint(((DnsARecord)rr.RDATA).Address, 53);
+                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, endPoint));
                             }
                         }
                     }
@@ -825,28 +840,33 @@ namespace TechnitiumLibrary.Net
 
         #region public
 
-        public void ResolveAddress(bool enableIPv6, bool tcp, int retries)
+        public void ResolveAddress(bool preferIPv6, bool tcp, int retries)
         {
             if ((_domain != null) && (_endPoint == null))
             {
-                try
+                if (preferIPv6)
                 {
-                    if (enableIPv6)
+                    try
                     {
                         DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(_domain, DnsResourceRecordType.AAAA, true, tcp, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
                             _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, 53);
                     }
+                    catch
+                    { }
+                }
 
-                    if (_endPoint == null)
+                if (_endPoint == null)
+                {
+                    try
                     {
                         DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(_domain, DnsResourceRecordType.A, false, tcp, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
                             _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, 53);
                     }
+                    catch
+                    { }
                 }
-                catch
-                { }
             }
         }
 
