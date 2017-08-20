@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -307,7 +307,7 @@ namespace TechnitiumLibrary.Net
             return new ContentType(mimeType);
         }
 
-        public static Uri GetURIRedirectLocation(Uri sourceUri, WebProxy proxy = null, int timeout = 30000)
+        public static Uri GetUriRedirectLocation(Uri sourceUri, WebProxy proxy = null, int timeout = 30000)
         {
             using (TcpClient sock = new TcpClient())
             {
@@ -358,7 +358,7 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        public static bool IsWebAccessible(Uri[] uriCheckList = null, NetProxy proxy = null, bool throwException = false, int timeout = 30000)
+        public static bool IsWebAccessible(Uri[] uriCheckList = null, NetProxy proxy = null, WebClientExNetworkType networkType = WebClientExNetworkType.Default, int timeout = 10000, bool throwException = false)
         {
             if (uriCheckList == null)
                 uriCheckList = new Uri[] { new Uri("http://www.google.com/"), new Uri("http://www.microsoft.com/") };
@@ -366,6 +366,7 @@ namespace TechnitiumLibrary.Net
             using (WebClientEx client = new WebClientEx())
             {
                 client.Proxy = proxy;
+                client.NetworkType = networkType;
                 client.Timeout = timeout;
 
                 Exception lastException = null;
