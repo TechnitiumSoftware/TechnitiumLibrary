@@ -78,25 +78,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #endregion
 
-        #region public
+        #region private
 
-        public Socket Connect(IPEndPoint remoteEP)
-        {
-            if (remoteEP.AddressFamily == AddressFamily.InterNetworkV6)
-                return Connect("[" + remoteEP.Address.ToString() + "]", remoteEP.Port);
-            else
-                return Connect(remoteEP.Address.ToString(), remoteEP.Port);
-        }
-
-        public Socket Connect(IPAddress address, int port)
-        {
-            if (address.AddressFamily == AddressFamily.InterNetworkV6)
-                return Connect("[" + address.ToString() + "]", port);
-            else
-                return Connect(address.ToString(), port);
-        }
-
-        public Socket Connect(string address, int port)
+        private Socket GetProxyConnection(int timeout)
         {
             Socket socket;
 
@@ -129,15 +113,68 @@ namespace TechnitiumLibrary.Net.Proxy
                     break;
             }
 
+            IAsyncResult result = socket.BeginConnect(this.Address.Host, this.Address.Port, null, null);
+            if (!result.AsyncWaitHandle.WaitOne(timeout))
+                throw new SocketException((int)SocketError.TimedOut);
+
+            if (!socket.Connected)
+                throw new SocketException((int)SocketError.ConnectionRefused);
+
+            socket.NoDelay = true;
+
+            return socket;
+        }
+
+        #endregion
+
+        #region public
+
+        public bool IsProxyAvailable()
+        {
             try
             {
-                IAsyncResult result = socket.BeginConnect(this.Address.Host, this.Address.Port, null, null);
-                if (!result.AsyncWaitHandle.WaitOne(CONNECTION_TIMEOUT))
-                    throw new SocketException((int)SocketError.TimedOut);
+                using (Socket socket = GetProxyConnection(5000))
+                { }
 
-                socket.SendTimeout = SOCKET_SEND_TIMEOUT;
-                socket.ReceiveTimeout = SOCKET_RECV_TIMEOUT;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
+        public void CheckProxyAccess()
+        {
+            using (Socket socket = GetProxyConnection(5000))
+            { }
+        }
+
+        public Socket Connect(IPEndPoint remoteEP)
+        {
+            if (remoteEP.AddressFamily == AddressFamily.InterNetworkV6)
+                return Connect("[" + remoteEP.Address.ToString() + "]", remoteEP.Port);
+            else
+                return Connect(remoteEP.Address.ToString(), remoteEP.Port);
+        }
+
+        public Socket Connect(IPAddress address, int port)
+        {
+            if (address.AddressFamily == AddressFamily.InterNetworkV6)
+                return Connect("[" + address.ToString() + "]", port);
+            else
+                return Connect(address.ToString(), port);
+        }
+
+        public Socket Connect(string address, int port)
+        {
+            Socket socket = GetProxyConnection(CONNECTION_TIMEOUT);
+
+            socket.SendTimeout = SOCKET_SEND_TIMEOUT;
+            socket.ReceiveTimeout = SOCKET_RECV_TIMEOUT;
+
+            try
+            {
                 NetworkCredential credentials = null;
 
                 if (this.UseDefaultCredentials)
@@ -177,7 +214,6 @@ namespace TechnitiumLibrary.Net.Proxy
             catch
             {
                 socket.Dispose();
-
                 throw;
             }
         }
