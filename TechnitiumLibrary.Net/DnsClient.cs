@@ -27,6 +27,7 @@ using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Text;
+using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net
 {
@@ -142,6 +143,8 @@ namespace TechnitiumLibrary.Net
         bool _preferIPv6;
         bool _tcp;
         int _retries;
+
+        NetProxy _proxy;
 
         int _connectionTimeout = 5000;
         int _sendTimeout = 2000;
@@ -264,15 +267,15 @@ namespace TechnitiumLibrary.Net
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
             if (preferIPv6)
-                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv6, domain, queryType, preferIPv6, tcp, retries);
+                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv6, domain, queryType, proxy, preferIPv6, tcp, retries);
             else
-                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv4, domain, queryType, preferIPv6, tcp, retries);
+                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv4, domain, queryType, proxy, preferIPv6, tcp, retries);
         }
 
-        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsResourceRecordType queryType, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsResourceRecordType queryType, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
             int hopCount = 0;
             IPAddress ptrIP = null;
@@ -283,6 +286,8 @@ namespace TechnitiumLibrary.Net
             while ((hopCount++) < 64)
             {
                 DnsClient client = new DnsClient(nameServers, preferIPv6, tcp, retries);
+
+                client._proxy = proxy;
 
                 DnsDatagram response;
 
@@ -376,7 +381,7 @@ namespace TechnitiumLibrary.Net
 
                 if (server.EndPoint == null)
                 {
-                    server.ResolveAddress(_preferIPv6, _tcp, _retries);
+                    server.ResolveAddress(_proxy, _preferIPv6, _tcp, _retries);
 
                     if (server.EndPoint == null)
                     {
@@ -387,31 +392,96 @@ namespace TechnitiumLibrary.Net
 
                 //query server
                 Socket _socket = null;
-                double rtt;
+                SocksUdpAssociateRequestHandler proxyRequestHandler = null;
 
                 try
                 {
                     retry++;
 
-                    if (_tcp)
+                    DateTime sentAt = DateTime.UtcNow;
+                    bool dnsTcp;
+
+                    if (_proxy == null)
                     {
-                        _socket = new Socket(server.EndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                        if (_tcp)
+                        {
+                            _socket = new Socket(server.EndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-                        _socket.NoDelay = true;
-                        _socket.SendTimeout = _sendTimeout;
-                        _socket.ReceiveTimeout = _recvTimeout;
+                            _socket.NoDelay = true;
+                            _socket.SendTimeout = _sendTimeout;
+                            _socket.ReceiveTimeout = _recvTimeout;
 
-                        DateTime sentAt = DateTime.UtcNow;
+                            IAsyncResult result = _socket.BeginConnect(server.EndPoint, null, null);
+                            if (!result.AsyncWaitHandle.WaitOne(_connectionTimeout))
+                                throw new SocketException((int)SocketError.TimedOut);
 
-                        IAsyncResult result = _socket.BeginConnect(server.EndPoint, null, null);
-                        if (!result.AsyncWaitHandle.WaitOne(_connectionTimeout))
-                            throw new SocketException((int)SocketError.TimedOut);
+                            if (!_socket.Connected)
+                                throw new SocketException((int)SocketError.ConnectionRefused);
+                        }
+                        else
+                        {
+                            _socket = new Socket(server.EndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
 
+                            _socket.SendTimeout = _sendTimeout;
+                            _socket.ReceiveTimeout = _recvTimeout;
+                        }
+
+                        dnsTcp = _tcp;
+                    }
+                    else
+                    {
+                        switch (_proxy.Type)
+                        {
+                            case NetProxyType.Http:
+                                _socket = _proxy.HttpProxy.Connect(server.EndPoint, _connectionTimeout);
+
+                                _socket.NoDelay = true;
+                                _socket.SendTimeout = _sendTimeout;
+                                _socket.ReceiveTimeout = _recvTimeout;
+
+                                dnsTcp = true;
+                                break;
+
+                            case NetProxyType.Socks5:
+                                if (!_tcp)
+                                {
+                                    try
+                                    {
+                                        proxyRequestHandler = _proxy.SocksProxy.UdpAssociate(_connectionTimeout);
+                                        proxyRequestHandler.ReceiveTimeout = _recvTimeout;
+
+                                        dnsTcp = false;
+                                        break;
+                                    }
+                                    catch (SocksClientException)
+                                    { }
+                                }
+
+                                using (SocksConnectRequestHandler requestHandler = _proxy.SocksProxy.Connect(server.EndPoint, _connectionTimeout))
+                                {
+                                    _socket = requestHandler.GetSocket();
+
+                                    _socket.NoDelay = true;
+                                    _socket.SendTimeout = _sendTimeout;
+                                    _socket.ReceiveTimeout = _recvTimeout;
+
+                                    dnsTcp = true;
+                                }
+
+                                break;
+
+                            default:
+                                throw new NotSupportedException("Proxy type not supported by DnsClient.");
+                        }
+                    }
+
+                    if (dnsTcp)
+                    {
                         _socket.Send(requestBuffer);
 
                         bytesRecv = _socket.Receive(responseBuffer, 0, 2, SocketFlags.None);
                         if (bytesRecv < 1)
-                            throw new SocketException();
+                            throw new SocketException((int)SocketError.ConnectionReset);
 
                         Array.Reverse(responseBuffer, 0, 2);
                         short length = BitConverter.ToInt16(responseBuffer, 0);
@@ -421,38 +491,40 @@ namespace TechnitiumLibrary.Net
                         {
                             bytesRecv = _socket.Receive(responseBuffer, offset, length, SocketFlags.None);
                             if (bytesRecv < 1)
-                                throw new SocketException();
+                                throw new SocketException((int)SocketError.ConnectionReset);
 
                             offset += bytesRecv;
                         }
 
                         bytesRecv = length;
-                        rtt = (DateTime.UtcNow - sentAt).TotalMilliseconds;
                     }
                     else
                     {
-                        _socket = new Socket(server.EndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+                        if (proxyRequestHandler == null)
+                        {
+                            _socket.SendTo(requestBuffer, server.EndPoint);
 
-                        _socket.SendTimeout = _sendTimeout;
-                        _socket.ReceiveTimeout = _recvTimeout;
+                            EndPoint remoteEP;
 
-                        DateTime sentAt = DateTime.UtcNow;
-                        _socket.SendTo(requestBuffer, server.EndPoint);
+                            if (server.EndPoint.AddressFamily == AddressFamily.InterNetworkV6)
+                                remoteEP = new IPEndPoint(IPAddress.IPv6Any, 0);
+                            else
+                                remoteEP = new IPEndPoint(IPAddress.Any, 0);
 
-                        EndPoint remoteEP;
-
-                        if (server.EndPoint.AddressFamily == AddressFamily.InterNetworkV6)
-                            remoteEP = new IPEndPoint(IPAddress.IPv6Any, 0);
+                            bytesRecv = _socket.ReceiveFrom(responseBuffer, ref remoteEP);
+                        }
                         else
-                            remoteEP = new IPEndPoint(IPAddress.Any, 0);
+                        {
+                            proxyRequestHandler.SendTo(requestBuffer, 0, requestBuffer.Length, new SocksEndPoint(server.EndPoint));
 
-                        bytesRecv = _socket.ReceiveFrom(responseBuffer, ref remoteEP);
-                        rtt = (DateTime.UtcNow - sentAt).TotalMilliseconds;
+                            bytesRecv = proxyRequestHandler.ReceiveFrom(responseBuffer, 0, responseBuffer.Length, out SocksEndPoint socksRemoteEP);
+                        }
                     }
 
                     //parse response
                     using (MemoryStream mS = new MemoryStream(responseBuffer, 0, bytesRecv, false))
                     {
+                        double rtt = (DateTime.UtcNow - sentAt).TotalMilliseconds;
                         DnsDatagram response = new DnsDatagram(mS, server, (_tcp ? ProtocolType.Tcp : ProtocolType.Udp), rtt);
 
                         if (response.Header.Identifier == request.Header.Identifier)
@@ -465,6 +537,9 @@ namespace TechnitiumLibrary.Net
                 {
                     if (_socket != null)
                         _socket.Dispose();
+
+                    if (proxyRequestHandler != null)
+                        proxyRequestHandler.Dispose();
                 }
             }
 
@@ -725,6 +800,18 @@ namespace TechnitiumLibrary.Net
             set { _tcp = value; }
         }
 
+        public int Retries
+        {
+            get { return _retries; }
+            set { _retries = value; }
+        }
+
+        public NetProxy Proxy
+        {
+            get { return _proxy; }
+            set { _proxy = value; }
+        }
+
         public int ConnectionTimeout
         {
             get { return _connectionTimeout; }
@@ -741,12 +828,6 @@ namespace TechnitiumLibrary.Net
         {
             get { return _recvTimeout; }
             set { _recvTimeout = value; }
-        }
-
-        public int Retries
-        {
-            get { return _retries; }
-            set { _retries = value; }
         }
 
         #endregion
@@ -840,7 +921,7 @@ namespace TechnitiumLibrary.Net
 
         #region public
 
-        public void ResolveAddress(bool preferIPv6, bool tcp, int retries)
+        public void ResolveAddress(NetProxy proxy, bool preferIPv6, bool tcp, int retries)
         {
             if ((_domain != null) && (_endPoint == null))
             {
@@ -848,7 +929,7 @@ namespace TechnitiumLibrary.Net
                 {
                     try
                     {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(_domain, DnsResourceRecordType.AAAA, true, tcp, retries);
+                        DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(_domain, DnsResourceRecordType.AAAA, proxy, true, tcp, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
                             _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, 53);
                     }
@@ -860,7 +941,7 @@ namespace TechnitiumLibrary.Net
                 {
                     try
                     {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(_domain, DnsResourceRecordType.A, false, tcp, retries);
+                        DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(_domain, DnsResourceRecordType.A, proxy, false, tcp, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
                             _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, 53);
                     }
