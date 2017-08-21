@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -330,10 +330,22 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
                         _peers.Clear();
 
-                        if (udpClient.Client.AddressFamily == AddressFamily.InterNetworkV6)
-                            ParsePeersIPv6(announceResponse, announceResponseLength, _peers);
+                        if (_proxy == null)
+                        {
+                            if (udpClient.Client.AddressFamily == AddressFamily.InterNetworkV6)
+                                ParsePeersIPv6(announceResponse, announceResponseLength, _peers);
+                            else
+                                ParsePeersIPv4(announceResponse, announceResponseLength, _peers);
+                        }
                         else
-                            ParsePeersIPv4(announceResponse, announceResponseLength, _peers);
+                        {
+                            int x = (announceResponseLength - 26) % 6;
+
+                            if (x == 0)
+                                ParsePeersIPv4(announceResponse, announceResponseLength, _peers);
+                            else
+                                ParsePeersIPv6(announceResponse, announceResponseLength, _peers);
+                        }
 
                         return;
                     }
