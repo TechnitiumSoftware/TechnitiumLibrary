@@ -28,7 +28,6 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        const int CONNECTION_TIMEOUT = 10000;
         const int SOCKET_SEND_TIMEOUT = 30000;
         const int SOCKET_RECV_TIMEOUT = 30000;
 
@@ -150,25 +149,25 @@ namespace TechnitiumLibrary.Net.Proxy
             { }
         }
 
-        public Socket Connect(IPEndPoint remoteEP)
+        public Socket Connect(IPEndPoint remoteEP, int timeout = 10000)
         {
             if (remoteEP.AddressFamily == AddressFamily.InterNetworkV6)
-                return Connect("[" + remoteEP.Address.ToString() + "]", remoteEP.Port);
+                return Connect("[" + remoteEP.Address.ToString() + "]", remoteEP.Port, timeout);
             else
-                return Connect(remoteEP.Address.ToString(), remoteEP.Port);
+                return Connect(remoteEP.Address.ToString(), remoteEP.Port, timeout);
         }
 
-        public Socket Connect(IPAddress address, int port)
+        public Socket Connect(IPAddress address, int port, int timeout = 10000)
         {
             if (address.AddressFamily == AddressFamily.InterNetworkV6)
-                return Connect("[" + address.ToString() + "]", port);
+                return Connect("[" + address.ToString() + "]", port, timeout);
             else
-                return Connect(address.ToString(), port);
+                return Connect(address.ToString(), port, timeout);
         }
 
-        public Socket Connect(string address, int port)
+        public Socket Connect(string address, int port, int timeout = 10000)
         {
-            Socket socket = GetProxyConnection(CONNECTION_TIMEOUT);
+            Socket socket = GetProxyConnection(timeout);
 
             socket.SendTimeout = SOCKET_SEND_TIMEOUT;
             socket.ReceiveTimeout = SOCKET_RECV_TIMEOUT;

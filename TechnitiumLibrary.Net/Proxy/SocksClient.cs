@@ -66,7 +66,6 @@ namespace TechnitiumLibrary.Net.Proxy
         #region variables
 
         public const byte SOCKS_VERSION = 5;
-        const int CONNECTION_TIMEOUT = 10000;
 
         SocksEndPoint _proxyEP;
         NetworkCredential _credentials;
@@ -147,7 +146,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             socket.Send(_negotiationRequest);
             if (socket.Receive(response) != 2)
-                throw new SocksClientException("Invalid response received from proxy server");
+                throw new SocksClientException("The connection was reset by the remote peer.");
 
             if (response[0] != SOCKS_VERSION)
                 throw new SocksClientException("Socks version 5 is not supported by the proxy server.");
@@ -160,7 +159,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     socket.Send(_authRequest);
                     if (socket.Receive(response) != 2)
-                        throw new SocksClientException("Invalid response received from proxy server");
+                        throw new SocksClientException("The connection was reset by the remote peer.");
 
                     if (response[0] != 0x01)
                         throw new SocksClientException("Socks proxy server does not support username/password method version 1.");
@@ -191,7 +190,7 @@ namespace TechnitiumLibrary.Net.Proxy
             byte[] response = new byte[262];
 
             if (socket.Receive(response) < 10)
-                throw new SocksClientException("Invalid response received from proxy server.");
+                throw new SocksClientException("The connection was reset by the remote peer.");
 
             if (response[0] != SOCKS_VERSION)
                 throw new SocksClientException("Socks version 5 is not supported by the proxy server.");
@@ -306,25 +305,25 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public SocksConnectRequestHandler Connect(IPEndPoint remoteEP)
+        public SocksConnectRequestHandler Connect(IPEndPoint remoteEP, int timeout = 10000)
         {
-            return Connect(new SocksEndPoint(remoteEP));
+            return Connect(new SocksEndPoint(remoteEP), timeout);
         }
 
-        public SocksConnectRequestHandler Connect(IPAddress address, int port)
+        public SocksConnectRequestHandler Connect(IPAddress address, int port, int timeout = 10000)
         {
-            return Connect(new SocksEndPoint(address, port));
+            return Connect(new SocksEndPoint(address, port), timeout);
         }
 
-        public SocksConnectRequestHandler Connect(string address, int port)
+        public SocksConnectRequestHandler Connect(string address, int port, int timeout = 10000)
         {
-            return Connect(new SocksEndPoint(address, port));
+            return Connect(new SocksEndPoint(address, port), timeout);
         }
 
-        public SocksConnectRequestHandler Connect(SocksEndPoint remoteEP)
+        public SocksConnectRequestHandler Connect(SocksEndPoint remoteEP, int timeout = 10000)
         {
             //connect to proxy server
-            Socket socket = GetProxyConnection(CONNECTION_TIMEOUT);
+            Socket socket = GetProxyConnection(timeout);
 
             socket.SendTimeout = 30000;
             socket.ReceiveTimeout = 30000;
@@ -343,10 +342,10 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public SocksBindRequestHandler Bind(SocksEndPoint endpoint)
+        public SocksBindRequestHandler Bind(SocksEndPoint endpoint, int timeout = 10000)
         {
             //connect to proxy server
-            Socket socket = GetProxyConnection(CONNECTION_TIMEOUT);
+            Socket socket = GetProxyConnection(timeout);
 
             socket.SendTimeout = 30000;
             socket.ReceiveTimeout = 30000;
@@ -365,24 +364,24 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public SocksUdpAssociateRequestHandler UdpAssociate()
+        public SocksUdpAssociateRequestHandler UdpAssociate(int timeout = 10000)
         {
-            return UdpAssociate(new IPEndPoint(IPAddress.Any, 0));
+            return UdpAssociate(new IPEndPoint(IPAddress.Any, 0), timeout);
         }
 
-        public SocksUdpAssociateRequestHandler UdpAssociate(int localPort)
+        public SocksUdpAssociateRequestHandler UdpAssociate(int localPort, int timeout = 10000)
         {
-            return UdpAssociate(new IPEndPoint(IPAddress.Any, localPort));
+            return UdpAssociate(new IPEndPoint(IPAddress.Any, localPort), timeout);
         }
 
-        public SocksUdpAssociateRequestHandler UdpAssociate(IPEndPoint localEP)
+        public SocksUdpAssociateRequestHandler UdpAssociate(IPEndPoint localEP, int timeout = 10000)
         {
             //bind local ep
             Socket udpSocket = new Socket(localEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
             udpSocket.Bind(localEP);
 
             //connect to proxy server
-            Socket socket = GetProxyConnection(CONNECTION_TIMEOUT);
+            Socket socket = GetProxyConnection(timeout);
 
             socket.SendTimeout = 30000;
             socket.ReceiveTimeout = 30000;
@@ -653,7 +652,7 @@ namespace TechnitiumLibrary.Net.Proxy
             byte[] response = new byte[262];
 
             if (_socket.Receive(response) < 10)
-                throw new SocksClientException("Invalid response received from proxy server");
+                throw new SocksClientException("The connection was reset by the remote peer.");
 
             if (response[0] != SocksClient.SOCKS_VERSION)
                 throw new SocksClientException("Socks version 5 is not supported by the proxy server.");
@@ -797,7 +796,7 @@ namespace TechnitiumLibrary.Net.Proxy
             int bytesReceived = _udpSocket.ReceiveFrom(datagram, 0, datagram.Length, SocketFlags.None, ref dummyEP);
 
             if (bytesReceived < 10)
-                throw new SocksClientException("Invalid response received from proxy server udp relay.");
+                throw new SocksClientException("The connection was reset by the remote peer.");
 
             remoteEP = new SocksEndPoint(datagram, 3);
 
