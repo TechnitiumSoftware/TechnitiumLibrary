@@ -137,16 +137,15 @@ namespace TechnitiumLibrary.Net
         public static readonly NameServerAddress[] ROOT_NAME_SERVERS_IPv4;
         public static readonly NameServerAddress[] ROOT_NAME_SERVERS_IPv6;
 
-        internal static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+        readonly internal static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
-        NameServerAddress[] _servers;
-        bool _preferIPv6;
-        bool _tcp;
-        int _retries;
+        readonly NameServerAddress[] _servers;
 
         NetProxy _proxy;
-
-        int _connectionTimeout = 5000;
+        bool _preferIPv6 = false;
+        bool _tcp = false;
+        int _retries = 2;
+        int _connectionTimeout = 2000;
         int _sendTimeout = 2000;
         int _recvTimeout = 2000;
 
@@ -190,11 +189,13 @@ namespace TechnitiumLibrary.Net
             ROOT_NAME_SERVERS_IPv6[12] = new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")); //WIDE Project
         }
 
-        public DnsClient(bool preferIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
+        public DnsClient(bool preferIPv6 = false)
         {
+            _preferIPv6 = preferIPv6;
+
             NetworkInfo defaultNetworkInfo;
 
-            if (preferIPv6)
+            if (_preferIPv6)
             {
                 defaultNetworkInfo = NetUtilities.GetDefaultIPv6NetworkInfo();
 
@@ -215,52 +216,41 @@ namespace TechnitiumLibrary.Net
                 throw new DnsClientException("Default network does not have any DNS server configured.");
 
             _servers = new NameServerAddress[servers.Count];
-            _preferIPv6 = preferIPv6;
-            _tcp = tcp;
-            _retries = retries;
 
             for (int i = 0; i < servers.Count; i++)
-                _servers[i] = new NameServerAddress(servers[i], port);
+                _servers[i] = new NameServerAddress(servers[i]);
         }
 
-        public DnsClient(IPAddress[] servers, bool preferIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
+        public DnsClient(IPAddress[] servers)
         {
             if (servers.Length == 0)
                 throw new DnsClientException("Atleast one name server must be available for DnsClient.");
 
             _servers = new NameServerAddress[servers.Length];
-            _preferIPv6 = preferIPv6;
-            _tcp = tcp;
-            _retries = retries;
 
             for (int i = 0; i < servers.Length; i++)
-                _servers[i] = new NameServerAddress(servers[i], port);
+                _servers[i] = new NameServerAddress(servers[i]);
         }
 
-        public DnsClient(IPAddress server, bool preferIPv6 = false, bool tcp = false, int retries = 2, ushort port = 53)
-            : this(new NameServerAddress(server, port), preferIPv6, tcp, retries)
+        public DnsClient(IPAddress server)
+            : this(new NameServerAddress(server))
         { }
 
-        public DnsClient(IPEndPoint server, bool preferIPv6 = false, bool tcp = false, int retries = 2)
-            : this(new NameServerAddress(server), preferIPv6, tcp, retries)
+        public DnsClient(IPEndPoint server)
+            : this(new NameServerAddress(server))
         { }
 
-        public DnsClient(NameServerAddress server, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public DnsClient(NameServerAddress server)
         {
             _servers = new NameServerAddress[] { server };
-            _tcp = tcp;
-            _retries = retries;
         }
 
-        public DnsClient(NameServerAddress[] servers, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public DnsClient(NameServerAddress[] servers)
         {
             if (servers.Length == 0)
                 throw new DnsClientException("Atleast one name server must be available for DnsClient.");
 
             _servers = servers;
-            _preferIPv6 = preferIPv6;
-            _tcp = tcp;
-            _retries = retries;
         }
 
         #endregion
@@ -285,9 +275,12 @@ namespace TechnitiumLibrary.Net
 
             while ((hopCount++) < 64)
             {
-                DnsClient client = new DnsClient(nameServers, preferIPv6, tcp, retries);
+                DnsClient client = new DnsClient(nameServers);
 
                 client._proxy = proxy;
+                client._preferIPv6 = preferIPv6;
+                client._tcp = tcp;
+                client._retries = retries;
 
                 DnsDatagram response;
 
@@ -788,6 +781,12 @@ namespace TechnitiumLibrary.Net
         public NameServerAddress[] Servers
         { get { return _servers; } }
 
+        public NetProxy Proxy
+        {
+            get { return _proxy; }
+            set { _proxy = value; }
+        }
+
         public bool PreferIPv6
         {
             get { return _preferIPv6; }
@@ -804,12 +803,6 @@ namespace TechnitiumLibrary.Net
         {
             get { return _retries; }
             set { _retries = value; }
-        }
-
-        public NetProxy Proxy
-        {
-            get { return _proxy; }
-            set { _proxy = value; }
         }
 
         public int ConnectionTimeout
@@ -844,8 +837,8 @@ namespace TechnitiumLibrary.Net
 
         #region constructors
 
-        public NameServerAddress(IPAddress address, ushort port = 53)
-            : this(null, new IPEndPoint(address, port))
+        public NameServerAddress(IPAddress address)
+            : this(null, new IPEndPoint(address, 53))
         { }
 
         public NameServerAddress(IPEndPoint endPoint)
@@ -853,11 +846,11 @@ namespace TechnitiumLibrary.Net
         { }
 
         public NameServerAddress(string domain)
-            : this(domain, null)
+            : this(domain, null as IPEndPoint)
         { }
 
-        public NameServerAddress(string domain, IPAddress address, ushort port = 53)
-            : this(domain, new IPEndPoint(address, port))
+        public NameServerAddress(string domain, IPAddress address)
+            : this(domain, new IPEndPoint(address, 53))
         { }
 
         public NameServerAddress(string domain, IPEndPoint endPoint)
