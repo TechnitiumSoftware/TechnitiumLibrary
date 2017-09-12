@@ -149,7 +149,7 @@ namespace TechnitiumLibrary.Net
                     throw new NotSupportedException("Address family not supported.");
             }
         }
-        
+
         public static NetworkInfo GetDefaultIPv4NetworkInfo()
         {
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
@@ -271,12 +271,42 @@ namespace TechnitiumLibrary.Net
                             }
                         }
 
-                        if (ipInterface != null)
+                        if (ipv6 != null)
                             return new NetworkInfo(nic, ipv6);
 
                         break;
                     }
                 }
+            }
+
+            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus != OperationalStatus.Up)
+                    continue;
+
+                IPInterfaceProperties ipInterface = nic.GetIPProperties();
+
+                IPAddress ipv6 = null;
+
+                foreach (UnicastIPAddressInformation ip in ipInterface.UnicastAddresses)
+                {
+                    if (ip.Address.AddressFamily == AddressFamily.InterNetworkV6)
+                    {
+                        if (IsPublicIPv6(ip.Address))
+                        {
+                            if (ip.DuplicateAddressDetectionState == DuplicateAddressDetectionState.Preferred)
+                            {
+                                if (ip.SuffixOrigin == SuffixOrigin.Random)
+                                    return new NetworkInfo(nic, ip.Address);
+
+                                ipv6 = ip.Address;
+                            }
+                        }
+                    }
+                }
+
+                if (ipv6 != null)
+                    return new NetworkInfo(nic, ipv6);
             }
 
             return null;
