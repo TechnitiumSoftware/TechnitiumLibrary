@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,12 +29,12 @@ namespace TechnitiumLibrary.Net.UPnP
         public UPnPException()
         { }
 
-        public UPnPException(string Message)
-            : base(Message)
+        public UPnPException(string message)
+            : base(message)
         { }
 
-        public UPnPException(string Message, Exception innerException)
-            : base(Message, innerException)
+        public UPnPException(string message, Exception innerException)
+            : base(message, innerException)
         { }
 
         protected UPnPException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)

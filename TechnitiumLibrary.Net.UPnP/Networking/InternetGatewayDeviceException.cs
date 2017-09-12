@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,22 +24,41 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
     [System.Serializable()]
     public class InternetGatewayDeviceException : UPnPException
     {
+        #region variables
+
+        int _errorCode;
+
+        #endregion
+
         #region constructor
 
         public InternetGatewayDeviceException()
         { }
 
-        public InternetGatewayDeviceException(string Message)
-            : base(Message)
+        public InternetGatewayDeviceException(string message)
+            : base(message)
         { }
 
-        public InternetGatewayDeviceException(string Message, Exception innerException)
-            : base(Message, innerException)
+        public InternetGatewayDeviceException(int errorCode, string message)
+            : base(message)
+        {
+            _errorCode = errorCode;
+        }
+
+        public InternetGatewayDeviceException(string message, Exception innerException)
+            : base(message, innerException)
         { }
 
         protected InternetGatewayDeviceException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
             : base(info, context)
         { }
+
+        #endregion
+
+        #region properties
+
+        public int ErrorCode
+        { get { return _errorCode; } }
 
         #endregion
     }

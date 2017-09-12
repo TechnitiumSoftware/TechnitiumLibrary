@@ -112,7 +112,11 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                             {
                                 //find service URL
                                 XmlDocument desc = new XmlDocument();
-                                desc.Load(WebRequest.Create(descriptionUri).GetResponse().GetResponseStream());
+
+                                HttpWebRequest wReq = WebRequest.Create(descriptionUri) as HttpWebRequest;
+                                wReq.KeepAlive = false;
+
+                                desc.Load(wReq.GetResponse().GetResponseStream());
 
                                 XmlNamespaceManager nsMgr = new XmlNamespaceManager(desc.NameTable);
                                 nsMgr.AddNamespace("tns", "urn:schemas-upnp-org:device-1-0");
@@ -231,9 +235,10 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
 
             byte[] buffer = Encoding.ASCII.GetBytes(request);
 
-            WebRequest wReq = WebRequest.Create(controlURL);
+            HttpWebRequest wReq = WebRequest.Create(controlURL) as HttpWebRequest;
             wReq.Method = "POST";
             wReq.Headers.Add("SOAPACTION", "\"urn:schemas-upnp-org:service:" + WANService + ":1#" + functionName + "\"");
+            wReq.KeepAlive = false;
             wReq.ContentType = "text/xml; charset=\"utf-8\"";
             wReq.ContentLength = buffer.Length;
             wReq.GetRequestStream().Write(buffer, 0, buffer.Length);
@@ -249,7 +254,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                 response = (HttpWebResponse)ex.Response;
             }
 
-            int statusCode = Convert.ToInt32(response.StatusCode);
+            int statusCode = (int)response.StatusCode;
 
             switch (statusCode)
             {
@@ -282,7 +287,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
 
                             if (nodeDetailItem != null)
                             {
-                                string errorCode = "unknown";
+                                int errorCode = -1;
                                 string errorDescription = "unknown";
 
                                 foreach (XmlNode nodeChild in nodeDetailItem.ChildNodes)
@@ -290,7 +295,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                     switch (nodeChild.LocalName)
                                     {
                                         case "errorCode":
-                                            errorCode = nodeChild.InnerText;
+                                            errorCode = int.Parse(nodeChild.InnerText);
                                             break;
 
                                         case "errorDescription":
@@ -299,7 +304,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                     }
                                 }
 
-                                throw new InternetGatewayDeviceException("UPnP device returned an error: (" + errorCode + ") " + errorDescription);
+                                throw new InternetGatewayDeviceException(errorCode, "UPnP device returned an error: (" + errorCode + ") " + errorDescription);
                             }
                         }
                     }
@@ -426,7 +431,24 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                 "<NewProtocol>" + protocol.ToString().ToUpper() + "</NewProtocol>" +
                            "</u:GetSpecificPortMappingEntry>";
 
-            HttpWebResponse response = SOAPRequest(SOAP, "GetSpecificPortMappingEntry");
+            HttpWebResponse response;
+
+            try
+            {
+                response = SOAPRequest(SOAP, "GetSpecificPortMappingEntry");
+            }
+            catch (InternetGatewayDeviceException ex)
+            {
+                switch (ex.ErrorCode)
+                {
+                    case 714:
+                        //The specified value does not exists in the array
+                        return null;
+
+                    default:
+                        throw;
+                }
+            }
 
             int statusCode = Convert.ToInt32(response.StatusCode);
 
@@ -452,7 +474,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                     return null;
 
                 default:
-                    throw new InternetGatewayDeviceException("UPnP device returned an error: (" + statusCode + ") " + response.StatusDescription);
+                    throw new InternetGatewayDeviceException(statusCode, "UPnP device returned an error: (" + statusCode + ") " + response.StatusDescription);
             }
         }
 
@@ -462,7 +484,24 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                 "<NewPortMappingIndex>" + portMappingIndex + "</NewPortMappingIndex>" +
                           "</u:GetGenericPortMappingEntry>";
 
-            HttpWebResponse response = SOAPRequest(SOAP, "GetGenericPortMappingEntry");
+            HttpWebResponse response;
+
+            try
+            {
+                response = SOAPRequest(SOAP, "GetGenericPortMappingEntry");
+            }
+            catch (InternetGatewayDeviceException ex)
+            {
+                switch (ex.ErrorCode)
+                {
+                    case 713:
+                        //The specified array index is out of bound
+                        return null;
+
+                    default:
+                        throw;
+                }
+            }
 
             int statusCode = Convert.ToInt32(response.StatusCode);
 
