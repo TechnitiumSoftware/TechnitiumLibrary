@@ -282,12 +282,23 @@ namespace TechnitiumLibrary.Net
                 client._tcp = tcp;
                 client._retries = retries;
 
-                DnsDatagram response;
+                DnsQuestionRecord question;
 
                 if (queryType == DnsResourceRecordType.PTR)
-                    response = client.Resolve(new DnsQuestionRecord(ptrIP, DnsClass.IN));
+                    question = new DnsQuestionRecord(ptrIP, DnsClass.IN);
                 else
-                    response = client.Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.IN));
+                    question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
+
+                DnsDatagram response = client.Resolve(question);
+
+                if (response.Header.Truncation)
+                {
+                    if (tcp)
+                        return response;
+
+                    client._tcp = true;
+                    response = client.Resolve(question);
+                }
 
                 switch (response.Header.RCODE)
                 {
@@ -298,7 +309,10 @@ namespace TechnitiumLibrary.Net
                         if (response.Authority.Length == 0)
                             return response;
 
-                        nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6);
+                        nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, true);
+
+                        if (nameServers.Length == 0)
+                            nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
 
                         if (nameServers.Length == 0)
                             return response;
@@ -866,7 +880,7 @@ namespace TechnitiumLibrary.Net
 
         #region static
 
-        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool preferIPv6)
+        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool selectNameServersWithGlue)
         {
             List<NameServerAddress> nameServers = new List<NameServerAddress>(4);
 
@@ -902,7 +916,7 @@ namespace TechnitiumLibrary.Net
                         }
                     }
 
-                    if (endPoint == null)
+                    if ((endPoint == null) && !selectNameServersWithGlue)
                         nameServers.Add(new NameServerAddress(nsRecord.NSDomainName));
                 }
             }
@@ -1647,7 +1661,7 @@ namespace TechnitiumLibrary.Net
                     if (currentDate > _dateExpires)
                         return 0u;
                     else
-                        return Convert.ToUInt32((_dateExpires - DateTime.UtcNow).TotalSeconds);
+                        return Convert.ToUInt32((_dateExpires - currentDate).TotalSeconds);
                 }
                 else
                 {
