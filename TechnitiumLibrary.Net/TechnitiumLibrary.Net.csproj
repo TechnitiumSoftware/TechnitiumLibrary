@@ -38,7 +38,25 @@
     <Reference Include="System.Runtime.Serialization" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DnsClient.cs" />
+    <Compile Include="Dns\DnsAAAARecord.cs" />
+    <Compile Include="Dns\DnsARecord.cs" />
+    <Compile Include="Dns\DnsClient.cs" />
+    <Compile Include="Dns\DnsClientException.cs" />
+    <Compile Include="Dns\DnsCNAMERecord.cs" />
+    <Compile Include="Dns\DnsDatagram.cs" />
+    <Compile Include="Dns\DnsDomainOffset.cs" />
+    <Compile Include="Dns\DnsHeader.cs" />
+    <Compile Include="Dns\DnsMXRecord.cs" />
+    <Compile Include="Dns\DnsNSRecord.cs" />
+    <Compile Include="Dns\DnsPTRRecord.cs" />
+    <Compile Include="Dns\DnsQuestionRecord.cs" />
+    <Compile Include="Dns\DnsResourceRecord.cs" />
+    <Compile Include="Dns\DnsResourceRecordData.cs" />
+    <Compile Include="Dns\DnsSOARecord.cs" />
+    <Compile Include="Dns\DnsTXTRecord.cs" />
+    <Compile Include="Dns\DnsUnknownRecord.cs" />
+    <Compile Include="Dns\NameErrorDnsClientException.cs" />
+    <Compile Include="Dns\NameServerAddress.cs" />
     <Compile Include="IPEndPointParser.cs" />
     <Compile Include="NetUtilities.cs" />
     <Compile Include="Proxy\NetProxy.cs" />

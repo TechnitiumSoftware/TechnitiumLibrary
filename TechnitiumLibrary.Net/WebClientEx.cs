@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using TechnitiumLibrary.Net.Dns;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net
