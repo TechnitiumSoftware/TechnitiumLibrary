@@ -267,11 +267,14 @@ namespace TechnitiumLibrary.Net
 
         public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsResourceRecordType queryType, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
-            int hopCount = 0;
-            IPAddress ptrIP = null;
+            DnsQuestionRecord question;
 
             if (queryType == DnsResourceRecordType.PTR)
-                ptrIP = IPAddress.Parse(domain);
+                question = new DnsQuestionRecord(IPAddress.Parse(domain), DnsClass.IN);
+            else
+                question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
+
+            int hopCount = 0;
 
             while ((hopCount++) < 64)
             {
@@ -281,13 +284,6 @@ namespace TechnitiumLibrary.Net
                 client._preferIPv6 = preferIPv6;
                 client._tcp = tcp;
                 client._retries = retries;
-
-                DnsQuestionRecord question;
-
-                if (queryType == DnsResourceRecordType.PTR)
-                    question = new DnsQuestionRecord(ptrIP, DnsClass.IN);
-                else
-                    question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
 
                 DnsDatagram response = client.Resolve(question);
 
@@ -329,9 +325,9 @@ namespace TechnitiumLibrary.Net
 
         #endregion
 
-        #region private
+        #region public
 
-        private DnsDatagram Resolve(DnsDatagram request)
+        public DnsDatagram Resolve(DnsDatagram request)
         {
             int bytesRecv;
             byte[] responseBuffer = new byte[64 * 1024];
@@ -552,10 +548,6 @@ namespace TechnitiumLibrary.Net
 
             throw new DnsClientException("DnsClient failed to resolve the request: exceeded retry limit.");
         }
-
-        #endregion
-
-        #region public
 
         public DnsDatagram Resolve(DnsQuestionRecord questionRecord)
         {
