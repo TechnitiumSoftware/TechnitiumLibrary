@@ -112,7 +112,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public void ResolveAddress(NetProxy proxy, bool preferIPv6, bool tcp, int retries)
+        public void ResolveAddress(IDnsCache cache, NetProxy proxy, bool preferIPv6, bool tcp, int retries)
         {
             if ((_domain != null) && (_endPoint == null))
             {
@@ -120,7 +120,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     try
                     {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(_domain, DnsResourceRecordType.AAAA, proxy, true, tcp, retries);
+                        DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(_domain, DnsResourceRecordType.AAAA, cache, proxy, true, tcp, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
                             _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, 53);
                     }
@@ -132,7 +132,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     try
                     {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(_domain, DnsResourceRecordType.A, proxy, false, tcp, retries);
+                        DnsDatagram nsResponse = DnsClient.ResolveViaRootNameServers(_domain, DnsResourceRecordType.A, cache, proxy, false, tcp, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
                             _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, 53);
                     }

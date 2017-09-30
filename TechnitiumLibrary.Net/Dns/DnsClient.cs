@@ -156,15 +156,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
-            if (preferIPv6)
-                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv6, domain, queryType, proxy, preferIPv6, tcp, retries);
-            else
-                return ResolveViaNameServers(ROOT_NAME_SERVERS_IPv4, domain, queryType, proxy, preferIPv6, tcp, retries);
+            return ResolveViaNameServers(null, domain, queryType, cache, proxy, preferIPv6, tcp, retries);
         }
 
-        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsResourceRecordType queryType, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsResourceRecordType queryType, IDnsCache cache, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
             DnsQuestionRecord question;
 
@@ -172,6 +169,52 @@ namespace TechnitiumLibrary.Net.Dns
                 question = new DnsQuestionRecord(IPAddress.Parse(domain), DnsClass.IN);
             else
                 question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
+
+            return ResolveViaNameServers(nameServers, question, cache, proxy, preferIPv6, tcp, retries);
+        }
+
+        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, DnsQuestionRecord question, IDnsCache cache, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        {
+            if (cache != null)
+            {
+                DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
+
+                DnsDatagram cacheResponse = cache.Query(request);
+
+                switch (cacheResponse.Header.RCODE)
+                {
+                    case DnsResponseCode.NoError:
+                        if (cacheResponse.Answer.Length > 0)
+                            return cacheResponse;
+
+                        if ((nameServers == null) || (nameServers.Length == 0))
+                        {
+                            if (cacheResponse.Authority.Length > 0)
+                            {
+                                NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
+
+                                if (cacheNameServers.Length == 0)
+                                    cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, false);
+
+                                if (cacheNameServers.Length > 0)
+                                    nameServers = cacheNameServers;
+                            }
+                        }
+
+                        break;
+
+                    case DnsResponseCode.NameError:
+                        return cacheResponse;
+                }
+            }
+
+            if ((nameServers == null) || (nameServers.Length == 0))
+            {
+                if (preferIPv6)
+                    nameServers = ROOT_NAME_SERVERS_IPv6;
+                else
+                    nameServers = ROOT_NAME_SERVERS_IPv4;
+            }
 
             int hopCount = 0;
 
@@ -184,7 +227,7 @@ namespace TechnitiumLibrary.Net.Dns
                 client._tcp = tcp;
                 client._retries = retries;
 
-                DnsDatagram response = client.Resolve(question);
+                DnsDatagram response = client.Resolve(question, cache);
 
                 if (response.Header.Truncation)
                 {
@@ -192,8 +235,11 @@ namespace TechnitiumLibrary.Net.Dns
                         return response;
 
                     client._tcp = true;
-                    response = client.Resolve(question);
+                    response = client.Resolve(question, cache);
                 }
+
+                if (cache != null)
+                    cache.CacheResponse(response);
 
                 switch (response.Header.RCODE)
                 {
@@ -219,14 +265,14 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            throw new DnsClientException("DnsClient exceeded the maximum hop count to resolve the domain: " + domain);
+            throw new DnsClientException("DnsClient exceeded the maximum hop count to resolve the domain: " + question.Name);
         }
 
         #endregion
 
         #region public
 
-        public DnsDatagram Resolve(DnsDatagram request)
+        public DnsDatagram Resolve(DnsDatagram request, IDnsCache cache = null)
         {
             int bytesRecv;
             byte[] responseBuffer = new byte[64 * 1024];
@@ -283,7 +329,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (server.EndPoint == null)
                 {
-                    server.ResolveAddress(_proxy, _preferIPv6, _tcp, _retries);
+                    server.ResolveAddress(cache, _proxy, _preferIPv6, _tcp, _retries);
 
                     if (server.EndPoint == null)
                     {
@@ -448,17 +494,17 @@ namespace TechnitiumLibrary.Net.Dns
             throw new DnsClientException("DnsClient failed to resolve the request: exceeded retry limit.");
         }
 
-        public DnsDatagram Resolve(DnsQuestionRecord questionRecord)
+        public DnsDatagram Resolve(DnsQuestionRecord questionRecord, IDnsCache cache = null)
         {
-            return Resolve(new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { questionRecord }, null, null, null));
+            return Resolve(new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { questionRecord }, null, null, null), cache);
         }
 
-        public DnsDatagram Resolve(string domain, DnsResourceRecordType queryType)
+        public DnsDatagram Resolve(string domain, DnsResourceRecordType queryType, IDnsCache cache = null)
         {
             if (queryType == DnsResourceRecordType.PTR)
-                return Resolve(new DnsQuestionRecord(IPAddress.Parse(domain), DnsClass.IN));
+                return Resolve(new DnsQuestionRecord(IPAddress.Parse(domain), DnsClass.IN), cache);
             else
-                return Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.IN));
+                return Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.IN), cache);
         }
 
         public string[] ResolveMX(MailAddress emailAddress, bool resolveIP = false, bool preferIPv6 = false)

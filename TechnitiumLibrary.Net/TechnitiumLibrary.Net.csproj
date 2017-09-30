@@ -55,8 +55,10 @@
     <Compile Include="Dns\DnsSOARecord.cs" />
     <Compile Include="Dns\DnsTXTRecord.cs" />
     <Compile Include="Dns\DnsUnknownRecord.cs" />
+    <Compile Include="Dns\IDnsCache.cs" />
     <Compile Include="Dns\NameErrorDnsClientException.cs" />
     <Compile Include="Dns\NameServerAddress.cs" />
+    <Compile Include="Dns\SimpleDnsCache.cs" />
     <Compile Include="IPEndPointParser.cs" />
     <Compile Include="NetUtilities.cs" />
     <Compile Include="Proxy\NetProxy.cs" />
