@@ -37,6 +37,9 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsAAAARecord(IPAddress address)
         {
             _address = address;
+
+            if (_address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6)
+                throw new DnsClientException("Invalid IP address family.");
         }
 
         #endregion

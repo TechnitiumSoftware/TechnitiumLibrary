@@ -37,6 +37,9 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsARecord(IPAddress address)
         {
             _address = address;
+
+            if (_address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+                throw new DnsClientException("Invalid IP address family.");
         }
 
         public DnsARecord(Stream s)
