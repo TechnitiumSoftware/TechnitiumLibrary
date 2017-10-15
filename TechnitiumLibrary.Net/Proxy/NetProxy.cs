@@ -18,6 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Net;
+using System.Net.Sockets;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
@@ -83,6 +85,24 @@ namespace TechnitiumLibrary.Net.Proxy
                 case NetProxyType.Socks5:
                     _socksProxy.CheckProxyAccess();
                     break;
+
+                default:
+                    throw new NotSupportedException("Proxy type not supported.");
+            }
+        }
+
+        public Socket Connect(IPEndPoint remoteEP)
+        {
+            switch (_type)
+            {
+                case NetProxyType.Http:
+                    return _httpProxy.Connect(remoteEP);
+
+                case NetProxyType.Socks5:
+                    using (SocksConnectRequestHandler requestHandler = _socksProxy.Connect(remoteEP))
+                    {
+                        return requestHandler.GetSocket();
+                    }
 
                 default:
                     throw new NotSupportedException("Proxy type not supported.");
