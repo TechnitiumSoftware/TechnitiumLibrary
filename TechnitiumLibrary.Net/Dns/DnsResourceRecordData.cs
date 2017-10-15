@@ -78,6 +78,10 @@ namespace TechnitiumLibrary.Net.Dns
             s.Position = finalPosition;
         }
 
+        public override abstract bool Equals(object obj);
+
+        public override abstract int GetHashCode();
+
         #endregion
 
         #region properties

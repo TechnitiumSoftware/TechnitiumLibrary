@@ -368,6 +368,30 @@ namespace TechnitiumLibrary.Net.Dns
 
             #endregion
 
+            #region public
+
+            public override bool Equals(object obj)
+            {
+                if (ReferenceEquals(null, obj))
+                    return false;
+
+                if (ReferenceEquals(this, obj))
+                    return true;
+
+                DnsNXRecord other = obj as DnsNXRecord;
+                if (other == null)
+                    return false;
+
+                return _authority.Equals(other._authority);
+            }
+
+            public override int GetHashCode()
+            {
+                return _authority.GetHashCode();
+            }
+
+            #endregion
+
             #region properties
 
             public DnsResourceRecord Authority
@@ -404,6 +428,30 @@ namespace TechnitiumLibrary.Net.Dns
 
             protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
             { }
+
+            #endregion
+
+            #region public
+
+            public override bool Equals(object obj)
+            {
+                if (ReferenceEquals(null, obj))
+                    return false;
+
+                if (ReferenceEquals(this, obj))
+                    return true;
+
+                DnsEmptyRecord other = obj as DnsEmptyRecord;
+                if (other == null)
+                    return false;
+
+                return _authority.Equals(other._authority);
+            }
+
+            public override int GetHashCode()
+            {
+                return _authority.GetHashCode();
+            }
 
             #endregion
 

@@ -57,6 +57,30 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
+        #region public
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            DnsNSRecord other = obj as DnsNSRecord;
+            if (other == null)
+                return false;
+
+            return this._nsDomainName.Equals(other._nsDomainName, System.StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        public override int GetHashCode()
+        {
+            return _nsDomainName.GetHashCode();
+        }
+
+        #endregion
+
         #region properties
 
         public string NSDomainName

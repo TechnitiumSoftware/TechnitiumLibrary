@@ -69,6 +69,30 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
+        #region public
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            DnsAAAARecord other = obj as DnsAAAARecord;
+            if (other == null)
+                return false;
+
+            return this._address.Equals(other._address);
+        }
+
+        public override int GetHashCode()
+        {
+            return _address.GetHashCode();
+        }
+
+        #endregion
+
         #region properties
 
         [IgnoreDataMember]

@@ -69,6 +69,29 @@ namespace TechnitiumLibrary.Net.Dns
             return _preference.CompareTo(other._preference);
         }
 
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            DnsMXRecord other = obj as DnsMXRecord;
+            if (other == null)
+                return false;
+
+            if (this._preference != other._preference)
+                return false;
+
+            return this._exchange.Equals(other._exchange, StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        public override int GetHashCode()
+        {
+            return _preference.GetHashCode() + _exchange.GetHashCode();
+        }
+
         #endregion
 
         #region properties

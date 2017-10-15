@@ -81,6 +81,51 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
+        #region public
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            DnsSOARecord other = obj as DnsSOARecord;
+            if (other == null)
+                return false;
+
+            if (!this._masterNameServer.Equals(other._masterNameServer, System.StringComparison.CurrentCultureIgnoreCase))
+                return false;
+
+            if (!this._responsiblePerson.Equals(other._responsiblePerson, System.StringComparison.CurrentCultureIgnoreCase))
+                return false;
+
+            if (this._serial != other._serial)
+                return false;
+
+            if (this._refresh != other._refresh)
+                return false;
+
+            if (this._retry != other._retry)
+                return false;
+
+            if (this._expire != other._expire)
+                return false;
+
+            if (this._minimum != other._minimum)
+                return false;
+
+            return true;
+        }
+
+        public override int GetHashCode()
+        {
+            return _masterNameServer.GetHashCode();
+        }
+
+        #endregion
+
         #region properties
 
         public string MasterNameServer

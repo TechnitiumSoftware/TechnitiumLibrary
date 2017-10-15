@@ -57,6 +57,30 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
+        #region public
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            DnsPTRRecord other = obj as DnsPTRRecord;
+            if (other == null)
+                return false;
+
+            return this._ptrDomainName.Equals(other._ptrDomainName, System.StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        public override int GetHashCode()
+        {
+            return _ptrDomainName.GetHashCode();
+        }
+
+        #endregion
+
         #region properties
 
         public string PTRDomainName

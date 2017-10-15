@@ -68,6 +68,30 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
+        #region public
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            DnsTXTRecord other = obj as DnsTXTRecord;
+            if (other == null)
+                return false;
+
+            return this._txtData.Equals(other._txtData);
+        }
+
+        public override int GetHashCode()
+        {
+            return _txtData.GetHashCode();
+        }
+
+        #endregion
+
         #region properties
 
         public string TXTData

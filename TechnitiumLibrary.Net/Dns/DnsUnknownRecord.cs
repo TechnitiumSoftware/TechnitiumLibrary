@@ -60,6 +60,39 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
+        #region public
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            DnsUnknownRecord other = obj as DnsUnknownRecord;
+            if (other == null)
+                return false;
+
+            if (this._data.Length != other._data.Length)
+                return false;
+
+            for (int i = 0; i < this._data.Length; i++)
+            {
+                if (this._data[i] != other._data[i])
+                    return false;
+            }
+
+            return true;
+        }
+
+        public override int GetHashCode()
+        {
+            return _data.GetHashCode();
+        }
+
+        #endregion
+
         #region properties
 
         public byte[] DATA

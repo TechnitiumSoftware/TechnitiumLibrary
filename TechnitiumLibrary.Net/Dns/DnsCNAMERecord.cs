@@ -57,6 +57,30 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
+        #region public
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            DnsCNAMERecord other = obj as DnsCNAMERecord;
+            if (other == null)
+                return false;
+
+            return this._cnameDomainName.Equals(other._cnameDomainName, System.StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        public override int GetHashCode()
+        {
+            return _cnameDomainName.GetHashCode();
+        }
+
+        #endregion
+
         #region properties
 
         public string CNAMEDomainName

@@ -216,6 +216,44 @@ namespace TechnitiumLibrary.Net.Dns
             _data.WriteTo(s, domainEntries);
         }
 
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            DnsResourceRecord other = obj as DnsResourceRecord;
+            if (other == null)
+                return false;
+
+            if (!this._name.Equals(other._name, StringComparison.CurrentCultureIgnoreCase))
+                return false;
+
+            if (this._type != other._type)
+                return false;
+
+            if (this._class != other._class)
+                return false;
+
+            if (this._ttl != other._ttl)
+                return false;
+
+            return this._data.Equals(other._data);
+        }
+
+        public override int GetHashCode()
+        {
+            var hashCode = -205127651;
+            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(_name);
+            hashCode = hashCode * -1521134295 + _type.GetHashCode();
+            hashCode = hashCode * -1521134295 + _class.GetHashCode();
+            hashCode = hashCode * -1521134295 + _ttl.GetHashCode();
+            hashCode = hashCode * -1521134295 + EqualityComparer<DnsResourceRecordData>.Default.GetHashCode(_data);
+            return hashCode;
+        }
+
         #endregion
 
         #region properties
