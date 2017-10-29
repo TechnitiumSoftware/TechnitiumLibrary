@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
+using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns
 {
@@ -123,7 +124,7 @@ namespace TechnitiumLibrary.Net.Dns
         ANY = 255
     }
 
-    public class DnsResourceRecord
+    public class DnsResourceRecord : IWriteStream
     {
         #region variables
 
@@ -142,11 +143,14 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsResourceRecord(string name, DnsResourceRecordType type, DnsClass @class, uint ttl, DnsResourceRecordData data)
         {
-            _name = name;
+            _name = name.ToLower();
             _type = type;
             _class = @class;
             _ttl = ttl;
             _data = data;
+
+            if (_name.Contains("..") || _name.StartsWith(".") || _name.EndsWith("."))
+                throw new DnsClientException("Invalid domain name.");
         }
 
         public DnsResourceRecord(Stream s)
@@ -204,6 +208,11 @@ namespace TechnitiumLibrary.Net.Dns
         {
             _setExpiry = true;
             _dateExpires = DateTime.UtcNow.AddSeconds(_ttl);
+        }
+
+        public void WriteTo(Stream s)
+        {
+            WriteTo(s, null);
         }
 
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)

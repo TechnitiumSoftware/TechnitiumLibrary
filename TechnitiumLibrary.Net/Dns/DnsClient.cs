@@ -156,12 +156,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
-            return ResolveViaNameServers(null, domain, queryType, cache, proxy, preferIPv6, tcp, retries);
+            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, tcp, retries);
         }
 
-        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, string domain, DnsResourceRecordType queryType, IDnsCache cache, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
             DnsQuestionRecord question;
 
@@ -170,10 +170,10 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
 
-            return ResolveViaNameServers(nameServers, question, cache, proxy, preferIPv6, tcp, retries);
+            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, tcp, retries);
         }
 
-        public static DnsDatagram ResolveViaNameServers(NameServerAddress[] nameServers, DnsQuestionRecord question, IDnsCache cache, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
             if (cache != null)
             {
@@ -187,9 +187,12 @@ namespace TechnitiumLibrary.Net.Dns
                         if (cacheResponse.Answer.Length > 0)
                             return cacheResponse;
 
-                        if ((nameServers == null) || (nameServers.Length == 0))
+                        if (cacheResponse.Authority.Length > 0)
                         {
-                            if (cacheResponse.Authority.Length > 0)
+                            if (cacheResponse.Authority[0].Type == DnsResourceRecordType.SOA)
+                                return cacheResponse;
+
+                            if ((nameServers == null) || (nameServers.Length == 0))
                             {
                                 NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
 
@@ -245,7 +248,12 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     case DnsResponseCode.NoError:
                         if (response.Answer.Length > 0)
+                        {
+                            if (!response.Answer[0].Name.Equals(question.Name, StringComparison.CurrentCultureIgnoreCase))
+                                throw new DnsClientException("Invalid answer received from server: answer does not match question.");
+
                             return response;
+                        }
 
                         if (response.Authority.Length == 0)
                             return response;

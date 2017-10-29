@@ -125,25 +125,28 @@ namespace TechnitiumLibrary.Net.Dns
         {
             while (!string.IsNullOrEmpty(domain))
             {
-                //search domain list
-                foreach (DnsDomainOffset domainEntry in domainEntries)
+                if (domainEntries != null)
                 {
-                    if (domain.Equals(domainEntry.Domain, StringComparison.CurrentCultureIgnoreCase))
+                    //search domain list
+                    foreach (DnsDomainOffset domainEntry in domainEntries)
                     {
-                        //found matching domain offset for compression
-                        ushort pointer = 0xC000;
-                        pointer |= domainEntry.Offset;
+                        if (domain.Equals(domainEntry.Domain, StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            //found matching domain offset for compression
+                            ushort pointer = 0xC000;
+                            pointer |= domainEntry.Offset;
 
-                        byte[] pointerBytes = BitConverter.GetBytes(pointer);
-                        Array.Reverse(pointerBytes); //convert to network order
+                            byte[] pointerBytes = BitConverter.GetBytes(pointer);
+                            Array.Reverse(pointerBytes); //convert to network order
 
-                        //write pointer
-                        s.Write(pointerBytes, 0, 2);
-                        return;
+                            //write pointer
+                            s.Write(pointerBytes, 0, 2);
+                            return;
+                        }
                     }
-                }
 
-                domainEntries.Add(new DnsDomainOffset(Convert.ToUInt16(s.Position), domain));
+                    domainEntries.Add(new DnsDomainOffset(Convert.ToUInt16(s.Position), domain));
+                }
 
                 string label;
                 int i = domain.IndexOf('.');
