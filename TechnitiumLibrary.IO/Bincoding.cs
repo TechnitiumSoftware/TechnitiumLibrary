@@ -775,20 +775,14 @@ namespace TechnitiumLibrary.IO
                 case BincodingType.DICTIONARY:
                     {
                         int count = ReadLength(_s);
-
                         Dictionary<string, Bincoding> dictionary = new Dictionary<string, Bincoding>(count);
-                        int keyLen;
-                        byte[] keyBuffer = new byte[255];
 
                         for (int i = 0; i < count; i++)
                         {
-                            keyLen = _s.ReadByte();
-                            OffsetStream.StreamRead(_s, keyBuffer, 0, keyLen);
+                            Bincoding entry = DecodeNext();
+                            KeyValuePair<string, Bincoding> pair = entry.GetKeyValuePair();
 
-                            string key = Encoding.UTF8.GetString(keyBuffer, 0, keyLen);
-                            Bincoding value = DecodeNext();
-
-                            dictionary.Add(key, value);
+                            dictionary.Add(pair.Key, pair.Value);
                         }
 
                         return Bincoding.GetValue(dictionary);
