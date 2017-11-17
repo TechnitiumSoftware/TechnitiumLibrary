@@ -38,6 +38,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         readonly internal static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
+        const int MAX_HOPS = 16;
+
         readonly NameServerAddress[] _servers;
 
         NetProxy _proxy;
@@ -175,6 +177,11 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
+            return ResolveViaNameServersInternal(question, true, nameServers, cache, proxy, preferIPv6, tcp, retries);
+        }
+
+        internal static DnsDatagram ResolveViaNameServersInternal(DnsQuestionRecord question, bool selectNameServersWithoutGlue, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        {
             if (cache != null)
             {
                 DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
@@ -196,7 +203,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
 
-                                if (cacheNameServers.Length == 0)
+                                if ((cacheNameServers.Length == 0) && selectNameServersWithoutGlue)
                                     cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, false);
 
                                 if (cacheNameServers.Length > 0)
@@ -221,7 +228,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             int hopCount = 0;
 
-            while ((hopCount++) < 64)
+            while ((hopCount++) < MAX_HOPS)
             {
                 DnsClient client = new DnsClient(nameServers);
 
@@ -260,7 +267,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, true);
 
-                        if (nameServers.Length == 0)
+                        if ((nameServers.Length == 0) && selectNameServersWithoutGlue)
                             nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
 
                         if (nameServers.Length == 0)
@@ -283,7 +290,7 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsDatagram Resolve(DnsDatagram request, IDnsCache cache = null)
         {
             int bytesRecv;
-            byte[] responseBuffer = new byte[64 * 1024];
+            byte[] responseBuffer = null;
             int nextServerIndex = 0;
             int retries = _retries;
             byte[] requestBuffer;
@@ -301,7 +308,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (_tcp)
                 {
-                    byte[] length = BitConverter.GetBytes(Convert.ToInt16(requestBuffer.Length - 2));
+                    byte[] length = BitConverter.GetBytes(Convert.ToUInt16(requestBuffer.Length - 2));
 
                     requestBuffer[0] = length[1];
                     requestBuffer[1] = length[0];
@@ -435,12 +442,15 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         _socket.Send(requestBuffer);
 
+                        if ((responseBuffer == null) || (responseBuffer.Length == 512))
+                            responseBuffer = new byte[64 * 1024];
+
                         bytesRecv = _socket.Receive(responseBuffer, 0, 2, SocketFlags.None);
                         if (bytesRecv < 1)
                             throw new SocketException((int)SocketError.ConnectionReset);
 
                         Array.Reverse(responseBuffer, 0, 2);
-                        short length = BitConverter.ToInt16(responseBuffer, 0);
+                        ushort length = BitConverter.ToUInt16(responseBuffer, 0);
 
                         int offset = 0;
                         while (offset < length)
@@ -456,6 +466,9 @@ namespace TechnitiumLibrary.Net.Dns
                     }
                     else
                     {
+                        if (responseBuffer == null)
+                            responseBuffer = new byte[512];
+
                         if (proxyRequestHandler == null)
                         {
                             _socket.SendTo(requestBuffer, server.EndPoint);
@@ -530,7 +543,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             int hopCount = 0;
 
-            while ((hopCount++) < 64)
+            while ((hopCount++) < MAX_HOPS)
             {
                 DnsDatagram response = Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.MX, DnsClass.IN));
 
@@ -673,7 +686,7 @@ namespace TechnitiumLibrary.Net.Dns
             int hopCount = 0;
             DnsResourceRecordType type = preferIPv6 ? DnsResourceRecordType.AAAA : DnsResourceRecordType.A;
 
-            while ((hopCount++) < 64)
+            while ((hopCount++) < MAX_HOPS)
             {
                 DnsDatagram response = Resolve(new DnsQuestionRecord(domain, type, DnsClass.IN));
 
