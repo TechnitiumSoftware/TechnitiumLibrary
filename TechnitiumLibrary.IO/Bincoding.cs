@@ -686,7 +686,11 @@ namespace TechnitiumLibrary.IO
                 _lastStream = null;
             }
 
-            BincodingType type = (BincodingType)_s.ReadByte();
+            int intType = _s.ReadByte();
+            if (intType < 0)
+                return null;
+
+            BincodingType type = (BincodingType)intType;
 
             switch (type)
             {
