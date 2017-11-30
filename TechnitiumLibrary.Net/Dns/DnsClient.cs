@@ -177,11 +177,6 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
         {
-            return ResolveViaNameServersInternal(question, true, nameServers, cache, proxy, preferIPv6, tcp, retries);
-        }
-
-        internal static DnsDatagram ResolveViaNameServersInternal(DnsQuestionRecord question, bool selectNameServersWithoutGlue, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
-        {
             if (cache != null)
             {
                 DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
@@ -203,7 +198,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
 
-                                if ((cacheNameServers.Length == 0) && selectNameServersWithoutGlue)
+                                if (cacheNameServers.Length == 0)
                                     cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, false);
 
                                 if (cacheNameServers.Length > 0)
@@ -237,7 +232,8 @@ namespace TechnitiumLibrary.Net.Dns
                 client._tcp = tcp;
                 client._retries = retries;
 
-                DnsDatagram response = client.Resolve(question, cache);
+                DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
+                DnsDatagram response = client.Resolve(request, cache);
 
                 if (response.Header.Truncation)
                 {
@@ -245,7 +241,7 @@ namespace TechnitiumLibrary.Net.Dns
                         return response;
 
                     client._tcp = true;
-                    response = client.Resolve(question, cache);
+                    response = client.Resolve(request, cache);
                 }
 
                 if (cache != null)
@@ -267,7 +263,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, true);
 
-                        if ((nameServers.Length == 0) && selectNameServersWithoutGlue)
+                        if (nameServers.Length == 0)
                             nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
 
                         if (nameServers.Length == 0)

@@ -120,7 +120,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     try
                     {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServersInternal(new DnsQuestionRecord(_domain, DnsResourceRecordType.AAAA, DnsClass.IN), false, null, cache, proxy, true, tcp, retries);
+                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domain, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, proxy, true, tcp, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
                             _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, 53);
                     }
@@ -132,7 +132,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     try
                     {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServersInternal(new DnsQuestionRecord(_domain, DnsResourceRecordType.A, DnsClass.IN), false, null, cache, proxy, false, tcp, retries);
+                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domain, DnsResourceRecordType.A, DnsClass.IN), null, cache, proxy, false, tcp, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
                             _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, 53);
                     }
