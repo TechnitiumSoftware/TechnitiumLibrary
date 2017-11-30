@@ -53,9 +53,9 @@ namespace TechnitiumLibrary.IO
         BincodingType _type;
         byte[] _value;
         Stream _stream;
-        List<Bincoding> _list;
+        ICollection<Bincoding> _list;
         KeyValuePair<string, Bincoding> _keyValue;
-        Dictionary<string, Bincoding> _dictionary;
+        IDictionary<string, Bincoding> _dictionary;
 
         #endregion
 
@@ -73,7 +73,7 @@ namespace TechnitiumLibrary.IO
             _stream = value;
         }
 
-        private Bincoding(List<Bincoding> value)
+        private Bincoding(ICollection<Bincoding> value)
         {
             _type = BincodingType.LIST;
             _list = value;
@@ -85,7 +85,7 @@ namespace TechnitiumLibrary.IO
             _keyValue = value;
         }
 
-        private Bincoding(Dictionary<string, Bincoding> value)
+        private Bincoding(IDictionary<string, Bincoding> value)
         {
             _type = BincodingType.DICTIONARY;
             _dictionary = value;
@@ -100,57 +100,149 @@ namespace TechnitiumLibrary.IO
             return new Bincoding(BincodingType.NULL, null);
         }
 
-        public static Bincoding GetValue(bool value)
+        public static Bincoding ParseValue<T>(T value)
+        {
+            if (value is Bincoding)
+            {
+                return (Bincoding)(object)value;
+            }
+            else if (value is bool)
+            {
+                return Bincoding.ParseValue((bool)(object)value);
+            }
+            else if (value is byte)
+            {
+                return Bincoding.ParseValue((byte)(object)value);
+            }
+            else if (value is short)
+            {
+                return Bincoding.ParseValue((short)(object)value);
+            }
+            else if (value is int)
+            {
+                return Bincoding.ParseValue((int)(object)value);
+            }
+            else if (value is long)
+            {
+                return Bincoding.ParseValue((long)(object)value);
+            }
+            else if (value is ushort)
+            {
+                return Bincoding.ParseValue((ushort)(object)value);
+            }
+            else if (value is uint)
+            {
+                return Bincoding.ParseValue((uint)(object)value);
+            }
+            else if (value is ulong)
+            {
+                return Bincoding.ParseValue((ulong)(object)value);
+            }
+            else if (value is byte[])
+            {
+                return Bincoding.ParseValue((byte[])(object)value);
+            }
+            else if (value is string)
+            {
+                return Bincoding.ParseValue((string)(object)value);
+            }
+            else if (value is Stream)
+            {
+                return Bincoding.ParseValue((Stream)(object)value);
+            }
+            else if (value is DateTime)
+            {
+                return Bincoding.ParseValue((DateTime)(object)value);
+            }
+            else if (value is object)
+            {
+                if (value == null)
+                    return Bincoding.GetNullValue();
+
+                throw new IOException("Type not supported.");
+            }
+            else
+            {
+                throw new IOException("Type not supported.");
+            }
+        }
+
+        public static Bincoding ParseListValue<T>(ICollection<T> value)
+        {
+            List<Bincoding> list = new List<Bincoding>(value.Count);
+
+            foreach (T item in value)
+                list.Add(Bincoding.ParseValue<T>(item));
+
+            return Bincoding.ParseListValue(list);
+        }
+
+        public static Bincoding ParseKeyValue<T>(KeyValuePair<string, T> value)
+        {
+            return Bincoding.ParseKeyValue(new KeyValuePair<string, Bincoding>(value.Key, Bincoding.ParseValue(value.Value)));
+        }
+
+        public static Bincoding ParseDictionaryValue<T>(IDictionary<string, T> value)
+        {
+            IDictionary<string, Bincoding> dict = new Dictionary<string, Bincoding>(value.Count);
+
+            foreach (KeyValuePair<string, T> item in value)
+                dict.Add(item.Key, Bincoding.ParseValue<T>(item.Value));
+
+            return Bincoding.ParseDictionaryValue(dict);
+        }
+
+        public static Bincoding ParseValue(bool value)
         {
             return new Bincoding(BincodingType.BOOLEAN, BitConverter.GetBytes(value));
         }
 
-        public static Bincoding GetValue(byte value)
+        public static Bincoding ParseValue(byte value)
         {
             return new Bincoding(BincodingType.BYTE, new byte[] { value });
         }
 
-        public static Bincoding GetValue(short value)
+        public static Bincoding ParseValue(short value)
         {
             return new Bincoding(BincodingType.SHORT, BitConverter.GetBytes(value));
         }
 
-        public static Bincoding GetValue(int value)
+        public static Bincoding ParseValue(int value)
         {
             return new Bincoding(BincodingType.INTEGER, BitConverter.GetBytes(value));
         }
 
-        public static Bincoding GetValue(long value)
+        public static Bincoding ParseValue(long value)
         {
             return new Bincoding(BincodingType.LONG, BitConverter.GetBytes(value));
         }
 
-        public static Bincoding GetValue(ushort value)
+        public static Bincoding ParseValue(ushort value)
         {
             return new Bincoding(BincodingType.USHORT, BitConverter.GetBytes(value));
         }
 
-        public static Bincoding GetValue(uint value)
+        public static Bincoding ParseValue(uint value)
         {
             return new Bincoding(BincodingType.UINTEGER, BitConverter.GetBytes(value));
         }
 
-        public static Bincoding GetValue(ulong value)
+        public static Bincoding ParseValue(ulong value)
         {
             return new Bincoding(BincodingType.ULONG, BitConverter.GetBytes(value));
         }
 
-        public static Bincoding GetValue(DateTime value)
+        public static Bincoding ParseValue(DateTime value)
         {
             return new Bincoding(BincodingType.DATETIME, BitConverter.GetBytes(Convert.ToInt64((value - _epoch).TotalMilliseconds)));
         }
 
-        public static Bincoding GetValue(byte[] value)
+        public static Bincoding ParseValue(byte[] value)
         {
             return new Bincoding(BincodingType.BINARY, value);
         }
 
-        public static Bincoding GetValue(IWriteStream value)
+        public static Bincoding ParseValue(IWriteStream value)
         {
             using (MemoryStream mS = new MemoryStream())
             {
@@ -160,42 +252,42 @@ namespace TechnitiumLibrary.IO
             }
         }
 
-        public static Bincoding GetValue(string value)
+        public static Bincoding ParseValue(string value)
         {
             return new Bincoding(BincodingType.STRING, Encoding.UTF8.GetBytes(value));
         }
 
-        public static Bincoding GetValue(Stream value)
+        public static Bincoding ParseValue(Stream value)
         {
             return new Bincoding(BincodingType.STREAM, null) { _stream = value };
         }
 
-        public static Bincoding GetValue(List<Bincoding> value)
+        public static Bincoding ParseListValue(ICollection<Bincoding> value)
         {
             return new Bincoding(value);
         }
 
-        public static Bincoding GetValue(IWriteStream[] value)
+        public static Bincoding ParseBinaryListValue(IWriteStream[] value)
         {
             List<Bincoding> value2 = new List<Bincoding>(value.Length);
 
             foreach (IWriteStream item in value)
-                value2.Add(Bincoding.GetValue(item));
+                value2.Add(Bincoding.ParseValue(item));
 
             return new Bincoding(value2);
         }
 
-        public static Bincoding GetValue(KeyValuePair<string, Bincoding> value)
+        public static Bincoding ParseKeyValue(KeyValuePair<string, Bincoding> value)
         {
             return new Bincoding(value);
         }
 
-        public static Bincoding GetValue(string key, Bincoding value)
+        public static Bincoding ParseKeyValue(string key, Bincoding value)
         {
             return new Bincoding(new KeyValuePair<string, Bincoding>(key, value));
         }
 
-        public static Bincoding GetValue(Dictionary<string, Bincoding> value)
+        public static Bincoding ParseDictionaryValue(IDictionary<string, Bincoding> value)
         {
             return new Bincoding(value);
         }
@@ -203,6 +295,59 @@ namespace TechnitiumLibrary.IO
         #endregion
 
         #region public
+
+        public T GetValue<T>()
+        {
+            switch (_type)
+            {
+                case BincodingType.NULL:
+                    return default(T);
+
+                case BincodingType.BOOLEAN:
+                    return (T)(object)GetBooleanValue();
+
+                case BincodingType.BYTE:
+                    return (T)(object)GetByteValue();
+
+                case BincodingType.SHORT:
+                    return (T)(object)GetShortValue();
+
+                case BincodingType.INTEGER:
+                    return (T)(object)GetIntegerValue();
+
+                case BincodingType.LONG:
+                    return (T)(object)GetLongValue();
+
+                case BincodingType.USHORT:
+                    return (T)(object)GetUShortValue();
+
+                case BincodingType.UINTEGER:
+                    return (T)(object)GetUIntegerValue();
+
+                case BincodingType.ULONG:
+                    return (T)(object)GetULongValue();
+
+                case BincodingType.BINARY:
+                    return (T)(object)Value;
+
+                case BincodingType.STRING:
+                    return (T)(object)GetStringValue();
+
+                case BincodingType.STREAM:
+                    return (T)(object)GetValueStream();
+
+                case BincodingType.LIST:
+                case BincodingType.KEY_VALUE_PAIR:
+                case BincodingType.DICTIONARY:
+                    throw new IOException("Use special functions for list, key value pair or dictionary.");
+
+                case BincodingType.DATETIME:
+                    return (T)(object)GetBooleanValue();
+
+                default:
+                    throw new IOException("Type not supported.");
+            }
+        }
 
         public Stream GetValueStream()
         {
@@ -262,9 +407,19 @@ namespace TechnitiumLibrary.IO
             return Encoding.UTF8.GetString(_value);
         }
 
-        public List<Bincoding> GetList()
+        public ICollection<Bincoding> GetList()
         {
             return _list;
+        }
+
+        public ICollection<T> GetList<T>()
+        {
+            List<T> list = new List<T>(_list.Count);
+
+            foreach (Bincoding item in _list)
+                list.Add(item.GetValue<T>());
+
+            return list;
         }
 
         public KeyValuePair<string, Bincoding> GetKeyValuePair()
@@ -272,9 +427,24 @@ namespace TechnitiumLibrary.IO
             return _keyValue;
         }
 
-        public Dictionary<string, Bincoding> GetDictionary()
+        public KeyValuePair<string, T> GetKeyValuePair<T>()
+        {
+            return new KeyValuePair<string, T>(_keyValue.Key, _keyValue.Value.GetValue<T>());
+        }
+
+        public IDictionary<string, Bincoding> GetDictionary()
         {
             return _dictionary;
+        }
+
+        public IDictionary<string, T> GetDictionary<T>()
+        {
+            Dictionary<string, T> dictionary = new Dictionary<string, T>(_dictionary.Count);
+
+            foreach (KeyValuePair<string, Bincoding> item in _dictionary)
+                dictionary.Add(item.Key, item.Value.GetValue<T>());
+
+            return dictionary;
         }
 
         #endregion
@@ -375,7 +545,7 @@ namespace TechnitiumLibrary.IO
                     break;
 
                 case BincodingType.LIST:
-                    List<Bincoding> list = value.GetList();
+                    ICollection<Bincoding> list = value.GetList();
 
                     WriteLength(_s, list.Count);
 
@@ -396,12 +566,12 @@ namespace TechnitiumLibrary.IO
                     break;
 
                 case BincodingType.DICTIONARY:
-                    Dictionary<string, Bincoding> dictionary = value.GetDictionary();
+                    IDictionary<string, Bincoding> dictionary = value.GetDictionary();
 
                     WriteLength(_s, dictionary.Count);
 
                     foreach (KeyValuePair<string, Bincoding> item in dictionary)
-                        Encode(item);
+                        EncodeKeyValue(item);
 
                     break;
 
@@ -418,167 +588,177 @@ namespace TechnitiumLibrary.IO
 
         public void Encode(bool value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(byte value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(short value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(int value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(long value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(ushort value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(uint value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(ulong value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(DateTime value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(byte[] value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
-        public void Encode(IWriteStream value)
+        public void EncodeBinary(IWriteStream value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(string value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
         public void Encode(Stream value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseValue(value));
         }
 
-        public void Encode(List<Bincoding> value)
+        public void EncodeList(ICollection<Bincoding> value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseListValue(value));
         }
 
-        public void Encode(IWriteStream[] value)
+        public void EncodeList<T>(ICollection<T> value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseListValue(value));
         }
 
-        public void Encode(KeyValuePair<string, Bincoding> value)
+        public void EncodeBinaryList(IWriteStream[] value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseListValue(value));
         }
 
-        public void Encode(string key, Bincoding value)
+        public void EncodeKeyValue(KeyValuePair<string, Bincoding> value)
         {
-            Encode(Bincoding.GetValue(key, value));
+            Encode(Bincoding.ParseKeyValue(value));
         }
 
-        public void Encode(string key, bool value)
+        public void EncodeKeyValue(string key, Bincoding value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, value));
         }
 
-        public void Encode(string key, byte value)
+        public void EncodeKeyValue(string key, bool value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, short value)
+        public void EncodeKeyValue(string key, byte value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, int value)
+        public void EncodeKeyValue(string key, short value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, long value)
+        public void EncodeKeyValue(string key, int value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, ushort value)
+        public void EncodeKeyValue(string key, long value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, uint value)
+        public void EncodeKeyValue(string key, ushort value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, ulong value)
+        public void EncodeKeyValue(string key, uint value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, DateTime value)
+        public void EncodeKeyValue(string key, ulong value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, byte[] value)
+        public void EncodeKeyValue(string key, DateTime value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, IWriteStream value)
+        public void EncodeKeyValue(string key, byte[] value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, string value)
+        public void EncodeKeyValue(string key, IWriteStream value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, List<Bincoding> value)
+        public void EncodeKeyValue(string key, string value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
         }
 
-        public void Encode(string key, IWriteStream[] value)
+        public void EncodeKeyValue(string key, ICollection<Bincoding> value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseListValue(value)));
         }
 
-        public void Encode(string key, Dictionary<string, Bincoding> value)
+        public void EncodeKeyValue(string key, IWriteStream[] value)
         {
-            Encode(Bincoding.GetValue(key, Bincoding.GetValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseBinaryListValue(value)));
         }
 
-        public void Encode(Dictionary<string, Bincoding> value)
+        public void EncodeKeyValue(string key, IDictionary<string, Bincoding> value)
         {
-            Encode(Bincoding.GetValue(value));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseDictionaryValue(value)));
+        }
+
+        public void EncodeDictionary(IDictionary<string, Bincoding> value)
+        {
+            Encode(Bincoding.ParseDictionaryValue(value));
+        }
+
+        public void EncodeDictionary<T>(IDictionary<string, T> value)
+        {
+            Encode(Bincoding.ParseDictionaryValue<T>(value));
         }
 
         #endregion
@@ -749,7 +929,7 @@ namespace TechnitiumLibrary.IO
 
                         _lastStream = new OffsetStream(_s, _s.Position, count, true, false);
 
-                        return Bincoding.GetValue(_lastStream);
+                        return Bincoding.ParseValue(_lastStream);
                     }
 
                 case BincodingType.LIST:
@@ -761,7 +941,7 @@ namespace TechnitiumLibrary.IO
                         for (int i = 0; i < count; i++)
                             list.Add(DecodeNext());
 
-                        return Bincoding.GetValue(list);
+                        return Bincoding.ParseListValue(list);
                     }
 
                 case BincodingType.KEY_VALUE_PAIR:
@@ -773,7 +953,7 @@ namespace TechnitiumLibrary.IO
                         string key = Encoding.UTF8.GetString(keyBuffer, 0, keyLen);
                         Bincoding value = DecodeNext();
 
-                        return Bincoding.GetValue(new KeyValuePair<string, Bincoding>(key, value));
+                        return Bincoding.ParseKeyValue(new KeyValuePair<string, Bincoding>(key, value));
                     }
 
                 case BincodingType.DICTIONARY:
@@ -789,7 +969,7 @@ namespace TechnitiumLibrary.IO
                             dictionary.Add(pair.Key, pair.Value);
                         }
 
-                        return Bincoding.GetValue(dictionary);
+                        return Bincoding.ParseDictionaryValue(dictionary);
                     }
 
                 default:
