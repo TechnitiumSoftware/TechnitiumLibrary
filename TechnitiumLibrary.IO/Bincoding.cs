@@ -663,7 +663,7 @@ namespace TechnitiumLibrary.IO
 
         public void EncodeBinaryList(IWriteStream[] value)
         {
-            Encode(Bincoding.ParseListValue(value));
+            Encode(Bincoding.ParseBinaryListValue(value));
         }
 
         public void EncodeKeyValue(KeyValuePair<string, Bincoding> value)
