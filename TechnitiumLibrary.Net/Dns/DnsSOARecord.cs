@@ -124,6 +124,11 @@ namespace TechnitiumLibrary.Net.Dns
             return _masterNameServer.GetHashCode();
         }
 
+        public override string ToString()
+        {
+            return "{MNAME: " + _masterNameServer + "; RNAME: " + _responsiblePerson + "; SERIAL: " + _serial + "; REFRESH: " + _refresh + "; RETRY: " + _retry + "; EXPIRE: " + _expire + "; MINIMUM: " + _minimum + ";}";
+        }
+
         #endregion
 
         #region properties

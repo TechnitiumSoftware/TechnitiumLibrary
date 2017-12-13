@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -89,6 +90,11 @@ namespace TechnitiumLibrary.Net.Dns
         public override int GetHashCode()
         {
             return _data.GetHashCode();
+        }
+
+        public override string ToString()
+        {
+            return Convert.ToBase64String(_data);
         }
 
         #endregion

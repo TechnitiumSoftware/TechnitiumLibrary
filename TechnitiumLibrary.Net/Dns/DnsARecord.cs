@@ -87,6 +87,11 @@ namespace TechnitiumLibrary.Net.Dns
             return _address.GetHashCode();
         }
 
+        public override string ToString()
+        {
+            return _address.ToString();
+        }
+
         #endregion
 
         #region properties

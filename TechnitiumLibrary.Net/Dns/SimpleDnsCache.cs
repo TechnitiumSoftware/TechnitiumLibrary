@@ -390,6 +390,11 @@ namespace TechnitiumLibrary.Net.Dns
                 return _authority.GetHashCode();
             }
 
+            public override string ToString()
+            {
+                return _authority.RDATA.ToString();
+            }
+
             #endregion
 
             #region properties
@@ -451,6 +456,11 @@ namespace TechnitiumLibrary.Net.Dns
             public override int GetHashCode()
             {
                 return _authority.GetHashCode();
+            }
+
+            public override string ToString()
+            {
+                return _authority.RDATA.ToString();
             }
 
             #endregion

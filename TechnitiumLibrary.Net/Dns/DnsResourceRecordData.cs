@@ -87,6 +87,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         public override abstract int GetHashCode();
 
+        public override abstract string ToString();
+
         #endregion
 
         #region properties

@@ -90,6 +90,11 @@ namespace TechnitiumLibrary.Net.Dns
             return _txtData.GetHashCode();
         }
 
+        public override string ToString()
+        {
+            return _txtData;
+        }
+
         #endregion
 
         #region properties
