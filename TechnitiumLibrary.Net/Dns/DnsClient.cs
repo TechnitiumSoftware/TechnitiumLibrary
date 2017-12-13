@@ -158,12 +158,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2, int maxRecursionHops = 3)
         {
-            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, tcp, retries);
+            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, tcp, retries, maxRecursionHops);
         }
 
-        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2, int maxRecursionHops = 3)
         {
             DnsQuestionRecord question;
 
@@ -172,15 +172,17 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
 
-            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, tcp, retries);
+            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, tcp, retries, maxRecursionHops);
         }
 
-        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2)
+        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2, int maxRecursionHops = 3)
         {
+            if (maxRecursionHops < 1) //maxRecursionHops is for avoiding stack overflow due to recursively trying to resolve name server without glue records over and over.
+                throw new DnsClientException("Maximum recursion hops exceeded.");
+
             if (cache != null)
             {
                 DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
-
                 DnsDatagram cacheResponse = cache.Query(request);
 
                 switch (cacheResponse.Header.RCODE)
@@ -233,7 +235,7 @@ namespace TechnitiumLibrary.Net.Dns
                 client._retries = retries;
 
                 DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
-                DnsDatagram response = client.Resolve(request, cache);
+                DnsDatagram response = client.Resolve(request, cache, maxRecursionHops - 1);
 
                 if (response.Header.Truncation)
                 {
@@ -241,7 +243,7 @@ namespace TechnitiumLibrary.Net.Dns
                         return response;
 
                     client._tcp = true;
-                    response = client.Resolve(request, cache);
+                    response = client.Resolve(request, cache, maxRecursionHops - 1);
                 }
 
                 if (cache != null)
@@ -283,7 +285,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public DnsDatagram Resolve(DnsDatagram request, IDnsCache cache = null)
+        public DnsDatagram Resolve(DnsDatagram request, IDnsCache cache = null, int maxRecursionHops = 3)
         {
             int bytesRecv;
             byte[] responseBuffer = null;
@@ -340,7 +342,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (server.EndPoint == null)
                 {
-                    server.ResolveAddress(cache, _proxy, _preferIPv6, _tcp, _retries);
+                    server.ResolveAddress(cache, _proxy, _preferIPv6, _tcp, _retries, maxRecursionHops);
 
                     if (server.EndPoint == null)
                     {
