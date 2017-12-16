@@ -20,11 +20,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Net.Sockets;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns
 {
-    public class NameServerAddress
+    public class NameServerAddress : IComparable<NameServerAddress>
     {
         #region variables
 
@@ -64,7 +65,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool selectNameServersWithGlue)
+        internal static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool selectOnlyNameServersWithGlue)
         {
             List<NameServerAddress> nameServers = new List<NameServerAddress>(4);
 
@@ -100,19 +101,24 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    if ((endPoint == null) && !selectNameServersWithGlue)
+                    if ((endPoint == null) && !selectOnlyNameServersWithGlue)
                         nameServers.Add(new NameServerAddress(nsRecord.NSDomainName));
                 }
             }
 
-            return nameServers.ToArray();
+            NameServerAddress[] nsArray = nameServers.ToArray();
+
+            if (!selectOnlyNameServersWithGlue)
+                Array.Sort(nsArray);
+
+            return nsArray;
         }
 
         #endregion
 
         #region public
 
-        public void ResolveAddress(IDnsCache cache, NetProxy proxy, bool preferIPv6, bool tcp, int retries, int maxRecursionHops)
+        internal void ResolveAddress(IDnsCache cache, NetProxy proxy, bool preferIPv6, bool tcp, int retries)
         {
             if ((_domain != null) && (_endPoint == null))
             {
@@ -120,7 +126,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     try
                     {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domain, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, proxy, true, tcp, retries, maxRecursionHops);
+                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domain, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, proxy, true, tcp, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
                             _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, 53);
                     }
@@ -132,7 +138,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     try
                     {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domain, DnsResourceRecordType.A, DnsClass.IN), null, cache, proxy, false, tcp, retries, maxRecursionHops);
+                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domain, DnsResourceRecordType.A, DnsClass.IN), null, cache, proxy, false, tcp, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
                             _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, 53);
                     }
@@ -150,6 +156,26 @@ namespace TechnitiumLibrary.Net.Dns
                 return _domain;
             else
                 return _domain + " [" + _endPoint.Address.ToString() + "]";
+        }
+
+        public int CompareTo(NameServerAddress other)
+        {
+            if ((this._endPoint == null) && (other._endPoint != null))
+                return 1;
+
+            if ((this._endPoint != null) && (other._endPoint == null))
+                return -1;
+
+            if ((this._endPoint == null) && (other._endPoint == null))
+                return 0;
+
+            if ((this._endPoint.AddressFamily == AddressFamily.InterNetwork) && (other._endPoint.AddressFamily == AddressFamily.InterNetworkV6))
+                return 1;
+
+            if ((this._endPoint.AddressFamily == AddressFamily.InterNetworkV6) && (other._endPoint.AddressFamily == AddressFamily.InterNetwork))
+                return -1;
+
+            return 0;
         }
 
         #endregion
