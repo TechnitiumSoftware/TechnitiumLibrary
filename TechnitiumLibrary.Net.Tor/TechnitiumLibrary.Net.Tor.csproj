@@ -10,6 +10,14 @@
   
   <PropertyGroup>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Authors>Shreyas Zare</Authors>
+    <Company>Technitium</Company>
+    <Product>Technitium Library</Product>
+    <PackageProjectUrl></PackageProjectUrl>
+    <RepositoryUrl>https://github.com/TechnitiumSoftware/TechnitiumLibrary</RepositoryUrl>
+    <RepositoryType></RepositoryType>
+    <Description>.NET Standard 2.0</Description>
+    <PackageId>TechnitiumLibrary.Net.Tor</PackageId>
   </PropertyGroup>
 
 </Project>
