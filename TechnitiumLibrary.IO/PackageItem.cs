@@ -34,6 +34,8 @@ namespace TechnitiumLibrary.IO
     {
         #region variables
 
+        static readonly DateTime _epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
         string _name;
         DateTime _lastModifiedUTC;
         PackageItemAttributes _attributes;
@@ -126,7 +128,8 @@ namespace TechnitiumLibrary.IO
 
         public static PackageItem Parse(Stream s)
         {
-            switch (s.ReadByte())
+            int version = s.ReadByte();
+            switch (version)
             {
                 case -1:
                     throw new EndOfStreamException();
@@ -135,12 +138,18 @@ namespace TechnitiumLibrary.IO
                     return null;
 
                 case 1:
+                case 2:
                     PackageItem item = new PackageItem();
 
                     BinaryReader bR = new BinaryReader(s);
 
                     item._name = Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadByte()));
-                    item._lastModifiedUTC = DateTime.FromBinary(bR.ReadInt64());
+
+                    if (version == 1)
+                        item._lastModifiedUTC = DateTime.FromBinary(bR.ReadInt64());
+                    else
+                        item._lastModifiedUTC = _epoch.AddSeconds(bR.ReadUInt64());
+
                     item._attributes = (PackageItemAttributes)bR.ReadByte();
 
                     item._extractTo = (ExtractLocation)bR.ReadByte();
@@ -172,7 +181,7 @@ namespace TechnitiumLibrary.IO
         {
             BinaryWriter bW = new BinaryWriter(s);
 
-            bW.Write((byte)1); //version
+            bW.Write((byte)2); //version
 
             byte[] buffer;
 
@@ -180,7 +189,7 @@ namespace TechnitiumLibrary.IO
             bW.Write(Convert.ToByte(buffer.Length));
             bW.Write(buffer, 0, buffer.Length);
 
-            bW.Write(_lastModifiedUTC.ToBinary());
+            bW.Write(Convert.ToUInt64((_lastModifiedUTC - _epoch).TotalSeconds));
             bW.Write((byte)_attributes);
 
             bW.Write((byte)_extractTo);

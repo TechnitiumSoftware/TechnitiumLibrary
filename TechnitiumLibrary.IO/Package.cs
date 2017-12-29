@@ -181,7 +181,7 @@ namespace TechnitiumLibrary.IO
                     return Environment.GetFolderPath(Environment.SpecialFolder.Templates);
 
                 case ExtractLocation.AppPath:
-                    return Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase.Replace("file:///", "").Replace("/", "\\"));
+                    return Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
 
                 case ExtractLocation.Custom:
                     return extractToCustomLocation;
