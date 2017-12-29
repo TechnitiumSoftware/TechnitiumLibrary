@@ -91,15 +91,33 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public Socket Connect(IPEndPoint remoteEP)
+        public Socket Connect(IPEndPoint remoteEP, int timeout = 10000)
         {
             switch (_type)
             {
                 case NetProxyType.Http:
-                    return _httpProxy.Connect(remoteEP);
+                    return _httpProxy.Connect(remoteEP, timeout);
 
                 case NetProxyType.Socks5:
-                    using (SocksConnectRequestHandler requestHandler = _socksProxy.Connect(remoteEP))
+                    using (SocksConnectRequestHandler requestHandler = _socksProxy.Connect(remoteEP, timeout))
+                    {
+                        return requestHandler.GetSocket();
+                    }
+
+                default:
+                    throw new NotSupportedException("Proxy type not supported.");
+            }
+        }
+
+        public Socket Connect(string address, int port, int timeout = 10000)
+        {
+            switch (_type)
+            {
+                case NetProxyType.Http:
+                    return _httpProxy.Connect(address, port, timeout);
+
+                case NetProxyType.Socks5:
+                    using (SocksConnectRequestHandler requestHandler = _socksProxy.Connect(address, port, timeout))
                     {
                         return requestHandler.GetSocket();
                     }
