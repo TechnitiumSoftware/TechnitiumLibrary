@@ -85,8 +85,8 @@ namespace TechnitiumLibrary.Security.Cryptography
             _issuedTo = issuedTo;
             _capability = capability;
 
-            _issuedOnUTC = Convert.ToUInt64((issuedOnUTC - new System.DateTime(1970, 1, 1)).TotalSeconds);
-            _expiresOnUTC = Convert.ToUInt64((expiresOnUTC - new System.DateTime(1970, 1, 1)).TotalSeconds);
+            _issuedOnUTC = Convert.ToUInt64((issuedOnUTC - _epoch).TotalSeconds);
+            _expiresOnUTC = Convert.ToUInt64((expiresOnUTC - _epoch).TotalSeconds);
 
             _publicKeyEncryptionAlgorithm = publicKeyEncryptionAlgorithm;
             _publicKeyXML = publicKeyXML;
@@ -380,7 +380,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public bool HasExpired()
         {
-            ulong currDate = Convert.ToUInt64((DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds);
+            ulong currDate = Convert.ToUInt64((DateTime.UtcNow - _epoch).TotalSeconds);
             return (((currDate + 7200) < _issuedOnUTC) || (currDate > _expiresOnUTC)); //adding 7200 sec (2 hr) margin to allow clients with out of sync system clocks to verify recently created cert.
         }
 
@@ -471,7 +471,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                 _issuerSignature.WriteTo(s);
             }
         }
-        
+
         #endregion
 
         #region properties

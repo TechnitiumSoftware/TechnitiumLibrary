@@ -30,6 +30,8 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
+        static readonly DateTime _epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
         string _serialNumber;
         DateTime _revokedOnUTC;
         byte[] _signature;
@@ -147,6 +149,13 @@ namespace TechnitiumLibrary.Security.Cryptography
                     _hashAlgo = Encoding.ASCII.GetString(bR.ReadBytes(bR.ReadByte()));
                     break;
 
+                case 2:
+                    _serialNumber = Encoding.ASCII.GetString(bR.ReadBytes(bR.ReadByte()));
+                    _revokedOnUTC = _epoch.AddSeconds(bR.ReadUInt64());
+                    _signature = bR.ReadBytes(bR.ReadUInt16());
+                    _hashAlgo = Encoding.ASCII.GetString(bR.ReadBytes(bR.ReadByte()));
+                    break;
+
                 default:
                     throw new InvalidCertificateException("RevocationCertificate format version not supported.");
             }
@@ -176,14 +185,14 @@ namespace TechnitiumLibrary.Security.Cryptography
             s.Write(Encoding.ASCII.GetBytes("RC"), 0, 2);
 
             //version
-            s.WriteByte((byte)1);
+            s.WriteByte((byte)2);
 
             //serial number
             s.WriteByte(Convert.ToByte(_serialNumber.Length));
             s.Write(Encoding.ASCII.GetBytes(_serialNumber), 0, _serialNumber.Length);
 
             //revoked on
-            s.Write(BitConverter.GetBytes(_revokedOnUTC.ToBinary()), 0, 8);
+            s.Write(BitConverter.GetBytes(Convert.ToUInt64((_revokedOnUTC - _epoch).TotalSeconds)), 0, 8);
 
             //signature
             s.Write(BitConverter.GetBytes(Convert.ToUInt16(_signature.Length)), 0, 2);
