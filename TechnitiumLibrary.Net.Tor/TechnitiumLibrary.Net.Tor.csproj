@@ -18,6 +18,7 @@
     <RepositoryType></RepositoryType>
     <Description>.NET Standard 2.0</Description>
     <PackageId>TechnitiumLibrary.Net.Tor</PackageId>
+    <Version>1.0.0.0</Version>
   </PropertyGroup>
 
 </Project>

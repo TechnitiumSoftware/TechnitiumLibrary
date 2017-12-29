@@ -20,6 +20,7 @@
     <PackageId>TechnitiumLibrary.Net.BitTorrent</PackageId>
     <AssemblyVersion>1.2.3.3</AssemblyVersion>
     <FileVersion>1.2.3.3</FileVersion>
+    <Version>1.2.3.3</Version>
   </PropertyGroup>
 
   <ItemGroup>

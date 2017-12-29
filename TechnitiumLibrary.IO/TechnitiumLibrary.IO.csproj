@@ -20,6 +20,7 @@
     <PackageId>TechnitiumLibrary.IO</PackageId>
     <AssemblyVersion>2.3.3.0</AssemblyVersion>
     <FileVersion>2.3.3.0</FileVersion>
+    <Version>2.3.3.0</Version>
   </PropertyGroup>
 
 </Project>
