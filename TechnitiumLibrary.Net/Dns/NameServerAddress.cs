@@ -77,26 +77,24 @@ namespace TechnitiumLibrary.Net.Dns
                     IPEndPoint endPoint = null;
 
                     //find ip address of authoritative name server from additional records
-                    if (preferIPv6)
+                    foreach (DnsResourceRecord rr in response.Additional)
                     {
-                        foreach (DnsResourceRecord rr in response.Additional)
+                        if (nsRecord.NSDomainName.Equals(rr.Name, StringComparison.CurrentCultureIgnoreCase))
                         {
-                            if ((rr.Name.Equals(nsRecord.NSDomainName, StringComparison.CurrentCultureIgnoreCase)) && (rr.Type == DnsResourceRecordType.AAAA))
+                            switch (rr.Type)
                             {
-                                endPoint = new IPEndPoint(((DnsAAAARecord)rr.RDATA).Address, 53);
-                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, endPoint));
-                            }
-                        }
-                    }
+                                case DnsResourceRecordType.A:
+                                    endPoint = new IPEndPoint(((DnsARecord)rr.RDATA).Address, 53);
+                                    nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, endPoint));
+                                    break;
 
-                    if (endPoint == null)
-                    {
-                        foreach (DnsResourceRecord rr in response.Additional)
-                        {
-                            if ((rr.Name.Equals(nsRecord.NSDomainName, StringComparison.CurrentCultureIgnoreCase)) && (rr.Type == DnsResourceRecordType.A))
-                            {
-                                endPoint = new IPEndPoint(((DnsARecord)rr.RDATA).Address, 53);
-                                nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, endPoint));
+                                case DnsResourceRecordType.AAAA:
+                                    endPoint = new IPEndPoint(((DnsAAAARecord)rr.RDATA).Address, 53);
+
+                                    if (preferIPv6)
+                                        nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, endPoint));
+
+                                    break;
                             }
                         }
                     }
@@ -108,10 +106,26 @@ namespace TechnitiumLibrary.Net.Dns
 
             NameServerAddress[] nsArray = nameServers.ToArray();
 
-            if (!selectOnlyNameServersWithGlue)
+            Shuffle(nsArray);
+
+            if (preferIPv6 || !selectOnlyNameServersWithGlue)
                 Array.Sort(nsArray);
 
             return nsArray;
+        }
+
+        internal static void Shuffle<T>(T[] array)
+        {
+            Random rng = new Random();
+
+            int n = array.Length;
+            while (n > 1)
+            {
+                int k = rng.Next(n--);
+                T temp = array[n];
+                array[n] = array[k];
+                array[k] = temp;
+            }
         }
 
         #endregion

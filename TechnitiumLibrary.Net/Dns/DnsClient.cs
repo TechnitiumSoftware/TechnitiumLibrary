@@ -56,38 +56,39 @@ namespace TechnitiumLibrary.Net.Dns
 
         static DnsClient()
         {
-            ROOT_NAME_SERVERS_IPv4 = new NameServerAddress[13];
+            ROOT_NAME_SERVERS_IPv4 = new NameServerAddress[]
+            {
+                new NameServerAddress("a.root-servers.net", IPAddress.Parse("198.41.0.4")), //VeriSign, Inc.
+                new NameServerAddress("b.root-servers.net", IPAddress.Parse("192.228.79.201")), //University of Southern California (ISI)
+                new NameServerAddress("c.root-servers.net", IPAddress.Parse("192.33.4.12")), //Cogent Communications
+                new NameServerAddress("d.root-servers.net", IPAddress.Parse("199.7.91.13")), //University of Maryland
+                new NameServerAddress("e.root-servers.net", IPAddress.Parse("192.203.230.10")), //NASA (Ames Research Center)
+                new NameServerAddress("f.root-servers.net", IPAddress.Parse("192.5.5.241")), //Internet Systems Consortium, Inc.
+                new NameServerAddress("g.root-servers.net", IPAddress.Parse("192.112.36.4")), //US Department of Defense (NIC)
+                new NameServerAddress("h.root-servers.net", IPAddress.Parse("198.97.190.53")), //US Army (Research Lab)
+                new NameServerAddress("i.root-servers.net", IPAddress.Parse("192.36.148.17")), //Netnod
+                new NameServerAddress("j.root-servers.net", IPAddress.Parse("192.58.128.30")), //VeriSign, Inc.
+                new NameServerAddress("k.root-servers.net", IPAddress.Parse("193.0.14.129")), //RIPE NCC
+                new NameServerAddress("l.root-servers.net", IPAddress.Parse("199.7.83.42")), //ICANN
+                new NameServerAddress("m.root-servers.net", IPAddress.Parse("202.12.27.33")) //WIDE Project
+            };
 
-            ROOT_NAME_SERVERS_IPv4[0] = new NameServerAddress("a.root-servers.net", IPAddress.Parse("198.41.0.4")); //VeriSign, Inc.
-            ROOT_NAME_SERVERS_IPv4[1] = new NameServerAddress("b.root-servers.net", IPAddress.Parse("192.228.79.201")); //University of Southern California (ISI)
-            ROOT_NAME_SERVERS_IPv4[2] = new NameServerAddress("c.root-servers.net", IPAddress.Parse("192.33.4.12")); //Cogent Communications
-            ROOT_NAME_SERVERS_IPv4[3] = new NameServerAddress("d.root-servers.net", IPAddress.Parse("199.7.91.13")); //University of Maryland
-            ROOT_NAME_SERVERS_IPv4[4] = new NameServerAddress("e.root-servers.net", IPAddress.Parse("192.203.230.10")); //NASA (Ames Research Center)
-            ROOT_NAME_SERVERS_IPv4[5] = new NameServerAddress("f.root-servers.net", IPAddress.Parse("192.5.5.241")); //Internet Systems Consortium, Inc.
-            ROOT_NAME_SERVERS_IPv4[6] = new NameServerAddress("g.root-servers.net", IPAddress.Parse("192.112.36.4")); //US Department of Defense (NIC)
-            ROOT_NAME_SERVERS_IPv4[7] = new NameServerAddress("h.root-servers.net", IPAddress.Parse("198.97.190.53")); //US Army (Research Lab)
-            ROOT_NAME_SERVERS_IPv4[8] = new NameServerAddress("i.root-servers.net", IPAddress.Parse("192.36.148.17")); //Netnod
-            ROOT_NAME_SERVERS_IPv4[9] = new NameServerAddress("j.root-servers.net", IPAddress.Parse("192.58.128.30")); //VeriSign, Inc.
-            ROOT_NAME_SERVERS_IPv4[10] = new NameServerAddress("k.root-servers.net", IPAddress.Parse("193.0.14.129")); //RIPE NCC
-            ROOT_NAME_SERVERS_IPv4[11] = new NameServerAddress("l.root-servers.net", IPAddress.Parse("199.7.83.42")); //ICANN
-            ROOT_NAME_SERVERS_IPv4[12] = new NameServerAddress("m.root-servers.net", IPAddress.Parse("202.12.27.33")); //WIDE Project
-
-
-            ROOT_NAME_SERVERS_IPv6 = new NameServerAddress[13];
-
-            ROOT_NAME_SERVERS_IPv6[0] = new NameServerAddress("a.root-servers.net", IPAddress.Parse("2001:503:ba3e::2:30")); //VeriSign, Inc.
-            ROOT_NAME_SERVERS_IPv6[1] = new NameServerAddress("b.root-servers.net", IPAddress.Parse("2001:500:84::b")); //University of Southern California (ISI)
-            ROOT_NAME_SERVERS_IPv6[2] = new NameServerAddress("c.root-servers.net", IPAddress.Parse("2001:500:2::c")); //Cogent Communications
-            ROOT_NAME_SERVERS_IPv6[3] = new NameServerAddress("d.root-servers.net", IPAddress.Parse("2001:500:2d::d")); //University of Maryland
-            ROOT_NAME_SERVERS_IPv6[4] = new NameServerAddress("e.root-servers.net", IPAddress.Parse("2001:500:a8::e")); //NASA (Ames Research Center)
-            ROOT_NAME_SERVERS_IPv6[5] = new NameServerAddress("f.root-servers.net", IPAddress.Parse("2001:500:2f::f")); //Internet Systems Consortium, Inc.
-            ROOT_NAME_SERVERS_IPv6[6] = new NameServerAddress("g.root-servers.net", IPAddress.Parse("2001:500:12::d0d")); //US Department of Defense (NIC)
-            ROOT_NAME_SERVERS_IPv6[7] = new NameServerAddress("h.root-servers.net", IPAddress.Parse("2001:500:1::53")); //US Army (Research Lab)
-            ROOT_NAME_SERVERS_IPv6[8] = new NameServerAddress("i.root-servers.net", IPAddress.Parse("2001:7fe::53")); //Netnod
-            ROOT_NAME_SERVERS_IPv6[9] = new NameServerAddress("j.root-servers.net", IPAddress.Parse("2001:503:c27::2:30")); //VeriSign, Inc.
-            ROOT_NAME_SERVERS_IPv6[10] = new NameServerAddress("k.root-servers.net", IPAddress.Parse("2001:7fd::1")); //RIPE NCC
-            ROOT_NAME_SERVERS_IPv6[11] = new NameServerAddress("l.root-servers.net", IPAddress.Parse("2001:500:9f::42")); //ICANN
-            ROOT_NAME_SERVERS_IPv6[12] = new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")); //WIDE Project
+            ROOT_NAME_SERVERS_IPv6 = new NameServerAddress[]
+            {
+                new NameServerAddress("a.root-servers.net", IPAddress.Parse("2001:503:ba3e::2:30")), //VeriSign, Inc.
+                new NameServerAddress("b.root-servers.net", IPAddress.Parse("2001:500:84::b")), //University of Southern California (ISI)
+                new NameServerAddress("c.root-servers.net", IPAddress.Parse("2001:500:2::c")), //Cogent Communications
+                new NameServerAddress("d.root-servers.net", IPAddress.Parse("2001:500:2d::d")), //University of Maryland
+                new NameServerAddress("e.root-servers.net", IPAddress.Parse("2001:500:a8::e")), //NASA (Ames Research Center)
+                new NameServerAddress("f.root-servers.net", IPAddress.Parse("2001:500:2f::f")), //Internet Systems Consortium, Inc.
+                new NameServerAddress("g.root-servers.net", IPAddress.Parse("2001:500:12::d0d")), //US Department of Defense (NIC)
+                new NameServerAddress("h.root-servers.net", IPAddress.Parse("2001:500:1::53")), //US Army (Research Lab)
+                new NameServerAddress("i.root-servers.net", IPAddress.Parse("2001:7fe::53")), //Netnod
+                new NameServerAddress("j.root-servers.net", IPAddress.Parse("2001:503:c27::2:30")), //VeriSign, Inc.
+                new NameServerAddress("k.root-servers.net", IPAddress.Parse("2001:7fd::1")), //RIPE NCC
+                new NameServerAddress("l.root-servers.net", IPAddress.Parse("2001:500:9f::42")), //ICANN
+                new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")) //WIDE Project
+            };
         }
 
         public DnsClient(bool preferIPv6 = false)
@@ -303,6 +304,8 @@ namespace TechnitiumLibrary.Net.Dns
                     else
                         nameServers = ROOT_NAME_SERVERS_IPv4;
                 }
+
+                NameServerAddress.Shuffle(nameServers);
 
                 int hopCount = 0;
                 while ((hopCount++) < MAX_HOPS) //resolver loop
