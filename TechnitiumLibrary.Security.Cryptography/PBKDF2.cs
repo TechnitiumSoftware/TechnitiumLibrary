@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -28,6 +28,8 @@ namespace TechnitiumLibrary.Security.Cryptography
     public class PBKDF2 : DeriveBytes
     {
         #region variables
+
+        static readonly RandomNumberGenerator _rng = new RNGCryptoServiceProvider();
 
         HMAC _PRF;
         byte[] _password;
@@ -70,8 +72,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             HMAC PRF = new HMACSHA1(password);
 
             byte[] salt = new byte[saltLength];
-            RandomNumberGenerator rng = new RNGCryptoServiceProvider();
-            rng.GetBytes(salt);
+            _rng.GetBytes(salt);
 
             return new PBKDF2(PRF, password, salt, iterationCount);
         }
@@ -96,8 +97,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             HMAC PRF = new HMACSHA256(password);
 
             byte[] salt = new byte[saltLength];
-            RandomNumberGenerator rng = new RNGCryptoServiceProvider();
-            rng.GetBytes(salt);
+            _rng.GetBytes(salt);
 
             return new PBKDF2(PRF, password, salt, iterationCount);
         }

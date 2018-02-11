@@ -24,6 +24,12 @@ namespace TechnitiumLibrary.Security.Cryptography
 {
     public class RC4Managed : SymmetricAlgorithm
     {
+        #region variables
+
+        static readonly RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+
+        #endregion
+
         #region constructor
 
         public RC4Managed()
@@ -69,20 +75,16 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public override void GenerateIV()
         {
-            RandomNumberGenerator rnd = new RNGCryptoServiceProvider();
-
             byte[] iv = new byte[this.KeySizeValue / 8];
-            rnd.GetBytes(iv);
+            _rnd.GetBytes(iv);
 
             this.IVValue = iv;
         }
 
         public override void GenerateKey()
         {
-            RandomNumberGenerator rnd = new RNGCryptoServiceProvider();
-
             byte[] key = new byte[this.KeySizeValue / 8];
-            rnd.GetBytes(key);
+            _rnd.GetBytes(key);
 
             this.KeyValue = key;
         }

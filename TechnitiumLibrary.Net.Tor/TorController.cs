@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -38,6 +38,8 @@ namespace TechnitiumLibrary.Net.Tor
     public class TorController : IDisposable
     {
         #region variables
+
+        static readonly RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         readonly string _torExecutableFile;
         int _controlPort = 9051;
@@ -129,9 +131,8 @@ namespace TechnitiumLibrary.Net.Tor
                 string password;
 
                 {
-                    RandomNumberGenerator rnd = new RNGCryptoServiceProvider();
                     byte[] buffer = new byte[32];
-                    rnd.GetBytes(buffer);
+                    _rnd.GetBytes(buffer);
 
                     password = BitConverter.ToString(buffer).Replace("-", "").ToLower();
                 }
