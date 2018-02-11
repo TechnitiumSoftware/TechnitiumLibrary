@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
+using System.Security.Cryptography;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
@@ -179,6 +180,127 @@ namespace TechnitiumLibrary.Security.Cryptography
             else
             {
                 Encode(DEREncodingASN1Type.INTEGER, value, s);
+            }
+        }
+
+        public static RSAParameters DecodeRSAPrivateKey(byte[] data)
+        {
+            using (MemoryStream mS = new MemoryStream(data))
+            {
+                return DecodeRSAPrivateKey(mS);
+            }
+        }
+
+        public static RSAParameters DecodeRSAPrivateKey(Stream s)
+        {
+            DEREncoding seq = Decode(s);
+
+            using (Stream seqStream = seq.GetValueStream())
+            {
+                DEREncoding objVer = Decode(seqStream);
+
+                if (objVer.Value[0] != 0)
+                    throw new IOException("Unknown version number for RSA private key data.");
+
+                DEREncoding objModulus = Decode(seqStream);
+                DEREncoding objExponent = Decode(seqStream);
+                DEREncoding objD = Decode(seqStream);
+                DEREncoding objP = Decode(seqStream);
+                DEREncoding objQ = Decode(seqStream);
+                DEREncoding objDP = Decode(seqStream);
+                DEREncoding objDQ = Decode(seqStream);
+                DEREncoding objInverseQ = Decode(seqStream);
+
+                RSAParameters parameters = new RSAParameters();
+
+                parameters.Modulus = objModulus.GetIntegerValue();
+                parameters.Exponent = objExponent.GetIntegerValue();
+                parameters.D = objD.GetIntegerValue();
+                parameters.P = objP.GetIntegerValue();
+                parameters.Q = objQ.GetIntegerValue();
+                parameters.DP = objDP.GetIntegerValue();
+                parameters.DQ = objDQ.GetIntegerValue();
+                parameters.InverseQ = objInverseQ.GetIntegerValue();
+
+                return parameters;
+            }
+        }
+
+        public static byte[] EncodeRSAPrivateKey(RSAParameters parameters)
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                EncodeRSAPrivateKey(parameters, mS);
+
+                return mS.ToArray();
+            }
+        }
+
+        public static void EncodeRSAPrivateKey(RSAParameters parameters, Stream s)
+        {
+            using (MemoryStream seqStream = new MemoryStream())
+            {
+                Encode(DEREncodingASN1Type.INTEGER, new byte[] { 0 }, seqStream); //version
+
+                EncodeIntegerValue(parameters.Modulus, seqStream);
+                EncodeIntegerValue(parameters.Exponent, seqStream);
+                EncodeIntegerValue(parameters.D, seqStream);
+                EncodeIntegerValue(parameters.P, seqStream);
+                EncodeIntegerValue(parameters.Q, seqStream);
+                EncodeIntegerValue(parameters.DP, seqStream);
+                EncodeIntegerValue(parameters.DQ, seqStream);
+                EncodeIntegerValue(parameters.InverseQ, seqStream);
+
+                //write sequence to output stream
+                Encode(DEREncodingASN1Type.SEQUENCE, seqStream.ToArray(), s);
+            }
+        }
+
+        public static RSAParameters DecodeRSAPublicKey(byte[] data)
+        {
+            using (MemoryStream mS = new MemoryStream(data))
+            {
+                return DecodeRSAPublicKey(mS);
+            }
+        }
+
+        public static RSAParameters DecodeRSAPublicKey(Stream s)
+        {
+            DEREncoding seq = Decode(s);
+
+            using (Stream seqStream = seq.GetValueStream())
+            {
+                DEREncoding objModulus = Decode(seqStream);
+                DEREncoding objExponent = Decode(seqStream);
+
+                RSAParameters parameters = new RSAParameters();
+
+                parameters.Modulus = objModulus.GetIntegerValue();
+                parameters.Exponent = objExponent.GetIntegerValue();
+
+                return parameters;
+            }
+        }
+
+        public static byte[] EncodeRSAPublicKey(RSAParameters parameters)
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                EncodeRSAPublicKey(parameters, mS);
+
+                return mS.ToArray();
+            }
+        }
+
+        public static void EncodeRSAPublicKey(RSAParameters parameters, Stream s)
+        {
+            using (MemoryStream seqStream = new MemoryStream())
+            {
+                EncodeIntegerValue(parameters.Modulus, seqStream);
+                EncodeIntegerValue(parameters.Exponent, seqStream);
+
+                //write sequence to output stream
+                Encode(DEREncodingASN1Type.SEQUENCE, seqStream.ToArray(), s);
             }
         }
 
