@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -178,6 +178,14 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool tcp = false, int retries = 2, int maxStackCount = 10)
         {
+            if ((nameServers != null) && (nameServers.Length > 0))
+            {
+                //create copy of name servers array so that the values in original array are not messed due to shuffling feature
+                NameServerAddress[] nameServersCopy = new NameServerAddress[nameServers.Length];
+                Array.Copy(nameServers, nameServersCopy, nameServers.Length);
+                nameServers = nameServersCopy;
+            }
+
             Stack<ResolverData> resolverStack = new Stack<ResolverData>();
             int stackNameServerIndex = 0;
 
@@ -299,10 +307,17 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if ((nameServers == null) || (nameServers.Length == 0))
                 {
+                    //create copy of root name servers array so that the values in original array are not messed due to shuffling feature
                     if (preferIPv6)
-                        nameServers = ROOT_NAME_SERVERS_IPv6;
+                    {
+                        nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv6.Length];
+                        Array.Copy(ROOT_NAME_SERVERS_IPv6, nameServers, ROOT_NAME_SERVERS_IPv6.Length);
+                    }
                     else
-                        nameServers = ROOT_NAME_SERVERS_IPv4;
+                    {
+                        nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv4.Length];
+                        Array.Copy(ROOT_NAME_SERVERS_IPv4, nameServers, ROOT_NAME_SERVERS_IPv4.Length);
+                    }
                 }
 
                 NameServerAddress.Shuffle(nameServers);
