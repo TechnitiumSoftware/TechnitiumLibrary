@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -115,18 +115,13 @@ namespace TechnitiumLibrary.Security.Cryptography
         #region IDisposable
 
         bool _disposed = false;
-
-        ~AsymmetricCryptoKey()
-        {
-            Dispose(false);
-        }
-
+        
         public void Dispose()
         {
             Dispose(true);
         }
 
-        private void Dispose(bool Disposing)
+        private void Dispose(bool disposing)
         {
             if (!_disposed)
             {
@@ -158,10 +153,12 @@ namespace TechnitiumLibrary.Security.Cryptography
             switch (cryptoAlgo)
             {
                 case AsymmetricEncryptionAlgorithm.RSA:
-                    RSACryptoServiceProvider rsa = new RSACryptoServiceProvider();
-                    rsa.PersistKeyInCsp = false;
-                    rsa.FromXmlString(publicKey);
-                    return rsa.Encrypt(data, false);
+                    using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
+                    {
+                        rsa.PersistKeyInCsp = false;
+                        rsa.FromXmlString(publicKey);
+                        return rsa.Encrypt(data, false);
+                    }
 
                 default:
                     throw new NotImplementedException("Feature not implemented for specified algorithm.");
@@ -173,10 +170,12 @@ namespace TechnitiumLibrary.Security.Cryptography
             switch (cryptoAlgo)
             {
                 case AsymmetricEncryptionAlgorithm.RSA:
-                    RSACryptoServiceProvider rsa = new RSACryptoServiceProvider();
-                    rsa.PersistKeyInCsp = false;
-                    rsa.FromXmlString(privateKey);
-                    return rsa.Decrypt(data, false);
+                    using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
+                    {
+                        rsa.PersistKeyInCsp = false;
+                        rsa.FromXmlString(privateKey);
+                        return rsa.Decrypt(data, false);
+                    }
 
                 default:
                     throw new NotImplementedException("Feature not implemented for specified algorithm.");
@@ -185,12 +184,23 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public static bool Verify(Stream data, byte[] signedHash, string hashAlgo, Certificate signingCert)
         {
-            return Verify(HashAlgorithm.Create(hashAlgo).ComputeHash(data), signedHash, hashAlgo, signingCert.PublicKeyEncryptionAlgorithm, signingCert.PublicKeyXML);
+            using (HashAlgorithm hash = HashAlgorithm.Create(hashAlgo))
+            {
+                return Verify(hash.ComputeHash(data), signedHash, hashAlgo, signingCert.PublicKeyEncryptionAlgorithm, signingCert.PublicKeyXML);
+            }
         }
 
         public static bool Verify(byte[] hash, byte[] signedHash, string hashAlgo, Certificate signingCert)
         {
             return Verify(hash, signedHash, hashAlgo, signingCert.PublicKeyEncryptionAlgorithm, signingCert.PublicKeyXML);
+        }
+
+        public static bool Verify(Stream data, byte[] signedHash, string hashAlgo, AsymmetricEncryptionAlgorithm cryptoAlgo, string publicKey)
+        {
+            using (HashAlgorithm hash = HashAlgorithm.Create(hashAlgo))
+            {
+                return Verify(hash.ComputeHash(data), signedHash, hashAlgo, cryptoAlgo, publicKey);
+            }
         }
 
         public static bool Verify(byte[] hash, byte[] signedHash, string hashAlgo, AsymmetricEncryptionAlgorithm cryptoAlgo, string publicKey)
@@ -223,7 +233,10 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public static byte[] Sign(Stream data, string hashAlgo, AsymmetricEncryptionAlgorithm cryptoAlgo, string privateKey)
         {
-            return Sign(HashAlgorithm.Create(hashAlgo).ComputeHash(data), hashAlgo, cryptoAlgo, privateKey);
+            using (HashAlgorithm hash = HashAlgorithm.Create(hashAlgo))
+            {
+                return Sign(hash.ComputeHash(data), hashAlgo, cryptoAlgo, privateKey);
+            }
         }
 
         public static byte[] Sign(byte[] hash, string hashAlgo, AsymmetricEncryptionAlgorithm cryptoAlgo, string privateKey)
@@ -268,10 +281,18 @@ namespace TechnitiumLibrary.Security.Cryptography
             s.Write(BitConverter.GetBytes(Convert.ToUInt16(key.Length)), 0, 2);
             s.Write(key, 0, key.Length);
         }
-        
+
         public string GetPublicKey()
         {
             return _asymAlgo.ToXmlString(false);
+        }
+
+        public RSAParameters GetRSAPublicKey()
+        {
+            if (_cryptoAlgo != AsymmetricEncryptionAlgorithm.RSA)
+                throw new CryptoException("Cannot read RSA public key: not an RSA algorithm.");
+
+            return (_asymAlgo as RSACryptoServiceProvider).ExportParameters(false);
         }
 
         public AsymmetricEncryptionAlgorithm Algorithm
@@ -286,8 +307,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             switch (_cryptoAlgo)
             {
                 case AsymmetricEncryptionAlgorithm.RSA:
-                    RSACryptoServiceProvider rsa = _asymAlgo as RSACryptoServiceProvider;
-                    return rsa.Encrypt(data, false);
+                    return (_asymAlgo as RSACryptoServiceProvider).Encrypt(data, false);
 
                 default:
                     throw new NotImplementedException("Feature not implemented for specified algorithm.");
@@ -299,8 +319,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             switch (_cryptoAlgo)
             {
                 case AsymmetricEncryptionAlgorithm.RSA:
-                    RSACryptoServiceProvider rsa = _asymAlgo as RSACryptoServiceProvider;
-                    return rsa.Decrypt(data, false);
+                    return (_asymAlgo as RSACryptoServiceProvider).Decrypt(data, false);
 
                 default:
                     throw new NotImplementedException("Feature not implemented for specified algorithm.");
@@ -309,7 +328,10 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public bool Verify(Stream data, byte[] signedHash, string hashAlgo)
         {
-            return Verify(HashAlgorithm.Create(hashAlgo).ComputeHash(data), signedHash, hashAlgo);
+            using (HashAlgorithm hash = HashAlgorithm.Create(hashAlgo))
+            {
+                return Verify(hash.ComputeHash(data), signedHash, hashAlgo);
+            }
         }
 
         public bool Verify(byte[] hash, byte[] signedHash, string hashAlgo)
@@ -317,8 +339,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             switch (_cryptoAlgo)
             {
                 case AsymmetricEncryptionAlgorithm.RSA:
-                    RSACryptoServiceProvider RSA = (RSACryptoServiceProvider)_asymAlgo;
-                    return RSA.VerifyHash(hash, CryptoConfig.MapNameToOID(hashAlgo), signedHash);
+                    return (_asymAlgo as RSACryptoServiceProvider).VerifyHash(hash, CryptoConfig.MapNameToOID(hashAlgo), signedHash);
 
                 case AsymmetricEncryptionAlgorithm.DSA:
                     DSASignatureDeformatter DSADeformatter = new DSASignatureDeformatter(_asymAlgo);
@@ -332,7 +353,10 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public byte[] Sign(Stream data, string hashAlgo)
         {
-            return Sign(HashAlgorithm.Create(hashAlgo).ComputeHash(data), hashAlgo);
+            using (HashAlgorithm hash = HashAlgorithm.Create(hashAlgo))
+            {
+                return Sign(hash.ComputeHash(data), hashAlgo);
+            }
         }
 
         public byte[] Sign(byte[] hash, string hashAlgo)
@@ -345,8 +369,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                     return DSAFormatter.CreateSignature(hash);
 
                 case AsymmetricEncryptionAlgorithm.RSA:
-                    RSACryptoServiceProvider RSA = (RSACryptoServiceProvider)_asymAlgo;
-                    return RSA.SignHash(hash, CryptoConfig.MapNameToOID(hashAlgo));
+                    return (_asymAlgo as RSACryptoServiceProvider).SignHash(hash, CryptoConfig.MapNameToOID(hashAlgo));
 
                 default:
                     throw new NotImplementedException("Feature not implemented for specified algorithm.");
