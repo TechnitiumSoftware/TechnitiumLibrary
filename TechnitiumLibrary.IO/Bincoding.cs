@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -41,7 +41,8 @@ namespace TechnitiumLibrary.IO
         LIST = 12,
         KEY_VALUE_PAIR = 13,
         DICTIONARY = 14,
-        DATETIME = 15
+        DATETIME = 15,
+        SHORTSTRING = 16
     }
 
     public class Bincoding
@@ -252,9 +253,12 @@ namespace TechnitiumLibrary.IO
             }
         }
 
-        public static Bincoding ParseValue(string value)
+        public static Bincoding ParseValue(string value, bool shortString = false)
         {
-            return new Bincoding(BincodingType.STRING, Encoding.UTF8.GetBytes(value));
+            if (shortString)
+                return new Bincoding(BincodingType.SHORTSTRING, Encoding.UTF8.GetBytes(value));
+            else
+                return new Bincoding(BincodingType.STRING, Encoding.UTF8.GetBytes(value));
         }
 
         public static Bincoding ParseValue(Stream value)
@@ -330,6 +334,7 @@ namespace TechnitiumLibrary.IO
                 case BincodingType.BINARY:
                     return (T)(object)Value;
 
+                case BincodingType.SHORTSTRING:
                 case BincodingType.STRING:
                     return (T)(object)GetStringValue();
 
@@ -531,6 +536,11 @@ namespace TechnitiumLibrary.IO
                 case BincodingType.NULL:
                     break;
 
+                case BincodingType.SHORTSTRING:
+                    _s.WriteByte(Convert.ToByte(value.Value.Length));
+                    _s.Write(value.Value, 0, value.Value.Length);
+                    break;
+
                 case BincodingType.BINARY:
                 case BincodingType.STRING:
                     WriteLength(_s, value.Value.Length);
@@ -641,9 +651,9 @@ namespace TechnitiumLibrary.IO
             Encode(Bincoding.ParseValue(value));
         }
 
-        public void Encode(string value)
+        public void Encode(string value, bool shortString = false)
         {
-            Encode(Bincoding.ParseValue(value));
+            Encode(Bincoding.ParseValue(value, shortString));
         }
 
         public void Encode(Stream value)
@@ -807,7 +817,12 @@ namespace TechnitiumLibrary.IO
 
             _s = s;
             _format = format;
-            _version = (byte)s.ReadByte();
+
+            int version = s.ReadByte();
+            if (version < 0)
+                throw new EndOfStreamException();
+
+            _version = (byte)version;
         }
 
         #endregion
@@ -817,6 +832,8 @@ namespace TechnitiumLibrary.IO
         private int ReadLength(Stream s)
         {
             int length1 = s.ReadByte();
+            if (length1 < 0)
+                throw new EndOfStreamException();
 
             if (length1 > 127)
             {
@@ -877,11 +894,26 @@ namespace TechnitiumLibrary.IO
                 case BincodingType.NULL:
                     return new Bincoding(type, null);
 
+                case BincodingType.SHORTSTRING:
+                    {
+                        int len = _s.ReadByte();
+                        if (len < 0)
+                            throw new EndOfStreamException();
+
+                        byte[] value = new byte[len];
+                        OffsetStream.StreamRead(_s, value, 0, value.Length);
+
+                        return new Bincoding(type, value);
+                    }
+
                 case BincodingType.BOOLEAN:
                 case BincodingType.BYTE:
                     {
-                        byte value = (byte)_s.ReadByte();
-                        return new Bincoding(type, new byte[] { value });
+                        int value = _s.ReadByte();
+                        if (value < 0)
+                            throw new EndOfStreamException();
+
+                        return new Bincoding(type, new byte[] { (byte)value });
                     }
 
                 case BincodingType.SHORT:
@@ -947,6 +979,9 @@ namespace TechnitiumLibrary.IO
                 case BincodingType.KEY_VALUE_PAIR:
                     {
                         int keyLen = _s.ReadByte();
+                        if (keyLen < 0)
+                            throw new EndOfStreamException();
+
                         byte[] keyBuffer = new byte[keyLen];
                         OffsetStream.StreamRead(_s, keyBuffer, 0, keyLen);
 
