@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,15 +27,15 @@ namespace TechnitiumLibrary.IO
     {
         #region variables
 
-        byte[] _number;
+        byte[] _value;
 
         #endregion
 
         #region constructor
 
-        public BinaryNumber(byte[] number)
+        public BinaryNumber(byte[] value)
         {
-            _number = number;
+            _value = value;
         }
 
         public BinaryNumber(Stream s)
@@ -44,8 +44,8 @@ namespace TechnitiumLibrary.IO
             if (length < 0)
                 throw new EndOfStreamException();
 
-            _number = new byte[length];
-            OffsetStream.StreamRead(s, _number, 0, length);
+            _value = new byte[length];
+            OffsetStream.StreamRead(s, _value, 0, length);
         }
 
         #endregion
@@ -79,10 +79,33 @@ namespace TechnitiumLibrary.IO
 
         public static BinaryNumber Clone(byte[] buffer, int offset, int count)
         {
-            byte[] number = new byte[count];
-            Buffer.BlockCopy(buffer, offset, number, 0, count);
+            byte[] value = new byte[count];
+            Buffer.BlockCopy(buffer, offset, value, 0, count);
 
-            return new BinaryNumber(number);
+            return new BinaryNumber(value);
+        }
+
+        public static bool Equals(byte[] value1, byte[] value2)
+        {
+            if ((value1 == null) && (value2 == null))
+                return true;
+
+            if ((value1 == null) || (value2 == null))
+                return false;
+
+            if (ReferenceEquals(value1, value2))
+                return true;
+
+            if (value1.Length != value2.Length)
+                return false;
+
+            for (int i = 0; i < value1.Length; i++)
+            {
+                if (value1[i] != value2[i])
+                    return false;
+            }
+
+            return true;
         }
 
         #endregion
@@ -91,31 +114,17 @@ namespace TechnitiumLibrary.IO
 
         public BinaryNumber Clone()
         {
-            byte[] number = new byte[_number.Length];
-            Buffer.BlockCopy(_number, 0, number, 0, _number.Length);
-            return new BinaryNumber(number);
+            byte[] value = new byte[_value.Length];
+            Buffer.BlockCopy(_value, 0, value, 0, _value.Length);
+            return new BinaryNumber(value);
         }
 
         public bool Equals(BinaryNumber obj)
         {
-            if (ReferenceEquals(null, obj))
+            if (obj is null)
                 return false;
 
-            if (ReferenceEquals(this, obj))
-                return true;
-
-            byte[] objNumber = obj._number;
-
-            if (_number.Length != objNumber.Length)
-                return false;
-
-            for (int i = 0; i < _number.Length; i++)
-            {
-                if (_number[i] != objNumber[i])
-                    return false;
-            }
-
-            return true;
+            return Equals(_value, obj._value);
         }
 
         public override bool Equals(object obj)
@@ -125,23 +134,23 @@ namespace TechnitiumLibrary.IO
 
         public override int GetHashCode()
         {
-            if (_number.Length < 4)
+            if (_value.Length < 4)
                 return 0;
             else
-                return BitConverter.ToInt32(_number, 0);
+                return BitConverter.ToInt32(_value, 0);
         }
 
         public int CompareTo(BinaryNumber other)
         {
-            if (this._number.Length != other._number.Length)
-                throw new ArgumentException("Operand number length not equal.");
+            if (this._value.Length != other._value.Length)
+                throw new ArgumentException("Operand value length not equal.");
 
-            for (int i = 0; i < this._number.Length; i++)
+            for (int i = 0; i < this._value.Length; i++)
             {
-                if (this._number[i] > other._number[i])
+                if (this._value[i] > other._value[i])
                     return 1;
 
-                if (this._number[i] < other._number[i])
+                if (this._value[i] < other._value[i])
                     return -1;
             }
 
@@ -150,13 +159,13 @@ namespace TechnitiumLibrary.IO
 
         public override string ToString()
         {
-            return BitConverter.ToString(_number).Replace("-", "").ToLower();
+            return BitConverter.ToString(_value).Replace("-", "").ToLower();
         }
 
         public void WriteTo(Stream s)
         {
-            s.WriteByte(Convert.ToByte(_number.Length));
-            s.Write(_number, 0, _number.Length);
+            s.WriteByte(Convert.ToByte(_value.Length));
+            s.Write(_value, 0, _value.Length);
         }
 
         #endregion
@@ -181,106 +190,106 @@ namespace TechnitiumLibrary.IO
 
         public static BinaryNumber operator |(BinaryNumber b1, BinaryNumber b2)
         {
-            if (b1._number.Length != b2._number.Length)
-                throw new ArgumentException("Operand number length not equal.");
+            if (b1._value.Length != b2._value.Length)
+                throw new ArgumentException("Operand value length not equal.");
 
-            byte[] number = new byte[b1._number.Length];
+            byte[] value = new byte[b1._value.Length];
 
-            for (int i = 0; i < number.Length; i++)
-                number[i] = (byte)(b1._number[i] | b2._number[i]);
+            for (int i = 0; i < value.Length; i++)
+                value[i] = (byte)(b1._value[i] | b2._value[i]);
 
-            return new BinaryNumber(number);
+            return new BinaryNumber(value);
         }
 
         public static BinaryNumber operator &(BinaryNumber b1, BinaryNumber b2)
         {
-            if (b1._number.Length != b2._number.Length)
-                throw new ArgumentException("Operand number length not equal.");
+            if (b1._value.Length != b2._value.Length)
+                throw new ArgumentException("Operand value length not equal.");
 
-            byte[] number = new byte[b1._number.Length];
+            byte[] value = new byte[b1._value.Length];
 
-            for (int i = 0; i < number.Length; i++)
-                number[i] = (byte)(b1._number[i] & b2._number[i]);
+            for (int i = 0; i < value.Length; i++)
+                value[i] = (byte)(b1._value[i] & b2._value[i]);
 
-            return new BinaryNumber(number);
+            return new BinaryNumber(value);
         }
 
         public static BinaryNumber operator ^(BinaryNumber b1, BinaryNumber b2)
         {
-            if (b1._number.Length != b2._number.Length)
-                throw new ArgumentException("Operand number length not equal.");
+            if (b1._value.Length != b2._value.Length)
+                throw new ArgumentException("Operand value length not equal.");
 
-            byte[] number = new byte[b1._number.Length];
+            byte[] value = new byte[b1._value.Length];
 
-            for (int i = 0; i < number.Length; i++)
-                number[i] = (byte)(b1._number[i] ^ b2._number[i]);
+            for (int i = 0; i < value.Length; i++)
+                value[i] = (byte)(b1._value[i] ^ b2._value[i]);
 
-            return new BinaryNumber(number);
+            return new BinaryNumber(value);
         }
 
         public static BinaryNumber operator >>(BinaryNumber b1, int bitcount)
         {
-            byte[] number = new byte[b1._number.Length];
+            byte[] value = new byte[b1._value.Length];
 
             if (bitcount >= 8)
-                Buffer.BlockCopy(b1._number, 0, number, bitcount / 8, number.Length - (bitcount / 8));
+                Buffer.BlockCopy(b1._value, 0, value, bitcount / 8, value.Length - (bitcount / 8));
             else
-                Buffer.BlockCopy(b1._number, 0, number, 0, number.Length);
+                Buffer.BlockCopy(b1._value, 0, value, 0, value.Length);
 
             bitcount = bitcount % 8;
 
             if (bitcount > 0)
             {
-                for (int i = number.Length - 1; i >= 0; i--)
+                for (int i = value.Length - 1; i >= 0; i--)
                 {
-                    number[i] >>= bitcount;
+                    value[i] >>= bitcount;
 
                     if (i > 0)
-                        number[i] |= (byte)(number[i - 1] << (8 - bitcount));
+                        value[i] |= (byte)(value[i - 1] << (8 - bitcount));
                 }
             }
 
-            return new BinaryNumber(number);
+            return new BinaryNumber(value);
         }
 
         public static BinaryNumber operator <<(BinaryNumber b1, int bitcount)
         {
-            byte[] number = new byte[b1._number.Length];
+            byte[] value = new byte[b1._value.Length];
 
             if (bitcount >= 8)
-                Buffer.BlockCopy(b1._number, bitcount / 8, number, 0, number.Length - (bitcount / 8));
+                Buffer.BlockCopy(b1._value, bitcount / 8, value, 0, value.Length - (bitcount / 8));
             else
-                Buffer.BlockCopy(b1._number, 0, number, 0, number.Length);
+                Buffer.BlockCopy(b1._value, 0, value, 0, value.Length);
 
             bitcount = bitcount % 8;
 
             if (bitcount > 0)
             {
-                for (int i = 0; i < number.Length; i++)
+                for (int i = 0; i < value.Length; i++)
                 {
-                    number[i] <<= bitcount;
+                    value[i] <<= bitcount;
 
-                    if (i < (number.Length - 1))
-                        number[i] |= (byte)(number[i + 1] >> (8 - bitcount));
+                    if (i < (value.Length - 1))
+                        value[i] |= (byte)(value[i + 1] >> (8 - bitcount));
                 }
             }
 
-            return new BinaryNumber(number);
+            return new BinaryNumber(value);
         }
 
         public static bool operator <(BinaryNumber b1, BinaryNumber b2)
         {
-            if (b1._number.Length != b2._number.Length)
-                throw new ArgumentException("Operand number length not equal.");
+            if (b1._value.Length != b2._value.Length)
+                throw new ArgumentException("Operand value length not equal.");
 
             bool eq = true;
 
-            for (int i = 0; i < b1._number.Length; i++)
+            for (int i = 0; i < b1._value.Length; i++)
             {
-                if (b1._number[i] > b2._number[i])
+                if (b1._value[i] > b2._value[i])
                     return false;
 
-                if (b1._number[i] != b2._number[i])
+                if (b1._value[i] != b2._value[i])
                     eq = false;
             }
 
@@ -292,17 +301,17 @@ namespace TechnitiumLibrary.IO
 
         public static bool operator >(BinaryNumber b1, BinaryNumber b2)
         {
-            if (b1._number.Length != b2._number.Length)
-                throw new ArgumentException("Operand number length not equal.");
+            if (b1._value.Length != b2._value.Length)
+                throw new ArgumentException("Operand value length not equal.");
 
             bool eq = true;
 
-            for (int i = 0; i < b1._number.Length; i++)
+            for (int i = 0; i < b1._value.Length; i++)
             {
-                if (b1._number[i] < b2._number[i])
+                if (b1._value[i] < b2._value[i])
                     return false;
 
-                if (b1._number[i] != b2._number[i])
+                if (b1._value[i] != b2._value[i])
                     eq = false;
             }
 
@@ -314,12 +323,12 @@ namespace TechnitiumLibrary.IO
 
         public static bool operator <=(BinaryNumber b1, BinaryNumber b2)
         {
-            if (b1._number.Length != b2._number.Length)
-                throw new ArgumentException("Operand number length not equal.");
+            if (b1._value.Length != b2._value.Length)
+                throw new ArgumentException("Operand value length not equal.");
 
-            for (int i = 0; i < b1._number.Length; i++)
+            for (int i = 0; i < b1._value.Length; i++)
             {
-                if (b1._number[i] > b2._number[i])
+                if (b1._value[i] > b2._value[i])
                     return false;
             }
 
@@ -328,12 +337,12 @@ namespace TechnitiumLibrary.IO
 
         public static bool operator >=(BinaryNumber b1, BinaryNumber b2)
         {
-            if (b1._number.Length != b2._number.Length)
-                throw new ArgumentException("Operand number length not equal.");
+            if (b1._value.Length != b2._value.Length)
+                throw new ArgumentException("Operand value length not equal.");
 
-            for (int i = 0; i < b1._number.Length; i++)
+            for (int i = 0; i < b1._value.Length; i++)
             {
-                if (b1._number[i] < b2._number[i])
+                if (b1._value[i] < b2._value[i])
                     return false;
             }
 
@@ -344,9 +353,9 @@ namespace TechnitiumLibrary.IO
         {
             BinaryNumber obj = b1.Clone();
 
-            for (int i = 0; i < obj._number.Length; i++)
+            for (int i = 0; i < obj._value.Length; i++)
             {
-                obj._number[i] = (byte)~obj._number[i];
+                obj._value[i] = (byte)~obj._value[i];
             }
 
             return obj;
@@ -356,8 +365,8 @@ namespace TechnitiumLibrary.IO
 
         #region properties
 
-        public byte[] Number
-        { get { return _number; } }
+        public byte[] Value
+        { get { return _value; } }
 
         #endregion
     }
