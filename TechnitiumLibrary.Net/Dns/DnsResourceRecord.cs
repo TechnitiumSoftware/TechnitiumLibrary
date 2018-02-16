@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -192,6 +192,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                 case DnsResourceRecordType.AAAA:
                     _data = new DnsAAAARecord(s);
+                    break;
+
+                case DnsResourceRecordType.SRV:
+                    _data = new DnsSRVRecord(s);
                     break;
 
                 default:
