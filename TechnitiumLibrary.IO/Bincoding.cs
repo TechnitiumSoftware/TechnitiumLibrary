@@ -145,7 +145,7 @@ namespace TechnitiumLibrary.IO
             }
             else if (value is string)
             {
-                return Bincoding.ParseValue((string)(object)value);
+                return Bincoding.ParseValue((string)(object)value, false);
             }
             else if (value is Stream)
             {
@@ -253,7 +253,7 @@ namespace TechnitiumLibrary.IO
             }
         }
 
-        public static Bincoding ParseValue(string value, bool shortString = false)
+        public static Bincoding ParseValue(string value, bool shortString)
         {
             if (shortString)
                 return new Bincoding(BincodingType.SHORTSTRING, Encoding.UTF8.GetBytes(value));
@@ -743,7 +743,7 @@ namespace TechnitiumLibrary.IO
 
         public void EncodeKeyValue(string key, string value)
         {
-            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value)));
+            Encode(Bincoding.ParseKeyValue(key, Bincoding.ParseValue(value, false)));
         }
 
         public void EncodeKeyValue(string key, ICollection<Bincoding> value)
