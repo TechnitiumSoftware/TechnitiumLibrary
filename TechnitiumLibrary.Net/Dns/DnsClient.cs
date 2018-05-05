@@ -669,15 +669,17 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         _socket.Send(requestBuffer);
 
-                        if ((responseBuffer == null) || (responseBuffer.Length == 512))
-                            responseBuffer = new byte[64 * 1024];
+                        byte[] lengthBuffer = new byte[2];
 
-                        bytesRecv = _socket.Receive(responseBuffer, 0, 2, SocketFlags.None);
-                        if (bytesRecv < 1)
+                        bytesRecv = _socket.Receive(lengthBuffer, 0, 2, SocketFlags.None);
+                        if (bytesRecv < 2)
                             throw new SocketException((int)SocketError.ConnectionReset);
 
-                        Array.Reverse(responseBuffer, 0, 2);
-                        ushort length = BitConverter.ToUInt16(responseBuffer, 0);
+                        Array.Reverse(lengthBuffer, 0, 2);
+                        ushort length = BitConverter.ToUInt16(lengthBuffer, 0);
+
+                        if ((responseBuffer == null) || (responseBuffer.Length < length))
+                            responseBuffer = new byte[length];
 
                         int offset = 0;
                         while (offset < length)
