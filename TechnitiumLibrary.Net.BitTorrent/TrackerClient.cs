@@ -119,6 +119,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     return new UdpTrackerClient(trackerURI, infoHash, clientID, customUpdateInterval);
 
                 case "http":
+                case "https":
                     return new HttpTrackerClient(trackerURI, infoHash, clientID, customUpdateInterval);
 
                 default:
