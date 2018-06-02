@@ -68,7 +68,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     if (_proxy == null)
                         udpClient.Send(requestPacket, requestPacket.Length);
                     else
-                        proxyRequestHandler.SendTo(requestPacket, 0, requestPacket.Length, new SocksEndPoint(_trackerURI.Host, _trackerURI.Port));
+                        proxyRequestHandler.SendTo(requestPacket, 0, requestPacket.Length, new DomainEndPoint(_trackerURI.Host, _trackerURI.Port));
 
                     //RECV CONNECT RESPONSE
 
@@ -84,8 +84,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     else
                     {
                         response = new byte[128];
-                        SocksEndPoint remoteEP;
-                        responseLength = proxyRequestHandler.ReceiveFrom(response, 0, response.Length, out remoteEP);
+                        responseLength = proxyRequestHandler.ReceiveFrom(response, 0, response.Length, out EndPoint remoteEP);
                     }
 
                     //check response length
@@ -185,12 +184,11 @@ namespace TechnitiumLibrary.Net.BitTorrent
             else
             {
                 //SEND ANNOUNCE REQUEST
-                proxyRequestHandler.SendTo(request, 0, request.Length, new SocksEndPoint(_trackerURI.Host, _trackerURI.Port));
+                proxyRequestHandler.SendTo(request, 0, request.Length, new DomainEndPoint(_trackerURI.Host, _trackerURI.Port));
 
                 //RECV ANNOUNCE RESPONSE
                 response = new byte[1024];
-                SocksEndPoint remoteEP;
-                responseLength = proxyRequestHandler.ReceiveFrom(response, 0, response.Length, out remoteEP);
+                responseLength = proxyRequestHandler.ReceiveFrom(response, 0, response.Length, out EndPoint remoteEP);
             }
 
             //check response length
