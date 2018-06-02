@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,60 +25,53 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net
 {
-    public static class IPEndPointParser
+    public static class EndPointExtension
     {
         #region static
 
-        public static IPEndPoint Parse(Stream s)
+        public static EndPoint Parse(BinaryReader bR)
         {
-            byte[] address;
-
-            switch (s.ReadByte())
+            switch (bR.ReadByte())
             {
-                case -1:
-                    throw new EndOfStreamException();
-
                 case 1:
-                    address = new byte[4];
-                    break;
+                    return new IPEndPoint(new IPAddress(bR.ReadBytes(4)), bR.ReadUInt16());
 
                 case 2:
-                    address = new byte[16];
-                    break;
+                    return new IPEndPoint(new IPAddress(bR.ReadBytes(16)), bR.ReadUInt16());
+
+                case 3:
+                    return new DomainEndPoint(bR.ReadShortString(), bR.ReadUInt16());
 
                 default:
                     throw new NotSupportedException("AddressFamily not supported.");
             }
-
-            byte[] port = new byte[2];
-
-            OffsetStream.StreamRead(s, address, 0, address.Length);
-            OffsetStream.StreamRead(s, port, 0, 2);
-
-            return new IPEndPoint(new IPAddress(address), BitConverter.ToUInt16(port, 0));
         }
 
-        public static void WriteTo(IPEndPoint ep, Stream s)
+        public static void WriteTo(this EndPoint ep, BinaryWriter bW)
         {
             switch (ep.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    s.WriteByte(1);
+                    bW.Write((byte)1);
+                    bW.Write((ep as IPEndPoint).Address.GetAddressBytes());
+                    bW.Write(Convert.ToUInt16((ep as IPEndPoint).Port));
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    s.WriteByte(2);
+                    bW.Write((byte)2);
+                    bW.Write((ep as IPEndPoint).Address.GetAddressBytes());
+                    bW.Write(Convert.ToUInt16((ep as IPEndPoint).Port));
+                    break;
+
+                case AddressFamily.Unspecified: //domain end point
+                    bW.Write((byte)3);
+                    bW.WriteShortString((ep as DomainEndPoint).Address);
+                    bW.Write(Convert.ToUInt16((ep as DomainEndPoint).Port));
                     break;
 
                 default:
                     throw new NotSupportedException("AddressFamily not supported.");
             }
-
-            byte[] address = ep.Address.GetAddressBytes();
-            byte[] port = BitConverter.GetBytes(Convert.ToUInt16(ep.Port));
-
-            s.Write(address, 0, address.Length);
-            s.Write(port, 0, 2);
         }
 
         #endregion
