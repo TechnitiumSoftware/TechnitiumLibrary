@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -149,20 +149,46 @@ namespace TechnitiumLibrary.Net.Proxy
             { }
         }
 
-        public Socket Connect(IPEndPoint remoteEP, int timeout = 10000)
+        public Socket Connect(EndPoint remoteEP, int timeout = 10000)
         {
-            if (remoteEP.AddressFamily == AddressFamily.InterNetworkV6)
-                return Connect("[" + remoteEP.Address.ToString() + "]", remoteEP.Port, timeout);
-            else
-                return Connect(remoteEP.Address.ToString(), remoteEP.Port, timeout);
+            switch (remoteEP.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    {
+                        IPEndPoint ep = remoteEP as IPEndPoint;
+                        return Connect(ep.Address.ToString(), ep.Port, timeout);
+                    }
+
+                case AddressFamily.InterNetworkV6:
+                    {
+                        IPEndPoint ep = remoteEP as IPEndPoint;
+                        return Connect("[" + ep.Address.ToString() + "]", ep.Port, timeout);
+                    }
+
+                case AddressFamily.Unspecified: //domain
+                    {
+                        DomainEndPoint ep = remoteEP as DomainEndPoint;
+                        return Connect(ep.Address, ep.Port, timeout);
+                    }
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
         }
 
         public Socket Connect(IPAddress address, int port, int timeout = 10000)
         {
-            if (address.AddressFamily == AddressFamily.InterNetworkV6)
-                return Connect("[" + address.ToString() + "]", port, timeout);
-            else
-                return Connect(address.ToString(), port, timeout);
+            switch (address.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    return Connect(address.ToString(), port, timeout);
+
+                case AddressFamily.InterNetworkV6:
+                    return Connect("[" + address.ToString() + "]", port, timeout);
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
         }
 
         public Socket Connect(string address, int port, int timeout = 10000)
