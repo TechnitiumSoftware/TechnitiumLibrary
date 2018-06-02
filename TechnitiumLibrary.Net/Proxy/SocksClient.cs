@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -67,7 +67,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public const byte SOCKS_VERSION = 5;
 
-        SocksEndPoint _proxyEP;
+        EndPoint _proxyEP;
         NetworkCredential _credentials;
 
         byte[] _negotiationRequest;
@@ -79,26 +79,19 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public SocksClient(string proxyAddress, int port = 1080, NetworkCredential credentials = null)
         {
-            _proxyEP = new SocksEndPoint(proxyAddress, port);
+            _proxyEP = new DomainEndPoint(proxyAddress, port);
 
             Init(credentials);
         }
 
         public SocksClient(IPAddress proxyAddress, int port = 1080, NetworkCredential credentials = null)
         {
-            _proxyEP = new SocksEndPoint(proxyAddress, port);
+            _proxyEP = new IPEndPoint(proxyAddress, port);
 
             Init(credentials);
         }
 
-        public SocksClient(IPEndPoint proxyEndPoint, NetworkCredential credentials = null)
-        {
-            _proxyEP = new SocksEndPoint(proxyEndPoint);
-
-            Init(credentials);
-        }
-
-        public SocksClient(SocksEndPoint proxyEndPoint, NetworkCredential credentials = null)
+        public SocksClient(EndPoint proxyEndPoint, NetworkCredential credentials = null)
         {
             _proxyEP = proxyEndPoint;
 
@@ -183,9 +176,9 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        private SocksEndPoint Request(Socket socket, SocksRequestCommand command, SocksEndPoint dstAddr)
+        private static EndPoint Request(Socket socket, SocksRequestCommand command, EndPoint dstAddr)
         {
-            socket.Send(dstAddr.CreateRequest(command));
+            socket.Send(CreateRequest(command, dstAddr));
 
             byte[] response = new byte[262];
 
@@ -200,7 +193,113 @@ namespace TechnitiumLibrary.Net.Proxy
             if (reply != SocksReplyCode.Succeeded)
                 throw new SocksClientException("Socks proxy server request failed: " + reply.ToString());
 
-            return new SocksEndPoint(response, 3);
+            return ParseEndpoint(response, 3);
+        }
+
+        internal static EndPoint ParseEndpoint(byte[] buffer, int offset)
+        {
+            switch ((SocksAddressType)buffer[offset])
+            {
+                case SocksAddressType.IPv4Address:
+                    {
+                        byte[] address = new byte[4];
+                        Buffer.BlockCopy(buffer, offset + 1, address, 0, 4);
+
+                        byte[] port = new byte[2];
+                        Buffer.BlockCopy(buffer, offset + 1 + 4, port, 0, 2);
+                        Array.Reverse(port);
+
+                        return new IPEndPoint(new IPAddress(address), BitConverter.ToUInt16(port, 0));
+                    }
+
+                case SocksAddressType.IPv6Address:
+                    {
+                        byte[] address = new byte[16];
+                        Buffer.BlockCopy(buffer, offset + 1, address, 0, 16);
+
+                        byte[] port = new byte[2];
+                        Buffer.BlockCopy(buffer, offset + 1 + 16, port, 0, 2);
+                        Array.Reverse(port);
+
+                        return new IPEndPoint(new IPAddress(address), BitConverter.ToUInt16(port, 0));
+                    }
+
+                case SocksAddressType.DomainName:
+                    {
+                        int length = buffer[offset + 1];
+
+                        byte[] address = new byte[length];
+                        Buffer.BlockCopy(buffer, offset + 1 + 1, address, 0, length);
+
+                        byte[] port = new byte[2];
+                        Buffer.BlockCopy(buffer, offset + 1 + 1 + length, port, 0, 2);
+                        Array.Reverse(port);
+
+                        return new DomainEndPoint(Encoding.ASCII.GetString(address), BitConverter.ToUInt16(port, 0));
+                    }
+
+                default:
+                    throw new NotSupportedException("SocksAddressType not supported.");
+            }
+        }
+
+        private static byte[] CreateRequest(SocksRequestCommand command, EndPoint dstAddr)
+        {
+            //get type, address bytes & port bytes
+            SocksAddressType type;
+            byte[] address;
+            ushort port;
+
+            switch (dstAddr.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    {
+                        type = SocksAddressType.IPv4Address;
+
+                        IPEndPoint ep = dstAddr as IPEndPoint;
+                        address = ep.Address.GetAddressBytes();
+                        port = Convert.ToUInt16(ep.Port);
+                    }
+                    break;
+
+                case AddressFamily.InterNetworkV6:
+                    {
+                        type = SocksAddressType.IPv6Address;
+
+                        IPEndPoint ep = dstAddr as IPEndPoint;
+                        address = ep.Address.GetAddressBytes();
+                        port = Convert.ToUInt16(ep.Port);
+                    }
+                    break;
+
+                case AddressFamily.Unspecified:
+                    {
+                        type = SocksAddressType.DomainName;
+
+                        DomainEndPoint ep = dstAddr as DomainEndPoint;
+                        address = ep.GetAddressBytes();
+                        port = Convert.ToUInt16(ep.Port);
+                    }
+                    break;
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
+
+            //create request
+            byte[] request = new byte[address.Length + 6];
+
+            request[0] = SocksClient.SOCKS_VERSION;
+            request[1] = (byte)command;
+            request[3] = (byte)type;
+
+            Buffer.BlockCopy(address, 0, request, 4, address.Length);
+
+            byte[] portBytes = BitConverter.GetBytes(port);
+            Array.Reverse(portBytes);
+            Buffer.BlockCopy(portBytes, 0, request, 4 + address.Length, 2);
+
+            return request;
         }
 
         private Socket GetProxyConnection(int timeout)
@@ -208,19 +307,19 @@ namespace TechnitiumLibrary.Net.Proxy
             Socket socket;
             IAsyncResult result;
 
-            switch (_proxyEP.AddressType)
+            switch (_proxyEP.AddressFamily)
             {
-                case SocksAddressType.IPv4Address:
+                case AddressFamily.InterNetwork:
                     socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                    result = socket.BeginConnect(_proxyEP.GetEndPoint(), null, null);
+                    result = socket.BeginConnect(_proxyEP, null, null);
                     break;
 
-                case SocksAddressType.IPv6Address:
+                case AddressFamily.InterNetworkV6:
                     socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
-                    result = socket.BeginConnect(_proxyEP.GetEndPoint(), null, null);
+                    result = socket.BeginConnect(_proxyEP, null, null);
                     break;
 
-                case SocksAddressType.DomainName:
+                case AddressFamily.Unspecified:
                     switch (Environment.OSVersion.Platform)
                     {
                         case PlatformID.Win32NT:
@@ -237,7 +336,7 @@ namespace TechnitiumLibrary.Net.Proxy
                             }
                             break;
 
-                        case PlatformID.Unix: //mono framework
+                        case PlatformID.Unix:
                             if (Socket.OSSupportsIPv6)
                                 socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
                             else
@@ -250,7 +349,8 @@ namespace TechnitiumLibrary.Net.Proxy
                             break;
                     }
 
-                    result = socket.BeginConnect(_proxyEP.Address, _proxyEP.Port, null, null);
+                    DomainEndPoint ep = _proxyEP as DomainEndPoint;
+                    result = socket.BeginConnect(ep.Address, ep.Port, null, null);
                     break;
 
                 default:
@@ -305,22 +405,17 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public SocksConnectRequestHandler Connect(IPEndPoint remoteEP, int timeout = 10000)
-        {
-            return Connect(new SocksEndPoint(remoteEP), timeout);
-        }
-
         public SocksConnectRequestHandler Connect(IPAddress address, int port, int timeout = 10000)
         {
-            return Connect(new SocksEndPoint(address, port), timeout);
+            return Connect(new IPEndPoint(address, port), timeout);
         }
 
         public SocksConnectRequestHandler Connect(string address, int port, int timeout = 10000)
         {
-            return Connect(new SocksEndPoint(address, port), timeout);
+            return Connect(new DomainEndPoint(address, port), timeout);
         }
 
-        public SocksConnectRequestHandler Connect(SocksEndPoint remoteEP, int timeout = 10000)
+        public SocksConnectRequestHandler Connect(EndPoint remoteEP, int timeout = 10000)
         {
             //connect to proxy server
             Socket socket = GetProxyConnection(timeout);
@@ -331,7 +426,7 @@ namespace TechnitiumLibrary.Net.Proxy
             try
             {
                 Negotiate(socket);
-                SocksEndPoint bindEP = Request(socket, SocksRequestCommand.Connect, remoteEP);
+                EndPoint bindEP = Request(socket, SocksRequestCommand.Connect, remoteEP);
 
                 return new SocksConnectRequestHandler(socket, remoteEP, bindEP);
             }
@@ -342,7 +437,7 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public SocksBindRequestHandler Bind(SocksEndPoint endpoint, int timeout = 10000)
+        public SocksBindRequestHandler Bind(EndPoint endpoint, int timeout = 10000)
         {
             //connect to proxy server
             Socket socket = GetProxyConnection(timeout);
@@ -353,7 +448,7 @@ namespace TechnitiumLibrary.Net.Proxy
             try
             {
                 Negotiate(socket);
-                SocksEndPoint bindEP = Request(socket, SocksRequestCommand.Bind, endpoint);
+                EndPoint bindEP = Request(socket, SocksRequestCommand.Bind, endpoint);
 
                 return new SocksBindRequestHandler(socket, bindEP);
             }
@@ -390,7 +485,7 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 Negotiate(socket);
 
-                SocksEndPoint relayEP = Request(socket, SocksRequestCommand.UdpAssociate, new SocksEndPoint((IPEndPoint)udpSocket.LocalEndPoint));
+                EndPoint relayEP = Request(socket, SocksRequestCommand.UdpAssociate, udpSocket.LocalEndPoint);
 
                 return new SocksUdpAssociateRequestHandler(socket, udpSocket, relayEP);
             }
@@ -410,7 +505,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region properties
 
-        public SocksEndPoint ProxyEndPoint
+        public EndPoint ProxyEndPoint
         {
             get { return _proxyEP; }
             set { _proxyEP = value; }
@@ -435,8 +530,8 @@ namespace TechnitiumLibrary.Net.Proxy
         #region variables
 
         Socket _socket;
-        SocksEndPoint _dstEP;
-        SocksEndPoint _bindEP;
+        EndPoint _dstEP;
+        EndPoint _bindEP;
 
         bool _emulateHttpProxy;
         Socket _tunnelSocketListener;
@@ -447,7 +542,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region constructor
 
-        public SocksConnectRequestHandler(Socket socket, SocksEndPoint dstEP, SocksEndPoint bindEP)
+        internal SocksConnectRequestHandler(Socket socket, EndPoint dstEP, EndPoint bindEP)
         {
             _socket = socket;
             _dstEP = dstEP;
@@ -585,10 +680,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region properties
 
-        public SocksEndPoint ProxyRemoteEndPoint
+        public EndPoint ProxyRemoteEndPoint
         { get { return _dstEP; } }
 
-        public SocksEndPoint ProxyLocalEndPoint
+        public EndPoint ProxyLocalEndPoint
         { get { return _bindEP; } }
 
         #endregion
@@ -599,15 +694,15 @@ namespace TechnitiumLibrary.Net.Proxy
         #region variables
 
         Socket _socket;
-        SocksEndPoint _bindEP;
+        EndPoint _bindEP;
 
-        SocksEndPoint _dstEP;
+        EndPoint _dstEP;
 
         #endregion
 
         #region constructor
 
-        public SocksBindRequestHandler(Socket socket, SocksEndPoint bindEP)
+        internal SocksBindRequestHandler(Socket socket, EndPoint bindEP)
         {
             _socket = socket;
             _bindEP = bindEP;
@@ -662,7 +757,7 @@ namespace TechnitiumLibrary.Net.Proxy
             if (reply != SocksReplyCode.Succeeded)
                 throw new SocksClientException("Socks proxy server request failed: " + reply.ToString());
 
-            _dstEP = new SocksEndPoint(response, 3);
+            _dstEP = SocksClient.ParseEndpoint(response, 3);
 
             return _socket;
         }
@@ -671,10 +766,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region properties
 
-        public SocksEndPoint ProxyRemoteEndPoint
+        public EndPoint ProxyRemoteEndPoint
         { get { return _dstEP; } }
 
-        public SocksEndPoint ProxyLocalEndPoint
+        public EndPoint ProxyLocalEndPoint
         { get { return _bindEP; } }
 
         #endregion
@@ -686,22 +781,19 @@ namespace TechnitiumLibrary.Net.Proxy
 
         Socket _controlSocket;
         Socket _udpSocket;
-        SocksEndPoint _relayEP;
+        EndPoint _relayEP;
 
-        EndPoint _relayEndPoint;
         Thread _watchThread;
 
         #endregion
 
         #region constructor
 
-        internal SocksUdpAssociateRequestHandler(Socket controlSocket, Socket udpSocket, SocksEndPoint relayEP)
+        internal SocksUdpAssociateRequestHandler(Socket controlSocket, Socket udpSocket, EndPoint relayEP)
         {
             _controlSocket = controlSocket;
             _udpSocket = udpSocket;
             _relayEP = relayEP;
-
-            _relayEndPoint = _relayEP.GetEndPoint();
 
             _watchThread = new Thread(ControlSocketWatchAsync);
             _watchThread.IsBackground = true;
@@ -749,6 +841,66 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region private
 
+        private static byte[] CreateUdpDatagram(byte[] buffer, int offset, int size, EndPoint dstAddr)
+        {
+            //get type, address bytes & port bytes
+            SocksAddressType type;
+            byte[] address;
+            ushort port;
+
+            switch (dstAddr.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    {
+                        type = SocksAddressType.IPv4Address;
+
+                        IPEndPoint ep = dstAddr as IPEndPoint;
+                        address = ep.Address.GetAddressBytes();
+                        port = Convert.ToUInt16(ep.Port);
+                    }
+                    break;
+
+                case AddressFamily.InterNetworkV6:
+                    {
+                        type = SocksAddressType.IPv6Address;
+
+                        IPEndPoint ep = dstAddr as IPEndPoint;
+                        address = ep.Address.GetAddressBytes();
+                        port = Convert.ToUInt16(ep.Port);
+                    }
+                    break;
+
+                case AddressFamily.Unspecified:
+                    {
+                        type = SocksAddressType.DomainName;
+
+                        DomainEndPoint ep = dstAddr as DomainEndPoint;
+                        address = ep.GetAddressBytes();
+                        port = Convert.ToUInt16(ep.Port);
+                    }
+                    break;
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
+
+            //create datagram
+            byte[] datagram = new byte[address.Length + 6 + size];
+
+            datagram[2] = 0x00;
+            datagram[3] = (byte)type;
+
+            Buffer.BlockCopy(address, 0, datagram, 4, address.Length);
+
+            byte[] portBytes = BitConverter.GetBytes(port);
+            Array.Reverse(portBytes);
+            Buffer.BlockCopy(portBytes, 0, datagram, 4 + address.Length, 2);
+
+            Buffer.BlockCopy(buffer, offset, datagram, 4 + address.Length + 2, size);
+
+            return datagram;
+        }
+
         private void ControlSocketWatchAsync(object state)
         {
             try
@@ -781,14 +933,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public void SendTo(byte[] buffer, int offset, int size, SocksEndPoint remoteEP)
+        public void SendTo(byte[] buffer, int offset, int size, EndPoint remoteEP)
         {
-            byte[] datagram = remoteEP.CreateUdpDatagram(buffer, offset, size);
+            byte[] datagram = CreateUdpDatagram(buffer, offset, size, remoteEP);
 
-            _udpSocket.SendTo(datagram, _relayEndPoint);
+            _udpSocket.SendTo(datagram, _relayEP);
         }
 
-        public int ReceiveFrom(byte[] buffer, int offset, int size, out SocksEndPoint remoteEP)
+        public int ReceiveFrom(byte[] buffer, int offset, int size, out EndPoint remoteEP)
         {
             byte[] datagram = new byte[262 + size];
             EndPoint dummyEP = new IPEndPoint(IPAddress.Any, 0);
@@ -798,9 +950,29 @@ namespace TechnitiumLibrary.Net.Proxy
             if (bytesReceived < 10)
                 throw new SocksClientException("The connection was reset by the remote peer.");
 
-            remoteEP = new SocksEndPoint(datagram, 3);
+            remoteEP = SocksClient.ParseEndpoint(datagram, 3);
 
-            int dataOffset = 6 + remoteEP.GetAddressSize();
+            int addressSize;
+
+            switch (remoteEP.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    addressSize = 4;
+                    break;
+
+                case AddressFamily.InterNetworkV6:
+                    addressSize = 16;
+                    break;
+
+                case AddressFamily.Unspecified:
+                    addressSize = 1 + (remoteEP as DomainEndPoint).Address.Length;
+                    break;
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
+
+            int dataOffset = 6 + addressSize;
             int dataSize = bytesReceived - dataOffset;
 
             if (dataSize > size)
@@ -818,7 +990,7 @@ namespace TechnitiumLibrary.Net.Proxy
         public bool ProxyConnected
         { get { return _controlSocket.Connected; } }
 
-        public SocksEndPoint ProxyUdpRelayEndPoint
+        public EndPoint ProxyUdpRelayEndPoint
         { get { return _relayEP; } }
 
         public int ReceiveTimeout
@@ -826,217 +998,6 @@ namespace TechnitiumLibrary.Net.Proxy
             get { return _udpSocket.ReceiveTimeout; }
             set { _udpSocket.ReceiveTimeout = value; }
         }
-
-        #endregion
-    }
-
-    public class SocksEndPoint
-    {
-        #region variables
-
-        SocksAddressType _type;
-        byte[] _address;
-        ushort _port;
-        string _addressString;
-
-        #endregion
-
-        #region constructor
-
-        public SocksEndPoint(IPEndPoint endpoint)
-        {
-            ParseIPAddress(endpoint.Address);
-            _port = Convert.ToUInt16(endpoint.Port);
-            _addressString = endpoint.Address.ToString();
-        }
-
-        public SocksEndPoint(IPAddress address, int port)
-        {
-            ParseIPAddress(address);
-            _port = Convert.ToUInt16(port);
-            _addressString = address.ToString();
-        }
-
-        public SocksEndPoint(string address, int port)
-        {
-            IPAddress ip;
-
-            if (IPAddress.TryParse(address, out ip))
-            {
-                ParseIPAddress(ip);
-            }
-            else
-            {
-                _type = SocksAddressType.DomainName;
-
-                byte[] addrBytes = Encoding.ASCII.GetBytes(address);
-                _address = new byte[addrBytes.Length + 1];
-
-                _address[0] = Convert.ToByte(addrBytes.Length);
-                Buffer.BlockCopy(addrBytes, 0, _address, 1, addrBytes.Length);
-            }
-
-            _port = Convert.ToUInt16(port);
-            _addressString = address;
-        }
-
-        public SocksEndPoint(byte[] buffer, int offset)
-        {
-            _type = (SocksAddressType)buffer[offset];
-
-            switch (_type)
-            {
-                case SocksAddressType.IPv4Address:
-                    {
-                        _address = new byte[4];
-                        Buffer.BlockCopy(buffer, offset + 1, _address, 0, 4);
-
-                        byte[] port = new byte[2];
-                        Buffer.BlockCopy(buffer, offset + 1 + 4, port, 0, 2);
-                        Array.Reverse(port);
-                        _port = BitConverter.ToUInt16(port, 0);
-
-                        _addressString = (new IPAddress(_address)).ToString();
-                    }
-                    break;
-
-                case SocksAddressType.DomainName:
-                    {
-                        byte length = buffer[offset + 1];
-
-                        _address = new byte[length];
-                        _address[0] = length;
-
-                        Buffer.BlockCopy(buffer, offset + 1 + 1, _address, 1, length);
-
-                        byte[] port = new byte[2];
-                        Buffer.BlockCopy(buffer, offset + 1 + 1 + length, port, 0, 2);
-                        Array.Reverse(port);
-                        _port = BitConverter.ToUInt16(port, 0);
-
-                        _addressString = Encoding.ASCII.GetString(_address);
-                    }
-                    break;
-
-                case SocksAddressType.IPv6Address:
-                    {
-                        _address = new byte[16];
-                        Buffer.BlockCopy(buffer, offset + 1, _address, 0, 16);
-
-                        byte[] port = new byte[2];
-                        Buffer.BlockCopy(buffer, offset + 1 + 16, port, 0, 2);
-                        Array.Reverse(port);
-                        _port = BitConverter.ToUInt16(port, 0);
-
-                        _addressString = (new IPAddress(_address)).ToString();
-                    }
-                    break;
-            }
-        }
-
-        #endregion
-
-        #region private
-
-        private void ParseIPAddress(IPAddress address)
-        {
-            switch (address.AddressFamily)
-            {
-                case AddressFamily.InterNetwork:
-                    _type = SocksAddressType.IPv4Address;
-                    break;
-
-                case AddressFamily.InterNetworkV6:
-                    _type = SocksAddressType.IPv6Address;
-                    break;
-
-                default:
-                    throw new NotSupportedException("Address family not supported.");
-            }
-
-            _address = address.GetAddressBytes();
-        }
-
-        #endregion
-
-        #region public
-
-        public override string ToString()
-        {
-            if (_type == SocksAddressType.IPv6Address)
-                return "[" + _addressString + "]:" + _port;
-            else
-                return _addressString + ":" + _port;
-        }
-
-        public IPAddress GetIPAddress()
-        {
-            if (_type == SocksAddressType.DomainName)
-                return null;
-
-            return new IPAddress(_address);
-        }
-
-        public IPEndPoint GetEndPoint()
-        {
-            if (_type == SocksAddressType.DomainName)
-                return null;
-
-            return new IPEndPoint(new IPAddress(_address), _port);
-        }
-
-        internal byte[] CreateRequest(SocksRequestCommand command)
-        {
-            byte[] request = new byte[_address.Length + 6];
-
-            request[0] = SocksClient.SOCKS_VERSION;
-            request[1] = (byte)command;
-            request[3] = (byte)_type;
-
-            Buffer.BlockCopy(_address, 0, request, 4, _address.Length);
-
-            byte[] port = BitConverter.GetBytes(_port);
-            Array.Reverse(port);
-            Buffer.BlockCopy(port, 0, request, 4 + _address.Length, 2);
-
-            return request;
-        }
-
-        internal byte[] CreateUdpDatagram(byte[] buffer, int offset, int size)
-        {
-            byte[] datagram = new byte[_address.Length + 6 + size];
-
-            datagram[2] = 0x00;
-            datagram[3] = (byte)_type;
-
-            Buffer.BlockCopy(_address, 0, datagram, 4, _address.Length);
-
-            byte[] port = BitConverter.GetBytes(_port);
-            Array.Reverse(port);
-            Buffer.BlockCopy(port, 0, datagram, 4 + _address.Length, 2);
-
-            Buffer.BlockCopy(buffer, offset, datagram, 4 + _address.Length + 2, size);
-
-            return datagram;
-        }
-
-        internal int GetAddressSize()
-        {
-            return _address.Length;
-        }
-
-        #endregion
-
-        #region properties
-
-        public SocksAddressType AddressType
-        { get { return _type; } }
-
-        public string Address
-        { get { return _addressString; } }
-
-        public int Port
-        { get { return _port; } }
 
         #endregion
     }
