@@ -41,11 +41,11 @@ namespace TechnitiumLibrary.Net.Tor
 
         static readonly RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
-        readonly string _torExecutableFile;
+        readonly string _torExecutableFilePath;
         int _controlPort = 9051;
         IPEndPoint _Socks5EP;
 
-        TorProxyType _proxyType;
+        TorProxyType _proxyType = TorProxyType.None;
         string _proxyHost;
         int _proxyPort;
         NetworkCredential _proxyCredential;
@@ -60,9 +60,12 @@ namespace TechnitiumLibrary.Net.Tor
 
         #region constructor
 
-        public TorController(string torExecutableFile)
+        public TorController(string torExecutableFilePath)
         {
-            _torExecutableFile = torExecutableFile;
+            if (!File.Exists(torExecutableFilePath))
+                throw new ArgumentException("Tor executable file was not found: " + torExecutableFilePath);
+
+            _torExecutableFilePath = torExecutableFilePath;
         }
 
         #endregion
@@ -96,7 +99,7 @@ namespace TechnitiumLibrary.Net.Tor
 
         private string HashPassword(string password)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(_torExecutableFile, "--hash-password " + password);
+            ProcessStartInfo processInfo = new ProcessStartInfo(_torExecutableFilePath, "--hash-password " + password);
 
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
@@ -139,7 +142,9 @@ namespace TechnitiumLibrary.Net.Tor
 
                 string arguments = "--controlport " + _controlPort + " --HashedControlPassword " + HashPassword(password);
 
-                if (_Socks5EP != null)
+                if (_Socks5EP == null)
+                    _Socks5EP = new IPEndPoint(IPAddress.Loopback, 9050); //default
+                else
                     arguments += " --SocksPort " + _Socks5EP.ToString();
 
                 switch (_proxyType)
@@ -176,12 +181,12 @@ namespace TechnitiumLibrary.Net.Tor
                         break;
                 }
 
-                ProcessStartInfo processInfo = new ProcessStartInfo(_torExecutableFile, arguments);
+                ProcessStartInfo processInfo = new ProcessStartInfo(_torExecutableFilePath, arguments);
 
                 processInfo.UseShellExecute = false;
                 processInfo.CreateNoWindow = true;
 
-                _process = Process.Start(processInfo);
+                Process process = Process.Start(processInfo);
                 _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
                 IAsyncResult result = _socket.BeginConnect(IPAddress.Loopback, _controlPort, null, null);
@@ -212,6 +217,8 @@ namespace TechnitiumLibrary.Net.Tor
                 response = _sR.ReadLine();
                 if (!response.StartsWith("250 "))
                     throw new TorControllerException("Server returned: " + response);
+
+                _process = process;
             }
         }
 
@@ -273,9 +280,9 @@ namespace TechnitiumLibrary.Net.Tor
             return new TorHiddenServiceInfo(_sR);
         }
 
-        public TorHiddenServiceInfo CreateHiddenService(int virtualPort, string rsaPrivateKey, IPEndPoint localHiddenEP = null, string clientBasicAuthUser = null, string clientBasicAuthCookie = null)
+        public TorHiddenServiceInfo CreateHiddenService(int virtualPort, string privateKey, IPEndPoint localHiddenEP = null, string clientBasicAuthUser = null, string clientBasicAuthCookie = null)
         {
-            _sW.WriteLine("ADD_ONION " + rsaPrivateKey + (clientBasicAuthUser == null ? "" : " Flags=BasicAuth") + " Port=" + virtualPort + (localHiddenEP == null ? "" : "," + localHiddenEP.ToString()) + (clientBasicAuthUser == null ? "" : " ClientAuth=" + clientBasicAuthUser + ":" + (clientBasicAuthCookie == null ? "" : ":" + clientBasicAuthCookie)));
+            _sW.WriteLine("ADD_ONION " + privateKey + (clientBasicAuthUser == null ? "" : " Flags=BasicAuth") + " Port=" + virtualPort + (localHiddenEP == null ? "" : "," + localHiddenEP.ToString()) + (clientBasicAuthUser == null ? "" : " ClientAuth=" + clientBasicAuthUser + ":" + (clientBasicAuthCookie == null ? "" : ":" + clientBasicAuthCookie)));
             return new TorHiddenServiceInfo(_sR);
         }
 
@@ -292,42 +299,81 @@ namespace TechnitiumLibrary.Net.Tor
         #region properties
 
         public string TorExecutableFile
-        { get { return _torExecutableFile; } }
+        { get { return _torExecutableFilePath; } }
+
+        public bool IsRunning
+        { get { return _process != null; } }
 
         public int ControlPort
         {
             get { return _controlPort; }
-            set { _controlPort = value; }
+            set
+            {
+                if (_process != null)
+                    throw new InvalidOperationException("Tor is already running.");
+
+                _controlPort = value;
+            }
         }
 
         public IPEndPoint Socks5EndPoint
         {
             get { return _Socks5EP; }
-            set { _Socks5EP = value; }
+            set
+            {
+                if (_process != null)
+                    throw new InvalidOperationException("Tor is already running.");
+
+                _Socks5EP = value;
+            }
         }
 
         public TorProxyType ProxyType
         {
             get { return _proxyType; }
-            set { _proxyType = value; }
+            set
+            {
+                if (_process != null)
+                    throw new InvalidOperationException("Tor is already running.");
+
+                _proxyType = value;
+            }
         }
 
         public string ProxyHost
         {
             get { return _proxyHost; }
-            set { _proxyHost = value; }
+            set
+            {
+                if (_process != null)
+                    throw new InvalidOperationException("Tor is already running.");
+
+                _proxyHost = value;
+            }
         }
 
         public int ProxyPort
         {
             get { return _proxyPort; }
-            set { _proxyPort = value; }
+            set
+            {
+                if (_process != null)
+                    throw new InvalidOperationException("Tor is already running.");
+
+                _proxyPort = value;
+            }
         }
 
-        public NetworkCredential ProxtCredential
+        public NetworkCredential ProxyCredential
         {
             get { return _proxyCredential; }
-            set { _proxyCredential = value; }
+            set
+            {
+                if (_process != null)
+                    throw new InvalidOperationException("Tor is already running.");
+
+                _proxyCredential = value;
+            }
         }
 
         #endregion
