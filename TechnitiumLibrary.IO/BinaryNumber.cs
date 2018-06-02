@@ -23,7 +23,7 @@ using System.Security.Cryptography;
 
 namespace TechnitiumLibrary.IO
 {
-    public class BinaryNumber : IWriteStream, IEquatable<BinaryNumber>, IComparable<BinaryNumber>
+    public class BinaryNumber : IEquatable<BinaryNumber>, IComparable<BinaryNumber>
     {
         #region variables
 
@@ -45,7 +45,7 @@ namespace TechnitiumLibrary.IO
                 throw new EndOfStreamException();
 
             _value = new byte[length];
-            OffsetStream.StreamRead(s, _value, 0, length);
+            s.ReadBytes(_value, 0, length);
         }
 
         #endregion
