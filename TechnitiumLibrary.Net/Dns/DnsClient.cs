@@ -698,24 +698,30 @@ namespace TechnitiumLibrary.Net.Dns
                         if (responseBuffer == null)
                             responseBuffer = new byte[512];
 
+                        EndPoint remoteEP = null;
+
                         if (proxyRequestHandler == null)
                         {
                             _socket.SendTo(requestBuffer, server.EndPoint);
-
-                            EndPoint remoteEP;
 
                             if (server.EndPoint.AddressFamily == AddressFamily.InterNetworkV6)
                                 remoteEP = new IPEndPoint(IPAddress.IPv6Any, 0);
                             else
                                 remoteEP = new IPEndPoint(IPAddress.Any, 0);
 
-                            bytesRecv = _socket.ReceiveFrom(responseBuffer, ref remoteEP);
+                            do
+                            {
+                                bytesRecv = _socket.ReceiveFrom(responseBuffer, ref remoteEP);
+                            } while (!server.EndPoint.Equals(remoteEP));
                         }
                         else
                         {
-                            proxyRequestHandler.SendTo(requestBuffer, 0, requestBuffer.Length, new SocksEndPoint(server.EndPoint));
+                            proxyRequestHandler.SendTo(requestBuffer, 0, requestBuffer.Length, server.EndPoint);
 
-                            bytesRecv = proxyRequestHandler.ReceiveFrom(responseBuffer, 0, responseBuffer.Length, out SocksEndPoint socksRemoteEP);
+                            do
+                            {
+                                bytesRecv = proxyRequestHandler.ReceiveFrom(responseBuffer, 0, responseBuffer.Length, out remoteEP);
+                            } while (!server.EndPoint.Equals(remoteEP));
                         }
                     }
 
