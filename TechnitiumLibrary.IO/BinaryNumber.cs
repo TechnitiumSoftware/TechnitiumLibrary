@@ -108,6 +108,20 @@ namespace TechnitiumLibrary.IO
             return true;
         }
 
+        public static BinaryNumber Parse(string value)
+        {
+            if ((value.Length & 1) == 1)
+                throw new ArgumentException("Value length must be a multiple of 2.");
+
+            int len = value.Length;
+            byte[] output = new byte[len / 2];
+
+            for (int i = 0; i < len; i += 2)
+                output[i / 2] = Convert.ToByte(value.Substring(i, 2), 16);
+
+            return new BinaryNumber(output);
+        }
+
         #endregion
 
         #region public
