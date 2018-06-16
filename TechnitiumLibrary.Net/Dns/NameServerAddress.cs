@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns
 {
@@ -29,36 +28,54 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        string _domain;
-        IPEndPoint _endPoint;
+        DomainEndPoint _domainEndPoint;
+        IPEndPoint _ipEndPoint;
 
         #endregion
 
         #region constructors
 
-        public NameServerAddress(IPAddress address)
-            : this(null, new IPEndPoint(address, 53))
-        { }
-
-        public NameServerAddress(IPEndPoint endPoint)
-            : this(null, endPoint)
-        { }
-
         public NameServerAddress(string domain)
-            : this(domain, null as IPEndPoint)
+            : this(new DomainEndPoint(domain, 53), null as IPEndPoint)
+        { }
+
+        public NameServerAddress(DomainEndPoint domainEndPoint)
+            : this(domainEndPoint, null)
+        { }
+
+        public NameServerAddress(IPAddress address)
+            : this(null as DomainEndPoint, new IPEndPoint(address, 53))
+        { }
+
+        public NameServerAddress(IPEndPoint ipEndPoint)
+            : this(null as DomainEndPoint, ipEndPoint)
         { }
 
         public NameServerAddress(string domain, IPAddress address)
-            : this(domain, new IPEndPoint(address, 53))
+            : this(new DomainEndPoint(domain, 53), new IPEndPoint(address, 53))
         { }
 
-        public NameServerAddress(string domain, IPEndPoint endPoint)
-        {
-            _domain = domain;
-            _endPoint = endPoint;
+        public NameServerAddress(string domain, IPEndPoint ipEndPoint)
+            : this(new DomainEndPoint(domain, ipEndPoint.Port), ipEndPoint)
+        { }
 
-            if ((_domain == null) && (_endPoint == null))
+        public NameServerAddress(EndPoint endPoint)
+            : this(endPoint as DomainEndPoint, endPoint as IPEndPoint)
+        { }
+
+        public NameServerAddress(DomainEndPoint domainEndPoint, IPEndPoint ipEndPoint)
+        {
+            _domainEndPoint = domainEndPoint;
+            _ipEndPoint = ipEndPoint;
+
+            if ((_domainEndPoint == null) && (_ipEndPoint == null))
                 throw new ArgumentNullException();
+
+            if ((_domainEndPoint != null) && (_ipEndPoint != null))
+            {
+                if (_domainEndPoint.Port != _ipEndPoint.Port)
+                    throw new ArgumentNullException();
+            }
         }
 
         #endregion
@@ -130,31 +147,31 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
-        #region public
+        #region internal
 
-        internal void ResolveAddress(IDnsCache cache, NetProxy proxy, bool preferIPv6, bool tcp, int retries)
+        internal void ResolveAddress(IDnsCache cache, bool preferIPv6, DnsClientProtocol protocol, int retries)
         {
-            if ((_domain != null) && (_endPoint == null))
+            if ((_domainEndPoint != null) && (_ipEndPoint == null))
             {
                 if (preferIPv6)
                 {
                     try
                     {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domain, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, proxy, true, tcp, retries);
+                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, null, true, protocol, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
-                            _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, 53);
+                            _ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, _domainEndPoint.Port);
                     }
                     catch
                     { }
                 }
 
-                if (_endPoint == null)
+                if (_ipEndPoint == null)
                 {
                     try
                     {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domain, DnsResourceRecordType.A, DnsClass.IN), null, cache, proxy, false, tcp, retries);
+                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domainEndPoint.Address, DnsResourceRecordType.A, DnsClass.IN), null, cache, null, false, protocol, retries);
                         if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
-                            _endPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, 53);
+                            _ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, _domainEndPoint.Port);
                     }
                     catch
                     { }
@@ -162,31 +179,35 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        #endregion
+
+        #region public
+
         public override string ToString()
         {
-            if (_domain == null)
-                return _endPoint.Address.ToString();
-            else if (_endPoint == null)
-                return _domain;
+            if (_domainEndPoint == null)
+                return _ipEndPoint.Address.ToString();
+            else if (_ipEndPoint == null)
+                return _domainEndPoint.ToString();
             else
-                return _domain + " [" + _endPoint.Address.ToString() + "]";
+                return _domainEndPoint + " [" + _ipEndPoint.Address.ToString() + "]";
         }
 
         public int CompareTo(NameServerAddress other)
         {
-            if ((this._endPoint == null) && (other._endPoint != null))
+            if ((this._ipEndPoint == null) && (other._ipEndPoint != null))
                 return 1;
 
-            if ((this._endPoint != null) && (other._endPoint == null))
+            if ((this._ipEndPoint != null) && (other._ipEndPoint == null))
                 return -1;
 
-            if ((this._endPoint == null) && (other._endPoint == null))
+            if ((this._ipEndPoint == null) && (other._ipEndPoint == null))
                 return 0;
 
-            if ((this._endPoint.AddressFamily == AddressFamily.InterNetwork) && (other._endPoint.AddressFamily == AddressFamily.InterNetworkV6))
+            if ((this._ipEndPoint.AddressFamily == AddressFamily.InterNetwork) && (other._ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
                 return 1;
 
-            if ((this._endPoint.AddressFamily == AddressFamily.InterNetworkV6) && (other._endPoint.AddressFamily == AddressFamily.InterNetwork))
+            if ((this._ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6) && (other._ipEndPoint.AddressFamily == AddressFamily.InterNetwork))
                 return -1;
 
             return 0;
@@ -197,10 +218,32 @@ namespace TechnitiumLibrary.Net.Dns
         #region properties
 
         public string Domain
-        { get { return _domain; } }
+        {
+            get
+            {
+                if (_domainEndPoint == null)
+                    return _ipEndPoint.Address.ToString();
 
-        public IPEndPoint EndPoint
-        { get { return _endPoint; } }
+                return _domainEndPoint.Address;
+            }
+        }
+
+        public DomainEndPoint DomainEndPoint
+        { get { return _domainEndPoint; } }
+
+        public IPEndPoint IPEndPoint
+        { get { return _ipEndPoint; } }
+
+        public EndPoint EndPoint
+        {
+            get
+            {
+                if (_ipEndPoint != null)
+                    return _ipEndPoint;
+
+                return _domainEndPoint;
+            }
+        }
 
         #endregion
     }
