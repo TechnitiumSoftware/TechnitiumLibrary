@@ -186,11 +186,11 @@ namespace TechnitiumLibrary.Net.Dns
         public override string ToString()
         {
             if (_domainEndPoint == null)
-                return _ipEndPoint.Address.ToString();
+                return _ipEndPoint.ToString();
             else if (_ipEndPoint == null)
                 return _domainEndPoint.ToString();
             else
-                return _domainEndPoint + " [" + _ipEndPoint.Address.ToString() + "]";
+                return _domainEndPoint.ToString() + " (" + _ipEndPoint.ToString() + ")";
         }
 
         public int CompareTo(NameServerAddress other)

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns
 {
@@ -48,10 +49,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected override void Parse(Stream s)
         {
-            _data = new byte[_length];
-
-            if (s.Read(_data, 0, _length) != _length)
-                throw new EndOfStreamException();
+            _data = s.ReadBytes(_length);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,9 +20,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Text;
+using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns
 {
@@ -31,7 +31,7 @@ namespace TechnitiumLibrary.Net.Dns
         #region variables
 
         NameServerAddress _server;
-        ProtocolType _protocol;
+        DnsClientProtocol _protocol;
         long _size;
         double _rtt;
 
@@ -56,7 +56,7 @@ namespace TechnitiumLibrary.Net.Dns
             _additional = additional;
         }
 
-        public DnsDatagram(Stream s, NameServerAddress server = null, ProtocolType protocol = ProtocolType.Udp, double rtt = 0)
+        public DnsDatagram(Stream s, NameServerAddress server = null, DnsClientProtocol protocol = DnsClientProtocol.Udp, double rtt = 0)
         {
             _server = server;
             _protocol = protocol;
@@ -87,11 +87,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal static ushort ReadUInt16NetworkOrder(Stream s)
         {
-            byte[] b = new byte[2];
-
-            if (s.Read(b, 0, 2) != 2)
-                throw new EndOfStreamException();
-
+            byte[] b = s.ReadBytes(2);
             Array.Reverse(b);
             return BitConverter.ToUInt16(b, 0);
         }
@@ -105,11 +101,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal static uint ReadUInt32NetworkOrder(Stream s)
         {
-            byte[] b = new byte[4];
-
-            if (s.Read(b, 0, 4) != 4)
-                throw new EndOfStreamException();
-
+            byte[] b = s.ReadBytes(4);
             Array.Reverse(b);
             return BitConverter.ToUInt32(b, 0);
         }
@@ -191,7 +183,7 @@ namespace TechnitiumLibrary.Net.Dns
                 }
                 else
                 {
-                    s.Read(buffer, 0, labelLength);
+                    s.ReadBytes(buffer, 0, labelLength);
                     domain.Append(Encoding.ASCII.GetString(buffer, 0, labelLength) + ".");
                     labelLength = Convert.ToByte(s.ReadByte());
                 }
@@ -235,12 +227,9 @@ namespace TechnitiumLibrary.Net.Dns
         { get { return _server; } }
 
         public string NameServer
-        { get { return _server.Domain; } }
+        { get { return _server.ToString(); } }
 
-        public string NameServerIPAddress
-        { get { return _server.EndPoint.Address.ToString(); } }
-
-        public ProtocolType Protocol
+        public DnsClientProtocol Protocol
         { get { return _protocol; } }
 
         [IgnoreDataMember]
