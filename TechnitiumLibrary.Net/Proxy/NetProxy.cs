@@ -23,7 +23,7 @@ using System.Net.Sockets;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    public enum NetProxyType
+    public enum NetProxyType : byte
     {
         None = 0,
         Http = 1,
@@ -42,6 +42,44 @@ namespace TechnitiumLibrary.Net.Proxy
         #endregion
 
         #region constructor
+
+        public NetProxy(NetProxyType type, IPAddress address, int port, NetworkCredential credential = null)
+        {
+            _type = type;
+
+            switch (type)
+            {
+                case NetProxyType.Http:
+                    _httpProxy = new WebProxyEx(new Uri("http://" + address.ToString() + ":" + port), false, new string[] { }, credential);
+                    break;
+
+                case NetProxyType.Socks5:
+                    _socksProxy = new SocksClient(address, port, credential);
+                    break;
+
+                default:
+                    throw new NotSupportedException("Proxy type not supported.");
+            }
+        }
+
+        public NetProxy(NetProxyType type, string address, int port, NetworkCredential credential = null)
+        {
+            _type = type;
+
+            switch (type)
+            {
+                case NetProxyType.Http:
+                    _httpProxy = new WebProxyEx(new Uri("http://" + address + ":" + port), false, new string[] { }, credential);
+                    break;
+
+                case NetProxyType.Socks5:
+                    _socksProxy = new SocksClient(address, port, credential);
+                    break;
+
+                default:
+                    throw new NotSupportedException("Proxy type not supported.");
+            }
+        }
 
         public NetProxy(WebProxyEx httpProxy)
         {
@@ -133,6 +171,66 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public NetProxyType Type
         { get { return _type; } }
+
+        public string Address
+        {
+            get
+            {
+                switch (_type)
+                {
+                    case NetProxyType.Http:
+                        return _httpProxy.Address.Host;
+
+                    case NetProxyType.Socks5:
+                        if (_socksProxy.ProxyEndPoint.AddressFamily == AddressFamily.Unspecified)
+                            return (_socksProxy.ProxyEndPoint as DomainEndPoint).Address;
+
+                        return (_socksProxy.ProxyEndPoint as IPEndPoint).Address.ToString();
+
+                    default:
+                        throw new NotSupportedException("Proxy type not supported.");
+                }
+            }
+        }
+
+        public int Port
+        {
+            get
+            {
+                switch (_type)
+                {
+                    case NetProxyType.Http:
+                        return _httpProxy.Address.Port;
+
+                    case NetProxyType.Socks5:
+                        if (_socksProxy.ProxyEndPoint.AddressFamily == AddressFamily.Unspecified)
+                            return (_socksProxy.ProxyEndPoint as DomainEndPoint).Port;
+
+                        return (_socksProxy.ProxyEndPoint as IPEndPoint).Port;
+
+                    default:
+                        throw new NotSupportedException("Proxy type not supported.");
+                }
+            }
+        }
+
+        public NetworkCredential Credential
+        {
+            get
+            {
+                switch (_type)
+                {
+                    case NetProxyType.Http:
+                        return _httpProxy.Credentials?.GetCredential(new Uri("http://www.google.com/"), "Basic");
+
+                    case NetProxyType.Socks5:
+                        return _socksProxy.Credential;
+
+                    default:
+                        throw new NotSupportedException("Proxy type not supported.");
+                }
+            }
+        }
 
         public WebProxyEx HttpProxy
         { get { return _httpProxy; } }
