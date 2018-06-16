@@ -30,7 +30,7 @@ namespace TechnitiumLibrary.IO
         ExecuteFile = 2
     }
 
-    public class PackageItem : IWriteStream, IDisposable
+    public class PackageItem : IDisposable
     {
         #region variables
 

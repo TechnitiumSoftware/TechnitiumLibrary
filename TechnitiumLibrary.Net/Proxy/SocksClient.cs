@@ -68,7 +68,7 @@ namespace TechnitiumLibrary.Net.Proxy
         public const byte SOCKS_VERSION = 5;
 
         EndPoint _proxyEP;
-        NetworkCredential _credentials;
+        NetworkCredential _credential;
 
         byte[] _negotiationRequest;
         byte[] _authRequest;
@@ -77,36 +77,36 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region constructor
 
-        public SocksClient(string proxyAddress, int port = 1080, NetworkCredential credentials = null)
+        public SocksClient(string proxyAddress, int port = 1080, NetworkCredential credential = null)
         {
             _proxyEP = new DomainEndPoint(proxyAddress, port);
 
-            Init(credentials);
+            Init(credential);
         }
 
-        public SocksClient(IPAddress proxyAddress, int port = 1080, NetworkCredential credentials = null)
+        public SocksClient(IPAddress proxyAddress, int port = 1080, NetworkCredential credential = null)
         {
             _proxyEP = new IPEndPoint(proxyAddress, port);
 
-            Init(credentials);
+            Init(credential);
         }
 
-        public SocksClient(EndPoint proxyEndPoint, NetworkCredential credentials = null)
+        public SocksClient(EndPoint proxyEndPoint, NetworkCredential credential = null)
         {
             _proxyEP = proxyEndPoint;
 
-            Init(credentials);
+            Init(credential);
         }
 
         #endregion
 
         #region private
 
-        private void Init(NetworkCredential credentials)
+        private void Init(NetworkCredential credential)
         {
-            _credentials = credentials;
+            _credential = credential;
 
-            if (credentials == null)
+            if (_credential == null)
             {
                 _negotiationRequest = new byte[3];
 
@@ -123,13 +123,13 @@ namespace TechnitiumLibrary.Net.Proxy
                 _negotiationRequest[2] = (byte)SocksMethod.NoAuthenticationRequired;
                 _negotiationRequest[3] = (byte)SocksMethod.UsernamePassword;
 
-                _authRequest = new byte[1 + 1 + credentials.UserName.Length + 1 + credentials.Password.Length];
+                _authRequest = new byte[1 + 1 + _credential.UserName.Length + 1 + _credential.Password.Length];
 
                 _authRequest[0] = 0x01;
-                _authRequest[1] = Convert.ToByte(credentials.UserName.Length);
-                Buffer.BlockCopy(Encoding.ASCII.GetBytes(credentials.UserName), 0, _authRequest, 2, credentials.UserName.Length);
-                _authRequest[2 + credentials.UserName.Length] = Convert.ToByte(credentials.Password.Length);
-                Buffer.BlockCopy(Encoding.ASCII.GetBytes(credentials.Password), 0, _authRequest, 2 + credentials.UserName.Length + 1, credentials.Password.Length);
+                _authRequest[1] = Convert.ToByte(_credential.UserName.Length);
+                Buffer.BlockCopy(Encoding.ASCII.GetBytes(_credential.UserName), 0, _authRequest, 2, _credential.UserName.Length);
+                _authRequest[2 + _credential.UserName.Length] = Convert.ToByte(_credential.Password.Length);
+                Buffer.BlockCopy(Encoding.ASCII.GetBytes(_credential.Password), 0, _authRequest, 2 + _credential.UserName.Length + 1, _credential.Password.Length);
             }
         }
 
@@ -511,14 +511,14 @@ namespace TechnitiumLibrary.Net.Proxy
             set { _proxyEP = value; }
         }
 
-        public NetworkCredential Credentials
+        public NetworkCredential Credential
         {
-            get { return _credentials; }
+            get { return _credential; }
             set
             {
                 Init(value);
 
-                _credentials = value;
+                _credential = value;
             }
         }
 
