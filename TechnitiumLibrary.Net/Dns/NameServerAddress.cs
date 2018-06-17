@@ -19,8 +19,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns
 {
@@ -32,6 +34,8 @@ namespace TechnitiumLibrary.Net.Dns
         DomainEndPoint _domainEndPoint;
         IPEndPoint _ipEndPoint;
 
+        string _stringValue;
+
         #endregion
 
         #region constructors
@@ -40,37 +44,61 @@ namespace TechnitiumLibrary.Net.Dns
         {
             _dohEndPoint = dohEndPoint;
             _domainEndPoint = new DomainEndPoint(_dohEndPoint.Host, _dohEndPoint.Port);
+
+            _stringValue = dohEndPoint.AbsoluteUri;
         }
 
         public NameServerAddress(string domain)
             : this(new DomainEndPoint(domain, 53), null as IPEndPoint)
-        { }
+        {
+            _stringValue = domain;
+        }
 
         public NameServerAddress(DomainEndPoint domainEndPoint)
             : this(domainEndPoint, null)
-        { }
+        {
+            _stringValue = domainEndPoint.ToString();
+        }
 
         public NameServerAddress(IPAddress address)
             : this(null as DomainEndPoint, new IPEndPoint(address, 53))
-        { }
+        {
+            _stringValue = address.ToString();
+        }
 
         public NameServerAddress(IPEndPoint ipEndPoint)
             : this(null as DomainEndPoint, ipEndPoint)
-        { }
+        {
+            _stringValue = ipEndPoint.ToString();
+        }
+
+        public NameServerAddress(Uri dohEndPoint, IPAddress address)
+            : this(new DomainEndPoint(dohEndPoint.Host, dohEndPoint.Port), new IPEndPoint(address, dohEndPoint.Port))
+        {
+            _dohEndPoint = dohEndPoint;
+
+            _stringValue = dohEndPoint.AbsoluteUri + " (" + address.ToString() + ")";
+        }
 
         public NameServerAddress(string domain, IPAddress address)
             : this(new DomainEndPoint(domain, 53), new IPEndPoint(address, 53))
-        { }
+        {
+            _stringValue = domain + " (" + address.ToString() + ")";
+        }
 
         public NameServerAddress(string domain, IPEndPoint ipEndPoint)
             : this(new DomainEndPoint(domain, ipEndPoint.Port), ipEndPoint)
-        { }
+        {
+            _stringValue = domain + " (" + ipEndPoint.ToString() + ")";
+        }
 
         public NameServerAddress(EndPoint endPoint)
             : this(endPoint as DomainEndPoint, endPoint as IPEndPoint)
-        { }
+        {
+            _stringValue = endPoint.ToString();
+        }
 
-        public NameServerAddress(DomainEndPoint domainEndPoint, IPEndPoint ipEndPoint)
+        private NameServerAddress(DomainEndPoint domainEndPoint, IPEndPoint ipEndPoint)
         {
             _domainEndPoint = domainEndPoint;
             _ipEndPoint = ipEndPoint;
@@ -82,6 +110,34 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (_domainEndPoint.Port != _ipEndPoint.Port)
                     throw new ArgumentNullException();
+            }
+        }
+
+        public NameServerAddress(BinaryReader bR)
+        {
+            switch (bR.ReadByte())
+            {
+                case 1:
+                    if (bR.ReadBoolean())
+                        _dohEndPoint = new Uri(bR.ReadShortString());
+
+                    if (bR.ReadBoolean())
+                        _domainEndPoint = EndPointExtension.Parse(bR) as DomainEndPoint;
+
+                    if (bR.ReadBoolean())
+                        _ipEndPoint = EndPointExtension.Parse(bR) as IPEndPoint;
+
+                    if (_dohEndPoint != null)
+                        _stringValue = _dohEndPoint.AbsoluteUri;
+                    else if (_ipEndPoint != null)
+                        _stringValue = _ipEndPoint.ToString();
+                    else if (_domainEndPoint != null)
+                        _stringValue = _domainEndPoint.ToString();
+
+                    break;
+
+                default:
+                    throw new InvalidDataException("NameServerAddress version not supported");
             }
         }
 
@@ -190,14 +246,44 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
+        public void WriteTo(BinaryWriter bW)
+        {
+            bW.Write((byte)1); //version
+
+            if (_dohEndPoint == null)
+            {
+                bW.Write(false);
+            }
+            else
+            {
+                bW.Write(true);
+                bW.WriteShortString(_dohEndPoint.AbsoluteUri);
+            }
+
+            if (_domainEndPoint == null)
+            {
+                bW.Write(false);
+            }
+            else
+            {
+                bW.Write(true);
+                _domainEndPoint.WriteTo(bW);
+            }
+
+            if (_ipEndPoint == null)
+            {
+                bW.Write(false);
+            }
+            else
+            {
+                bW.Write(true);
+                _ipEndPoint.WriteTo(bW);
+            }
+        }
+
         public override string ToString()
         {
-            if (_domainEndPoint == null)
-                return _ipEndPoint.ToString();
-            else if (_ipEndPoint == null)
-                return _domainEndPoint.ToString();
-            else
-                return _domainEndPoint.ToString() + " (" + _ipEndPoint.ToString() + ")";
+            return _stringValue;
         }
 
         public int CompareTo(NameServerAddress other)
@@ -249,7 +335,7 @@ namespace TechnitiumLibrary.Net.Dns
             get
             {
                 if (_ipEndPoint != null)
-                    return _ipEndPoint;
+                    return _ipEndPoint; //IP endpoint is prefered
 
                 return _domainEndPoint;
             }
