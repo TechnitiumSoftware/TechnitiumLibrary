@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -299,6 +299,10 @@ namespace TechnitiumLibrary.Net
 
                     case "user-agent":
                         request.UserAgent = header.Value;
+                        break;
+
+                    case "host":
+                        request.Host = header.Value;
                         break;
 
                     default:

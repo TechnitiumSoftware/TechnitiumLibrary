@@ -28,12 +28,19 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
+        Uri _dohEndPoint;
         DomainEndPoint _domainEndPoint;
         IPEndPoint _ipEndPoint;
 
         #endregion
 
         #region constructors
+
+        public NameServerAddress(Uri dohEndPoint)
+        {
+            _dohEndPoint = dohEndPoint;
+            _domainEndPoint = new DomainEndPoint(_dohEndPoint.Host, _dohEndPoint.Port);
+        }
 
         public NameServerAddress(string domain)
             : this(new DomainEndPoint(domain, 53), null as IPEndPoint)
@@ -216,6 +223,9 @@ namespace TechnitiumLibrary.Net.Dns
         #endregion
 
         #region properties
+
+        public Uri DnsOverHttpEndPoint
+        { get { return _dohEndPoint; } }
 
         public string Domain
         {
