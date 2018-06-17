@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -43,13 +44,16 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new DnsClientException("Invalid IP address family.");
         }
 
-        #endregion
-
-        #region static
-
         public DnsAAAARecord(Stream s)
             : base(s)
         { }
+
+        public DnsAAAARecord(dynamic jsonResourceRecord)
+        {
+            _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+
+            _address = System.Net.IPAddress.Parse(jsonResourceRecord.data.Value);
+        }
 
         #endregion
 

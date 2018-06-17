@@ -44,6 +44,13 @@ namespace TechnitiumLibrary.Net.Dns
             : base(s)
         { }
 
+        public DnsTXTRecord(dynamic jsonResourceRecord)
+        {
+            _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+
+            _txtData = jsonResourceRecord.data.Value;
+        }
+
         #endregion
 
         #region protected

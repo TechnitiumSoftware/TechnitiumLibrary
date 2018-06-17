@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -43,6 +43,16 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsMXRecord(Stream s)
             : base(s)
         { }
+
+        public DnsMXRecord(dynamic jsonResourceRecord)
+        {
+            _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+
+            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
+
+            _preference = ushort.Parse(parts[0]);
+            _exchange = parts[1].TrimEnd('.');
+        }
 
         #endregion
 

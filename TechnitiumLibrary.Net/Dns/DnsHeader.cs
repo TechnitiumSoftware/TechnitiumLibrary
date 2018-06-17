@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -145,6 +145,30 @@ namespace TechnitiumLibrary.Net.Dns
             _ANCOUNT = DnsDatagram.ReadUInt16NetworkOrder(s);
             _NSCOUNT = DnsDatagram.ReadUInt16NetworkOrder(s);
             _ARCOUNT = DnsDatagram.ReadUInt16NetworkOrder(s);
+        }
+
+        public DnsHeader(dynamic jsonResponse)
+        {
+            _QR = 1; //is response
+            _OPCODE = DnsOpcode.StandardQuery;
+
+            _TC = (byte)(jsonResponse.TC.Value ? 1 : 0);
+            _RD = (byte)(jsonResponse.RD.Value ? 1 : 0);
+            _RA = (byte)(jsonResponse.RA.Value ? 1 : 0);
+            _AD = (byte)(jsonResponse.AD.Value ? 1 : 0);
+            _CD = (byte)(jsonResponse.CD.Value ? 1 : 0);
+            _RCODE = (DnsResponseCode)jsonResponse.Status;
+
+            _QDCOUNT = Convert.ToUInt16(jsonResponse.Question.Count);
+
+            if (jsonResponse.Answer != null)
+                _ANCOUNT = Convert.ToUInt16(jsonResponse.Answer.Count);
+
+            if (jsonResponse.Authority != null)
+                _NSCOUNT = Convert.ToUInt16(jsonResponse.Authority.Count);
+
+            if (jsonResponse.Additional != null)
+                _ARCOUNT = Convert.ToUInt16(jsonResponse.Additional.Count);
         }
 
         #endregion

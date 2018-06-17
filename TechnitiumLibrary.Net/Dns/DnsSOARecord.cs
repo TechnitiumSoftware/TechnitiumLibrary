@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -52,6 +53,21 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsSOARecord(Stream s)
             : base(s)
         { }
+
+        public DnsSOARecord(dynamic jsonResourceRecord)
+        {
+            _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+
+            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
+
+            _masterNameServer = parts[0].TrimEnd('.');
+            _responsiblePerson = parts[1].TrimEnd('.');
+            _serial = uint.Parse(parts[2]);
+            _refresh = uint.Parse(parts[3]);
+            _retry = uint.Parse(parts[4]);
+            _expire = uint.Parse(parts[5]);
+            _minimum = uint.Parse(parts[6]);
+        }
 
         #endregion
 

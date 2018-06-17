@@ -32,7 +32,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         NameServerAddress _server;
         DnsClientProtocol _protocol;
-        long _size;
+        int _size;
         double _rtt;
 
         DnsHeader _header;
@@ -60,7 +60,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             _server = server;
             _protocol = protocol;
-            _size = s.Length;
+            _size = Convert.ToInt32(s.Length);
             _rtt = rtt;
             _header = new DnsHeader(s);
 
@@ -79,6 +79,58 @@ namespace TechnitiumLibrary.Net.Dns
             _additional = new DnsResourceRecord[_header.ARCOUNT];
             for (int i = 0; i < _header.ARCOUNT; i++)
                 _additional[i] = new DnsResourceRecord(s);
+        }
+
+        public DnsDatagram(dynamic jsonResponse, int responseLength, NameServerAddress server = null, DnsClientProtocol protocol = DnsClientProtocol.Udp, double rtt = 0)
+        {
+            _server = server;
+            _protocol = protocol;
+            _size = responseLength;
+            _rtt = rtt;
+            _header = new DnsHeader(jsonResponse);
+
+            {
+                _question = new DnsQuestionRecord[_header.QDCOUNT];
+                int i = 0;
+                foreach (dynamic jsonQuestionRecord in jsonResponse.Question)
+                    _question[i++] = new DnsQuestionRecord(jsonQuestionRecord);
+            }
+
+            if (jsonResponse.Answer == null)
+            {
+                _answer = new DnsResourceRecord[] { };
+            }
+            else
+            {
+                _answer = new DnsResourceRecord[_header.ANCOUNT];
+                int i = 0;
+                foreach (dynamic jsonAnswerRecord in jsonResponse.Answer)
+                    _answer[i++] = new DnsResourceRecord(jsonAnswerRecord);
+            }
+
+            if (jsonResponse.Authority == null)
+            {
+                _authority = new DnsResourceRecord[] { };
+            }
+            else
+            {
+                _authority = new DnsResourceRecord[_header.NSCOUNT];
+                int i = 0;
+                foreach (dynamic jsonAuthorityRecord in jsonResponse.Authority)
+                    _authority[i++] = new DnsResourceRecord(jsonAuthorityRecord);
+            }
+
+            if (jsonResponse.Additional == null)
+            {
+                _additional = new DnsResourceRecord[] { };
+            }
+            else
+            {
+                _additional = new DnsResourceRecord[_header.ARCOUNT];
+                int i = 0;
+                foreach (dynamic jsonAdditionalRecord in jsonResponse.Additional)
+                    _additional[i++] = new DnsResourceRecord(jsonAdditionalRecord);
+            }
         }
 
         #endregion
@@ -227,13 +279,30 @@ namespace TechnitiumLibrary.Net.Dns
         { get { return _server; } }
 
         public string NameServer
-        { get { return _server.ToString(); } }
+        {
+            get
+            {
+                string value = null;
+
+                if (_server.DnsOverHttpEndPoint != null)
+                    value = _server.DnsOverHttpEndPoint.AbsoluteUri;
+                else if (_server.DomainEndPoint != null)
+                    value = _server.DomainEndPoint.ToString();
+
+                if (value == null)
+                    value = _server.IPEndPoint.ToString();
+                else if (_server.IPEndPoint != null)
+                    value += " (" + _server.IPEndPoint.ToString() + ")";
+
+                return value;
+            }
+        }
 
         public DnsClientProtocol Protocol
         { get { return _protocol; } }
 
         [IgnoreDataMember]
-        public long Size
+        public int Size
         { get { return _size; } }
 
         public string DatagramSize

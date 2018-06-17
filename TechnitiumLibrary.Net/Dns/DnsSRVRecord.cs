@@ -48,6 +48,18 @@ namespace TechnitiumLibrary.Net.Dns
             : base(s)
         { }
 
+        public DnsSRVRecord(dynamic jsonResourceRecord)
+        {
+            _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+
+            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
+
+            _priority = ushort.Parse(parts[0]);
+            _weight = ushort.Parse(parts[1]);
+            _port = ushort.Parse(parts[2]);
+            _target = parts[3].TrimEnd('.');
+        }
+
         #endregion
 
         #region protected

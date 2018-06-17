@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -80,6 +80,13 @@ namespace TechnitiumLibrary.Net.Dns
             _name = DnsDatagram.ConvertLabelToDomain(s);
             _type = (DnsResourceRecordType)DnsDatagram.ReadUInt16NetworkOrder(s);
             _class = (DnsClass)DnsDatagram.ReadUInt16NetworkOrder(s);
+        }
+
+        public DnsQuestionRecord(dynamic jsonQuestionRecord)
+        {
+            _name = (jsonQuestionRecord.name.Value as string).TrimEnd('.');
+            _type = (DnsResourceRecordType)jsonQuestionRecord.type;
+            _class = DnsClass.IN;
         }
 
         #endregion

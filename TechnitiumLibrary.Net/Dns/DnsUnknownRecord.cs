@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -42,6 +43,13 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsUnknownRecord(Stream s)
             : base(s)
         { }
+
+        public DnsUnknownRecord(dynamic jsonResourceRecord)
+        {
+            _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+
+            _data = Encoding.ASCII.GetBytes(jsonResourceRecord.data.Value as string);
+        }
 
         #endregion
 

@@ -204,6 +204,57 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        public DnsResourceRecord(dynamic jsonResourceRecord)
+        {
+            _name = (jsonResourceRecord.name.Value as string).TrimEnd('.');
+            _type = (DnsResourceRecordType)jsonResourceRecord.type;
+            _class = DnsClass.IN;
+            _ttl = jsonResourceRecord.TTL;
+
+            switch (_type)
+            {
+                case DnsResourceRecordType.A:
+                    _data = new DnsARecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.NS:
+                    _data = new DnsNSRecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.CNAME:
+                    _data = new DnsCNAMERecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.SOA:
+                    _data = new DnsSOARecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.PTR:
+                    _data = new DnsPTRRecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.MX:
+                    _data = new DnsMXRecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.TXT:
+                    _data = new DnsTXTRecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.AAAA:
+                    _data = new DnsAAAARecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.SRV:
+                    _data = new DnsSRVRecord(jsonResourceRecord);
+                    break;
+
+                default:
+                    _data = new DnsUnknownRecord(jsonResourceRecord);
+                    break;
+            }
+        }
+
         #endregion
 
         #region public
