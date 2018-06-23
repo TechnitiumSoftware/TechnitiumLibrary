@@ -49,6 +49,8 @@ namespace TechnitiumLibrary.Net.Dns
         public static readonly NameServerAddress[] ROOT_NAME_SERVERS_IPv4;
         public static readonly NameServerAddress[] ROOT_NAME_SERVERS_IPv6;
 
+        public static DnsClientProtocol RecursiveResolveDefaultProtocol = DnsClientProtocol.Udp;
+
         readonly internal static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         const int MAX_HOPS = 16;
@@ -328,6 +330,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             question = data.Question;
                                             nameServers = data.NameServers;
                                             stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                            protocol = data.Protocol;
                                         }
 
                                         continue; //to stack loop
@@ -359,6 +362,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 question = data.Question;
                                 nameServers = data.NameServers;
                                 stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                protocol = data.Protocol;
 
                                 continue; //stack loop
                             }
@@ -389,13 +393,12 @@ namespace TechnitiumLibrary.Net.Dns
                     int i = stackNameServerIndex;
                     stackNameServerIndex = 0;
 
+                    Exception lastException = null;
+
                     //query name servers one by one
                     for (; i < nameServers.Length; i++) //retry next server loop
                     {
                         NameServerAddress currentNameServer = nameServers[i];
-
-                        if (question.Name == currentNameServer.Domain)
-                            continue; //obvious!
 
                         if ((currentNameServer.IPEndPoint == null) && (proxy == null))
                         {
@@ -407,9 +410,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 question = new DnsQuestionRecord(currentNameServer.Domain, DnsResourceRecordType.A, question.Class);
 
                             nameServers = null;
-
-                            if (protocol != DnsClientProtocol.Udp)
-                                protocol = DnsClientProtocol.Tcp;
+                            protocol = RecursiveResolveDefaultProtocol;
 
                             goto stackLoop;
                         }
@@ -428,8 +429,9 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             response = client.Resolve(request);
                         }
-                        catch (DnsClientException)
+                        catch (DnsClientException ex)
                         {
+                            lastException = ex;
                             continue; //resolver loop
                         }
 
@@ -537,6 +539,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             question = data.Question;
                                             nameServers = data.NameServers;
                                             stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                            protocol = data.Protocol;
                                         }
 
                                         goto stackLoop; //goto stack loop
@@ -564,6 +567,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     question = data.Question;
                                     nameServers = data.NameServers;
                                     stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                    protocol = data.Protocol;
 
                                     goto stackLoop; //goto stack loop
                                 }
@@ -575,7 +579,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     if (resolverStack.Count == 0)
                     {
-                        throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.");
+                        throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.", lastException);
                     }
                     else
                     {
@@ -586,6 +590,7 @@ namespace TechnitiumLibrary.Net.Dns
                         question = data.Question;
                         nameServers = data.NameServers;
                         stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                        protocol = data.Protocol;
 
                         break; //to stack loop
                     }
@@ -680,21 +685,8 @@ namespace TechnitiumLibrary.Net.Dns
                     if (dnsCache == null)
                         dnsCache = new SimpleDnsCache();
 
-                    DnsClientProtocol protocol;
-
-                    switch (_protocol)
-                    {
-                        case DnsClientProtocol.Udp:
-                            protocol = DnsClientProtocol.Udp;
-                            break;
-
-                        default:
-                            protocol = DnsClientProtocol.Tcp;
-                            break;
-                    }
-
-                    //resolve name server via root servers
-                    server.ResolveAddress(dnsCache, _preferIPv6, protocol, _retries);
+                    //recursive resolve name server via root servers
+                    server.RecursiveResolveIPAddress(dnsCache, _preferIPv6, RecursiveResolveDefaultProtocol, _retries);
 
                     if (server.IPEndPoint == null)
                     {

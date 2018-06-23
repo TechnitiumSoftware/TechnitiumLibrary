@@ -212,7 +212,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region internal
 
-        internal void ResolveAddress(IDnsCache cache, bool preferIPv6, DnsClientProtocol protocol, int retries)
+        internal void RecursiveResolveIPAddress(IDnsCache cache, bool preferIPv6, DnsClientProtocol protocol, int retries)
         {
             if ((_domainEndPoint != null) && (_ipEndPoint == null))
             {
