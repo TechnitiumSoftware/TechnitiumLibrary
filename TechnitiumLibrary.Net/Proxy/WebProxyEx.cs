@@ -81,38 +81,28 @@ namespace TechnitiumLibrary.Net.Proxy
 
         private Socket GetProxyConnection(int timeout)
         {
+            IPAddress[] ipAddresses = System.Net.Dns.GetHostAddresses(this.Address.Host);
+            if (ipAddresses.Length == 0)
+                throw new SocketException((int)SocketError.HostNotFound);
+
+            IPEndPoint hostEP = new IPEndPoint(ipAddresses[0], this.Address.Port);
             Socket socket;
 
-            switch (Environment.OSVersion.Platform)
+            switch (hostEP.AddressFamily)
             {
-                case PlatformID.Win32NT:
-                    if (Environment.OSVersion.Version.Major < 6)
-                    {
-                        //below vista
-                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                    }
-                    else
-                    {
-                        //vista & above
-                        socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
-                        socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
-                    }
-                    break;
-
-                case PlatformID.Unix: //mono framework
-                    if (Socket.OSSupportsIPv6)
-                        socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
-                    else
-                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-                    break;
-
-                default: //unknown
+                case AddressFamily.InterNetwork:
                     socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                     break;
+
+                case AddressFamily.InterNetworkV6:
+                    socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+                    break;
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
             }
 
-            IAsyncResult result = socket.BeginConnect(this.Address.Host, this.Address.Port, null, null);
+            IAsyncResult result = socket.BeginConnect(hostEP, null, null);
             if (!result.AsyncWaitHandle.WaitOne(timeout))
                 throw new SocketException((int)SocketError.TimedOut);
 

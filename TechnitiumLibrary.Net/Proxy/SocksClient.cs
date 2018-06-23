@@ -305,58 +305,50 @@ namespace TechnitiumLibrary.Net.Proxy
         private Socket GetProxyConnection(int timeout)
         {
             Socket socket;
-            IAsyncResult result;
+            IPEndPoint hostEP;
 
             switch (_proxyEP.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
                     socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                    result = socket.BeginConnect(_proxyEP, null, null);
+                    hostEP = _proxyEP as IPEndPoint;
                     break;
 
                 case AddressFamily.InterNetworkV6:
                     socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
-                    result = socket.BeginConnect(_proxyEP, null, null);
+                    hostEP = _proxyEP as IPEndPoint;
                     break;
 
                 case AddressFamily.Unspecified:
-                    switch (Environment.OSVersion.Platform)
+                    DomainEndPoint ep = _proxyEP as DomainEndPoint;
+
+                    IPAddress[] ipAddresses = System.Net.Dns.GetHostAddresses(ep.Address);
+                    if (ipAddresses.Length == 0)
+                        throw new SocketException((int)SocketError.HostNotFound);
+
+                    hostEP = new IPEndPoint(ipAddresses[0], ep.Port);
+
+                    switch (hostEP.AddressFamily)
                     {
-                        case PlatformID.Win32NT:
-                            if (Environment.OSVersion.Version.Major < 6)
-                            {
-                                //below vista
-                                socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                            }
-                            else
-                            {
-                                //vista & above
-                                socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
-                                socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
-                            }
-                            break;
-
-                        case PlatformID.Unix:
-                            if (Socket.OSSupportsIPv6)
-                                socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
-                            else
-                                socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-                            break;
-
-                        default: //unknown
+                        case AddressFamily.InterNetwork:
                             socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                             break;
+
+                        case AddressFamily.InterNetworkV6:
+                            socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+                            break;
+
+                        default:
+                            throw new SocksClientException("Invalid socks address type.");
                     }
 
-                    DomainEndPoint ep = _proxyEP as DomainEndPoint;
-                    result = socket.BeginConnect(ep.Address, ep.Port, null, null);
                     break;
 
                 default:
                     throw new SocksClientException("Invalid socks address type.");
             }
 
+            IAsyncResult result = socket.BeginConnect(hostEP, null, null);
             if (!result.AsyncWaitHandle.WaitOne(timeout))
                 throw new SocketException((int)SocketError.TimedOut);
 
