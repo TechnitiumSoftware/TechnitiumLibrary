@@ -716,7 +716,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 wC.AddHeader("content-type", "application/dns-message");
                                 wC.AddHeader("accept", "application/dns-message");
                                 wC.AddHeader("host", server.DomainEndPoint.ToString());
-                                wC.UserAgent = "Technitium DNS Client";
+                                wC.UserAgent = "DoH client";
                                 wC.Proxy = _proxy;
 
                                 if (_proxy == null)
@@ -739,7 +739,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 wC.AddHeader("accept", "application/dns-json");
                                 wC.AddHeader("host", server.DomainEndPoint.ToString());
-                                wC.UserAgent = "Technitium DNS Client";
+                                wC.UserAgent = "DoH client";
                                 wC.Proxy = _proxy;
 
                                 Uri queryUri;
