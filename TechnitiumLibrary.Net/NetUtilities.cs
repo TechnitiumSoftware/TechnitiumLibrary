@@ -48,8 +48,9 @@ namespace TechnitiumLibrary.Net
         {
             //127.0.0.0 - 127.255.255.255
             //10.0.0.0 - 10.255.255.255
+            //100.64.0.0 - 100.127.255.255  --> 100.64.0.0/10 - Carrier-grade NAT
             //169.254.0.0 - 169.254.255.255
-            //172.16.0.0 - 172.31.255.255
+            //172.16.0.0 - 172.31.255.255 --> 172.16.0.0/12
             //192.168.0.0 - 192.168.255.255
 
             if (address.AddressFamily != AddressFamily.InterNetwork)
@@ -63,11 +64,14 @@ namespace TechnitiumLibrary.Net
                 case 10:
                     return true;
 
+                case 100:
+                    return (ip[1] & 192) == 64;
+
                 case 169:
                     return (ip[1] == 254);
 
                 case 172:
-                    return ((ip[1] >= 16) && (ip[1] <= 31));
+                    return ((ip[1] & 240) == 16);
 
                 case 192:
                     return (ip[1] == 168);
