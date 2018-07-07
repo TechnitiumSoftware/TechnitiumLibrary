@@ -64,22 +64,20 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region IDisposable
 
-        ~CryptoContainer()
-        {
-            Dispose(false);
-        }
-
         public void Dispose()
         {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
 
-        bool disposed = false;
+        bool _disposed = false;
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposed)
+            if (_disposed)
+                return;
+
+            if (disposing)
             {
                 if (_containerKey != null)
                     _containerKey.Dispose();
@@ -89,9 +87,9 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                 if (_hmac != null)
                     _hmac.Dispose();
-
-                disposed = true;
             }
+
+            _disposed = true;
         }
 
         #endregion
@@ -260,7 +258,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                 s.Write(computedHMAC, 0, 32);
             }
         }
-        
+
         public void SetPassword(SymmetricEncryptionAlgorithm cryptoAlgo, int keySize, string password)
         {
             int keySizeBytes = keySize / 8;

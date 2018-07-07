@@ -106,9 +106,20 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region IDisposable
 
+        private bool _disposed = false;
+
         protected override void Dispose(bool disposing)
         {
-            _PRF.Dispose();
+            if (_disposed)
+                return;
+
+            if (disposing)
+            {
+                if (_PRF != null)
+                    _PRF.Dispose();
+            }
+
+            _disposed = true;
 
             base.Dispose(disposing);
         }

@@ -53,12 +53,7 @@ namespace TechnitiumLibrary.IO
 
         #endregion
 
-        #region IDisposable support
-
-        ~Joint()
-        {
-            Dispose(false);
-        }
+        #region IDisposable
 
         public void Dispose()
         {
@@ -72,27 +67,21 @@ namespace TechnitiumLibrary.IO
         {
             lock (this)
             {
-                if (!_disposed)
+                if (_disposed)
+                    return;
+
+                if (disposing)
                 {
-                    try
-                    {
+                    if (_stream1 != null)
                         _stream1.Dispose();
-                    }
-                    catch
-                    { }
 
-                    try
-                    {
+                    if (_stream2 != null)
                         _stream2.Dispose();
-                    }
-                    catch
-                    { }
 
-                    _disposed = true;
-
-                    if (Disposed != null)
-                        Disposed(this, EventArgs.Empty);
+                    Disposed?.Invoke(this, EventArgs.Empty);
                 }
+
+                _disposed = true;
             }
         }
 

@@ -64,22 +64,20 @@ namespace TechnitiumLibrary.Net.Mail
 
         #region IDisposable
 
-        ~Pop3Client()
-        {
-            Dispose(false);
-        }
-
         public void Dispose()
         {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
 
-        bool disposed = false;
+        bool _disposed = false;
 
         private void Dispose(bool disposing)
         {
-            if (!disposed)
+            if (_disposed)
+                return;
+
+            if (disposing)
             {
                 if (_sW != null)
                     _sW.Dispose();
@@ -88,10 +86,10 @@ namespace TechnitiumLibrary.Net.Mail
                     _sR.Dispose();
 
                 if (_sock != null)
-                    _sock.Close();
-
-                disposed = true;
+                    _sock.Dispose();
             }
+
+            _disposed = true;
         }
 
         #endregion

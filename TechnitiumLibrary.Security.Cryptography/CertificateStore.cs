@@ -62,22 +62,20 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region IDisposable
 
-        ~CertificateStore()
-        {
-            Dispose(false);
-        }
-
-        bool disposed = false;
+        bool _disposed = false;
 
         protected override void Dispose(bool disposing)
         {
-            if (!disposed)
+            if (_disposed)
+                return;
+
+            if (disposing)
             {
                 if (_privateKey != null)
                     _privateKey.Dispose();
-
-                disposed = true;
             }
+
+            _disposed = true;
 
             base.Dispose(disposing);
         }

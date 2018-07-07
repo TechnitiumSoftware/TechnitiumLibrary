@@ -68,22 +68,20 @@ namespace TechnitiumLibrary.IO
 
         #region IDisposable
 
-        ~OffsetStream()
-        {
-            Dispose(false);
-        }
-
         bool _disposed = false;
 
         protected override void Dispose(bool disposing)
         {
-            if (!_disposed)
-            {
-                if (_ownStream)
-                    _stream.Dispose();
+            if (_disposed)
+                return;
 
-                _disposed = true;
+            if (disposing)
+            {
+                if (_ownStream & (_stream != null))
+                    _stream.Dispose();
             }
+
+            _disposed = true;
 
             base.Dispose(disposing);
         }

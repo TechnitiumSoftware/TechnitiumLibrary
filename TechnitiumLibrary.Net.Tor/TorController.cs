@@ -70,27 +70,28 @@ namespace TechnitiumLibrary.Net.Tor
 
         #endregion
 
-        #region IDisposable Support
+        #region IDisposable
 
-        private bool disposedValue = false;
+        bool _disposed = false;
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    if (_process != null)
-                        Stop();
-                }
+            if (_disposed)
+                return;
 
-                disposedValue = true;
+            if (disposing)
+            {
+                if (_process != null)
+                    Stop();
             }
+
+            _disposed = true;
         }
 
         public void Dispose()
         {
             Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         #endregion

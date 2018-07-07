@@ -82,23 +82,18 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         protected bool _disposed = false;
 
-        ~TrackerClient()
-        {
-            Dispose(false);
-        }
-
         protected virtual void Dispose(bool disposing)
         {
-            if (!_disposed)
-            {
-                if (disposing)
-                {
-                    if (_lastClientEP != null)
-                        Update(TrackerClientEvent.Stopped, _lastClientEP);
-                }
+            if (_disposed)
+                return;
 
-                _disposed = true;
+            if (disposing)
+            {
+                if (_lastClientEP != null)
+                    Update(TrackerClientEvent.Stopped, _lastClientEP);
             }
+
+            _disposed = true;
         }
 
         public void Dispose()

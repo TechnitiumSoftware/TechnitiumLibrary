@@ -116,19 +116,25 @@ namespace TechnitiumLibrary.Security.Cryptography
         #region IDisposable
 
         bool _disposed = false;
-        
+
         public void Dispose()
         {
             Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         private void Dispose(bool disposing)
         {
-            if (!_disposed)
+            if (_disposed)
+                return;
+
+            if (disposing)
             {
-                _symAlgo.Dispose();
-                _disposed = true;
+                if (_symAlgo != null)
+                    _symAlgo.Dispose();
             }
+
+            _disposed = true;
         }
 
         #endregion

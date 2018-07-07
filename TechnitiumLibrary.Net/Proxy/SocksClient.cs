@@ -545,11 +545,6 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region IDisposable
 
-        ~SocksConnectRequestHandler()
-        {
-            Dispose(false);
-        }
-
         public void Dispose()
         {
             Dispose(true);
@@ -560,13 +555,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
         private void Dispose(bool disposing)
         {
-            if (!_disposed)
+            if (_disposed)
+                return;
+
+            if (disposing)
             {
                 if (_socket != null)
                 {
-                    if (disposing)
-                        _socket.Shutdown(SocketShutdown.Both);
-
+                    _socket.Shutdown(SocketShutdown.Both);
                     _socket.Dispose();
                 }
 
@@ -578,9 +574,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 if (_tunnelJoint != null)
                     _tunnelJoint.Dispose();
-
-                _disposed = true;
             }
+
+            _disposed = true;
         }
 
         #endregion
@@ -704,11 +700,6 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region IDisposable
 
-        ~SocksBindRequestHandler()
-        {
-            Dispose(false);
-        }
-
         public void Dispose()
         {
             Dispose(true);
@@ -719,15 +710,19 @@ namespace TechnitiumLibrary.Net.Proxy
 
         private void Dispose(bool disposing)
         {
-            if (!_disposed)
+            if (_disposed)
+                return;
+
+            if (disposing)
             {
-                if (disposing)
+                if (_socket != null)
+                {
                     _socket.Shutdown(SocketShutdown.Both);
-
-                _socket.Dispose();
-
-                _disposed = true;
+                    _socket.Dispose();
+                }
             }
+
+            _disposed = true;
         }
 
         #endregion
@@ -796,11 +791,6 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region IDisposable
 
-        ~SocksUdpAssociateRequestHandler()
-        {
-            Dispose(false);
-        }
-
         public void Dispose()
         {
             Dispose(true);
@@ -811,22 +801,28 @@ namespace TechnitiumLibrary.Net.Proxy
 
         private void Dispose(bool disposing)
         {
-            if (!_disposed)
+            if (_disposed)
+                return;
+
+            if (disposing)
             {
                 if (_watchThread != null)
                     _watchThread.Abort();
 
-                if (disposing)
+                if (_controlSocket != null)
                 {
                     _controlSocket.Shutdown(SocketShutdown.Both);
-                    _udpSocket.Shutdown(SocketShutdown.Both);
+                    _controlSocket.Dispose();
                 }
 
-                _controlSocket.Dispose();
-                _udpSocket.Dispose();
-
-                _disposed = true;
+                if (_udpSocket != null)
+                {
+                    _udpSocket.Shutdown(SocketShutdown.Both);
+                    _udpSocket.Dispose();
+                }
             }
+
+            _disposed = true;
         }
 
         #endregion

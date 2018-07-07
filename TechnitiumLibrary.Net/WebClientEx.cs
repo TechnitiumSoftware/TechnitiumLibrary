@@ -69,23 +69,25 @@ namespace TechnitiumLibrary.Net
 
         #region IDisposable
 
+        private bool _disposed = false;
+
         protected override void Dispose(bool disposing)
         {
-            try
-            {
-                if (disposing)
-                {
-                    if (_proxyRequestHandler != null)
-                        _proxyRequestHandler.Dispose();
+            if (_disposed)
+                return;
 
-                    if (_openResponseStream != null)
-                        _openResponseStream.Dispose();
-                }
-            }
-            finally
+            if (disposing)
             {
-                base.Dispose(disposing);
+                if (_proxyRequestHandler != null)
+                    _proxyRequestHandler.Dispose();
+
+                if (_openResponseStream != null)
+                    _openResponseStream.Dispose();
             }
+
+            _disposed = true;
+
+            base.Dispose(disposing);
         }
 
         #endregion
@@ -438,23 +440,32 @@ namespace TechnitiumLibrary.Net
 
             #endregion
 
-            #region public
+            #region IDisposable
+
+            private bool _disposed = false;
 
             protected override void Dispose(bool disposing)
             {
-                try
+                if (_disposed)
+                    return;
+
+                if (disposing)
                 {
-                    if (disposing)
+                    if (_requestStream != null)
+                        _requestStream.Dispose();
+
+                    try
                     {
-                        _requestStream.Close();
                         WebResponse response = _webClient.GetWebResponse(_request);
                         _webClient._openResponseStream = response.GetResponseStream();
                     }
+                    catch
+                    { }
                 }
-                finally
-                {
-                    base.Dispose(disposing);
-                }
+
+                _disposed = true;
+
+                base.Dispose(disposing);
             }
 
             #endregion

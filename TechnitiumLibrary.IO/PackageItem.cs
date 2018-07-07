@@ -98,11 +98,6 @@ namespace TechnitiumLibrary.IO
 
         #region IDisposable
 
-        ~PackageItem()
-        {
-            Dispose(false);
-        }
-
         public void Dispose()
         {
             Dispose(true);
@@ -113,13 +108,16 @@ namespace TechnitiumLibrary.IO
 
         private void Dispose(bool disposing)
         {
-            if (!_disposed)
-            {
-                if (_ownStream)
-                    _data.Dispose();
+            if (_disposed)
+                return;
 
-                _disposed = true;
+            if (disposing)
+            {
+                if (_ownStream && (_data != null))
+                    _data.Dispose();
             }
+
+            _disposed = true;
         }
 
         #endregion
