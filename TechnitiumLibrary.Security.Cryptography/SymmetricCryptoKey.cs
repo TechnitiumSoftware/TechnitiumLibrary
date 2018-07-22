@@ -120,7 +120,6 @@ namespace TechnitiumLibrary.Security.Cryptography
         public void Dispose()
         {
             Dispose(true);
-            GC.SuppressFinalize(this);
         }
 
         private void Dispose(bool disposing)
@@ -190,18 +189,18 @@ namespace TechnitiumLibrary.Security.Cryptography
             return new CryptoStream(s, _symAlgo.CreateDecryptor(), CryptoStreamMode.Read);
         }
 
-        public void Encrypt(Stream clearText, Stream cipherText, int bufferSize = 128 * 1024)
+        public void Encrypt(Stream clearText, Stream cipherText, int bufferSize = 4096)
         {
             using (CryptoStream cW = new CryptoStream(cipherText, _symAlgo.CreateEncryptor(), CryptoStreamMode.Write))
             {
-                OffsetStream.StreamCopy(clearText, cW, bufferSize);
+                clearText.CopyTo(cW, bufferSize);
                 cW.FlushFinalBlock();
             }
         }
 
-        public void Decrypt(Stream cipherText, Stream clearText, int bufferSize = 128 * 1024)
+        public void Decrypt(Stream cipherText, Stream clearText, int bufferSize = 4096)
         {
-            OffsetStream.StreamCopy(new CryptoStream(cipherText, _symAlgo.CreateDecryptor(), CryptoStreamMode.Read), clearText, bufferSize);
+            (new CryptoStream(cipherText, _symAlgo.CreateDecryptor(), CryptoStreamMode.Read)).CopyTo(clearText, bufferSize);
         }
 
         #endregion

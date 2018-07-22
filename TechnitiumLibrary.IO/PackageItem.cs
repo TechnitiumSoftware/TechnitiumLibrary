@@ -101,7 +101,6 @@ namespace TechnitiumLibrary.IO
         public void Dispose()
         {
             Dispose(true);
-            GC.SuppressFinalize(this);
         }
 
         bool _disposed = false;
@@ -199,7 +198,7 @@ namespace TechnitiumLibrary.IO
             }
 
             bW.Write(_data.Length);
-            OffsetStream.StreamCopy(_data, bW);
+            _data.CopyTo(s);
         }
 
         public PackageItemTransactionLog Extract(string filepath, bool overwrite = false)

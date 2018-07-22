@@ -551,7 +551,7 @@ namespace TechnitiumLibrary.IO
                     Stream stream = value.GetValueStream();
 
                     WriteLength(_s, Convert.ToInt32(stream.Length - stream.Position));
-                    OffsetStream.StreamCopy(stream, _s);
+                    stream.CopyTo(_s);
                     break;
 
                 case BincodingType.LIST:
@@ -810,7 +810,7 @@ namespace TechnitiumLibrary.IO
                 throw new ArgumentException("Argument 'format' must be of 2 characters.");
 
             byte[] buffer = new byte[2];
-            OffsetStream.StreamRead(s, buffer, 0, 2);
+            s.ReadBytes(buffer, 0, 2);
 
             if (format != Encoding.ASCII.GetString(buffer))
                 throw new InvalidDataException("Unable to decode: invalid data format.");
@@ -878,7 +878,7 @@ namespace TechnitiumLibrary.IO
             if (_lastStream != null)
             {
                 if ((_lastStream.Length - _lastStream.Position) > 0)
-                    OffsetStream.StreamCopy(_lastStream, Stream.Null, 4096, false);
+                    _lastStream.CopyTo(Stream.Null, 4096);
 
                 _lastStream = null;
             }
@@ -901,7 +901,7 @@ namespace TechnitiumLibrary.IO
                             throw new EndOfStreamException();
 
                         byte[] value = new byte[len];
-                        OffsetStream.StreamRead(_s, value, 0, value.Length);
+                        _s.ReadBytes(value, 0, value.Length);
 
                         return new Bincoding(type, value);
                     }
@@ -920,7 +920,7 @@ namespace TechnitiumLibrary.IO
                 case BincodingType.USHORT:
                     {
                         byte[] value = new byte[2];
-                        OffsetStream.StreamRead(_s, value, 0, 2);
+                        _s.ReadBytes(value, 0, 2);
 
                         return new Bincoding(type, value);
                     }
@@ -929,7 +929,7 @@ namespace TechnitiumLibrary.IO
                 case BincodingType.UINTEGER:
                     {
                         byte[] value = new byte[4];
-                        OffsetStream.StreamRead(_s, value, 0, 4);
+                        _s.ReadBytes(value, 0, 4);
 
                         return new Bincoding(type, value);
                     }
@@ -939,7 +939,7 @@ namespace TechnitiumLibrary.IO
                 case BincodingType.DATETIME:
                     {
                         byte[] value = new byte[8];
-                        OffsetStream.StreamRead(_s, value, 0, 8);
+                        _s.ReadBytes(value, 0, 8);
 
                         return new Bincoding(type, value);
                     }
@@ -950,7 +950,7 @@ namespace TechnitiumLibrary.IO
                         int count = ReadLength(_s);
 
                         byte[] value = new byte[count];
-                        OffsetStream.StreamRead(_s, value, 0, count);
+                        _s.ReadBytes(value, 0, count);
 
                         return new Bincoding(type, value);
                     }
@@ -983,7 +983,7 @@ namespace TechnitiumLibrary.IO
                             throw new EndOfStreamException();
 
                         byte[] keyBuffer = new byte[keyLen];
-                        OffsetStream.StreamRead(_s, keyBuffer, 0, keyLen);
+                        _s.ReadBytes(keyBuffer, 0, keyLen);
 
                         string key = Encoding.UTF8.GetString(keyBuffer, 0, keyLen);
                         Bincoding value = DecodeNext();

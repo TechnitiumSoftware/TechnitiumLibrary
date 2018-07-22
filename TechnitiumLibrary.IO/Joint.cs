@@ -33,7 +33,7 @@ namespace TechnitiumLibrary.IO
 
         #region variables
 
-        const int BUFFER_SIZE = 65536;
+        const int BUFFER_SIZE = 4096;
 
         Stream _stream1;
         Stream _stream2;
@@ -58,7 +58,6 @@ namespace TechnitiumLibrary.IO
         public void Dispose()
         {
             Dispose(true);
-            GC.SuppressFinalize(this);
         }
 
         bool _disposed = false;
@@ -109,7 +108,7 @@ namespace TechnitiumLibrary.IO
         {
             try
             {
-                OffsetStream.StreamCopy(_stream1, _stream2, BUFFER_SIZE, true);
+                _stream1.CopyTo(_stream2, BUFFER_SIZE);
             }
             catch
             { }
@@ -123,7 +122,7 @@ namespace TechnitiumLibrary.IO
         {
             try
             {
-                OffsetStream.StreamCopy(_stream2, _stream1, BUFFER_SIZE, true);
+                _stream2.CopyTo(_stream1, BUFFER_SIZE);
             }
             catch
             { }

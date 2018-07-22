@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -131,7 +131,7 @@ namespace TechnitiumLibrary.IO
         public override int Read(byte[] buffer, int offset, int count)
         {
             if (count < 1)
-                return 0;
+                throw new ArgumentOutOfRangeException("Count cannot be less than 1.");
 
             if (_position >= _length)
                 return 0;
@@ -151,7 +151,7 @@ namespace TechnitiumLibrary.IO
         public override long Seek(long offset, SeekOrigin origin)
         {
             if (!_stream.CanSeek)
-                throw new NotSupportedException("Cannot seek stream.");
+                throw new IOException("Stream is not seekable.");
 
             long pos;
 
@@ -223,13 +223,13 @@ namespace TechnitiumLibrary.IO
 
         public void WriteTo(Stream s)
         {
-            WriteTo(s, 128 * 1024);
+            WriteTo(s, 4096);
         }
 
         public void WriteTo(Stream stream, int bufferSize)
         {
             if (!_stream.CanSeek)
-                throw new NotSupportedException("Cannot seek stream.");
+                throw new IOException("Stream is not seekable.");
 
             if (_length < bufferSize)
                 bufferSize = Convert.ToInt32(_length);
@@ -239,65 +239,11 @@ namespace TechnitiumLibrary.IO
 
             try
             {
-                StreamCopy(this, stream, bufferSize);
+                this.CopyTo(stream, bufferSize);
             }
             finally
             {
                 _position = previousPosition;
-            }
-        }
-
-        public static void StreamCopy(Stream source, Stream destination, int bufferSize = 128 * 1024, bool flushDestinationStream = false)
-        {
-            byte[] buffer = new byte[bufferSize];
-            int bytesRead;
-
-            while (true)
-            {
-                bytesRead = source.Read(buffer, 0, bufferSize);
-
-                if (bytesRead < 1)
-                    break;
-
-                destination.Write(buffer, 0, bytesRead);
-
-                if (flushDestinationStream)
-                    destination.Flush();
-            }
-        }
-
-        public static void StreamCopy(Stream source, BinaryWriter destination, int bufferSize = 128 * 1024, bool flushDestinationStream = false)
-        {
-            byte[] buffer = new byte[bufferSize];
-            int bytesRead;
-
-            while (true)
-            {
-                bytesRead = source.Read(buffer, 0, bufferSize);
-
-                if (bytesRead < 1)
-                    break;
-
-                destination.Write(buffer, 0, bytesRead);
-
-                if (flushDestinationStream)
-                    destination.Flush();
-            }
-        }
-
-        public static void StreamRead(Stream source, byte[] buffer, int offset, int count)
-        {
-            int bytesRead;
-
-            while (count > 0)
-            {
-                bytesRead = source.Read(buffer, offset, count);
-
-                if (bytesRead < 1)
-                    throw new EndOfStreamException();
-
-                offset += bytesRead;
-                count -= bytesRead;
             }
         }
 
