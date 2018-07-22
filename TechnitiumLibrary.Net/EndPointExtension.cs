@@ -74,6 +74,22 @@ namespace TechnitiumLibrary.Net
             }
         }
 
+        public static int GetPort(this EndPoint ep)
+        {
+            switch (ep.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                case AddressFamily.InterNetworkV6:
+                    return (ep as IPEndPoint).Port;
+
+                case AddressFamily.Unspecified:
+                    return (ep as DomainEndPoint).Port;
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
+        }
+
         #endregion
     }
 }
