@@ -51,5 +51,30 @@ namespace TechnitiumLibrary.IO
         {
             s.Write(buffer, 0, buffer.Length);
         }
+
+        public static void CopyTo(this Stream s, Stream destination, int bufferSize, int length)
+        {
+            if (length < 1)
+                return;
+
+            if (length < bufferSize)
+                bufferSize = length;
+
+            byte[] buffer = new byte[bufferSize];
+            int bytesRead;
+
+            while (length > 0)
+            {
+                if (length < bufferSize)
+                    bufferSize = length;
+
+                bytesRead = s.Read(buffer, 0, bufferSize);
+                if (bytesRead < 1)
+                    break;
+
+                destination.Write(buffer, 0, bytesRead);
+                length -= bytesRead;
+            }
+        }
     }
 }
