@@ -67,7 +67,6 @@ namespace TechnitiumLibrary.Net.Mail
         public void Dispose()
         {
             Dispose(true);
-            GC.SuppressFinalize(this);
         }
 
         bool _disposed = false;

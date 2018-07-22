@@ -91,7 +91,6 @@ namespace TechnitiumLibrary.Net.Tor
         public void Dispose()
         {
             Dispose(true);
-            GC.SuppressFinalize(this);
         }
 
         #endregion
