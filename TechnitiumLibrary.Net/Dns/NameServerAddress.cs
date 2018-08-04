@@ -23,6 +23,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns
 {
@@ -34,7 +35,7 @@ namespace TechnitiumLibrary.Net.Dns
         DomainEndPoint _domainEndPoint;
         IPEndPoint _ipEndPoint;
 
-        string _stringValue;
+        string _originalAddress;
 
         #endregion
 
@@ -43,74 +44,67 @@ namespace TechnitiumLibrary.Net.Dns
         public NameServerAddress(Uri dohEndPoint)
         {
             _dohEndPoint = dohEndPoint;
-            _domainEndPoint = new DomainEndPoint(_dohEndPoint.Host, _dohEndPoint.Port);
 
-            _stringValue = dohEndPoint.AbsoluteUri;
-        }
+            if (IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address))
+                _ipEndPoint = new IPEndPoint(address, _dohEndPoint.Port);
 
-        public NameServerAddress(string domain)
-            : this(new DomainEndPoint(domain, 53), null as IPEndPoint)
-        {
-            _stringValue = domain;
-        }
-
-        public NameServerAddress(DomainEndPoint domainEndPoint)
-            : this(domainEndPoint, null)
-        {
-            _stringValue = domainEndPoint.ToString();
-        }
-
-        public NameServerAddress(IPAddress address)
-            : this(null as DomainEndPoint, new IPEndPoint(address, 53))
-        {
-            _stringValue = address.ToString();
-        }
-
-        public NameServerAddress(IPEndPoint ipEndPoint)
-            : this(null as DomainEndPoint, ipEndPoint)
-        {
-            _stringValue = ipEndPoint.ToString();
+            _originalAddress = _dohEndPoint.AbsoluteUri;
         }
 
         public NameServerAddress(Uri dohEndPoint, IPAddress address)
-            : this(new DomainEndPoint(dohEndPoint.Host, dohEndPoint.Port), new IPEndPoint(address, dohEndPoint.Port))
         {
             _dohEndPoint = dohEndPoint;
+            _ipEndPoint = new IPEndPoint(address, _dohEndPoint.Port);
 
-            _stringValue = dohEndPoint.AbsoluteUri + " (" + address.ToString() + ")";
+            _originalAddress = _dohEndPoint.AbsoluteUri;
+        }
+
+        public NameServerAddress(string address)
+        {
+            Parse(address);
+        }
+
+        public NameServerAddress(IPAddress address)
+        {
+            _ipEndPoint = new IPEndPoint(address, 53);
+
+            _originalAddress = address.ToString();
         }
 
         public NameServerAddress(string domain, IPAddress address)
-            : this(new DomainEndPoint(domain, 53), new IPEndPoint(address, 53))
         {
-            _stringValue = domain + " (" + address.ToString() + ")";
+            _domainEndPoint = new DomainEndPoint(domain, 53);
+            _ipEndPoint = new IPEndPoint(address, 53);
+
+            _originalAddress = domain;
         }
 
         public NameServerAddress(string domain, IPEndPoint ipEndPoint)
-            : this(new DomainEndPoint(domain, ipEndPoint.Port), ipEndPoint)
         {
-            _stringValue = domain + " (" + ipEndPoint.ToString() + ")";
+            _domainEndPoint = new DomainEndPoint(domain, ipEndPoint.Port);
+            _ipEndPoint = ipEndPoint;
+
+            _originalAddress = domain + ":" + ipEndPoint.Port;
         }
 
         public NameServerAddress(EndPoint endPoint)
-            : this(endPoint as DomainEndPoint, endPoint as IPEndPoint)
         {
-            _stringValue = endPoint.ToString();
-        }
-
-        private NameServerAddress(DomainEndPoint domainEndPoint, IPEndPoint ipEndPoint)
-        {
-            _domainEndPoint = domainEndPoint;
-            _ipEndPoint = ipEndPoint;
-
-            if ((_domainEndPoint == null) && (_ipEndPoint == null))
-                throw new ArgumentNullException();
-
-            if ((_domainEndPoint != null) && (_ipEndPoint != null))
+            switch (endPoint.AddressFamily)
             {
-                if (_domainEndPoint.Port != _ipEndPoint.Port)
-                    throw new ArgumentNullException();
+                case AddressFamily.InterNetwork:
+                case AddressFamily.InterNetworkV6:
+                    _ipEndPoint = endPoint as IPEndPoint;
+                    break;
+
+                case AddressFamily.Unspecified:
+                    _domainEndPoint = endPoint as DomainEndPoint;
+                    break;
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
             }
+
+            _originalAddress = endPoint.ToString();
         }
 
         public NameServerAddress(BinaryReader bR)
@@ -128,16 +122,71 @@ namespace TechnitiumLibrary.Net.Dns
                         _ipEndPoint = EndPointExtension.Parse(bR) as IPEndPoint;
 
                     if (_dohEndPoint != null)
-                        _stringValue = _dohEndPoint.AbsoluteUri;
+                        _originalAddress = _dohEndPoint.AbsoluteUri;
                     else if (_ipEndPoint != null)
-                        _stringValue = _ipEndPoint.ToString();
+                        _originalAddress = _ipEndPoint.ToString();
                     else if (_domainEndPoint != null)
-                        _stringValue = _domainEndPoint.ToString();
+                        _originalAddress = _domainEndPoint.ToString();
 
+                    break;
+
+                case 2:
+                    Parse(bR.ReadShortString());
                     break;
 
                 default:
                     throw new InvalidDataException("NameServerAddress version not supported");
+            }
+        }
+
+        #endregion
+
+        #region private
+
+        private void Parse(string address)
+        {
+            _originalAddress = address;
+
+            if (address.StartsWith("https://", StringComparison.CurrentCultureIgnoreCase) || address.StartsWith("http://", StringComparison.CurrentCultureIgnoreCase))
+            {
+                _dohEndPoint = new Uri(address);
+            }
+            else if (address.StartsWith("["))
+            {
+                //ipv6
+                int port = 53;
+
+                if (address.EndsWith("]"))
+                {
+                    address = address.Trim('[', ']');
+                }
+                else
+                {
+                    int posBracket = address.LastIndexOf(']');
+                    int posCollon = address.IndexOf(':', posBracket);
+
+                    if (posCollon > -1)
+                        port = int.Parse(address.Substring(posCollon + 1));
+
+                    address = address.Substring(1, posBracket - 1);
+                }
+
+                _ipEndPoint = new IPEndPoint(IPAddress.Parse(address), port);
+            }
+            else
+            {
+                string[] strParts = address.Split(':');
+
+                string host = strParts[0];
+                int port = 53;
+
+                if (strParts.Length > 1)
+                    port = int.Parse(strParts[1]);
+
+                if (IPAddress.TryParse(host, out IPAddress ipAddress))
+                    _ipEndPoint = new IPEndPoint(ipAddress, port);
+                else
+                    _domainEndPoint = new DomainEndPoint(host, port);
             }
         }
 
@@ -210,80 +259,106 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
-        #region internal
-
-        internal void RecursiveResolveIPAddress(IDnsCache cache, bool preferIPv6, DnsClientProtocol protocol, int retries)
-        {
-            if ((_domainEndPoint != null) && (_ipEndPoint == null))
-            {
-                if (preferIPv6)
-                {
-                    try
-                    {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, null, true, protocol, retries);
-                        if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
-                            _ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, _domainEndPoint.Port);
-                    }
-                    catch
-                    { }
-                }
-
-                if (_ipEndPoint == null)
-                {
-                    try
-                    {
-                        DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_domainEndPoint.Address, DnsResourceRecordType.A, DnsClass.IN), null, cache, null, false, protocol, retries);
-                        if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
-                            _ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, _domainEndPoint.Port);
-                    }
-                    catch
-                    { }
-                }
-            }
-        }
-
-        #endregion
-
         #region public
 
-        public void WriteTo(BinaryWriter bW)
+        public void ResolveIPAddress(bool preferIPv6, DnsClientProtocol protocol, int retries)
         {
-            bW.Write((byte)1); //version
+            string domain;
 
-            if (_dohEndPoint == null)
-            {
-                bW.Write(false);
-            }
+            if (_dohEndPoint != null)
+                domain = _dohEndPoint.Host;
+            else if (_domainEndPoint != null)
+                domain = _domainEndPoint.Address;
             else
-            {
-                bW.Write(true);
-                bW.WriteShortString(_dohEndPoint.AbsoluteUri);
-            }
+                return;
 
-            if (_domainEndPoint == null)
-            {
-                bW.Write(false);
-            }
+            IPAddress[] serverIPs = (new DnsClient() { PreferIPv6 = preferIPv6, Protocol = protocol, Retries = retries }).ResolveIP(domain, preferIPv6);
+
+            if (serverIPs.Length == 0)
+                throw new DnsClientException("No IP address was found for name server: " + domain);
+
+            _ipEndPoint = new IPEndPoint(serverIPs[0], this.Port);
+        }
+
+        public void RecursiveResolveIPAddress(IDnsCache cache, NetProxy proxy, bool preferIPv6, DnsClientProtocol protocol, int retries)
+        {
+            string domain;
+
+            if (_dohEndPoint != null)
+                domain = _dohEndPoint.Host;
+            else if (_domainEndPoint != null)
+                domain = _domainEndPoint.Address;
             else
+                return;
+
+            if (preferIPv6)
             {
-                bW.Write(true);
-                _domainEndPoint.WriteTo(bW);
+                DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, proxy, true, protocol, retries);
+                if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
+                    _ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, this.Port);
             }
 
             if (_ipEndPoint == null)
             {
-                bW.Write(false);
+                DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), null, cache, proxy, false, protocol, retries);
+                if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
+                    _ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, this.Port);
             }
-            else
+
+            if (_ipEndPoint == null)
+                throw new DnsClientException("No IP address was found for name server: " + domain);
+        }
+
+        public void ResolveDomainName(bool preferIPv6, DnsClientProtocol protocol, int retries)
+        {
+            if (_ipEndPoint != null)
             {
-                bW.Write(true);
-                _ipEndPoint.WriteTo(bW);
+                try
+                {
+                    string domain = (new DnsClient() { PreferIPv6 = preferIPv6, Protocol = protocol, Retries = retries }).ResolvePTR(_ipEndPoint.Address);
+                    _domainEndPoint = new DomainEndPoint(domain, _ipEndPoint.Port);
+                }
+                catch
+                { }
             }
+        }
+
+        public void RecursiveResolveDomainName(IDnsCache cache, NetProxy proxy, DnsClientProtocol protocol, int retries)
+        {
+            if (_ipEndPoint != null)
+            {
+                try
+                {
+                    DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), null, cache, proxy, false, protocol, retries);
+                    if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.PTR))
+                        _domainEndPoint = new DomainEndPoint((nsResponse.Answer[0].RDATA as DnsPTRRecord).PTRDomainName, _ipEndPoint.Port);
+                }
+                catch
+                { }
+            }
+        }
+
+        public void WriteTo(BinaryWriter bW)
+        {
+            bW.Write((byte)2); //version
+            bW.WriteShortString(_originalAddress);
         }
 
         public override string ToString()
         {
-            return _stringValue;
+            string value;
+
+            if (_dohEndPoint != null)
+                value = _dohEndPoint.AbsoluteUri;
+            else if (_domainEndPoint != null)
+                value = _domainEndPoint.ToString();
+            else
+                return _ipEndPoint.ToString();
+
+            if (_ipEndPoint != null)
+                value += " (" + _ipEndPoint.ToString() + ")";
+
+            return value;
         }
 
         public int CompareTo(NameServerAddress other)
@@ -310,19 +385,39 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region properties
 
-        public Uri DnsOverHttpEndPoint
-        { get { return _dohEndPoint; } }
+        public string OriginalString
+        { get { return _originalAddress; } }
 
-        public string Domain
+        public string Host
         {
             get
             {
-                if (_domainEndPoint == null)
-                    return _ipEndPoint.Address.ToString();
+                if (_dohEndPoint != null)
+                    return _dohEndPoint.Host;
 
-                return _domainEndPoint.Address;
+                if (_domainEndPoint != null)
+                    return _domainEndPoint.Address;
+
+                return _ipEndPoint.Address.ToString();
             }
         }
+
+        public int Port
+        {
+            get
+            {
+                if (_dohEndPoint != null)
+                    return _dohEndPoint.Port;
+
+                if (_domainEndPoint != null)
+                    return _domainEndPoint.Port;
+
+                return _ipEndPoint.Port;
+            }
+        }
+
+        public Uri DnsOverHttpEndPoint
+        { get { return _dohEndPoint; } }
 
         public DomainEndPoint DomainEndPoint
         { get { return _domainEndPoint; } }
@@ -336,6 +431,9 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (_ipEndPoint != null)
                     return _ipEndPoint; //IP endpoint is prefered
+
+                if (_dohEndPoint != null)
+                    return new DomainEndPoint(_dohEndPoint.Host, _dohEndPoint.Port);
 
                 return _domainEndPoint;
             }
