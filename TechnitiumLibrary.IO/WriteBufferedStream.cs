@@ -28,7 +28,7 @@ namespace TechnitiumLibrary.IO
 
         readonly Stream _baseStream;
         readonly byte[] _writeBuffer;
-        int _writeBufferLength;
+        int _writeBufferPosition;
 
         #endregion
 
@@ -98,12 +98,12 @@ namespace TechnitiumLibrary.IO
             if (!_baseStream.CanWrite)
                 throw new ObjectDisposedException("WriteBufferedStream");
 
-            if (_writeBufferLength > 0)
+            if (_writeBufferPosition > 0)
             {
-                _baseStream.Write(_writeBuffer, 0, _writeBufferLength);
+                _baseStream.Write(_writeBuffer, 0, _writeBufferPosition);
                 _baseStream.Flush();
 
-                _writeBufferLength = 0;
+                _writeBufferPosition = 0;
             }
         }
 
@@ -138,26 +138,27 @@ namespace TechnitiumLibrary.IO
             if (!_baseStream.CanWrite)
                 throw new ObjectDisposedException("WriteBufferedStream");
 
+            int bytesAvailable;
+
             while (count > 0)
             {
-                int newLength = _writeBufferLength + count;
+                bytesAvailable = _writeBuffer.Length - _writeBufferPosition;
 
-                if (newLength < _writeBuffer.Length)
+                if (bytesAvailable > count)
                 {
                     //copy to buffer
-                    Buffer.BlockCopy(buffer, offset, _writeBuffer, _writeBufferLength, count);
+                    Buffer.BlockCopy(buffer, offset, _writeBuffer, _writeBufferPosition, count);
 
-                    _writeBufferLength += count;
+                    _writeBufferPosition += count;
                     offset += count;
                     count = 0;
                 }
                 else
                 {
-                    //fill buffer to brim
-                    int bytesAvailable = _writeBuffer.Length - _writeBufferLength;
-                    Buffer.BlockCopy(buffer, offset, _writeBuffer, _writeBufferLength, bytesAvailable);
+                    //fill buffer to brim                    
+                    Buffer.BlockCopy(buffer, offset, _writeBuffer, _writeBufferPosition, bytesAvailable);
 
-                    _writeBufferLength = _writeBuffer.Length;
+                    _writeBufferPosition += bytesAvailable;
                     offset += bytesAvailable;
                     count -= bytesAvailable;
 
