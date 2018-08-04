@@ -716,6 +716,8 @@ namespace TechnitiumLibrary.Net.Dns
                                 wC.AddHeader("host", server.DnsOverHttpEndPoint.Host + ":" + server.DnsOverHttpEndPoint.Port);
                                 wC.UserAgent = "DoH client";
                                 wC.Proxy = _proxy;
+                                wC.Timeout = _connectionTimeout;
+                                wC.ReadWriteTimeout = _recvTimeout;
 
                                 if (_proxy == null)
                                     responseBuffer = wC.UploadData(new Uri(server.DnsOverHttpEndPoint.Scheme + "://" + server.IPEndPoint.ToString() + server.DnsOverHttpEndPoint.PathAndQuery), requestBuffer);
@@ -739,6 +741,8 @@ namespace TechnitiumLibrary.Net.Dns
                                 wC.AddHeader("host", server.DnsOverHttpEndPoint.Host + ":" + server.DnsOverHttpEndPoint.Port);
                                 wC.UserAgent = "DoH client";
                                 wC.Proxy = _proxy;
+                                wC.Timeout = _connectionTimeout;
+                                wC.ReadWriteTimeout = _recvTimeout;
 
                                 Uri queryUri;
 
@@ -920,6 +924,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 return response;
                         }
                     }
+                }
+                catch (WebException ex)
+                {
+                    lastException = ex;
                 }
                 catch (IOException ex)
                 {
