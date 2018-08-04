@@ -221,6 +221,13 @@ namespace TechnitiumLibrary.IO
         public Stream BaseStream
         { get { return _stream; } }
 
+        public void Reset(long offset, long length, long position)
+        {
+            _offset = offset;
+            _length = length;
+            _position = position;
+        }
+
         public void WriteTo(Stream s)
         {
             WriteTo(s, 4096);
