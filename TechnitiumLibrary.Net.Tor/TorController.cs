@@ -23,6 +23,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Threading;
 
 namespace TechnitiumLibrary.Net.Tor
 {
@@ -56,6 +57,9 @@ namespace TechnitiumLibrary.Net.Tor
         StreamWriter _sW;
         StreamReader _sR;
 
+        Timer _autoSwitchCircuitTimer;
+        int _autoSwitchCircuitInterval = 900000;
+
         #endregion
 
         #region constructor
@@ -83,6 +87,12 @@ namespace TechnitiumLibrary.Net.Tor
             {
                 if (_process != null)
                     Stop();
+
+                if (_autoSwitchCircuitTimer != null)
+                {
+                    _autoSwitchCircuitTimer.Dispose();
+                    _autoSwitchCircuitTimer = null;
+                }
             }
 
             _disposed = true;
@@ -129,96 +139,135 @@ namespace TechnitiumLibrary.Net.Tor
 
         public void Start(int connectionTimeout = 10000)
         {
-            if (_process == null)
+            if (_process != null)
+                return;
+
+            string password;
+
             {
-                string password;
+                byte[] buffer = new byte[32];
+                _rnd.GetBytes(buffer);
 
+                password = BitConverter.ToString(buffer).Replace("-", "").ToLower();
+            }
+
+            string dataDir = Path.Combine(Path.GetDirectoryName(_torExecutableFilePath), "data");
+            if (!Directory.Exists(dataDir))
+                Directory.CreateDirectory(dataDir);
+
+            string arguments = "--DataDirectory \"" + dataDir + "\" --controlport " + _controlPort + " --HashedControlPassword " + HashPassword(password);
+
+            if (_Socks5EP == null)
+                _Socks5EP = new IPEndPoint(IPAddress.Loopback, 9050); //default
+            else
+                arguments += " --SocksPort " + _Socks5EP.ToString();
+
+            switch (_proxyType)
+            {
+                case TorProxyType.Http:
+                    arguments += " --HTTPProxy " + _proxyHost + (_proxyPort == 0 ? "" : ":" + _proxyPort);
+
+                    if (_proxyCredential != null)
+                        arguments += " --HTTPProxyAuthenticator " + _proxyCredential.UserName + ":" + _proxyCredential.Password;
+
+                    break;
+
+                case TorProxyType.Https:
+                    arguments += " --HTTPSProxy " + _proxyHost + (_proxyPort == 0 ? "" : ":" + _proxyPort);
+
+                    if (_proxyCredential != null)
+                        arguments += " --HTTPSProxyAuthenticator " + _proxyCredential.UserName + ":" + _proxyCredential.Password;
+
+                    break;
+
+                case TorProxyType.Socks4:
+                    arguments += " --Socks4Proxy " + _proxyHost + (_proxyPort == 0 ? "" : ":" + _proxyPort);
+                    break;
+
+                case TorProxyType.Socks5:
+                    arguments += " --Socks5Proxy " + _proxyHost + (_proxyPort == 0 ? "" : ":" + _proxyPort);
+
+                    if (_proxyCredential != null)
+                    {
+                        arguments += " --Socks5ProxyUsername " + _proxyCredential.UserName;
+                        arguments += " --Socks5ProxyPassword " + _proxyCredential.Password;
+                    }
+
+                    break;
+            }
+
+            ProcessStartInfo processInfo = new ProcessStartInfo(_torExecutableFilePath, arguments);
+
+            processInfo.UseShellExecute = false;
+            processInfo.CreateNoWindow = true;
+
+            Process process = Process.Start(processInfo);
+            Thread.Sleep(2000); //wait for process to start
+
+            int retry = 1;
+            while (true)
+            {
+                try
                 {
-                    byte[] buffer = new byte[32];
-                    _rnd.GetBytes(buffer);
+                    _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-                    password = BitConverter.ToString(buffer).Replace("-", "").ToLower();
+                    _socket.ReceiveTimeout = 10000;
+                    _socket.SendTimeout = 10000;
+
+                    IAsyncResult result = _socket.BeginConnect(IPAddress.Loopback, _controlPort, null, null);
+
+                    if (!result.AsyncWaitHandle.WaitOne(connectionTimeout))
+                        throw new SocketException((int)SocketError.TimedOut);
+
+                    if (!_socket.Connected)
+                        throw new SocketException((int)SocketError.ConnectionRefused);
+
+                    NetworkStream stream = new NetworkStream(_socket);
+
+                    _sR = new StreamReader(stream);
+                    _sW = new StreamWriter(stream);
+                    _sW.AutoFlush = true;
+
+                    _sW.WriteLine("AUTHENTICATE \"" + password + "\"");
+                    string response = _sR.ReadLine();
+                    if (!response.StartsWith("250 "))
+                        throw new TorControllerException("Authentication failed: " + response);
+
+                    _sW.WriteLine("SETCONF __OwningControllerProcess=" + Process.GetCurrentProcess().Id);
+                    response = _sR.ReadLine();
+                    if (!response.StartsWith("250 "))
+                        throw new TorControllerException("Server returned: " + response);
+
+                    _sW.WriteLine("TAKEOWNERSHIP");
+                    response = _sR.ReadLine();
+                    if (!response.StartsWith("250 "))
+                        throw new TorControllerException("Server returned: " + response);
+
+                    _process = process;
+                    break;
                 }
-
-                string arguments = "--controlport " + _controlPort + " --HashedControlPassword " + HashPassword(password);
-
-                if (_Socks5EP == null)
-                    _Socks5EP = new IPEndPoint(IPAddress.Loopback, 9050); //default
-                else
-                    arguments += " --SocksPort " + _Socks5EP.ToString();
-
-                switch (_proxyType)
+                catch
                 {
-                    case TorProxyType.Http:
-                        arguments += " --HTTPProxy " + _proxyHost + (_proxyPort == 0 ? "" : ":" + _proxyPort);
+                    if (_socket != null)
+                        _socket.Dispose();
 
-                        if (_proxyCredential != null)
-                            arguments += " --HTTPProxyAuthenticator " + _proxyCredential.UserName + ":" + _proxyCredential.Password;
-
-                        break;
-
-                    case TorProxyType.Https:
-                        arguments += " --HTTPSProxy " + _proxyHost + (_proxyPort == 0 ? "" : ":" + _proxyPort);
-
-                        if (_proxyCredential != null)
-                            arguments += " --HTTPSProxyAuthenticator " + _proxyCredential.UserName + ":" + _proxyCredential.Password;
-
-                        break;
-
-                    case TorProxyType.Socks4:
-                        arguments += " --Socks4Proxy " + _proxyHost + (_proxyPort == 0 ? "" : ":" + _proxyPort);
-                        break;
-
-                    case TorProxyType.Socks5:
-                        arguments += " --Socks5Proxy " + _proxyHost + (_proxyPort == 0 ? "" : ":" + _proxyPort);
-
-                        if (_proxyCredential != null)
+                    if (retry < 3)
+                    {
+                        retry++;
+                        Thread.Sleep(1000); //wait before retrying
+                    }
+                    else
+                    {
+                        try
                         {
-                            arguments += " --Socks5ProxyUsername " + _proxyCredential.UserName;
-                            arguments += " --Socks5ProxyPassword " + _proxyCredential.Password;
+                            process.Kill();
                         }
+                        catch
+                        { }
 
-                        break;
+                        throw;
+                    }
                 }
-
-                ProcessStartInfo processInfo = new ProcessStartInfo(_torExecutableFilePath, arguments);
-
-                processInfo.UseShellExecute = false;
-                processInfo.CreateNoWindow = true;
-
-                Process process = Process.Start(processInfo);
-                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-                IAsyncResult result = _socket.BeginConnect(IPAddress.Loopback, _controlPort, null, null);
-
-                if (!result.AsyncWaitHandle.WaitOne(connectionTimeout))
-                    throw new SocketException((int)SocketError.TimedOut);
-
-                if (!_socket.Connected)
-                    throw new SocketException((int)SocketError.ConnectionRefused);
-
-                NetworkStream stream = new NetworkStream(_socket);
-
-                _sR = new StreamReader(stream);
-                _sW = new StreamWriter(stream);
-                _sW.AutoFlush = true;
-
-                _sW.WriteLine("AUTHENTICATE \"" + password + "\"");
-                string response = _sR.ReadLine();
-                if (!response.StartsWith("250 "))
-                    throw new TorControllerException("Authentication failed: " + response);
-
-                _sW.WriteLine("SETCONF __OwningControllerProcess=" + Process.GetCurrentProcess().Id);
-                response = _sR.ReadLine();
-                if (!response.StartsWith("250 "))
-                    throw new TorControllerException("Server returned: " + response);
-
-                _sW.WriteLine("TAKEOWNERSHIP");
-                response = _sR.ReadLine();
-                if (!response.StartsWith("250 "))
-                    throw new TorControllerException("Server returned: " + response);
-
-                _process = process;
             }
         }
 
@@ -250,7 +299,7 @@ namespace TechnitiumLibrary.Net.Tor
                 throw new TorControllerException("Server returned: " + response);
         }
 
-        public void SwitchCircuits()
+        public void SwitchCircuit()
         {
             _sW.WriteLine("SIGNAL NEWNYM");
             string response = _sR.ReadLine();
@@ -373,6 +422,46 @@ namespace TechnitiumLibrary.Net.Tor
                     throw new InvalidOperationException("Tor is already running.");
 
                 _proxyCredential = value;
+            }
+        }
+
+        public int AutoSwitchCircuitInterval
+        {
+            get { return _autoSwitchCircuitInterval; }
+            set { _autoSwitchCircuitInterval = value; }
+        }
+
+        public bool AutoSwitchCircuit
+        {
+            get
+            { return (_autoSwitchCircuitTimer != null); }
+            set
+            {
+                if (value)
+                {
+                    if (_autoSwitchCircuitTimer == null)
+                    {
+                        _autoSwitchCircuitTimer = new Timer(delegate (object state)
+                        {
+                            try
+                            {
+                                this.SwitchCircuit();
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine(ex.ToString());
+                            }
+                        }, null, _autoSwitchCircuitInterval, _autoSwitchCircuitInterval);
+                    }
+                }
+                else
+                {
+                    if (_autoSwitchCircuitTimer != null)
+                    {
+                        _autoSwitchCircuitTimer.Dispose();
+                        _autoSwitchCircuitTimer = null;
+                    }
+                }
             }
         }
 
