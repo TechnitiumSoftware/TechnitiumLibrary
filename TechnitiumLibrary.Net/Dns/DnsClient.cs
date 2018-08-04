@@ -169,16 +169,12 @@ namespace TechnitiumLibrary.Net.Dns
             : this(new NameServerAddress(server))
         { }
 
-        public DnsClient(IPEndPoint server)
+        public DnsClient(EndPoint server)
             : this(new NameServerAddress(server))
         { }
 
-        public DnsClient(string server)
-            : this(new NameServerAddress(server))
-        { }
-
-        public DnsClient(DomainEndPoint server)
-            : this(new NameServerAddress(server))
+        public DnsClient(string address)
+            : this(new NameServerAddress(address))
         { }
 
         public DnsClient(NameServerAddress server)
@@ -276,7 +272,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     break;
 
                                                 default:
-                                                    nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Domain, (cacheResponse.Answer[0].RDATA as DnsAAAARecord).Address);
+                                                    nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsAAAARecord).Address, nameServers[stackNameServerIndex].Port));
                                                     break;
                                             }
 
@@ -291,7 +287,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     break;
 
                                                 default:
-                                                    nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Domain, (cacheResponse.Answer[0].RDATA as DnsARecord).Address);
+                                                    nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsARecord).Address, nameServers[stackNameServerIndex].Port));
                                                     break;
                                             }
 
@@ -405,9 +401,9 @@ namespace TechnitiumLibrary.Net.Dns
                             resolverStack.Push(new ResolverData(question, nameServers, i, protocol));
 
                             if (preferIPv6)
-                                question = new DnsQuestionRecord(currentNameServer.Domain, DnsResourceRecordType.AAAA, question.Class);
+                                question = new DnsQuestionRecord(currentNameServer.Host, DnsResourceRecordType.AAAA, question.Class);
                             else
-                                question = new DnsQuestionRecord(currentNameServer.Domain, DnsResourceRecordType.A, question.Class);
+                                question = new DnsQuestionRecord(currentNameServer.Host, DnsResourceRecordType.A, question.Class);
 
                             nameServers = null;
                             protocol = RecursiveResolveDefaultProtocol;
@@ -483,7 +479,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                         break;
 
                                                     default:
-                                                        nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Domain, (response.Answer[0].RDATA as DnsAAAARecord).Address);
+                                                        nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsAAAARecord).Address, nameServers[stackNameServerIndex].Port));
                                                         break;
                                                 }
 
@@ -498,7 +494,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                         break;
 
                                                     default:
-                                                        nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Domain, (response.Answer[0].RDATA as DnsARecord).Address);
+                                                        nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsARecord).Address, nameServers[stackNameServerIndex].Port));
                                                         break;
                                                 }
 
@@ -686,9 +682,11 @@ namespace TechnitiumLibrary.Net.Dns
                         dnsCache = new SimpleDnsCache();
 
                     //recursive resolve name server via root servers
-                    server.RecursiveResolveIPAddress(dnsCache, _preferIPv6, RecursiveResolveDefaultProtocol, _retries);
-
-                    if (server.IPEndPoint == null)
+                    try
+                    {
+                        server.RecursiveResolveIPAddress(dnsCache, null, _preferIPv6, RecursiveResolveDefaultProtocol, _retries);
+                    }
+                    catch
                     {
                         retry++;
                         continue;
@@ -715,7 +713,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 wC.AddHeader("content-type", "application/dns-message");
                                 wC.AddHeader("accept", "application/dns-message");
-                                wC.AddHeader("host", server.DomainEndPoint.ToString());
+                                wC.AddHeader("host", server.DnsOverHttpEndPoint.Host + ":" + server.DnsOverHttpEndPoint.Port);
                                 wC.UserAgent = "DoH client";
                                 wC.Proxy = _proxy;
 
@@ -738,7 +736,7 @@ namespace TechnitiumLibrary.Net.Dns
                             using (WebClientEx wC = new WebClientEx())
                             {
                                 wC.AddHeader("accept", "application/dns-json");
-                                wC.AddHeader("host", server.DomainEndPoint.ToString());
+                                wC.AddHeader("host", server.DnsOverHttpEndPoint.Host + ":" + server.DnsOverHttpEndPoint.Port);
                                 wC.UserAgent = "DoH client";
                                 wC.Proxy = _proxy;
 
@@ -848,7 +846,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 if (_protocol == DnsClientProtocol.Tls)
                                 {
                                     SslStream ssl = new SslStream(new NetworkStream(_socket));
-                                    ssl.AuthenticateAsClient(server.Domain);
+                                    ssl.AuthenticateAsClient(server.Host);
                                     stream = ssl;
 
                                     protocolUsed = DnsClientProtocol.Tls;

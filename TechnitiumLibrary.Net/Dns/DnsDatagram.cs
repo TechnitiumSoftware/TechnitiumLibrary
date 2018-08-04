@@ -279,24 +279,7 @@ namespace TechnitiumLibrary.Net.Dns
         { get { return _server; } }
 
         public string NameServer
-        {
-            get
-            {
-                string value = null;
-
-                if (_server.DnsOverHttpEndPoint != null)
-                    value = _server.DnsOverHttpEndPoint.AbsoluteUri;
-                else if (_server.DomainEndPoint != null)
-                    value = _server.DomainEndPoint.ToString();
-
-                if (value == null)
-                    value = _server.IPEndPoint.ToString();
-                else if (_server.IPEndPoint != null)
-                    value += " (" + _server.IPEndPoint.ToString() + ")";
-
-                return value;
-            }
-        }
+        { get { return _server.ToString(); } }
 
         public DnsClientProtocol Protocol
         { get { return _protocol; } }
