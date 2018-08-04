@@ -64,7 +64,7 @@ namespace TechnitiumLibrary.Net.Firewall
 
     public class WindowsFirewall
     {
-        public static void AddRuleVista(string name, string description = null, FirewallAction action = FirewallAction.Allow, string applicationPath = null, Protocol protocol = Protocol.IPv4, string localPorts = null, string remotePorts = null, string localAddresses = null, string remoteAddresses = null, InterfaceTypeFlags interfaceType = InterfaceTypeFlags.All, bool enable = true, Direction direction = Direction.Inbound)
+        public static void AddRuleVista(string name, string description = null, FirewallAction action = FirewallAction.Allow, string applicationPath = null, Protocol protocol = Protocol.IPv4, string localPorts = null, string remotePorts = null, string localAddresses = null, string remoteAddresses = null, InterfaceTypeFlags interfaceType = InterfaceTypeFlags.All, bool enable = true, Direction direction = Direction.Inbound, bool edgeTraversal = false)
         {
             INetFwRule firewallRule = (INetFwRule)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FWRule"));
 
@@ -95,6 +95,8 @@ namespace TechnitiumLibrary.Net.Firewall
                     firewallRule.Direction = NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_OUT;
                     break;
             }
+
+            firewallRule.EdgeTraversal = edgeTraversal;
 
             if (interfaceType == InterfaceTypeFlags.All)
                 firewallRule.InterfaceTypes = "All";
