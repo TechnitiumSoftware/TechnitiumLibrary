@@ -31,6 +31,9 @@ namespace TechnitiumLibrary.Net
 
         public static bool IsPrivateIP(IPAddress address)
         {
+            if (address.IsIPv4MappedToIPv6)
+                address = address.MapToIPv4();
+
             switch (address.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
@@ -91,67 +94,6 @@ namespace TechnitiumLibrary.Net
             byte[] ip = address.GetAddressBytes();
 
             return ((ip[0] & 0xE0) == 0x20);
-        }
-
-        public static bool IsIPv4MappedIPv6Address(IPAddress address)
-        {
-            //::FFFF:127.0.0.1
-
-            if (address.AddressFamily != AddressFamily.InterNetworkV6)
-                return false;
-
-            byte[] ipv6 = address.GetAddressBytes();
-
-            for (int i = 0; i < 10; i++)
-            {
-                if (ipv6[i] != 0)
-                    return false;
-            }
-
-            return ((ipv6[10] == 0xff) && (ipv6[11] == 0xff));
-        }
-
-        public static IPAddress ConvertFromIPv4MappedIPv6Address(IPAddress address)
-        {
-            switch (address.AddressFamily)
-            {
-                case AddressFamily.InterNetwork:
-                    return address;
-
-                case AddressFamily.InterNetworkV6:
-                    byte[] ipv6 = address.GetAddressBytes();
-                    byte[] ipv4 = new byte[4];
-
-                    Buffer.BlockCopy(ipv6, 12, ipv4, 0, 4);
-
-                    return new IPAddress(ipv4);
-
-                default:
-                    throw new NotSupportedException("Address family not supported.");
-            }
-        }
-
-        public static IPAddress ConvertToIPv4MappedIPv6Address(IPAddress address)
-        {
-            switch (address.AddressFamily)
-            {
-                case AddressFamily.InterNetwork:
-                    byte[] ipv4 = address.GetAddressBytes();
-                    byte[] ipv6 = new byte[16];
-
-                    ipv6[10] = 0xff;
-                    ipv6[11] = 0xff;
-
-                    Buffer.BlockCopy(ipv4, 0, ipv6, 12, 4);
-
-                    return new IPAddress(ipv6);
-
-                case AddressFamily.InterNetworkV6:
-                    return address;
-
-                default:
-                    throw new NotSupportedException("Address family not supported.");
-            }
         }
 
         public static NetworkInfo GetDefaultIPv4NetworkInfo()
@@ -389,8 +331,8 @@ namespace TechnitiumLibrary.Net
 
         public static NetworkInfo GetNetworkInfo(IPAddress destinationIP)
         {
-            if (IsIPv4MappedIPv6Address(destinationIP))
-                destinationIP = ConvertFromIPv4MappedIPv6Address(destinationIP);
+            if (destinationIP.IsIPv4MappedToIPv6)
+                destinationIP = destinationIP.MapToIPv4();
 
             byte[] destination = destinationIP.GetAddressBytes();
 
