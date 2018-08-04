@@ -70,7 +70,7 @@ namespace TechnitiumLibrary.IO
 
                 bytesRead = s.Read(buffer, 0, bufferSize);
                 if (bytesRead < 1)
-                    break;
+                    throw new EndOfStreamException();
 
                 destination.Write(buffer, 0, bytesRead);
                 length -= bytesRead;
