@@ -423,7 +423,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         try
                         {
-                            response = client.Resolve(request);
+                            response = client.Resolve(request, cache);
                         }
                         catch (DnsClientException ex)
                         {
@@ -436,7 +436,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if (protocol == DnsClientProtocol.Udp)
                             {
                                 client.Protocol = DnsClientProtocol.Tcp;
-                                response = client.Resolve(request);
+                                response = client.Resolve(request, cache);
                             }
                             else
                             {
@@ -600,16 +600,15 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
-        #region public
+        #region private
 
-        public DnsDatagram Resolve(DnsDatagram request)
+        private DnsDatagram Resolve(DnsDatagram request, IDnsCache cache)
         {
             int bytesRecv;
             byte[] responseBuffer = null;
             int nextServerIndex = 0;
             int retries = _retries;
             byte[] requestBuffer;
-            IDnsCache dnsCache = null;
             Exception lastException = null;
 
             //serialize request
@@ -678,13 +677,13 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if ((server.IPEndPoint == null) && (_proxy == null))
                 {
-                    if (dnsCache == null)
-                        dnsCache = new SimpleDnsCache();
+                    if (cache == null)
+                        cache = new SimpleDnsCache();
 
-                    //recursive resolve name server via root servers
+                    //recursive resolve name server via root servers when proxy is null else let proxy resolve it
                     try
                     {
-                        server.RecursiveResolveIPAddress(dnsCache, null, _preferIPv6, RecursiveResolveDefaultProtocol, _retries);
+                        server.RecursiveResolveIPAddress(cache, null, _preferIPv6, RecursiveResolveDefaultProtocol, _retries);
                     }
                     catch
                     {
@@ -950,9 +949,18 @@ namespace TechnitiumLibrary.Net.Dns
             throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.", lastException);
         }
 
+        #endregion
+
+        #region public
+
+        public DnsDatagram Resolve(DnsDatagram request)
+        {
+            return Resolve(request, null);
+        }
+
         public DnsDatagram Resolve(DnsQuestionRecord questionRecord)
         {
-            return Resolve(new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { questionRecord }, null, null, null));
+            return Resolve(new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { questionRecord }, null, null, null), null);
         }
 
         public DnsDatagram Resolve(string domain, DnsResourceRecordType queryType)
