@@ -279,7 +279,7 @@ namespace TechnitiumLibrary.Net.Dns
         { get { return _server; } }
 
         public string NameServer
-        { get { return _server.ToString(); } }
+        { get { return _server?.ToString(); } }
 
         public DnsClientProtocol Protocol
         { get { return _protocol; } }
