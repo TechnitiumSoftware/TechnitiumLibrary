@@ -11,19 +11,19 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Database.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Database.WebDatabase.Server", "TechnitiumLibrary.Database.WebDatabase.Server\TechnitiumLibrary.Database.WebDatabase.Server.csproj", "{FEE7A5E9-57EC-4C70-B48D-1F4158C508B4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.IO", "TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj", "{E0BA5456-FEAA-4380-92BB-6B1C4BC3DC70}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.IO", "TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj", "{E0BA5456-FEAA-4380-92BB-6B1C4BC3DC70}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Net", "TechnitiumLibrary.Net\TechnitiumLibrary.Net.csproj", "{C8293A12-5A6A-4F53-BEBE-35A6D37BD891}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net", "TechnitiumLibrary.Net\TechnitiumLibrary.Net.csproj", "{C8293A12-5A6A-4F53-BEBE-35A6D37BD891}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Net.BitTorrent", "TechnitiumLibrary.Net.BitTorrent\TechnitiumLibrary.Net.BitTorrent.csproj", "{14942D60-8899-42C8-B315-56190940CD15}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net.BitTorrent", "TechnitiumLibrary.Net.BitTorrent\TechnitiumLibrary.Net.BitTorrent.csproj", "{14942D60-8899-42C8-B315-56190940CD15}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Net.Firewall", "TechnitiumLibrary.Net.Firewall\TechnitiumLibrary.Net.Firewall.csproj", "{A5E9FCC4-3532-4F48-B3C1-C646F398FD8E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Net.Mail", "TechnitiumLibrary.Net.Mail\TechnitiumLibrary.Net.Mail.csproj", "{2CC93DE0-3FD9-4523-829A-D06B41965FF7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net.Mail", "TechnitiumLibrary.Net.Mail\TechnitiumLibrary.Net.Mail.csproj", "{2CC93DE0-3FD9-4523-829A-D06B41965FF7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Net.UPnP", "TechnitiumLibrary.Net.UPnP\TechnitiumLibrary.Net.UPnP.csproj", "{CFEF58DD-0180-4D09-93DA-EB78C3DD3690}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net.UPnP", "TechnitiumLibrary.Net.UPnP\TechnitiumLibrary.Net.UPnP.csproj", "{CFEF58DD-0180-4D09-93DA-EB78C3DD3690}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Security.Cryptography", "TechnitiumLibrary.Security.Cryptography\TechnitiumLibrary.Security.Cryptography.csproj", "{ACB43A30-C026-4E03-BA6E-CB3316F28CF3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Security.Cryptography", "TechnitiumLibrary.Security.Cryptography\TechnitiumLibrary.Security.Cryptography.csproj", "{ACB43A30-C026-4E03-BA6E-CB3316F28CF3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.BTree", "TechnitiumLibrary.BTree\TechnitiumLibrary.BTree.csproj", "{03816AB5-4537-4365-8946-E8972EC7906F}"
 EndProject
