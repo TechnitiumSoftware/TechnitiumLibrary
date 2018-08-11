@@ -302,8 +302,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     continue; //stack loop
                                 }
                             }
-
-                            if (cacheResponse.Authority.Length > 0)
+                            else if (cacheResponse.Authority.Length > 0)
                             {
                                 if (cacheResponse.Authority[0].Type == DnsResourceRecordType.SOA)
                                 {
@@ -332,14 +331,18 @@ namespace TechnitiumLibrary.Net.Dns
                                         continue; //to stack loop
                                     }
                                 }
-
-                                if ((nameServers == null) || (nameServers.Length == 0))
+                                else if ((nameServers == null) || (nameServers.Length == 0))
                                 {
                                     NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
 
                                     if (cacheNameServers.Length > 0)
                                         nameServers = cacheNameServers;
                                 }
+                            }
+                            else
+                            {
+                                if (resolverStack.Count == 0)
+                                    return cacheResponse;
                             }
 
                             break;
@@ -509,45 +512,58 @@ namespace TechnitiumLibrary.Net.Dns
                                         goto resolverLoop;
                                     }
                                 }
-
-                                if (response.Authority.Length == 0)
-                                    continue; //continue to next name server since current name server may be misconfigured
-
-                                if (response.Authority[0].Type == DnsResourceRecordType.SOA)
+                                else if (response.Authority.Length > 0)
                                 {
-                                    //no entry for given type
-                                    if (resolverStack.Count == 0)
+                                    if (response.Authority[0].Type == DnsResourceRecordType.SOA)
                                     {
-                                        return response;
-                                    }
-                                    else
-                                    {
-                                        if (question.Type == DnsResourceRecordType.AAAA)
+                                        //no entry for given type
+                                        if (resolverStack.Count == 0)
                                         {
-                                            question = new DnsQuestionRecord(question.Name, DnsResourceRecordType.A, question.Class);
+                                            return response;
                                         }
                                         else
                                         {
-                                            //didnt find IP for current name server
-                                            //pop and try next name server
-                                            ResolverData data = resolverStack.Pop();
+                                            if (question.Type == DnsResourceRecordType.AAAA)
+                                            {
+                                                question = new DnsQuestionRecord(question.Name, DnsResourceRecordType.A, question.Class);
+                                            }
+                                            else
+                                            {
+                                                //didnt find IP for current name server
+                                                //pop and try next name server
+                                                ResolverData data = resolverStack.Pop();
 
-                                            question = data.Question;
-                                            nameServers = data.NameServers;
-                                            stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                            protocol = data.Protocol;
+                                                question = data.Question;
+                                                nameServers = data.NameServers;
+                                                stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                                protocol = data.Protocol;
+                                            }
+
+                                            goto stackLoop; //goto stack loop
+                                        }
+                                    }
+                                    else
+                                    {
+                                        nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
+
+                                        if (nameServers.Length == 0)
+                                        {
+                                            if ((i + 1) == nameServers.Length)
+                                                return response; //return response since this is last name server
+
+                                            continue; //continue to next name server since current name server may be misconfigured
                                         }
 
-                                        goto stackLoop; //goto stack loop
+                                        goto resolverLoop;
                                     }
                                 }
+                                else
+                                {
+                                    if ((i + 1) == nameServers.Length)
+                                        return response; //return response since this is last name server
 
-                                nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
-
-                                if (nameServers.Length == 0)
                                     continue; //continue to next name server since current name server may be misconfigured
-
-                                goto resolverLoop;
+                                }
 
                             case DnsResponseCode.NameError:
                                 if (resolverStack.Count == 0)
@@ -569,6 +585,9 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
 
                             default:
+                                if ((i + 1) == nameServers.Length)
+                                    return response; //return response since this is last name server
+
                                 continue; //continue to next name server since current name server may be misconfigured
                         }
                     }
