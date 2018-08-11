@@ -22,6 +22,7 @@ using System.IO;
 
 namespace TechnitiumLibrary.IO
 {
+    [Obsolete]
     public class FixMemoryStream : Stream
     {
         #region variables

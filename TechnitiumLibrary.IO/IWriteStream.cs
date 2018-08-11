@@ -17,10 +17,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.IO;
 
 namespace TechnitiumLibrary.IO
 {
+    [Obsolete]
     public interface IWriteStream
     {
         void WriteTo(Stream s);

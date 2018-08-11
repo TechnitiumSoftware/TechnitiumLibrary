@@ -24,6 +24,7 @@ using System.Text;
 
 namespace TechnitiumLibrary.IO
 {
+    [Obsolete]
     public enum BincodingType : byte
     {
         NULL = 0,
@@ -45,6 +46,7 @@ namespace TechnitiumLibrary.IO
         SHORTSTRING = 16
     }
 
+    [Obsolete]
     public class Bincoding
     {
         #region variables
@@ -465,6 +467,7 @@ namespace TechnitiumLibrary.IO
         #endregion
     }
 
+    [Obsolete]
     public class BincodingEncoder
     {
         #region variables
@@ -784,6 +787,7 @@ namespace TechnitiumLibrary.IO
         #endregion
     }
 
+    [Obsolete]
     public class BincodingDecoder
     {
         #region variables
