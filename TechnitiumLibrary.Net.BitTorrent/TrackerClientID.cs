@@ -21,11 +21,10 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.BitTorrent
 {
-    public class TrackerClientID : IWriteStream
+    public class TrackerClientID
     {
         #region variables
 

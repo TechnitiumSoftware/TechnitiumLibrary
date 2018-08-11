@@ -18,8 +18,8 @@
     <RepositoryType></RepositoryType>
     <Description>.NET Standard 2.0</Description>
     <PackageId>TechnitiumLibrary.Net.BitTorrent</PackageId>
-    <AssemblyVersion>1.2.4.0</AssemblyVersion>
-    <FileVersion>1.2.4.0</FileVersion>
+    <AssemblyVersion>1.2.4.1</AssemblyVersion>
+    <FileVersion>1.2.4.1</FileVersion>
     <Version>1.2.4</Version>
   </PropertyGroup>
 
