@@ -85,49 +85,6 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
-        private DnsDatagram QueryCache(DnsHeader header, DnsQuestionRecord question)
-        {
-            string domain = question.Name.ToLower();
-
-            DnsResourceRecord[] records = GetRecords(domain, question.Type);
-            if (records != null)
-            {
-                if (records[0].RDATA is DnsEmptyRecord)
-                    return new DnsDatagram(new DnsHeader(header.Identifier, true, DnsOpcode.StandardQuery, false, false, header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, 0, 1, 0), new DnsQuestionRecord[] { question }, new DnsResourceRecord[] { }, new DnsResourceRecord[] { (records[0].RDATA as DnsEmptyRecord).Authority }, new DnsResourceRecord[] { });
-
-                if (records[0].RDATA is DnsNXRecord)
-                    return new DnsDatagram(new DnsHeader(header.Identifier, true, DnsOpcode.StandardQuery, false, false, header.RecursionDesired, true, false, false, DnsResponseCode.NameError, 1, 0, 1, 0), new DnsQuestionRecord[] { question }, new DnsResourceRecord[] { }, new DnsResourceRecord[] { (records[0].RDATA as DnsNXRecord).Authority }, new DnsResourceRecord[] { });
-
-                return new DnsDatagram(new DnsHeader(header.Identifier, true, DnsOpcode.StandardQuery, false, false, header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, (ushort)records.Length, 0, 0), new DnsQuestionRecord[] { question }, records, new DnsResourceRecord[] { }, new DnsResourceRecord[] { });
-            }
-
-            DnsResourceRecord[] nameServers = GetNearestNameServers(domain);
-            if (nameServers != null)
-            {
-                List<DnsResourceRecord> glueRecords = new List<DnsResourceRecord>();
-
-                foreach (DnsResourceRecord nameServer in nameServers)
-                {
-                    string nsDomain = (nameServer.RDATA as DnsNSRecord).NSDomainName;
-
-                    DnsResourceRecord[] glueAs = GetRecords(nsDomain, DnsResourceRecordType.A);
-                    if (glueAs != null)
-                        glueRecords.AddRange(glueAs);
-
-
-                    DnsResourceRecord[] glueAAAAs = GetRecords(nsDomain, DnsResourceRecordType.AAAA);
-                    if (glueAAAAs != null)
-                        glueRecords.AddRange(glueAAAAs);
-                }
-
-                DnsResourceRecord[] additional = glueRecords.ToArray();
-
-                return new DnsDatagram(new DnsHeader(header.Identifier, true, DnsOpcode.StandardQuery, false, false, header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, 0, (ushort)nameServers.Length, (ushort)additional.Length), new DnsQuestionRecord[] { question }, new DnsResourceRecord[] { }, nameServers, additional);
-            }
-
-            return null;
-        }
-
         #endregion
 
         #region public
@@ -141,7 +98,17 @@ namespace TechnitiumLibrary.Net.Dns
             if (records != null)
             {
                 if (records[0].RDATA is DnsEmptyRecord)
-                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, 0, 1, 0), request.Question, new DnsResourceRecord[] { }, new DnsResourceRecord[] { (records[0].RDATA as DnsEmptyRecord).Authority }, new DnsResourceRecord[] { });
+                {
+                    DnsResourceRecord[] responseAuthority;
+                    DnsResourceRecord authority = (records[0].RDATA as DnsEmptyRecord).Authority;
+
+                    if (authority == null)
+                        responseAuthority = new DnsResourceRecord[] { };
+                    else
+                        responseAuthority = new DnsResourceRecord[] { authority };
+
+                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, 0, 1, 0), request.Question, new DnsResourceRecord[] { }, responseAuthority, new DnsResourceRecord[] { });
+                }
 
                 if (records[0].RDATA is DnsNXRecord)
                     return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NameError, 1, 0, 1, 0), request.Question, new DnsResourceRecord[] { }, new DnsResourceRecord[] { (records[0].RDATA as DnsNXRecord).Authority }, new DnsResourceRecord[] { });
@@ -203,11 +170,16 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
 
                 case DnsResponseCode.NoError:
-                    if ((response.Answer.Length == 0) && (response.Authority.Length > 0))
+                    if (response.Answer.Length > 0)
+                    {
+                        allRecords.AddRange(response.Answer);
+                    }
+                    else if (response.Authority.Length > 0)
                     {
                         DnsResourceRecord authority = response.Authority[0];
                         if (authority.Type == DnsResourceRecordType.SOA)
                         {
+                            //empty response with authority
                             foreach (DnsQuestionRecord question in response.Question)
                             {
                                 DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsEmptyRecord(authority));
@@ -219,7 +191,14 @@ namespace TechnitiumLibrary.Net.Dns
                     }
                     else
                     {
-                        allRecords.AddRange(response.Answer);
+                        //empty response with no authority
+                        foreach (DnsQuestionRecord question in response.Question)
+                        {
+                            DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsEmptyRecord(null));
+                            record.SetExpiry();
+
+                            CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
+                        }
                     }
 
                     break;
@@ -352,10 +331,6 @@ namespace TechnitiumLibrary.Net.Dns
                 _authority = authority;
             }
 
-            public DnsNXRecord(Stream s)
-                : base(s)
-            { }
-
             #endregion
 
             #region protected
@@ -419,10 +394,6 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 _authority = authority;
             }
-
-            public DnsEmptyRecord(Stream s)
-                : base(s)
-            { }
 
             #endregion
 
