@@ -21,11 +21,10 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
-    public abstract class CryptoContainer : IWriteStream, IDisposable
+    public abstract class CryptoContainer : IDisposable
     {
         #region variables
 

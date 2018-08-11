@@ -21,7 +21,6 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Security.Cryptography
@@ -43,7 +42,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         SignDomainUserCertificate = 5
     }
 
-    public sealed class Certificate : IWriteStream
+    public sealed class Certificate
     {
         #region variables
 

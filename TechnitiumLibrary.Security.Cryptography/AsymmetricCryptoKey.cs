@@ -21,7 +21,6 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
@@ -32,7 +31,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         DSA = 2,
     }
 
-    public sealed class AsymmetricCryptoKey : IWriteStream, IDisposable
+    public sealed class AsymmetricCryptoKey : IDisposable
     {
         #region variables
 

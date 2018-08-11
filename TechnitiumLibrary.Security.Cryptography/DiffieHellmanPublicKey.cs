@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.IO;
 using System.Numerics;
+using System.Text;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Security.Cryptography
@@ -63,13 +64,16 @@ namespace TechnitiumLibrary.Security.Cryptography
         {
             using (MemoryStream mS = new MemoryStream(publicKey, false))
             {
-                BincodingDecoder decoder = new BincodingDecoder(mS, "DH");
+                BinaryReader bR = new BinaryReader(mS);
 
-                switch (decoder.Version)
+                if (Encoding.ASCII.GetString(bR.ReadBytes(2)) != "DH")
+                    throw new InvalidDataException("Invalid DiffieHellmanPublicKey data format.");
+
+                switch (bR.ReadByte()) //version
                 {
-                    case 1:
-                        _keySize = decoder.DecodeNext().GetIntegerValue();
-                        _group = (DiffieHellmanGroupType)decoder.DecodeNext().GetByteValue();
+                    case 2:
+                        _keySize = bR.ReadInt32();
+                        _group = (DiffieHellmanGroupType)bR.ReadByte();
 
                         switch (_group)
                         {
@@ -77,19 +81,18 @@ namespace TechnitiumLibrary.Security.Cryptography
                                 DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(_group, _keySize);
                                 _p = dhg.P;
                                 _g = dhg.G;
-                                _x = ReadPositiveNumber(decoder.DecodeNext().Value);
+                                _x = ReadPositiveNumber(bR.ReadBuffer());
                                 break;
 
                             case DiffieHellmanGroupType.None:
-                                _p = ReadPositiveNumber(decoder.DecodeNext().Value);
-                                _g = ReadPositiveNumber(decoder.DecodeNext().Value);
-                                _x = ReadPositiveNumber(decoder.DecodeNext().Value);
+                                _p = ReadPositiveNumber(bR.ReadBuffer());
+                                _g = ReadPositiveNumber(bR.ReadBuffer());
+                                _x = ReadPositiveNumber(bR.ReadBuffer());
                                 break;
 
                             default:
                                 throw new NotSupportedException("DiffieHellmanGroup type not supported.");
                         }
-
 
                         break;
 
@@ -137,21 +140,24 @@ namespace TechnitiumLibrary.Security.Cryptography
         {
             using (MemoryStream mS = new MemoryStream(4096))
             {
-                BincodingEncoder encoder = new BincodingEncoder(mS, "DH", 1);
+                BinaryWriter bW = new BinaryWriter(mS);
 
-                encoder.Encode(_keySize);
-                encoder.Encode((byte)_group);
+                bW.Write(Encoding.ASCII.GetBytes("DH"));
+                bW.Write((byte)2);
+
+                bW.Write(_keySize);
+                bW.Write((byte)_group);
 
                 switch (_group)
                 {
                     case DiffieHellmanGroupType.RFC3526:
-                        encoder.Encode(_x.ToByteArray());
+                        bW.WriteBuffer(_x.ToByteArray());
                         break;
 
                     default:
-                        encoder.Encode(_p.ToByteArray());
-                        encoder.Encode(_g.ToByteArray());
-                        encoder.Encode(_x.ToByteArray());
+                        bW.WriteBuffer(_p.ToByteArray());
+                        bW.WriteBuffer(_g.ToByteArray());
+                        bW.WriteBuffer(_x.ToByteArray());
                         break;
                 }
 

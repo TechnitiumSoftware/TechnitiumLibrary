@@ -21,7 +21,6 @@ using System;
 using System.IO;
 using System.Net.Mail;
 using System.Text;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
@@ -48,7 +47,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         Organization = 2
     }
 
-    public sealed class CertificateProfile : IWriteStream
+    public sealed class CertificateProfile
     {
         #region variables
 
@@ -423,7 +422,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                 bW.Write(buffer);
             }
         }
-        
+
         #endregion
 
         #region properties

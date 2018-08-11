@@ -20,11 +20,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.IO;
 using System.Text;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
-    public sealed class Signature : IWriteStream
+    public sealed class Signature
     {
         #region variables
 
@@ -128,7 +127,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                 _signingCert.WriteTo(s);
             }
         }
-        
+
         public override bool Equals(object obj)
         {
             if (ReferenceEquals(null, obj))

@@ -21,7 +21,6 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
@@ -35,7 +34,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         Rijndael = 5
     }
 
-    public sealed class SymmetricCryptoKey : IWriteStream, IDisposable
+    public sealed class SymmetricCryptoKey : IDisposable
     {
         #region variables
 
