@@ -124,7 +124,7 @@ namespace TechnitiumLibrary.Net.Dns
         ANY = 255
     }
 
-    public class DnsResourceRecord : IWriteStream
+    public class DnsResourceRecord
     {
         #region variables
 
