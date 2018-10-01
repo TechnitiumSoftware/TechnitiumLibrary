@@ -43,7 +43,6 @@ namespace TechnitiumLibrary.Net
         bool _keepAlive = true;
         Dictionary<string, string> _headers = new Dictionary<string, string>();
         int _timeout = 0;
-        int _readWriteTimeout = 0;
         int _maximumAutomaticRedirections = 10;
 
         NetProxy _proxy;
@@ -272,9 +271,6 @@ namespace TechnitiumLibrary.Net
             if (_timeout > 0)
                 request.Timeout = _timeout;
 
-            if (_readWriteTimeout > 0)
-                request.ReadWriteTimeout = _readWriteTimeout;
-
             request.CookieContainer = _cookie;
 
             if (_ifModifiedSince > (new DateTime()))
@@ -401,12 +397,6 @@ namespace TechnitiumLibrary.Net
         {
             get { return _timeout; }
             set { _timeout = value; }
-        }
-
-        public int ReadWriteTimeout
-        {
-            get { return _readWriteTimeout; }
-            set { _readWriteTimeout = value; }
         }
 
         public int MaximumAutomaticRedirections
