@@ -194,12 +194,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000)
         {
-            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, maxStackCount);
+            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout);
         }
 
-        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10)
+        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000)
         {
             DnsQuestionRecord question;
 
@@ -208,10 +208,10 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
 
-            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, protocol, retries, maxStackCount);
+            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout);
         }
 
-        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10)
+        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000)
         {
             if ((nameServers != null) && (nameServers.Length > 0))
             {
@@ -420,6 +420,9 @@ namespace TechnitiumLibrary.Net.Dns
                         client._preferIPv6 = preferIPv6;
                         client._protocol = protocol;
                         client._retries = retries;
+                        client._connectionTimeout = timeout;
+                        client._sendTimeout = timeout;
+                        client._recvTimeout = timeout;
 
                         DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
                         DnsDatagram response;
@@ -443,7 +446,23 @@ namespace TechnitiumLibrary.Net.Dns
                             }
                             else
                             {
-                                return response;
+                                //received truncated response for non UDP protocol!
+                                if (resolverStack.Count == 0)
+                                {
+                                    return response;
+                                }
+                                else
+                                {
+                                    //pop and try next name server
+                                    ResolverData data = resolverStack.Pop();
+
+                                    question = data.Question;
+                                    nameServers = data.NameServers;
+                                    stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                    protocol = data.Protocol;
+
+                                    goto stackLoop; //goto stack loop
+                                }
                             }
                         }
 
@@ -544,14 +563,106 @@ namespace TechnitiumLibrary.Net.Dns
                                     }
                                     else
                                     {
+                                        //check if empty response was received from the authoritative name server
+                                        foreach (DnsResourceRecord authorityRecord in response.Authority)
+                                        {
+                                            if ((authorityRecord.Type == DnsResourceRecordType.NS) && question.Name.Equals(authorityRecord.Name, StringComparison.CurrentCultureIgnoreCase) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.NameServerAddress.Host, StringComparison.CurrentCultureIgnoreCase))
+                                            {
+                                                //empty response from authoritative name server
+                                                if (resolverStack.Count == 0)
+                                                {
+                                                    return response;
+                                                }
+                                                else
+                                                {
+                                                    //unable to resolve current name server domain
+                                                    //pop and try next name server
+                                                    ResolverData data = resolverStack.Pop();
+
+                                                    question = data.Question;
+                                                    nameServers = data.NameServers;
+                                                    stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                                    protocol = data.Protocol;
+
+                                                    goto stackLoop; //goto stack loop
+                                                }
+                                            }
+                                        }
+
+                                        //check for hop limit
+                                        if (hopCount == MAX_HOPS)
+                                        {
+                                            //max hop count reached
+                                            if (resolverStack.Count == 0)
+                                            {
+                                                return response;
+                                            }
+                                            else
+                                            {
+                                                //unable to resolve current name server domain due to hop limit
+                                                //pop and try next name server
+                                                ResolverData data = resolverStack.Pop();
+
+                                                question = data.Question;
+                                                nameServers = data.NameServers;
+                                                stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                                protocol = data.Protocol;
+
+                                                goto stackLoop; //goto stack loop
+                                            }
+                                        }
+
+                                        //get next hop name servers
                                         nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
 
                                         if (nameServers.Length == 0)
                                         {
                                             if ((i + 1) == nameServers.Length)
-                                                return response; //return response since this is last name server
+                                            {
+                                                if (resolverStack.Count == 0)
+                                                {
+                                                    return response; //return response since this is last name server
+                                                }
+                                                else
+                                                {
+                                                    //pop and try next name server
+                                                    ResolverData data = resolverStack.Pop();
+
+                                                    question = data.Question;
+                                                    nameServers = data.NameServers;
+                                                    stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                                    protocol = data.Protocol;
+
+                                                    goto stackLoop; //goto stack loop
+                                                }
+                                            }
 
                                             continue; //continue to next name server since current name server may be misconfigured
+                                        }
+
+                                        //check for protocol downgrade
+                                        switch (protocol)
+                                        {
+                                            case DnsClientProtocol.Https:
+                                            case DnsClientProtocol.HttpsJson:
+                                            case DnsClientProtocol.Tls:
+                                                //secure protocols dont support recursive resolution and are only used as forwarders
+                                                if (resolverStack.Count == 0)
+                                                {
+                                                    return response;
+                                                }
+                                                else
+                                                {
+                                                    //pop and try next name server
+                                                    ResolverData data = resolverStack.Pop();
+
+                                                    question = data.Question;
+                                                    nameServers = data.NameServers;
+                                                    stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                                    protocol = data.Protocol;
+
+                                                    goto stackLoop; //goto stack loop
+                                                }
                                         }
 
                                         goto resolverLoop;
@@ -560,7 +671,24 @@ namespace TechnitiumLibrary.Net.Dns
                                 else
                                 {
                                     if ((i + 1) == nameServers.Length)
-                                        return response; //return response since this is last name server
+                                    {
+                                        if (resolverStack.Count == 0)
+                                        {
+                                            return response; //return response since this is last name server
+                                        }
+                                        else
+                                        {
+                                            //pop and try next name server
+                                            ResolverData data = resolverStack.Pop();
+
+                                            question = data.Question;
+                                            nameServers = data.NameServers;
+                                            stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                            protocol = data.Protocol;
+
+                                            goto stackLoop; //goto stack loop
+                                        }
+                                    }
 
                                     continue; //continue to next name server since current name server may be misconfigured
                                 }
@@ -586,7 +714,24 @@ namespace TechnitiumLibrary.Net.Dns
 
                             default:
                                 if ((i + 1) == nameServers.Length)
-                                    return response; //return response since this is last name server
+                                {
+                                    if (resolverStack.Count == 0)
+                                    {
+                                        return response; //return response since this is last name server
+                                    }
+                                    else
+                                    {
+                                        //pop and try next name server
+                                        ResolverData data = resolverStack.Pop();
+
+                                        question = data.Question;
+                                        nameServers = data.NameServers;
+                                        stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
+                                        protocol = data.Protocol;
+
+                                        goto stackLoop; //goto stack loop
+                                    }
+                                }
 
                                 continue; //continue to next name server since current name server may be misconfigured
                         }
@@ -735,7 +880,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 wC.UserAgent = "DoH client";
                                 wC.Proxy = _proxy;
                                 wC.Timeout = _connectionTimeout;
-                                wC.ReadWriteTimeout = _recvTimeout;
 
                                 if (_proxy == null)
                                     responseBuffer = wC.UploadData(new Uri(server.DnsOverHttpEndPoint.Scheme + "://" + server.IPEndPoint.ToString() + server.DnsOverHttpEndPoint.PathAndQuery), requestBuffer);
@@ -760,7 +904,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 wC.UserAgent = "DoH client";
                                 wC.Proxy = _proxy;
                                 wC.Timeout = _connectionTimeout;
-                                wC.ReadWriteTimeout = _recvTimeout;
 
                                 Uri queryUri;
 
