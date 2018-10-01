@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -98,6 +99,35 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram.ConvertDomainToLabel(_name, s, domainEntries);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            DnsQuestionRecord other = obj as DnsQuestionRecord;
+            if (other == null)
+                return false;
+
+            if (!_name.Equals(other._name, StringComparison.CurrentCultureIgnoreCase))
+                return false;
+
+            if (_type != other._type)
+                return false;
+
+            if (_class != other._class)
+                return false;
+
+            return true;
+        }
+
+        public override int GetHashCode()
+        {
+            return _name.GetHashCode();
         }
 
         #endregion
