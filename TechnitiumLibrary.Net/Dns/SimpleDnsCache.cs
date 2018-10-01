@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -186,6 +187,24 @@ namespace TechnitiumLibrary.Net.Dns
                                 record.SetExpiry();
 
                                 CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
+                            }
+                        }
+                        else
+                        {
+                            foreach (DnsQuestionRecord question in response.Question)
+                            {
+                                foreach (DnsResourceRecord authorityRecord in response.Authority)
+                                {
+                                    if ((authorityRecord.Type == DnsResourceRecordType.NS) && question.Name.Equals(authorityRecord.Name, StringComparison.CurrentCultureIgnoreCase) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.NameServerAddress.Host, StringComparison.CurrentCultureIgnoreCase))
+                                    {
+                                        //empty response from authority name server
+                                        DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsEmptyRecord(null));
+                                        record.SetExpiry();
+
+                                        CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
