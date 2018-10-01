@@ -313,6 +313,9 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsResourceRecord[] Additional
         { get { return _additional; } }
 
+        [IgnoreDataMember]
+        public string Tag { get; set; }
+
         #endregion
     }
 }
