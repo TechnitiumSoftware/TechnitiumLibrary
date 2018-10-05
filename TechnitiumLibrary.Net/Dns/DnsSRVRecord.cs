@@ -38,6 +38,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsSRVRecord(ushort priority, ushort weight, ushort port, string target)
         {
+            DnsDatagram.IsDomainNameValid(target, true);
+
             _priority = priority;
             _weight = weight;
             _port = port;
@@ -69,7 +71,7 @@ namespace TechnitiumLibrary.Net.Dns
             _priority = DnsDatagram.ReadUInt16NetworkOrder(s);
             _weight = DnsDatagram.ReadUInt16NetworkOrder(s);
             _port = DnsDatagram.ReadUInt16NetworkOrder(s);
-            _target = DnsDatagram.ConvertLabelToDomain(s);
+            _target = DnsDatagram.DeserializeDomainName(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
@@ -77,7 +79,7 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram.WriteUInt16NetworkOrder(_priority, s);
             DnsDatagram.WriteUInt16NetworkOrder(_weight, s);
             DnsDatagram.WriteUInt16NetworkOrder(_port, s);
-            DnsDatagram.ConvertDomainToLabel(_target, s, null); //no compression for domain name as per RFC
+            DnsDatagram.SerializeDomainName(_target, s, null); //no compression for domain name as per RFC
         }
 
         #endregion

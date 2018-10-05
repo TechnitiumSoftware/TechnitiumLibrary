@@ -21,6 +21,7 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using TechnitiumLibrary.Net.Dns;
 
 namespace TechnitiumLibrary.Net
 {
@@ -39,6 +40,8 @@ namespace TechnitiumLibrary.Net
         {
             if (address == null)
                 throw new ArgumentNullException();
+
+            DnsDatagram.IsDomainNameValid(address, true);
 
             _address = address;
             _port = port;

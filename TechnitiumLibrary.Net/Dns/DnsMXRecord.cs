@@ -36,6 +36,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsMXRecord(ushort preference, string exchange)
         {
+            DnsDatagram.IsDomainNameValid(exchange, true);
+
             _preference = preference;
             _exchange = exchange;
         }
@@ -61,13 +63,13 @@ namespace TechnitiumLibrary.Net.Dns
         protected override void Parse(Stream s)
         {
             _preference = DnsDatagram.ReadUInt16NetworkOrder(s);
-            _exchange = DnsDatagram.ConvertLabelToDomain(s);
+            _exchange = DnsDatagram.DeserializeDomainName(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
             DnsDatagram.WriteUInt16NetworkOrder(_preference, s);
-            DnsDatagram.ConvertDomainToLabel(_exchange, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_exchange, s, domainEntries);
         }
 
         #endregion

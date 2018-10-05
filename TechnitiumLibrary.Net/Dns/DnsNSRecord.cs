@@ -35,6 +35,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsNSRecord(string nsDomainName)
         {
+            DnsDatagram.IsDomainNameValid(nsDomainName, true);
+
             _nsDomainName = nsDomainName;
         }
 
@@ -55,12 +57,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected override void Parse(Stream s)
         {
-            _nsDomainName = DnsDatagram.ConvertLabelToDomain(s);
+            _nsDomainName = DnsDatagram.DeserializeDomainName(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.ConvertDomainToLabel(_nsDomainName, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_nsDomainName, s, domainEntries);
         }
 
         #endregion

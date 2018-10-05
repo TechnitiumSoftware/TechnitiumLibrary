@@ -143,6 +143,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsResourceRecord(string name, DnsResourceRecordType type, DnsClass @class, uint ttl, DnsResourceRecordData data)
         {
+            DnsDatagram.IsDomainNameValid(name, true);
+
             _name = name.ToLower();
             _type = type;
             _class = @class;
@@ -155,7 +157,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsResourceRecord(Stream s)
         {
-            _name = DnsDatagram.ConvertLabelToDomain(s);
+            _name = DnsDatagram.DeserializeDomainName(s);
             _type = (DnsResourceRecordType)DnsDatagram.ReadUInt16NetworkOrder(s);
             _class = (DnsClass)DnsDatagram.ReadUInt16NetworkOrder(s);
             _ttl = DnsDatagram.ReadUInt32NetworkOrder(s);
@@ -272,7 +274,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.ConvertDomainToLabel(_name, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_name, s, domainEntries);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
             DnsDatagram.WriteUInt32NetworkOrder(TTLValue, s);

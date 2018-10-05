@@ -39,6 +39,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsQuestionRecord(string name, DnsResourceRecordType type, DnsClass @class)
         {
+            DnsDatagram.IsDomainNameValid(name, true);
+
             _type = type;
             _class = @class;
 
@@ -78,7 +80,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsQuestionRecord(Stream s)
         {
-            _name = DnsDatagram.ConvertLabelToDomain(s);
+            _name = DnsDatagram.DeserializeDomainName(s);
             _type = (DnsResourceRecordType)DnsDatagram.ReadUInt16NetworkOrder(s);
             _class = (DnsClass)DnsDatagram.ReadUInt16NetworkOrder(s);
         }
@@ -96,7 +98,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.ConvertDomainToLabel(_name, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_name, s, domainEntries);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
         }

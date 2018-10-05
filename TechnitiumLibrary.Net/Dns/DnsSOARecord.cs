@@ -41,6 +41,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsSOARecord(string masterNameServer, string responsiblePerson, uint serial, uint refresh, uint retry, uint expire, uint minimum)
         {
+            DnsDatagram.IsDomainNameValid(masterNameServer, true);
+            DnsDatagram.IsDomainNameValid(responsiblePerson, true);
+
             _masterNameServer = masterNameServer;
             _responsiblePerson = responsiblePerson;
             _serial = serial;
@@ -75,8 +78,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected override void Parse(Stream s)
         {
-            _masterNameServer = DnsDatagram.ConvertLabelToDomain(s);
-            _responsiblePerson = DnsDatagram.ConvertLabelToDomain(s);
+            _masterNameServer = DnsDatagram.DeserializeDomainName(s);
+            _responsiblePerson = DnsDatagram.DeserializeDomainName(s);
             _serial = DnsDatagram.ReadUInt32NetworkOrder(s);
             _refresh = DnsDatagram.ReadUInt32NetworkOrder(s);
             _retry = DnsDatagram.ReadUInt32NetworkOrder(s);
@@ -86,8 +89,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.ConvertDomainToLabel(_masterNameServer, s, domainEntries);
-            DnsDatagram.ConvertDomainToLabel(_responsiblePerson, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_masterNameServer, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_responsiblePerson, s, domainEntries);
             DnsDatagram.WriteUInt32NetworkOrder(_serial, s);
             DnsDatagram.WriteUInt32NetworkOrder(_refresh, s);
             DnsDatagram.WriteUInt32NetworkOrder(_retry, s);
