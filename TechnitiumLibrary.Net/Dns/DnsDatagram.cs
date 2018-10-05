@@ -54,6 +54,15 @@ namespace TechnitiumLibrary.Net.Dns
             _answer = answer;
             _authority = authority;
             _additional = additional;
+
+            if (_answer == null)
+                _answer = new DnsResourceRecord[] { };
+
+            if (_authority == null)
+                _authority = new DnsResourceRecord[] { };
+
+            if (_additional == null)
+                _additional = new DnsResourceRecord[] { };
         }
 
         public DnsDatagram(Stream s, NameServerAddress server = null, DnsClientProtocol protocol = DnsClientProtocol.Udp, double rtt = 0)
@@ -165,8 +174,10 @@ namespace TechnitiumLibrary.Net.Dns
             s.Write(b, 0, b.Length);
         }
 
-        internal static void ConvertDomainToLabel(string domain, Stream s, List<DnsDomainOffset> domainEntries)
+        internal static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries)
         {
+            IsDomainNameValid(domain, true);
+
             while (!string.IsNullOrEmpty(domain))
             {
                 if (domainEntries != null)
@@ -216,7 +227,7 @@ namespace TechnitiumLibrary.Net.Dns
             s.WriteByte(Convert.ToByte(0));
         }
 
-        internal static string ConvertLabelToDomain(Stream s)
+        internal static string DeserializeDomainName(Stream s)
         {
             StringBuilder domain = new StringBuilder();
             byte labelLength = Convert.ToByte(s.ReadByte());
@@ -229,7 +240,7 @@ namespace TechnitiumLibrary.Net.Dns
                     short Offset = BitConverter.ToInt16(new byte[] { Convert.ToByte(s.ReadByte()), Convert.ToByte((labelLength & 0x3F)) }, 0);
                     long CurrentPosition = s.Position;
                     s.Position = Offset;
-                    domain.Append(ConvertLabelToDomain(s) + ".");
+                    domain.Append(DeserializeDomainName(s) + ".");
                     s.Position = CurrentPosition;
                     break;
                 }
@@ -242,9 +253,79 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             if (domain.Length > 0)
-                domain.Length = domain.Length - 1;
+                domain.Length--;
 
-            return domain.ToString();
+            string domainName = domain.ToString();
+            IsDomainNameValid(domainName, true);
+
+            return domainName;
+        }
+
+        public static bool IsDomainNameValid(string domain, bool throwException = false)
+        {
+            if (domain.Length > 255)
+            {
+                if (throwException)
+                    throw new DnsClientException("Invalid domain name [" + domain + "]: length cannot exceed 255 bytes.");
+
+                return false;
+            }
+
+            string[] labels = domain.Split('.');
+
+            foreach (string label in labels)
+            {
+                if (label.Length > 63)
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot exceed 63 bytes.");
+
+                    return false;
+                }
+
+                if (label.StartsWith("-"))
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot start with hyphen.");
+
+                    return false;
+                }
+
+                if (label.EndsWith("-"))
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot end with hyphen.");
+
+                    return false;
+                }
+
+                byte[] labelBytes = Encoding.ASCII.GetBytes(label);
+
+                foreach (byte labelByte in labelBytes)
+                {
+                    if ((labelByte >= 97) && (labelByte <= 122)) //[a-z]
+                        continue;
+
+                    if ((labelByte >= 65) && (labelByte <= 90)) //[A-Z]
+                        continue;
+
+                    if ((labelByte >= 48) && (labelByte <= 57)) //[0-9]
+                        continue;
+
+                    if (labelByte == 45) //[-]
+                        continue;
+
+                    if (labelByte == 42) //[*] allowed for wild card domain entries in dns server
+                        continue;
+
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name: invalid character [" + labelByte + "] found in domain name [" + domain + "].");
+
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         #endregion
