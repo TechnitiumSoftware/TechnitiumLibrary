@@ -61,7 +61,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public NameServerAddress(string address)
         {
-            Parse(address);
+            Parse(address.Trim());
         }
 
         public NameServerAddress(IPAddress address)
@@ -151,40 +151,86 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 _dohEndPoint = new Uri(address);
             }
-            else if (address.StartsWith("["))
+            else
             {
-                //ipv6
-                int port = 53;
+                string domainName = null;
+                int domainPort = 0;
+                string host;
+                int port = 0;
 
-                if (address.EndsWith("]"))
+                int posRoundBracketStart = address.IndexOf('(');
+                if (posRoundBracketStart > -1)
                 {
-                    address = address.Trim('[', ']');
+                    int posRoundBracketEnd = address.IndexOf(')', posRoundBracketStart + 1);
+                    if (posRoundBracketEnd < 0)
+                        throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
+
+                    {
+                        string strDomainPart = address.Substring(0, posRoundBracketStart).Trim();
+                        string[] strParts = strDomainPart.Split(':');
+
+                        domainName = strParts[0];
+
+                        if (strParts.Length > 1)
+                            domainPort = int.Parse(strParts[1]);
+                    }
+
+                    address = address.Substring(posRoundBracketStart + 1, posRoundBracketEnd - posRoundBracketStart - 1);
+                }
+
+                if (address.StartsWith("["))
+                {
+                    //ipv6
+                    if (address.EndsWith("]"))
+                    {
+                        host = address.Trim('[', ']');
+                    }
+                    else
+                    {
+                        int posBracketEnd = address.LastIndexOf(']');
+
+                        host = address.Substring(1, posBracketEnd - 1);
+
+                        int posCollon = address.IndexOf(':', posBracketEnd + 1);
+                        if (posCollon > -1)
+                            port = int.Parse(address.Substring(posCollon + 1));
+                    }
                 }
                 else
                 {
-                    int posBracket = address.LastIndexOf(']');
-                    int posCollon = address.IndexOf(':', posBracket);
+                    string[] strParts = address.Split(':');
 
-                    if (posCollon > -1)
-                        port = int.Parse(address.Substring(posCollon + 1));
+                    host = strParts[0].Trim();
 
-                    address = address.Substring(1, posBracket - 1);
+                    if (strParts.Length > 1)
+                        port = int.Parse(strParts[1]);
                 }
 
-                _ipEndPoint = new IPEndPoint(IPAddress.Parse(address), port);
-            }
-            else
-            {
-                string[] strParts = address.Split(':');
+                if ((domainPort == 0) && (port == 0))
+                {
+                    domainPort = 53;
+                    port = 53;
+                }
+                else if (domainPort == 0)
+                {
+                    domainPort = port;
+                }
+                else if (port == 0)
+                {
+                    port = domainPort;
+                }
+                else if (domainPort != port)
+                {
+                    throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
+                }
 
-                string host = strParts[0];
-                int port = 53;
-
-                if (strParts.Length > 1)
-                    port = int.Parse(strParts[1]);
+                if (domainName != null)
+                    _domainEndPoint = new DomainEndPoint(domainName, domainPort);
 
                 if (IPAddress.TryParse(host, out IPAddress ipAddress))
                     _ipEndPoint = new IPEndPoint(ipAddress, port);
+                else if (_domainEndPoint != null)
+                    throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
                 else
                     _domainEndPoint = new DomainEndPoint(host, port);
             }
