@@ -147,26 +147,28 @@ namespace TechnitiumLibrary.Net.Dns
         {
             _originalAddress = address;
 
-            if (address.StartsWith("https://", StringComparison.CurrentCultureIgnoreCase) || address.StartsWith("http://", StringComparison.CurrentCultureIgnoreCase))
-            {
-                _dohEndPoint = new Uri(address);
-            }
-            else
-            {
-                string domainName = null;
-                int domainPort = 0;
-                string host;
-                int port = 0;
+            //parse
+            string domainName = null;
+            int domainPort = 0;
+            string host;
+            int port = 0;
 
-                int posRoundBracketStart = address.IndexOf('(');
-                if (posRoundBracketStart > -1)
+            int posRoundBracketStart = address.IndexOf('(');
+            if (posRoundBracketStart > -1)
+            {
+                int posRoundBracketEnd = address.IndexOf(')', posRoundBracketStart + 1);
+                if (posRoundBracketEnd < 0)
+                    throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
+
                 {
-                    int posRoundBracketEnd = address.IndexOf(')', posRoundBracketStart + 1);
-                    if (posRoundBracketEnd < 0)
-                        throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
+                    string strDomainPart = address.Substring(0, posRoundBracketStart).Trim();
 
+                    if (strDomainPart.StartsWith("https://", StringComparison.CurrentCultureIgnoreCase) || strDomainPart.StartsWith("http://", StringComparison.CurrentCultureIgnoreCase))
                     {
-                        string strDomainPart = address.Substring(0, posRoundBracketStart).Trim();
+                        _dohEndPoint = new Uri(strDomainPart);
+                    }
+                    else
+                    {
                         string[] strParts = strDomainPart.Split(':');
 
                         domainName = strParts[0];
@@ -174,38 +176,41 @@ namespace TechnitiumLibrary.Net.Dns
                         if (strParts.Length > 1)
                             domainPort = int.Parse(strParts[1]);
                     }
-
-                    address = address.Substring(posRoundBracketStart + 1, posRoundBracketEnd - posRoundBracketStart - 1);
                 }
 
-                if (address.StartsWith("["))
+                address = address.Substring(posRoundBracketStart + 1, posRoundBracketEnd - posRoundBracketStart - 1);
+            }
+
+            if (address.StartsWith("["))
+            {
+                //ipv6
+                if (address.EndsWith("]"))
                 {
-                    //ipv6
-                    if (address.EndsWith("]"))
-                    {
-                        host = address.Trim('[', ']');
-                    }
-                    else
-                    {
-                        int posBracketEnd = address.LastIndexOf(']');
-
-                        host = address.Substring(1, posBracketEnd - 1);
-
-                        int posCollon = address.IndexOf(':', posBracketEnd + 1);
-                        if (posCollon > -1)
-                            port = int.Parse(address.Substring(posCollon + 1));
-                    }
+                    host = address.Trim('[', ']');
                 }
                 else
                 {
-                    string[] strParts = address.Split(':');
+                    int posBracketEnd = address.LastIndexOf(']');
 
-                    host = strParts[0].Trim();
+                    host = address.Substring(1, posBracketEnd - 1);
 
-                    if (strParts.Length > 1)
-                        port = int.Parse(strParts[1]);
+                    int posCollon = address.IndexOf(':', posBracketEnd + 1);
+                    if (posCollon > -1)
+                        port = int.Parse(address.Substring(posCollon + 1));
                 }
+            }
+            else
+            {
+                string[] strParts = address.Split(':');
 
+                host = strParts[0].Trim();
+
+                if (strParts.Length > 1)
+                    port = int.Parse(strParts[1]);
+            }
+
+            if (_dohEndPoint == null)
+            {
                 if ((domainPort == 0) && (port == 0))
                 {
                     domainPort = 53;
@@ -233,6 +238,18 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
                 else
                     _domainEndPoint = new DomainEndPoint(host, port);
+            }
+            else
+            {
+                if (port == 0)
+                    port = _dohEndPoint.Port;
+                else if (_dohEndPoint.Port != port)
+                    throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
+
+                if (IPAddress.TryParse(host, out IPAddress ipAddress))
+                    _ipEndPoint = new IPEndPoint(ipAddress, port);
+                else
+                    throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
             }
         }
 
