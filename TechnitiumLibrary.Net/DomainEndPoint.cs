@@ -43,6 +43,9 @@ namespace TechnitiumLibrary.Net
 
             DnsDatagram.IsDomainNameValid(address, true);
 
+            if (IPAddress.TryParse(address, out IPAddress ipAddress))
+                throw new ArgumentException("Address must be a domain name: " + address);
+
             _address = address;
             _port = port;
         }
