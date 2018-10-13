@@ -299,6 +299,9 @@ namespace TechnitiumLibrary.Net.Dns
                     return false;
                 }
 
+                if (label.Equals("*"))
+                    continue; //[*] allowed for wild card domain entries in dns server
+
                 byte[] labelBytes = Encoding.ASCII.GetBytes(label);
 
                 foreach (byte labelByte in labelBytes)
@@ -315,7 +318,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (labelByte == 45) //[-]
                         continue;
 
-                    if (labelByte == 42) //[*] allowed for wild card domain entries in dns server
+                    if (labelByte == 95) //[_]
                         continue;
 
                     if (throwException)
