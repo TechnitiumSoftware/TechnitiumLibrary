@@ -150,8 +150,9 @@ namespace TechnitiumLibrary.Net.Dns
             //parse
             string domainName = null;
             int domainPort = 0;
-            string host;
+            string host = null;
             int port = 0;
+            bool ipv6Host = false;
 
             int posRoundBracketStart = address.IndexOf('(');
             if (posRoundBracketStart > -1)
@@ -181,7 +182,11 @@ namespace TechnitiumLibrary.Net.Dns
                 address = address.Substring(posRoundBracketStart + 1, posRoundBracketEnd - posRoundBracketStart - 1);
             }
 
-            if (address.StartsWith("["))
+            if (address.StartsWith("https://", StringComparison.CurrentCultureIgnoreCase) || address.StartsWith("http://", StringComparison.CurrentCultureIgnoreCase))
+            {
+                _dohEndPoint = new Uri(address);
+            }
+            else if (address.StartsWith("["))
             {
                 //ipv6
                 if (address.EndsWith("]"))
@@ -198,6 +203,8 @@ namespace TechnitiumLibrary.Net.Dns
                     if (posCollon > -1)
                         port = int.Parse(address.Substring(posCollon + 1));
                 }
+
+                ipv6Host = true;
             }
             else
             {
@@ -234,12 +241,12 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (IPAddress.TryParse(host, out IPAddress ipAddress))
                     _ipEndPoint = new IPEndPoint(ipAddress, port);
-                else if (_domainEndPoint != null)
+                else if ((_domainEndPoint != null) || ipv6Host)
                     throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
                 else
                     _domainEndPoint = new DomainEndPoint(host, port);
             }
-            else
+            else if (host != null)
             {
                 if (port == 0)
                     port = _dohEndPoint.Port;
