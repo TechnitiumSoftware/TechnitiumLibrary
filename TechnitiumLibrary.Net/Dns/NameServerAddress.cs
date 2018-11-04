@@ -331,7 +331,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public void ResolveIPAddress(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2)
+        public void ResolveIPAddress(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000)
         {
             string domain;
 
@@ -353,6 +353,9 @@ namespace TechnitiumLibrary.Net.Dns
             dnsClient.PreferIPv6 = preferIPv6;
             dnsClient.Protocol = protocol;
             dnsClient.Retries = retries;
+            dnsClient.ConnectionTimeout = timeout;
+            dnsClient.SendTimeout = timeout;
+            dnsClient.ReceiveTimeout = timeout;
 
             IPAddress[] serverIPs = dnsClient.ResolveIP(domain, preferIPv6);
 
@@ -362,7 +365,7 @@ namespace TechnitiumLibrary.Net.Dns
             _ipEndPoint = new IPEndPoint(serverIPs[0], this.Port);
         }
 
-        public void RecursiveResolveIPAddress(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2)
+        public void RecursiveResolveIPAddress(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000)
         {
             string domain;
 
@@ -375,14 +378,14 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (preferIPv6)
             {
-                DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, proxy, true, protocol, retries);
+                DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, proxy, true, protocol, retries, 10, timeout);
                 if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
                     _ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, this.Port);
             }
 
             if (_ipEndPoint == null)
             {
-                DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), null, cache, proxy, false, protocol, retries);
+                DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), null, cache, proxy, false, protocol, retries, 10, timeout);
                 if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
                     _ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, this.Port);
             }
@@ -391,7 +394,7 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new DnsClientException("No IP address was found for name server: " + domain);
         }
 
-        public void ResolveDomainName(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2)
+        public void ResolveDomainName(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPoint != null)
             {
@@ -406,6 +409,9 @@ namespace TechnitiumLibrary.Net.Dns
                 dnsClient.PreferIPv6 = preferIPv6;
                 dnsClient.Protocol = protocol;
                 dnsClient.Retries = retries;
+                dnsClient.ConnectionTimeout = timeout;
+                dnsClient.SendTimeout = timeout;
+                dnsClient.ReceiveTimeout = timeout;
 
                 try
                 {
@@ -417,13 +423,13 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void RecursiveResolveDomainName(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2)
+        public void RecursiveResolveDomainName(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPoint != null)
             {
                 try
                 {
-                    DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), null, cache, proxy, preferIPv6, protocol, retries);
+                    DnsDatagram nsResponse = DnsClient.ResolveViaNameServers(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), null, cache, proxy, preferIPv6, protocol, retries, 10, timeout);
                     if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.PTR))
                         _domainEndPoint = new DomainEndPoint((nsResponse.Answer[0].RDATA as DnsPTRRecord).PTRDomainName, _ipEndPoint.Port);
                 }
