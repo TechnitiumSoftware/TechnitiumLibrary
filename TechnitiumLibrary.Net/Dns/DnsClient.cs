@@ -37,8 +37,8 @@ namespace TechnitiumLibrary.Net.Dns
     {
         Udp = 0,
         Tcp = 1,
-        Tls = 2,
-        Https = 3, //IETF DoH draft
+        Tls = 2, //RFC-7858
+        Https = 3, //RFC-8484
         HttpsJson = 4 //Google
     }
 
@@ -1361,22 +1361,7 @@ namespace TechnitiumLibrary.Net.Dns
         public NetProxy Proxy
         {
             get { return _proxy; }
-            set
-            {
-                _proxy = value;
-
-                if (_proxy != null)
-                {
-                    if (_connectionTimeout < 5000)
-                        _connectionTimeout = 10000;
-
-                    if (_sendTimeout < 5000)
-                        _sendTimeout = 10000;
-
-                    if (_recvTimeout < 5000)
-                        _recvTimeout = 10000;
-                }
-            }
+            set { _proxy = value; }
         }
 
         public bool PreferIPv6
