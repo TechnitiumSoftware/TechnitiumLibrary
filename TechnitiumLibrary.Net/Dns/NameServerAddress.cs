@@ -342,6 +342,18 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 return;
 
+            if (domain == "localhost")
+            {
+                _ipEndPoint = new IPEndPoint((preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback), this.Port);
+                return;
+            }
+
+            if (IPAddress.TryParse(domain, out IPAddress address))
+            {
+                _ipEndPoint = new IPEndPoint(address, this.Port);
+                return;
+            }
+
             DnsClient dnsClient;
 
             if (nameServers == null)
@@ -375,6 +387,18 @@ namespace TechnitiumLibrary.Net.Dns
                 domain = _domainEndPoint.Address;
             else
                 return;
+
+            if (domain == "localhost")
+            {
+                _ipEndPoint = new IPEndPoint((preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback), this.Port);
+                return;
+            }
+
+            if (IPAddress.TryParse(domain, out IPAddress address))
+            {
+                _ipEndPoint = new IPEndPoint(address, this.Port);
+                return;
+            }
 
             if (preferIPv6)
             {
