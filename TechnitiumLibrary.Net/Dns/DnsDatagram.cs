@@ -263,6 +263,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static bool IsDomainNameValid(string domain, bool throwException = false)
         {
+            if (domain.Length == 0)
+                return true; //domain is root zone
+
             if (domain.Length > 255)
             {
                 if (throwException)
