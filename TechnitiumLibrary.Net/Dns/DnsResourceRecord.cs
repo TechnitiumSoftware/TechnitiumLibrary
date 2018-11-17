@@ -150,9 +150,6 @@ namespace TechnitiumLibrary.Net.Dns
             _class = @class;
             _ttl = ttl;
             _data = data;
-
-            if (_name.Contains("..") || _name.StartsWith(".") || _name.EndsWith("."))
-                throw new DnsClientException("Invalid domain name.");
         }
 
         public DnsResourceRecord(Stream s)
