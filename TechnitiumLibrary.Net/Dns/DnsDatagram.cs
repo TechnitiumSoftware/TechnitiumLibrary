@@ -275,6 +275,14 @@ namespace TechnitiumLibrary.Net.Dns
 
             foreach (string label in labels)
             {
+                if (label.Length == 0)
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot be 0 byte.");
+
+                    return false;
+                }
+
                 if (label.Length > 63)
                 {
                     if (throwException)
