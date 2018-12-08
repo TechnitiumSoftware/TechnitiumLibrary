@@ -49,8 +49,6 @@ namespace TechnitiumLibrary.Net.Dns
         public static readonly NameServerAddress[] ROOT_NAME_SERVERS_IPv4;
         public static readonly NameServerAddress[] ROOT_NAME_SERVERS_IPv6;
 
-        public static DnsClientProtocol RecursiveResolveDefaultProtocol = DnsClientProtocol.Udp;
-
         readonly internal static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         const int MAX_HOPS = 16;
@@ -60,6 +58,7 @@ namespace TechnitiumLibrary.Net.Dns
         NetProxy _proxy;
         bool _preferIPv6 = false;
         DnsClientProtocol _protocol = DnsClientProtocol.Udp;
+        DnsClientProtocol _recursiveResolveProtocol = DnsClientProtocol.Udp;
         int _retries = 2;
         int _connectionTimeout = 2000;
         int _sendTimeout = 2000;
@@ -194,12 +193,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
         {
-            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout);
+            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout, protocol);
         }
 
-        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000)
+        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
         {
             DnsQuestionRecord question;
 
@@ -208,10 +207,10 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
 
-            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout);
+            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout, protocol);
         }
 
-        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000)
+        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
         {
             if ((nameServers != null) && (nameServers.Length > 0))
             {
@@ -409,7 +408,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 question = new DnsQuestionRecord(currentNameServer.Host, DnsResourceRecordType.A, question.Class);
 
                             nameServers = null;
-                            protocol = RecursiveResolveDefaultProtocol;
+                            protocol = recursiveResolveProtocol;
 
                             goto stackLoop;
                         }
@@ -847,7 +846,7 @@ namespace TechnitiumLibrary.Net.Dns
                     //recursive resolve name server via root servers when proxy is null else let proxy resolve it
                     try
                     {
-                        server.RecursiveResolveIPAddress(cache, null, _preferIPv6, RecursiveResolveDefaultProtocol, _retries);
+                        server.RecursiveResolveIPAddress(cache, null, _preferIPv6, _recursiveResolveProtocol, _retries);
                     }
                     catch
                     {
@@ -1379,6 +1378,12 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get { return _protocol; }
             set { _protocol = value; }
+        }
+
+        public DnsClientProtocol RecursiveResolveProtocol
+        {
+            get { return _recursiveResolveProtocol; }
+            set { _recursiveResolveProtocol = value; }
         }
 
         public int Retries
