@@ -566,7 +566,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         //check if empty response was received from the authoritative name server
                                         foreach (DnsResourceRecord authorityRecord in response.Authority)
                                         {
-                                            if ((authorityRecord.Type == DnsResourceRecordType.NS) && question.Name.Equals(authorityRecord.Name, StringComparison.CurrentCultureIgnoreCase) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.NameServerAddress.Host, StringComparison.CurrentCultureIgnoreCase))
+                                            if ((authorityRecord.Type == DnsResourceRecordType.NS) && question.Name.Equals(authorityRecord.Name, StringComparison.CurrentCultureIgnoreCase) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.Metadata.NameServerAddress.Host, StringComparison.CurrentCultureIgnoreCase))
                                             {
                                                 //empty response from authoritative name server
                                                 if (resolverStack.Count == 0)
@@ -857,7 +857,7 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 //query server
-                Socket _socket = null;
+                Socket socket = null;
                 SocksUdpAssociateRequestHandler proxyUdpRequestHandler = null;
 
                 try
@@ -933,24 +933,24 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 if (_protocol == DnsClientProtocol.Udp)
                                 {
-                                    _socket = new Socket(server.IPEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+                                    socket = new Socket(server.IPEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
 
-                                    _socket.SendTimeout = _sendTimeout;
-                                    _socket.ReceiveTimeout = _recvTimeout;
+                                    socket.SendTimeout = _sendTimeout;
+                                    socket.ReceiveTimeout = _recvTimeout;
                                 }
                                 else
                                 {
-                                    _socket = new Socket(server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                                    socket = new Socket(server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-                                    _socket.NoDelay = true;
-                                    _socket.SendTimeout = _sendTimeout;
-                                    _socket.ReceiveTimeout = _recvTimeout;
+                                    socket.NoDelay = true;
+                                    socket.SendTimeout = _sendTimeout;
+                                    socket.ReceiveTimeout = _recvTimeout;
 
-                                    IAsyncResult result = _socket.BeginConnect(server.IPEndPoint, null, null);
+                                    IAsyncResult result = socket.BeginConnect(server.IPEndPoint, null, null);
                                     if (!result.AsyncWaitHandle.WaitOne(_connectionTimeout))
                                         throw new SocketException((int)SocketError.TimedOut);
 
-                                    if (!_socket.Connected)
+                                    if (!socket.Connected)
                                         throw new SocketException((int)SocketError.ConnectionRefused);
                                 }
 
@@ -961,11 +961,11 @@ namespace TechnitiumLibrary.Net.Dns
                                 switch (_proxy.Type)
                                 {
                                     case NetProxyType.Http:
-                                        _socket = _proxy.HttpProxy.Connect(server.EndPoint, _connectionTimeout);
+                                        socket = _proxy.HttpProxy.Connect(server.EndPoint, _connectionTimeout);
 
-                                        _socket.NoDelay = true;
-                                        _socket.SendTimeout = _sendTimeout;
-                                        _socket.ReceiveTimeout = _recvTimeout;
+                                        socket.NoDelay = true;
+                                        socket.SendTimeout = _sendTimeout;
+                                        socket.ReceiveTimeout = _recvTimeout;
 
                                         protocolUsed = DnsClientProtocol.Tcp;
                                         break;
@@ -987,11 +987,11 @@ namespace TechnitiumLibrary.Net.Dns
 
                                         using (SocksConnectRequestHandler requestHandler = _proxy.SocksProxy.Connect(server.EndPoint, _connectionTimeout))
                                         {
-                                            _socket = requestHandler.GetSocket();
+                                            socket = requestHandler.GetSocket();
 
-                                            _socket.NoDelay = true;
-                                            _socket.SendTimeout = _sendTimeout;
-                                            _socket.ReceiveTimeout = _recvTimeout;
+                                            socket.NoDelay = true;
+                                            socket.SendTimeout = _sendTimeout;
+                                            socket.ReceiveTimeout = _recvTimeout;
 
                                             protocolUsed = DnsClientProtocol.Tcp;
                                         }
@@ -1010,7 +1010,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 if (_protocol == DnsClientProtocol.Tls)
                                 {
-                                    SslStream ssl = new SslStream(new NetworkStream(_socket));
+                                    SslStream ssl = new SslStream(new NetworkStream(socket));
                                     ssl.AuthenticateAsClient(server.Host);
                                     stream = ssl;
 
@@ -1018,7 +1018,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
                                 else
                                 {
-                                    stream = new NetworkStream(_socket);
+                                    stream = new NetworkStream(socket);
                                 }
 
                                 //send request
@@ -1044,7 +1044,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 if (proxyUdpRequestHandler == null)
                                 {
-                                    _socket.SendTo(requestBuffer, 2, requestBuffer.Length - 2, SocketFlags.None, server.IPEndPoint);
+                                    socket.SendTo(requestBuffer, 2, requestBuffer.Length - 2, SocketFlags.None, server.IPEndPoint);
 
                                     if (server.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
                                         remoteEP = new IPEndPoint(IPAddress.IPv6Any, 0);
@@ -1053,7 +1053,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                     do
                                     {
-                                        bytesRecv = _socket.ReceiveFrom(responseBuffer, ref remoteEP);
+                                        bytesRecv = socket.ReceiveFrom(responseBuffer, ref remoteEP);
                                     } while (!server.IPEndPoint.Equals(remoteEP));
                                 }
                                 else
@@ -1073,13 +1073,18 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         dynamic jsonResponse = JsonConvert.DeserializeObject(Encoding.ASCII.GetString(responseBuffer, 0, bytesRecv));
 
-                        return new DnsDatagram(jsonResponse, bytesRecv, server, protocolUsed, (DateTime.UtcNow - sentAt).TotalMilliseconds);
+                        DnsDatagram response = new DnsDatagram(jsonResponse);
+                        response.SetMetadata(new DnsDatagramMetadata(server, protocolUsed, bytesRecv, (DateTime.UtcNow - sentAt).TotalMilliseconds));
+
+                        return response;
                     }
                     else
                     {
                         using (MemoryStream mS = new MemoryStream(responseBuffer, 0, bytesRecv, false))
                         {
-                            DnsDatagram response = new DnsDatagram(mS, server, protocolUsed, (DateTime.UtcNow - sentAt).TotalMilliseconds);
+                            DnsDatagram response = new DnsDatagram(mS);
+
+                            response.SetMetadata(new DnsDatagramMetadata(server, protocolUsed, bytesRecv, (DateTime.UtcNow - sentAt).TotalMilliseconds));
 
                             if (response.Header.Identifier == request.Header.Identifier)
                                 return response;
@@ -1100,8 +1105,8 @@ namespace TechnitiumLibrary.Net.Dns
                 }
                 finally
                 {
-                    if (_socket != null)
-                        _socket.Dispose();
+                    if (socket != null)
+                        socket.Dispose();
 
                     if (proxyUdpRequestHandler != null)
                         proxyUdpRequestHandler.Dispose();
@@ -1175,7 +1180,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         break;
 
                                     default:
-                                        throw new DnsClientException("Name server [" + response.NameServerAddress.ToString() + "] returned unexpected record type [" + record.Type.ToString() + "] for domain: " + domain);
+                                        throw new DnsClientException("Name server [" + response.Metadata.NameServerAddress.ToString() + "] returned unexpected record type [" + record.Type.ToString() + "] for domain: " + domain);
                                 }
                             }
                         }
@@ -1256,7 +1261,7 @@ namespace TechnitiumLibrary.Net.Dns
                         break;
 
                     case DnsResponseCode.NameError:
-                        throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name server: " + response.NameServerAddress.ToString());
+                        throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name server: " + response.Metadata.NameServerAddress.ToString());
 
                     default:
                         throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
@@ -1279,7 +1284,7 @@ namespace TechnitiumLibrary.Net.Dns
                     return null;
 
                 case DnsResponseCode.NameError:
-                    throw new NameErrorDnsClientException("PTR record does not exists for ip: " + ip.ToString() + "; Name server: " + response.NameServerAddress.ToString());
+                    throw new NameErrorDnsClientException("PTR record does not exists for ip: " + ip.ToString() + "; Name server: " + response.Metadata.NameServerAddress.ToString());
 
                 default:
                     throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
@@ -1330,7 +1335,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         break;
 
                                     default:
-                                        throw new DnsClientException("Name server [" + response.NameServerAddress.ToString() + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
+                                        throw new DnsClientException("Name server [" + response.Metadata.NameServerAddress.ToString() + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
                                 }
                             }
                         }
@@ -1341,7 +1346,7 @@ namespace TechnitiumLibrary.Net.Dns
                         break;
 
                     case DnsResponseCode.NameError:
-                        throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name server: " + response.NameServerAddress.ToString());
+                        throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name server: " + response.Metadata.NameServerAddress.ToString());
 
                     default:
                         throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
