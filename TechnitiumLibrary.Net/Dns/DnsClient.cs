@@ -1090,7 +1090,20 @@ namespace TechnitiumLibrary.Net.Dns
         public NetProxy Proxy
         {
             get { return _proxy; }
-            set { _proxy = value; }
+            set
+            {
+                _proxy = value;
+
+                //upgrade protocols
+                if (((_protocol == DnsClientProtocol.Udp) || (_recursiveResolveProtocol == DnsClientProtocol.Udp)) && !_proxy.IsUdpAvailable())
+                {
+                    if (_protocol == DnsClientProtocol.Udp)
+                        _protocol = DnsClientProtocol.Tcp;
+
+                    if (_recursiveResolveProtocol == DnsClientProtocol.Udp)
+                        _recursiveResolveProtocol = DnsClientProtocol.Tcp;
+                }
+            }
         }
 
         public bool PreferIPv6
