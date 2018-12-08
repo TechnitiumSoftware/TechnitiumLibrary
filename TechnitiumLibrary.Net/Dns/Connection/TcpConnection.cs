@@ -1,0 +1,283 @@
+﻿/*
+Technitium Library
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net.Sockets;
+using System.Threading;
+using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Proxy;
+
+namespace TechnitiumLibrary.Net.Dns.Connection
+{
+    public class TcpConnection : DnsConnection
+    {
+        #region variables
+
+        Stream _tcpStream;
+        Thread _readThread;
+
+        int _requestTimeout = 2000;
+
+        readonly Dictionary<ushort, Transaction> _transactions = new Dictionary<ushort, Transaction>();
+
+        readonly byte[] _lengthBuffer = new byte[2];
+        readonly MemoryStream _sendBuffer = new MemoryStream(32);
+        readonly MemoryStream _recvBuffer = new MemoryStream(64);
+
+        #endregion
+
+        #region constructor
+
+        public TcpConnection(NameServerAddress server, NetProxy proxy)
+            : base(DnsClientProtocol.Tcp, server, proxy)
+        {
+            _connectionTimeout = 10000;
+            _sendTimeout = 10000;
+            _recvTimeout = 120000;
+        }
+
+        protected TcpConnection(DnsClientProtocol protocol, NameServerAddress server, NetProxy proxy)
+            : base(protocol, server, proxy)
+        { }
+
+        #endregion
+
+        #region IDisposable
+
+        bool _disposed = false;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+
+            if (disposing)
+            {
+                Stream tcpStream = _tcpStream;
+                if (tcpStream != null)
+                {
+                    _tcpStream = null;
+                    tcpStream.Dispose();
+                }
+
+                if (_readThread != null)
+                {
+                    try
+                    {
+                        _readThread.Abort();
+                    }
+                    catch (PlatformNotSupportedException)
+                    { }
+                }
+
+                if (_sendBuffer != null)
+                    _sendBuffer.Dispose();
+
+                if (_recvBuffer != null)
+                    _recvBuffer.Dispose();
+            }
+
+            _disposed = true;
+        }
+
+        #endregion
+
+        #region private
+
+        private void Connect()
+        {
+            lock (this)
+            {
+                if (_tcpStream != null)
+                    return;
+
+                Socket socket;
+
+                if (_proxy == null)
+                {
+                    if (_server.IPEndPoint == null)
+                        _server.RecursiveResolveIPAddress(new SimpleDnsCache(), _proxy);
+
+                    socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+                    IAsyncResult result = socket.BeginConnect(_server.IPEndPoint, null, null);
+                    if (!result.AsyncWaitHandle.WaitOne(_connectionTimeout))
+                        throw new SocketException((int)SocketError.TimedOut);
+
+                    if (!socket.Connected)
+                        throw new SocketException((int)SocketError.ConnectionRefused);
+                }
+                else
+                {
+                    socket = _proxy.Connect(_server.EndPoint, _connectionTimeout);
+                }
+
+                socket.SendTimeout = _sendTimeout;
+                socket.ReceiveTimeout = _recvTimeout;
+
+                _tcpStream = GetNetworkStream(socket);
+
+                _readThread = new Thread(ReadDnsDatagramAsync);
+                _readThread.IsBackground = true;
+                _readThread.Start();
+            }
+        }
+
+        private void ReadDnsDatagramAsync(object state)
+        {
+            try
+            {
+                while (true)
+                {
+                    //read response datagram length
+                    _tcpStream.ReadBytes(_lengthBuffer, 0, 2);
+                    Array.Reverse(_lengthBuffer, 0, 2);
+                    int length = BitConverter.ToUInt16(_lengthBuffer, 0);
+
+                    //read response datagram
+                    _recvBuffer.SetLength(0);
+                    _tcpStream.CopyTo(_recvBuffer, 64, length);
+
+                    _recvBuffer.Position = 0;
+                    DnsDatagram response = new DnsDatagram(_recvBuffer);
+
+                    //notify waiting thread of response
+                    Transaction transaction = null;
+
+                    lock (_transactions)
+                    {
+                        if (_transactions.ContainsKey(response.Header.Identifier))
+                            transaction = _transactions[response.Header.Identifier];
+                    }
+
+                    if (transaction != null)
+                    {
+                        response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, length, (DateTime.UtcNow - transaction.SentAt).TotalMilliseconds));
+
+                        lock (transaction.Lock)
+                        {
+                            transaction.Response = response;
+
+                            Monitor.Pulse(transaction.Lock);
+                        }
+                    }
+                }
+            }
+            catch
+            { }
+            finally
+            {
+                Stream tcpStream = _tcpStream;
+                if (tcpStream != null)
+                {
+                    _tcpStream = null;
+                    tcpStream.Dispose();
+                }
+            }
+        }
+
+        #endregion
+
+        #region protected
+
+        protected virtual Stream GetNetworkStream(Socket socket)
+        {
+            return new NetworkStream(socket, true);
+        }
+
+        #endregion
+
+        #region public
+
+        public override DnsDatagram Query(DnsDatagram request)
+        {
+            Transaction transaction = new Transaction();
+
+            lock (_transactions)
+            {
+                while (_transactions.ContainsKey(request.Header.Identifier))
+                {
+                    request.Header.ResetIdentifier();
+                }
+
+                _transactions.Add(request.Header.Identifier, transaction);
+            }
+
+            try
+            {
+                lock (transaction.Lock)
+                {
+                    if (_tcpStream == null)
+                        Connect();
+
+                    //send request
+                    lock (_tcpStream)
+                    {
+                        //serialize request
+                        _sendBuffer.SetLength(0);
+                        request.WriteTo(_sendBuffer);
+
+                        byte[] lengthBuffer = BitConverter.GetBytes(Convert.ToUInt16(_sendBuffer.Length));
+                        Array.Reverse(lengthBuffer);
+
+                        //send request
+                        _tcpStream.Write(lengthBuffer);
+                        _sendBuffer.Position = 0;
+                        _sendBuffer.CopyTo(_tcpStream, 32);
+                    }
+
+                    //wait for response
+                    if (Monitor.Wait(transaction.Lock, _requestTimeout))
+                        return transaction.Response;
+
+                    //timeout
+                    return null;
+                }
+            }
+            finally
+            {
+                lock (_transactions)
+                {
+                    _transactions.Remove(request.Header.Identifier);
+                }
+            }
+        }
+
+        #endregion
+
+        #region properties
+
+        public int RequestTimeout
+        {
+            get { return _requestTimeout; }
+            set { _requestTimeout = value; }
+        }
+
+        #endregion
+
+        class Transaction
+        {
+            public readonly object Lock = new object();
+            public readonly DateTime SentAt = DateTime.UtcNow;
+            public DnsDatagram Response;
+        }
+    }
+}
