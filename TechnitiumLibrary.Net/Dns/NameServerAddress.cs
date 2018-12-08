@@ -505,6 +505,40 @@ namespace TechnitiumLibrary.Net.Dns
             return 0;
         }
 
+        public override bool Equals(object obj)
+        {
+            if (obj is null)
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            NameServerAddress other = obj as NameServerAddress;
+            if (other == null)
+                return false;
+
+            if (!EqualityComparer<Uri>.Default.Equals(_dohEndPoint, other._dohEndPoint))
+                return false;
+
+            if (!EqualityComparer<DomainEndPoint>.Default.Equals(_domainEndPoint, other._domainEndPoint))
+                return false;
+
+            if (!EqualityComparer<IPEndPoint>.Default.Equals(_ipEndPoint, other._ipEndPoint))
+                return false;
+
+            return true;
+        }
+
+        public override int GetHashCode()
+        {
+            var hashCode = 563096372;
+            hashCode = hashCode * -1521134295 + EqualityComparer<Uri>.Default.GetHashCode(_dohEndPoint);
+            hashCode = hashCode * -1521134295 + EqualityComparer<DomainEndPoint>.Default.GetHashCode(_domainEndPoint);
+            hashCode = hashCode * -1521134295 + EqualityComparer<IPEndPoint>.Default.GetHashCode(_ipEndPoint);
+            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(_originalAddress);
+            return hashCode;
+        }
+
         #endregion
 
         #region properties
