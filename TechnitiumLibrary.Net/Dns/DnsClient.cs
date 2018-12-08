@@ -17,18 +17,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Mail;
 using System.Net.NetworkInformation;
-using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography;
-using System.Text;
-using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Dns.Connection;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -49,7 +46,7 @@ namespace TechnitiumLibrary.Net.Dns
         public static readonly NameServerAddress[] ROOT_NAME_SERVERS_IPv4;
         public static readonly NameServerAddress[] ROOT_NAME_SERVERS_IPv6;
 
-        readonly internal static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+        readonly static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         const int MAX_HOPS = 16;
 
@@ -195,7 +192,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
         {
-            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout, protocol);
+            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout, recursiveResolveProtocol);
         }
 
         public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
@@ -207,7 +204,7 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
 
-            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout, protocol);
+            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout, recursiveResolveProtocol);
         }
 
         public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
@@ -767,49 +764,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         private DnsDatagram Resolve(DnsDatagram request, IDnsCache cache)
         {
-            int bytesRecv;
-            byte[] responseBuffer = null;
             int nextServerIndex = 0;
             int retries = _retries;
-            byte[] requestBuffer;
             Exception lastException = null;
-
-            //serialize request
-            if (_protocol == DnsClientProtocol.HttpsJson)
-            {
-                //no serialization needed
-                requestBuffer = null;
-            }
-            else
-            {
-                using (MemoryStream mS = new MemoryStream(32))
-                {
-                    switch (_protocol)
-                    {
-                        case DnsClientProtocol.Https:
-                            //write dns datagram
-                            request.WriteTo(mS);
-
-                            requestBuffer = mS.ToArray();
-                            break;
-
-                        default:
-                            //16 bit length placeholder
-                            mS.Position = 2;
-
-                            //write dns datagram
-                            request.WriteTo(mS);
-
-                            requestBuffer = mS.ToArray();
-
-                            //update 16 bit length in network byte order
-                            byte[] length = BitConverter.GetBytes(Convert.ToUInt16(requestBuffer.Length - 2));
-                            requestBuffer[0] = length[1];
-                            requestBuffer[1] = length[0];
-                            break;
-                    }
-                }
-            }
 
             //init server selection parameters
             if (_servers.Length > 1)
@@ -856,239 +813,15 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 //query server
-                Socket socket = null;
-                SocksUdpAssociateRequestHandler proxyUdpRequestHandler = null;
-
                 try
                 {
                     retry++;
 
-                    DateTime sentAt = DateTime.UtcNow;
-                    DnsClientProtocol protocolUsed;
+                    request.Header.ResetIdentifier(); //each retry must have differnt ID
 
-                    switch (_protocol)
-                    {
-                        case DnsClientProtocol.Https:
-                            #region http
-
-                            using (WebClientEx wC = new WebClientEx())
-                            {
-                                wC.AddHeader("content-type", "application/dns-message");
-                                wC.AddHeader("accept", "application/dns-message");
-                                wC.AddHeader("host", server.DnsOverHttpEndPoint.Host + ":" + server.DnsOverHttpEndPoint.Port);
-                                wC.UserAgent = "DoH client";
-                                wC.Proxy = _proxy;
-                                wC.Timeout = _connectionTimeout;
-
-                                if (_proxy == null)
-                                    responseBuffer = wC.UploadData(new Uri(server.DnsOverHttpEndPoint.Scheme + "://" + server.IPEndPoint.ToString() + server.DnsOverHttpEndPoint.PathAndQuery), requestBuffer);
-                                else
-                                    responseBuffer = wC.UploadData(server.DnsOverHttpEndPoint, requestBuffer);
-
-                                bytesRecv = responseBuffer.Length;
-                            }
-
-                            protocolUsed = DnsClientProtocol.Https;
-
-                            #endregion
-                            break;
-
-                        case DnsClientProtocol.HttpsJson:
-                            #region http json
-
-                            using (WebClientEx wC = new WebClientEx())
-                            {
-                                wC.AddHeader("accept", "application/dns-json");
-                                wC.AddHeader("host", server.DnsOverHttpEndPoint.Host + ":" + server.DnsOverHttpEndPoint.Port);
-                                wC.UserAgent = "DoH client";
-                                wC.Proxy = _proxy;
-                                wC.Timeout = _connectionTimeout;
-
-                                Uri queryUri;
-
-                                if (_proxy == null)
-                                    queryUri = new Uri(server.DnsOverHttpEndPoint.Scheme + "://" + server.IPEndPoint.ToString() + server.DnsOverHttpEndPoint.PathAndQuery);
-                                else
-                                    queryUri = server.DnsOverHttpEndPoint;
-
-                                wC.QueryString.Clear();
-                                wC.QueryString.Add("name", request.Question[0].Name);
-                                wC.QueryString.Add("type", Convert.ToString(((int)request.Question[0].Type)));
-
-                                responseBuffer = wC.DownloadData(queryUri);
-                                bytesRecv = responseBuffer.Length;
-                            }
-
-                            protocolUsed = DnsClientProtocol.HttpsJson;
-
-                            #endregion
-                            break;
-
-                        default:
-                            #region standard dns
-
-                            //connect
-                            if (_proxy == null)
-                            {
-                                if (_protocol == DnsClientProtocol.Udp)
-                                {
-                                    socket = new Socket(server.IPEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-
-                                    socket.SendTimeout = _sendTimeout;
-                                    socket.ReceiveTimeout = _recvTimeout;
-                                }
-                                else
-                                {
-                                    socket = new Socket(server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-
-                                    socket.NoDelay = true;
-                                    socket.SendTimeout = _sendTimeout;
-                                    socket.ReceiveTimeout = _recvTimeout;
-
-                                    IAsyncResult result = socket.BeginConnect(server.IPEndPoint, null, null);
-                                    if (!result.AsyncWaitHandle.WaitOne(_connectionTimeout))
-                                        throw new SocketException((int)SocketError.TimedOut);
-
-                                    if (!socket.Connected)
-                                        throw new SocketException((int)SocketError.ConnectionRefused);
-                                }
-
-                                protocolUsed = _protocol;
-                            }
-                            else
-                            {
-                                switch (_proxy.Type)
-                                {
-                                    case NetProxyType.Http:
-                                        socket = _proxy.HttpProxy.Connect(server.EndPoint, _connectionTimeout);
-
-                                        socket.NoDelay = true;
-                                        socket.SendTimeout = _sendTimeout;
-                                        socket.ReceiveTimeout = _recvTimeout;
-
-                                        protocolUsed = DnsClientProtocol.Tcp;
-                                        break;
-
-                                    case NetProxyType.Socks5:
-                                        if (_protocol == DnsClientProtocol.Udp)
-                                        {
-                                            try
-                                            {
-                                                proxyUdpRequestHandler = _proxy.SocksProxy.UdpAssociate(_connectionTimeout);
-                                                proxyUdpRequestHandler.ReceiveTimeout = _recvTimeout;
-
-                                                protocolUsed = DnsClientProtocol.Udp;
-                                                break;
-                                            }
-                                            catch (SocksClientException)
-                                            { }
-                                        }
-
-                                        using (SocksConnectRequestHandler requestHandler = _proxy.SocksProxy.Connect(server.EndPoint, _connectionTimeout))
-                                        {
-                                            socket = requestHandler.GetSocket();
-
-                                            socket.NoDelay = true;
-                                            socket.SendTimeout = _sendTimeout;
-                                            socket.ReceiveTimeout = _recvTimeout;
-
-                                            protocolUsed = DnsClientProtocol.Tcp;
-                                        }
-
-                                        break;
-
-                                    default:
-                                        throw new NotSupportedException("Proxy type not supported by DnsClient.");
-                                }
-                            }
-
-                            //query
-                            if (protocolUsed != DnsClientProtocol.Udp)
-                            {
-                                Stream stream;
-
-                                if (_protocol == DnsClientProtocol.Tls)
-                                {
-                                    SslStream ssl = new SslStream(new NetworkStream(socket));
-                                    ssl.AuthenticateAsClient(server.Host);
-                                    stream = ssl;
-
-                                    protocolUsed = DnsClientProtocol.Tls;
-                                }
-                                else
-                                {
-                                    stream = new NetworkStream(socket);
-                                }
-
-                                //send request
-                                stream.Write(requestBuffer);
-
-                                //read response
-                                byte[] lengthBuffer = stream.ReadBytes(2);
-                                Array.Reverse(lengthBuffer, 0, 2);
-                                int length = BitConverter.ToUInt16(lengthBuffer, 0);
-
-                                if ((responseBuffer == null) || (responseBuffer.Length < length))
-                                    responseBuffer = new byte[length];
-
-                                stream.ReadBytes(responseBuffer, 0, length);
-                                bytesRecv = length;
-                            }
-                            else
-                            {
-                                if (responseBuffer == null)
-                                    responseBuffer = new byte[512];
-
-                                EndPoint remoteEP = null;
-
-                                if (proxyUdpRequestHandler == null)
-                                {
-                                    socket.SendTo(requestBuffer, 2, requestBuffer.Length - 2, SocketFlags.None, server.IPEndPoint);
-
-                                    if (server.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
-                                        remoteEP = new IPEndPoint(IPAddress.IPv6Any, 0);
-                                    else
-                                        remoteEP = new IPEndPoint(IPAddress.Any, 0);
-
-                                    do
-                                    {
-                                        bytesRecv = socket.ReceiveFrom(responseBuffer, ref remoteEP);
-                                    } while (!server.IPEndPoint.Equals(remoteEP));
-                                }
-                                else
-                                {
-                                    proxyUdpRequestHandler.SendTo(requestBuffer, 2, requestBuffer.Length - 2, server.EndPoint);
-
-                                    bytesRecv = proxyUdpRequestHandler.ReceiveFrom(responseBuffer, 0, responseBuffer.Length, out remoteEP);
-                                }
-                            }
-
-                            #endregion
-                            break;
-                    }
-
-                    //parse response
-                    if (protocolUsed == DnsClientProtocol.HttpsJson)
-                    {
-                        dynamic jsonResponse = JsonConvert.DeserializeObject(Encoding.ASCII.GetString(responseBuffer, 0, bytesRecv));
-
-                        DnsDatagram response = new DnsDatagram(jsonResponse);
-                        response.SetMetadata(new DnsDatagramMetadata(server, protocolUsed, bytesRecv, (DateTime.UtcNow - sentAt).TotalMilliseconds));
-
+                    DnsDatagram response = DnsConnection.GetConnection(_protocol, server, _proxy).Query(request);
+                    if (response != null)
                         return response;
-                    }
-                    else
-                    {
-                        using (MemoryStream mS = new MemoryStream(responseBuffer, 0, bytesRecv, false))
-                        {
-                            DnsDatagram response = new DnsDatagram(mS);
-
-                            response.SetMetadata(new DnsDatagramMetadata(server, protocolUsed, bytesRecv, (DateTime.UtcNow - sentAt).TotalMilliseconds));
-
-                            if (response.Header.Identifier == request.Header.Identifier)
-                                return response;
-                        }
-                    }
                 }
                 catch (WebException ex)
                 {
@@ -1101,14 +834,6 @@ namespace TechnitiumLibrary.Net.Dns
                 catch (SocketException ex)
                 {
                     lastException = ex;
-                }
-                finally
-                {
-                    if (socket != null)
-                        socket.Dispose();
-
-                    if (proxyUdpRequestHandler != null)
-                        proxyUdpRequestHandler.Dispose();
                 }
             }
 
