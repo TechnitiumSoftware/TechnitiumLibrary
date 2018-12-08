@@ -32,12 +32,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         DnsDatagramMetadata _metadata;
 
-        DnsHeader _header;
+        readonly DnsHeader _header;
 
-        DnsQuestionRecord[] _question;
-        DnsResourceRecord[] _answer;
-        DnsResourceRecord[] _authority;
-        DnsResourceRecord[] _additional;
+        readonly DnsQuestionRecord[] _question;
+        readonly DnsResourceRecord[] _answer;
+        readonly DnsResourceRecord[] _authority;
+        readonly DnsResourceRecord[] _additional;
 
         #endregion
 
