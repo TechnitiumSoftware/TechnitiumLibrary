@@ -41,7 +41,7 @@ namespace TechnitiumLibrary.Net.Proxy
         UdpAssociate = 0x03
     }
 
-    enum SocksReplyCode : byte
+    public enum SocksReplyCode : byte
     {
         Succeeded = 0x00,
         GeneralSocksServerFailure = 0x01,
@@ -188,10 +188,10 @@ namespace TechnitiumLibrary.Net.Proxy
             if (response[0] != SOCKS_VERSION)
                 throw new SocksClientException("Socks version 5 is not supported by the proxy server.");
 
-            SocksReplyCode reply = (SocksReplyCode)response[1];
+            SocksReplyCode replyCode = (SocksReplyCode)response[1];
 
-            if (reply != SocksReplyCode.Succeeded)
-                throw new SocksClientException("Socks proxy server request failed: " + reply.ToString());
+            if (replyCode != SocksReplyCode.Succeeded)
+                throw new SocksClientException("Socks proxy server request failed: " + replyCode.ToString(), replyCode);
 
             return ParseEndpoint(response, 3);
         }
@@ -804,7 +804,14 @@ namespace TechnitiumLibrary.Net.Proxy
             if (disposing)
             {
                 if (_watchThread != null)
-                    _watchThread.Abort();
+                {
+                    try
+                    {
+                        _watchThread.Abort();
+                    }
+                    catch (PlatformNotSupportedException)
+                    { }
+                }
 
                 if (_controlSocket != null)
                 {
@@ -989,6 +996,12 @@ namespace TechnitiumLibrary.Net.Proxy
 
     public class SocksClientException : Exception
     {
+        #region variables
+
+        SocksReplyCode _replyCode;
+
+        #endregion
+
         #region constructors
 
         public SocksClientException()
@@ -999,6 +1012,12 @@ namespace TechnitiumLibrary.Net.Proxy
             : base(message)
         { }
 
+        public SocksClientException(string message, SocksReplyCode replyCode)
+            : base(message)
+        {
+            _replyCode = replyCode;
+        }
+
         public SocksClientException(string message, Exception innerException)
             : base(message, innerException)
         { }
@@ -1006,6 +1025,13 @@ namespace TechnitiumLibrary.Net.Proxy
         protected SocksClientException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
             : base(info, context)
         { }
+
+        #endregion
+
+        #region properties
+
+        public SocksReplyCode ReplyCode
+        { get { return _replyCode; } }
 
         #endregion
     }

@@ -34,10 +34,12 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        NetProxyType _type;
+        readonly NetProxyType _type;
 
-        WebProxyEx _httpProxy;
-        SocksClient _socksProxy;
+        readonly WebProxyEx _httpProxy;
+        readonly SocksClient _socksProxy;
+
+        public readonly static NetProxy None = new NetProxy();
 
         #endregion
 
@@ -93,6 +95,11 @@ namespace TechnitiumLibrary.Net.Proxy
             _socksProxy = socksProxy;
         }
 
+        private NetProxy()
+        {
+            _type = NetProxyType.None;
+        }
+
         #endregion
 
         #region public
@@ -123,6 +130,40 @@ namespace TechnitiumLibrary.Net.Proxy
                 case NetProxyType.Socks5:
                     _socksProxy.CheckProxyAccess();
                     break;
+
+                default:
+                    throw new NotSupportedException("Proxy type not supported.");
+            }
+        }
+
+        public bool IsUdpAvailable()
+        {
+            switch (_type)
+            {
+                case NetProxyType.Http:
+                    return false;
+
+                case NetProxyType.Socks5:
+                    SocksUdpAssociateRequestHandler udpHandler = null;
+
+                    try
+                    {
+                        udpHandler = _socksProxy.UdpAssociate();
+
+                        return true;
+                    }
+                    catch (SocksClientException ex)
+                    {
+                        if (ex.ReplyCode == SocksReplyCode.CommandNotSupported)
+                            return false;
+
+                        throw;
+                    }
+                    finally
+                    {
+                        if (udpHandler != null)
+                            udpHandler.Dispose();
+                    }
 
                 default:
                     throw new NotSupportedException("Proxy type not supported.");
