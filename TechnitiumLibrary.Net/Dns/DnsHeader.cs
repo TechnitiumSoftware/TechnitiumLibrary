@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
+using System.Security.Cryptography;
 
 namespace TechnitiumLibrary.Net.Dns
 {
@@ -58,23 +59,25 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
+        readonly static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+
         ushort _ID;
 
-        byte _QR;
-        DnsOpcode _OPCODE;
-        byte _AA;
-        byte _TC;
-        byte _RD;
-        byte _RA;
-        byte _Z;
-        byte _AD;
-        byte _CD;
-        DnsResponseCode _RCODE;
+        readonly byte _QR;
+        readonly DnsOpcode _OPCODE;
+        readonly byte _AA;
+        readonly byte _TC;
+        readonly byte _RD;
+        readonly byte _RA;
+        readonly byte _Z;
+        readonly byte _AD;
+        readonly byte _CD;
+        readonly DnsResponseCode _RCODE;
 
-        ushort _QDCOUNT;
-        ushort _ANCOUNT;
-        ushort _NSCOUNT;
-        ushort _ARCOUNT;
+        readonly ushort _QDCOUNT;
+        readonly ushort _ANCOUNT;
+        readonly ushort _NSCOUNT;
+        readonly ushort _ARCOUNT;
 
         #endregion
 
@@ -83,14 +86,6 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsHeader(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, ushort QDCOUNT, ushort ANCOUNT, ushort NSCOUNT, ushort ARCOUNT)
         {
             _ID = ID;
-
-            if (_ID == 0)
-            {
-                byte[] buffer = new byte[2];
-                DnsClient._rnd.GetBytes(buffer);
-
-                _ID = BitConverter.ToUInt16(buffer, 0);
-            }
 
             if (isResponse)
                 _QR = 1;
@@ -174,6 +169,14 @@ namespace TechnitiumLibrary.Net.Dns
         #endregion
 
         #region public
+
+        public void ResetIdentifier()
+        {
+            byte[] buffer = new byte[2];
+            _rnd.GetBytes(buffer);
+
+            _ID = BitConverter.ToUInt16(buffer, 0);
+        }
 
         public void WriteTo(Stream s)
         {
