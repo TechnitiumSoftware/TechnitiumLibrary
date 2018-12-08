@@ -30,10 +30,7 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        NameServerAddress _server;
-        DnsClientProtocol _protocol;
-        int _size;
-        double _rtt;
+        DnsDatagramMetadata _metadata;
 
         DnsHeader _header;
 
@@ -65,12 +62,8 @@ namespace TechnitiumLibrary.Net.Dns
                 _additional = new DnsResourceRecord[] { };
         }
 
-        public DnsDatagram(Stream s, NameServerAddress server = null, DnsClientProtocol protocol = DnsClientProtocol.Udp, double rtt = 0)
+        public DnsDatagram(Stream s)
         {
-            _server = server;
-            _protocol = protocol;
-            _size = Convert.ToInt32(s.Length);
-            _rtt = rtt;
             _header = new DnsHeader(s);
 
             _question = new DnsQuestionRecord[_header.QDCOUNT];
@@ -90,12 +83,8 @@ namespace TechnitiumLibrary.Net.Dns
                 _additional[i] = new DnsResourceRecord(s);
         }
 
-        public DnsDatagram(dynamic jsonResponse, int responseLength, NameServerAddress server = null, DnsClientProtocol protocol = DnsClientProtocol.Udp, double rtt = 0)
+        public DnsDatagram(dynamic jsonResponse)
         {
-            _server = server;
-            _protocol = protocol;
-            _size = responseLength;
-            _rtt = rtt;
             _header = new DnsHeader(jsonResponse);
 
             {
@@ -346,6 +335,14 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
+        public void SetMetadata(DnsDatagramMetadata metadata)
+        {
+            if (_metadata != null)
+                throw new InvalidOperationException("Cannot overwrite existing Metadata.");
+
+            _metadata = metadata;
+        }
+
         public void WriteTo(Stream s)
         {
             _header.WriteTo(s);
@@ -369,29 +366,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region properties
 
-        [IgnoreDataMember]
-        public NameServerAddress NameServerAddress
-        { get { return _server; } }
-
-        public string NameServer
-        { get { return _server?.ToString(); } }
-
-        public DnsClientProtocol Protocol
-        { get { return _protocol; } }
-
-        [IgnoreDataMember]
-        public int Size
-        { get { return _size; } }
-
-        public string DatagramSize
-        { get { return _size + " bytes"; } }
-
-        [IgnoreDataMember]
-        public double RTT
-        { get { return _rtt; } }
-
-        public string RoundTripTime
-        { get { return Math.Round(_rtt, 2) + " ms"; } }
+        public DnsDatagramMetadata Metadata
+        { get { return _metadata; } }
 
         public DnsHeader Header
         { get { return _header; } }
