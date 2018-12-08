@@ -260,6 +260,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         public void SetExpiry()
         {
+            if (_ttl < 10)
+                _ttl = 10; //to help DNS Server keep record in cache for a while
+
             _setExpiry = true;
             _dateExpires = DateTime.UtcNow.AddSeconds(_ttl);
         }
@@ -352,7 +355,13 @@ namespace TechnitiumLibrary.Net.Dns
         }
 
         public string TTL
-        { get { return this.TTLValue + " (" + WebUtilities.GetFormattedTime(this.TTLValue) + ")"; } }
+        {
+            get
+            {
+                uint ttl = this.TTLValue;
+                return ttl + " (" + WebUtilities.GetFormattedTime(ttl) + ")";
+            }
+        }
 
         public string RDLENGTH
         { get { return _data.RDLENGTH + " bytes"; } }
