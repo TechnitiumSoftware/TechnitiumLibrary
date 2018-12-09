@@ -102,12 +102,14 @@ namespace TechnitiumLibrary.Net.Dns.Connection
 
         #region private
 
-        private void Connect()
+        private Stream GetConnection()
         {
             lock (this)
             {
-                if (_tcpStream != null)
-                    return;
+                Stream tcpStream = _tcpStream;
+
+                if (tcpStream != null)
+                    return tcpStream;
 
                 Socket socket;
 
@@ -133,11 +135,14 @@ namespace TechnitiumLibrary.Net.Dns.Connection
                 socket.SendTimeout = _sendTimeout;
                 socket.ReceiveTimeout = _recvTimeout;
 
-                _tcpStream = GetNetworkStream(socket);
+                tcpStream = GetNetworkStream(socket);
+                _tcpStream = tcpStream;
 
                 _readThread = new Thread(ReadDnsDatagramAsync);
                 _readThread.IsBackground = true;
                 _readThread.Start();
+
+                return tcpStream;
             }
         }
 
@@ -225,11 +230,10 @@ namespace TechnitiumLibrary.Net.Dns.Connection
             {
                 lock (transaction.Lock)
                 {
-                    if (_tcpStream == null)
-                        Connect();
+                    Stream tcpStream = GetConnection();
 
                     //send request
-                    lock (_tcpStream)
+                    lock (tcpStream)
                     {
                         //serialize request
                         _sendBuffer.SetLength(0);
@@ -239,9 +243,9 @@ namespace TechnitiumLibrary.Net.Dns.Connection
                         Array.Reverse(lengthBuffer);
 
                         //send request
-                        _tcpStream.Write(lengthBuffer);
+                        tcpStream.Write(lengthBuffer);
                         _sendBuffer.Position = 0;
-                        _sendBuffer.CopyTo(_tcpStream, 32);
+                        _sendBuffer.CopyTo(tcpStream, 32);
                     }
 
                     //wait for response
