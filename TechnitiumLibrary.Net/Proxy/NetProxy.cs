@@ -41,6 +41,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public readonly static NetProxy None = new NetProxy();
 
+        bool _isUdpAvailableChecked;
+        bool _isUdpAvailable;
+
         #endregion
 
         #region constructor
@@ -138,10 +141,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public bool IsUdpAvailable()
         {
+            if (_isUdpAvailableChecked)
+                return _isUdpAvailable;
+
             switch (_type)
             {
                 case NetProxyType.Http:
-                    return false;
+                    _isUdpAvailable = false;
+                    break;
 
                 case NetProxyType.Socks5:
                     SocksUdpAssociateRequestHandler udpHandler = null;
@@ -150,24 +157,29 @@ namespace TechnitiumLibrary.Net.Proxy
                     {
                         udpHandler = _socksProxy.UdpAssociate();
 
-                        return true;
+                        _isUdpAvailable = true;
                     }
                     catch (SocksClientException ex)
                     {
                         if (ex.ReplyCode == SocksReplyCode.CommandNotSupported)
-                            return false;
-
-                        throw;
+                            _isUdpAvailable = false;
+                        else
+                            throw;
                     }
                     finally
                     {
                         if (udpHandler != null)
                             udpHandler.Dispose();
                     }
+                    break;
 
                 default:
                     throw new NotSupportedException("Proxy type not supported.");
             }
+
+            _isUdpAvailableChecked = true;
+
+            return _isUdpAvailable;
         }
 
         public Socket Connect(EndPoint remoteEP, int timeout = 10000)
