@@ -767,6 +767,14 @@ namespace TechnitiumLibrary.Net.Dns
             int nextServerIndex = 0;
             int retries = _retries;
             Exception lastException = null;
+            DnsClientProtocol protocol = _protocol;
+
+            if (_proxy != null)
+            {
+                //upgrade protocol to TCP when UDP is not supported by proxy
+                if ((protocol == DnsClientProtocol.Udp) && !_proxy.IsUdpAvailable())
+                    protocol = DnsClientProtocol.Tcp;
+            }
 
             //init server selection parameters
             if (_servers.Length > 1)
@@ -819,7 +827,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     request.Header.ResetIdentifier(); //each retry must have differnt ID
 
-                    DnsDatagram response = DnsConnection.GetConnection(_protocol, server, _proxy).Query(request);
+                    DnsDatagram response = DnsConnection.GetConnection(protocol, server, _proxy).Query(request);
                     if (response != null)
                         return response;
                 }
@@ -1090,20 +1098,7 @@ namespace TechnitiumLibrary.Net.Dns
         public NetProxy Proxy
         {
             get { return _proxy; }
-            set
-            {
-                _proxy = value;
-
-                //upgrade protocols
-                if (((_protocol == DnsClientProtocol.Udp) || (_recursiveResolveProtocol == DnsClientProtocol.Udp)) && !_proxy.IsUdpAvailable())
-                {
-                    if (_protocol == DnsClientProtocol.Udp)
-                        _protocol = DnsClientProtocol.Tcp;
-
-                    if (_recursiveResolveProtocol == DnsClientProtocol.Udp)
-                        _recursiveResolveProtocol = DnsClientProtocol.Tcp;
-                }
-            }
+            set { _proxy = value; }
         }
 
         public bool PreferIPv6
