@@ -57,9 +57,7 @@ namespace TechnitiumLibrary.Net.Dns
         DnsClientProtocol _protocol = DnsClientProtocol.Udp;
         DnsClientProtocol _recursiveResolveProtocol = DnsClientProtocol.Udp;
         int _retries = 2;
-        int _connectionTimeout = 2000;
-        int _sendTimeout = 2000;
-        int _recvTimeout = 2000;
+        int _timeout = 2000;
 
         #endregion
 
@@ -190,12 +188,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp, int maxStackCount = 10)
         {
-            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout, recursiveResolveProtocol);
+            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount);
         }
 
-        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
+        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp, int maxStackCount = 10)
         {
             DnsQuestionRecord question;
 
@@ -204,10 +202,10 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
 
-            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, protocol, retries, maxStackCount, timeout, recursiveResolveProtocol);
+            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount);
         }
 
-        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int maxStackCount = 10, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
+        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp, int maxStackCount = 10)
         {
             if ((nameServers != null) && (nameServers.Length > 0))
             {
@@ -416,9 +414,7 @@ namespace TechnitiumLibrary.Net.Dns
                         client._preferIPv6 = preferIPv6;
                         client._protocol = protocol;
                         client._retries = retries;
-                        client._connectionTimeout = timeout;
-                        client._sendTimeout = timeout;
-                        client._recvTimeout = timeout;
+                        client._timeout = timeout;
 
                         DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
                         DnsDatagram response;
@@ -827,7 +823,11 @@ namespace TechnitiumLibrary.Net.Dns
 
                     request.Header.ResetIdentifier(); //each retry must have differnt ID
 
-                    DnsDatagram response = DnsConnection.GetConnection(protocol, server, _proxy).Query(request);
+                    DnsConnection connection = DnsConnection.GetConnection(protocol, server, _proxy);
+
+                    connection.Timeout = _timeout;
+
+                    DnsDatagram response = connection.Query(request);
                     if (response != null)
                         return response;
                 }
@@ -1125,22 +1125,10 @@ namespace TechnitiumLibrary.Net.Dns
             set { _retries = value; }
         }
 
-        public int ConnectionTimeout
+        public int Timeout
         {
-            get { return _connectionTimeout; }
-            set { _connectionTimeout = value; }
-        }
-
-        public int SendTimeout
-        {
-            get { return _sendTimeout; }
-            set { _sendTimeout = value; }
-        }
-
-        public int ReceiveTimeout
-        {
-            get { return _recvTimeout; }
-            set { _recvTimeout = value; }
+            get { return _timeout; }
+            set { _timeout = value; }
         }
 
         #endregion
