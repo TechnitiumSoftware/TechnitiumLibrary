@@ -37,6 +37,8 @@ namespace TechnitiumLibrary.Net.Dns.Connection
                 if (proxy.Type == NetProxyType.Http)
                     throw new NotSupportedException("DnsClient cannot use HTTP proxy with UDP protocol.");
             }
+
+            _timeout = 2000;
         }
 
         #endregion
@@ -68,11 +70,11 @@ namespace TechnitiumLibrary.Net.Dns.Connection
             if (_proxy == null)
             {
                 if (_server.IPEndPoint == null)
-                    _server.RecursiveResolveIPAddress(new SimpleDnsCache(), _proxy);
+                    _server.RecursiveResolveIPAddress(new SimpleDnsCache());
 
                 using (Socket socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
                 {
-                    socket.ReceiveTimeout = _recvTimeout;
+                    socket.ReceiveTimeout = _timeout;
 
                     //send request
                     socket.SendTo(buffer, 0, bufferSize, SocketFlags.None, _server.IPEndPoint);
@@ -97,9 +99,9 @@ namespace TechnitiumLibrary.Net.Dns.Connection
                 switch (_proxy.Type)
                 {
                     case NetProxyType.Socks5:
-                        using (SocksUdpAssociateRequestHandler proxyUdpRequestHandler = _proxy.SocksProxy.UdpAssociate(_connectionTimeout))
+                        using (SocksUdpAssociateRequestHandler proxyUdpRequestHandler = _proxy.SocksProxy.UdpAssociate(_timeout))
                         {
-                            proxyUdpRequestHandler.ReceiveTimeout = _recvTimeout;
+                            proxyUdpRequestHandler.ReceiveTimeout = _timeout;
 
                             //send request
                             proxyUdpRequestHandler.SendTo(buffer, 0, bufferSize, _server.EndPoint);

@@ -31,16 +31,18 @@ namespace TechnitiumLibrary.Net.Dns.Connection
     {
         #region variables
 
+        const int SOCKET_RECEIVE_TIMEOUT = 10000; //to keep connection alive for reuse
+
         Stream _tcpStream;
         Thread _readThread;
-
-        int _requestTimeout = 2000;
 
         readonly Dictionary<ushort, Transaction> _transactions = new Dictionary<ushort, Transaction>();
 
         readonly byte[] _lengthBuffer = new byte[2];
         readonly MemoryStream _sendBuffer = new MemoryStream(32);
         readonly MemoryStream _recvBuffer = new MemoryStream(64);
+
+        readonly object _getConnectionLock = new object();
 
         #endregion
 
@@ -49,9 +51,7 @@ namespace TechnitiumLibrary.Net.Dns.Connection
         public TcpConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsClientProtocol.Tcp, server, proxy)
         {
-            _connectionTimeout = 10000;
-            _sendTimeout = 10000;
-            _recvTimeout = 120000;
+            _timeout = 2000;
         }
 
         protected TcpConnection(DnsClientProtocol protocol, NameServerAddress server, NetProxy proxy)
@@ -104,7 +104,7 @@ namespace TechnitiumLibrary.Net.Dns.Connection
 
         private Stream GetConnection()
         {
-            lock (this)
+            lock (_getConnectionLock)
             {
                 Stream tcpStream = _tcpStream;
 
@@ -116,12 +116,12 @@ namespace TechnitiumLibrary.Net.Dns.Connection
                 if (_proxy == null)
                 {
                     if (_server.IPEndPoint == null)
-                        _server.RecursiveResolveIPAddress(new SimpleDnsCache(), _proxy);
+                        _server.RecursiveResolveIPAddress(new SimpleDnsCache());
 
                     socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
                     IAsyncResult result = socket.BeginConnect(_server.IPEndPoint, null, null);
-                    if (!result.AsyncWaitHandle.WaitOne(_connectionTimeout))
+                    if (!result.AsyncWaitHandle.WaitOne(_timeout))
                         throw new SocketException((int)SocketError.TimedOut);
 
                     if (!socket.Connected)
@@ -129,11 +129,11 @@ namespace TechnitiumLibrary.Net.Dns.Connection
                 }
                 else
                 {
-                    socket = _proxy.Connect(_server.EndPoint, _connectionTimeout);
+                    socket = _proxy.Connect(_server.EndPoint, _timeout);
                 }
 
-                socket.SendTimeout = _sendTimeout;
-                socket.ReceiveTimeout = _recvTimeout;
+                socket.SendTimeout = _timeout;
+                socket.ReceiveTimeout = SOCKET_RECEIVE_TIMEOUT;
 
                 tcpStream = GetNetworkStream(socket);
                 _tcpStream = tcpStream;
@@ -196,6 +196,12 @@ namespace TechnitiumLibrary.Net.Dns.Connection
                     _tcpStream = null;
                     tcpStream.Dispose();
                 }
+
+                if (_sendBuffer != null)
+                    _sendBuffer.Dispose();
+
+                if (_recvBuffer != null)
+                    _recvBuffer.Dispose();
             }
         }
 
@@ -249,7 +255,7 @@ namespace TechnitiumLibrary.Net.Dns.Connection
                     }
 
                     //wait for response
-                    if (Monitor.Wait(transaction.Lock, _requestTimeout))
+                    if (Monitor.Wait(transaction.Lock, _timeout))
                         return transaction.Response;
 
                     //timeout
@@ -263,16 +269,6 @@ namespace TechnitiumLibrary.Net.Dns.Connection
                     _transactions.Remove(request.Header.Identifier);
                 }
             }
-        }
-
-        #endregion
-
-        #region properties
-
-        public int RequestTimeout
-        {
-            get { return _requestTimeout; }
-            set { _requestTimeout = value; }
         }
 
         #endregion

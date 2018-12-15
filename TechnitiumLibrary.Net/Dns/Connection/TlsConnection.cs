@@ -31,9 +31,7 @@ namespace TechnitiumLibrary.Net.Dns.Connection
         public TlsConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsClientProtocol.Tls, server, proxy)
         {
-            _connectionTimeout = 10000;
-            _sendTimeout = 10000;
-            _recvTimeout = 120000;
+            _timeout = 5000;
         }
 
         #endregion

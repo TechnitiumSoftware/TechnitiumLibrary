@@ -29,7 +29,9 @@ namespace TechnitiumLibrary.Net.Dns.Connection
 
         public HttpsConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsClientProtocol.Https, server, proxy)
-        { }
+        {
+            _timeout = 5000;
+        }
 
         #endregion
 
@@ -57,12 +59,12 @@ namespace TechnitiumLibrary.Net.Dns.Connection
                 wC.AddHeader("host", _server.DnsOverHttpEndPoint.Host + ":" + _server.DnsOverHttpEndPoint.Port);
                 wC.UserAgent = "DoH client";
                 wC.Proxy = _proxy;
-                wC.Timeout = _connectionTimeout;
+                wC.Timeout = _timeout;
 
                 if (_proxy == null)
                 {
                     if (_server.IPEndPoint == null)
-                        _server.RecursiveResolveIPAddress(new SimpleDnsCache(), _proxy);
+                        _server.RecursiveResolveIPAddress(new SimpleDnsCache());
 
                     responseBuffer = wC.UploadData(new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery), requestBuffer);
                 }

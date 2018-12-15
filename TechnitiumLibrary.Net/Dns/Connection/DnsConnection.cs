@@ -31,9 +31,7 @@ namespace TechnitiumLibrary.Net.Dns.Connection
         protected readonly NameServerAddress _server;
         protected readonly NetProxy _proxy;
 
-        protected int _connectionTimeout = 2000;
-        protected int _sendTimeout = 2000;
-        protected int _recvTimeout = 2000;
+        protected int _timeout;
 
         static ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, DnsConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, DnsConnection>>();
         static ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, DnsConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, DnsConnection>>();
@@ -138,22 +136,10 @@ namespace TechnitiumLibrary.Net.Dns.Connection
         public NetProxy NetProxy
         { get { return _proxy; } }
 
-        public int ConnectionTimeout
+        public int Timeout
         {
-            get { return _connectionTimeout; }
-            set { _connectionTimeout = value; }
-        }
-
-        public int SendTimeout
-        {
-            get { return _sendTimeout; }
-            set { _sendTimeout = value; }
-        }
-
-        public int ReceiveTimeout
-        {
-            get { return _recvTimeout; }
-            set { _recvTimeout = value; }
+            get { return _timeout; }
+            set { _timeout = value; }
         }
 
         #endregion
