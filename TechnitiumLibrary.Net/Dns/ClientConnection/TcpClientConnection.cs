@@ -196,12 +196,6 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     _tcpStream = null;
                     tcpStream.Dispose();
                 }
-
-                if (_sendBuffer != null)
-                    _sendBuffer.Dispose();
-
-                if (_recvBuffer != null)
-                    _recvBuffer.Dispose();
             }
         }
 
