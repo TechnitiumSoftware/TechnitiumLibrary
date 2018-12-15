@@ -21,13 +21,13 @@ using System;
 using System.IO;
 using TechnitiumLibrary.Net.Proxy;
 
-namespace TechnitiumLibrary.Net.Dns.Connection
+namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
-    public class HttpsConnection : DnsConnection
+    public class HttpsClientConnection : DnsClientConnection
     {
         #region constructor
 
-        public HttpsConnection(NameServerAddress server, NetProxy proxy)
+        public HttpsClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsClientProtocol.Https, server, proxy)
         {
             _timeout = 5000;

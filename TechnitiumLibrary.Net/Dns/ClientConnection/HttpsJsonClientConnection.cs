@@ -23,13 +23,13 @@ using System.IO;
 using System.Text;
 using TechnitiumLibrary.Net.Proxy;
 
-namespace TechnitiumLibrary.Net.Dns.Connection
+namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
-    public class HttpsJsonConnection : DnsConnection
+    public class HttpsJsonClientConnection : DnsClientConnection
     {
         #region constructor
 
-        public HttpsJsonConnection(NameServerAddress server, NetProxy proxy)
+        public HttpsJsonClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsClientProtocol.Https, server, proxy)
         {
             _timeout = 5000;

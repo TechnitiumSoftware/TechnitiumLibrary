@@ -25,7 +25,7 @@ using System.Net.Mail;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
-using TechnitiumLibrary.Net.Dns.Connection;
+using TechnitiumLibrary.Net.Dns.ClientConnection;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -823,7 +823,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     request.Header.ResetIdentifier(); //each retry must have differnt ID
 
-                    DnsConnection connection = DnsConnection.GetConnection(protocol, server, _proxy);
+                    DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy);
 
                     connection.Timeout = _timeout;
 

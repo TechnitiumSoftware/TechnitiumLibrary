@@ -25,9 +25,9 @@ using System.Threading;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Proxy;
 
-namespace TechnitiumLibrary.Net.Dns.Connection
+namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
-    public class TcpConnection : DnsConnection
+    public class TcpClientConnection : DnsClientConnection
     {
         #region variables
 
@@ -48,13 +48,13 @@ namespace TechnitiumLibrary.Net.Dns.Connection
 
         #region constructor
 
-        public TcpConnection(NameServerAddress server, NetProxy proxy)
+        public TcpClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsClientProtocol.Tcp, server, proxy)
         {
             _timeout = 2000;
         }
 
-        protected TcpConnection(DnsClientProtocol protocol, NameServerAddress server, NetProxy proxy)
+        protected TcpClientConnection(DnsClientProtocol protocol, NameServerAddress server, NetProxy proxy)
             : base(protocol, server, proxy)
         { }
 

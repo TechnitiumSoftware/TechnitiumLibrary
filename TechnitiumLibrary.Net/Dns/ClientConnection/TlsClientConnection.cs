@@ -22,13 +22,13 @@ using System.Net.Security;
 using System.Net.Sockets;
 using TechnitiumLibrary.Net.Proxy;
 
-namespace TechnitiumLibrary.Net.Dns.Connection
+namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
-    public class TlsConnection : TcpConnection
+    public class TlsClientConnection : TcpClientConnection
     {
         #region constructor
 
-        public TlsConnection(NameServerAddress server, NetProxy proxy)
+        public TlsClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsClientProtocol.Tls, server, proxy)
         {
             _timeout = 5000;

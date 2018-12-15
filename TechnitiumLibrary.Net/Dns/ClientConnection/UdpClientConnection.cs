@@ -23,13 +23,13 @@ using System.Net;
 using System.Net.Sockets;
 using TechnitiumLibrary.Net.Proxy;
 
-namespace TechnitiumLibrary.Net.Dns.Connection
+namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
-    public class UdpConnection : DnsConnection
+    public class UdpClientConnection : DnsClientConnection
     {
         #region constructor
 
-        public UdpConnection(NameServerAddress server, NetProxy proxy)
+        public UdpClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsClientProtocol.Udp, server, proxy)
         {
             if (proxy != null)
