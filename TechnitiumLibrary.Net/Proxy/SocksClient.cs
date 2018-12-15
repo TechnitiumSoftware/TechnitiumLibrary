@@ -79,7 +79,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public SocksClient(string proxyAddress, int port = 1080, NetworkCredential credential = null)
         {
-            _proxyEP = new DomainEndPoint(proxyAddress, port);
+            if (IPAddress.TryParse(proxyAddress, out IPAddress address))
+                _proxyEP = new IPEndPoint(address, port);
+            else
+                _proxyEP = new DomainEndPoint(proxyAddress, port);
 
             Init(credential);
         }
