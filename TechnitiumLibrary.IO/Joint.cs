@@ -61,10 +61,11 @@ namespace TechnitiumLibrary.IO
         }
 
         bool _disposed = false;
+        readonly object _disposeLock = new object();
 
         private void Dispose(bool disposing)
         {
-            lock (this)
+            lock (_disposeLock)
             {
                 if (_disposed)
                     return;

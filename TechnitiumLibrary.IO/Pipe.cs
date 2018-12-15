@@ -63,6 +63,8 @@ namespace TechnitiumLibrary.IO
 
             PipeStream _otherPipe;
 
+            readonly object _readBufferLock = new object();
+
             #endregion
 
             #region constructor
@@ -160,7 +162,7 @@ namespace TechnitiumLibrary.IO
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                lock (this)
+                lock (_readBufferLock)
                 {
                     _buffer = buffer;
                     _offset = offset;
@@ -179,7 +181,7 @@ namespace TechnitiumLibrary.IO
 
             private int ReadBuffer(byte[] buffer, int offset, int count, int timeout)
             {
-                lock (this)
+                lock (_readBufferLock)
                 {
                     if (_buffer == null)
                     {

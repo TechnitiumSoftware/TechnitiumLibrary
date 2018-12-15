@@ -58,6 +58,8 @@ namespace TechnitiumLibrary.Net.BitTorrent
         bool _isUpdating = false;
         int _retriesDone;
 
+        readonly object _isUpdatingLock = new object();
+
         #endregion
 
         #region constructor
@@ -139,7 +141,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         public void ScheduleUpdateNow()
         {
-            lock (this)
+            lock (_isUpdatingLock)
             {
                 if (_isUpdating)
                     return;
@@ -155,7 +157,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         public void Update(TrackerClientEvent @event, IPEndPoint clientEP)
         {
-            lock (this)
+            lock (_isUpdatingLock)
             {
                 if (_isUpdating)
                     return;
@@ -187,7 +189,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 _lastClientEP = clientEP;
                 _lastUpdated = DateTime.UtcNow;
 
-                lock (this)
+                lock (_isUpdatingLock)
                 {
                     _isUpdating = false;
                 }
@@ -265,7 +267,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
         {
             get
             {
-                lock (this)
+                lock (_isUpdatingLock)
                 {
                     return _isUpdating;
                 }
