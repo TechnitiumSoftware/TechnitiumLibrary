@@ -39,6 +39,8 @@ namespace TechnitiumLibrary.Net.Proxy
         readonly WebProxyEx _httpProxy;
         readonly SocksClient _socksProxy;
 
+        NetProxy _viaProxy;
+
         public readonly static NetProxy None = new NetProxy();
 
         bool _isUdpAvailableChecked;
@@ -182,35 +184,83 @@ namespace TechnitiumLibrary.Net.Proxy
             return _isUdpAvailable;
         }
 
+        public Socket Connect(string address, int port, int timeout = 10000)
+        {
+            EndPoint remoteEP;
+
+            if (IPAddress.TryParse(address, out IPAddress ipAddr))
+                remoteEP = new IPEndPoint(ipAddr, port);
+            else
+                remoteEP = new DomainEndPoint(address, port);
+
+            return Connect(remoteEP, timeout);
+        }
+
         public Socket Connect(EndPoint remoteEP, int timeout = 10000)
         {
+            Socket viaProxySocket = null;
+
+            if (_viaProxy != null)
+                viaProxySocket = _viaProxy.Connect(this.ProxyEndPoint, timeout);
+
             switch (_type)
             {
                 case NetProxyType.Http:
-                    return _httpProxy.Connect(remoteEP, timeout);
+                    if (viaProxySocket == null)
+                        return _httpProxy.Connect(remoteEP, timeout);
+                    else
+                        return _httpProxy.Connect(remoteEP, viaProxySocket);
 
                 case NetProxyType.Socks5:
-                    using (SocksConnectRequestHandler requestHandler = _socksProxy.Connect(remoteEP, timeout))
-                    {
-                        return requestHandler.GetSocket();
-                    }
+                    if (viaProxySocket == null)
+                        return _socksProxy.Connect(remoteEP, timeout);
+                    else
+                        return _socksProxy.Connect(remoteEP, viaProxySocket);
 
                 default:
                     throw new NotSupportedException("Proxy type not supported.");
             }
         }
 
-        public Socket Connect(string address, int port, int timeout = 10000)
+        public TunnelProxy CreateLocalTunnelProxy(string address, int port, int timeout = 10000, bool enableSsl = false, bool ignoreCertificateErrors = false)
+        {
+            EndPoint remoteEP;
+
+            if (IPAddress.TryParse(address, out IPAddress ipAddr))
+                remoteEP = new IPEndPoint(ipAddr, port);
+            else
+                remoteEP = new DomainEndPoint(address, port);
+
+            return CreateLocalTunnelProxy(remoteEP, timeout, enableSsl, ignoreCertificateErrors);
+        }
+
+        public TunnelProxy CreateLocalTunnelProxy(EndPoint remoteEP, int timeout = 10000, bool enableSsl = false, bool ignoreCertificateErrors = false)
+        {
+            return new TunnelProxy(Connect(remoteEP, timeout), remoteEP, enableSsl, ignoreCertificateErrors);
+        }
+
+        public int UdpReceiveFrom(EndPoint remoteEP, byte[] request, byte[] response, int timeout = 10000)
+        {
+            return UdpReceiveFrom(remoteEP, request, 0, request.Length, response, 0, timeout);
+        }
+
+        public int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset = 0, int timeout = 10000)
         {
             switch (_type)
             {
-                case NetProxyType.Http:
-                    return _httpProxy.Connect(address, port, timeout);
-
                 case NetProxyType.Socks5:
-                    using (SocksConnectRequestHandler requestHandler = _socksProxy.Connect(address, port, timeout))
+                    if (_viaProxy != null)
+                        throw new NotSupportedException("Cannot chain proxies for SOCKS5 Udp protocol.");
+
+                    using (SocksUdpAssociateRequestHandler proxyUdpRequestHandler = _socksProxy.UdpAssociate(timeout))
                     {
-                        return requestHandler.GetSocket();
+                        proxyUdpRequestHandler.ReceiveTimeout = timeout;
+
+                        //send request
+                        proxyUdpRequestHandler.SendTo(request, requestOffset, requestCount, remoteEP);
+
+                        //receive request
+                        return proxyUdpRequestHandler.ReceiveFrom(response, responseOffset, response.Length - responseOffset, out EndPoint ep);
                     }
 
                 default:
@@ -267,6 +317,24 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
+        public EndPoint ProxyEndPoint
+        {
+            get
+            {
+                switch (_type)
+                {
+                    case NetProxyType.Http:
+                        return _httpProxy.ProxyEndPoint;
+
+                    case NetProxyType.Socks5:
+                        return _socksProxy.ProxyEndPoint;
+
+                    default:
+                        throw new NotSupportedException("Proxy type not supported.");
+                }
+            }
+        }
+
         public NetworkCredential Credential
         {
             get
@@ -290,6 +358,58 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public SocksClient SocksProxy
         { get { return _socksProxy; } }
+
+        public NetProxy ViaProxy
+        {
+            get { return _viaProxy; }
+            set { _viaProxy = value; }
+        }
+
+        #endregion
+    }
+
+    public class NetProxyException : Exception
+    {
+        #region constructors
+
+        public NetProxyException()
+            : base()
+        { }
+
+        public NetProxyException(string message)
+            : base(message)
+        { }
+
+        public NetProxyException(string message, Exception innerException)
+            : base(message, innerException)
+        { }
+
+        protected NetProxyException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+            : base(info, context)
+        { }
+
+        #endregion
+    }
+
+    public class NetProxyAuthenticationFailedException : Exception
+    {
+        #region constructors
+
+        public NetProxyAuthenticationFailedException()
+            : base()
+        { }
+
+        public NetProxyAuthenticationFailedException(string message)
+            : base(message)
+        { }
+
+        public NetProxyAuthenticationFailedException(string message, Exception innerException)
+            : base(message, innerException)
+        { }
+
+        protected NetProxyAuthenticationFailedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+            : base(info, context)
+        { }
 
         #endregion
     }
