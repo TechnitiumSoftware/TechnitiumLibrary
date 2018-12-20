@@ -96,27 +96,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
             else
             {
-                switch (_proxy.Type)
-                {
-                    case NetProxyType.Socks5:
-                        using (SocksUdpAssociateRequestHandler proxyUdpRequestHandler = _proxy.SocksProxy.UdpAssociate(_timeout))
-                        {
-                            proxyUdpRequestHandler.ReceiveTimeout = _timeout;
-
-                            //send request
-                            proxyUdpRequestHandler.SendTo(buffer, 0, bufferSize, _server.EndPoint);
-
-                            //receive request
-                            bufferSize = proxyUdpRequestHandler.ReceiveFrom(buffer, 0, buffer.Length, out EndPoint remoteEP);
-                        }
-                        break;
-
-                    case NetProxyType.Http:
-                        throw new NotSupportedException("DnsClient cannot use HTTP proxy with UDP protocol.");
-
-                    default:
-                        throw new NotSupportedException("Proxy type not supported by DnsClient.");
-                }
+                bufferSize = _proxy.UdpReceiveFrom(_server.EndPoint, buffer, buffer, _timeout);
             }
 
             //parse response
