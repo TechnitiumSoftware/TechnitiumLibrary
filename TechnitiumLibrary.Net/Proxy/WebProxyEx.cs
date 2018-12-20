@@ -26,13 +26,6 @@ namespace TechnitiumLibrary.Net.Proxy
 {
     public class WebProxyEx : WebProxy
     {
-        #region variables
-
-        const int SOCKET_SEND_TIMEOUT = 30000;
-        const int SOCKET_RECV_TIMEOUT = 30000;
-
-        #endregion
-
         #region constructors
 
         public WebProxyEx()
@@ -109,8 +102,6 @@ namespace TechnitiumLibrary.Net.Proxy
             if (!socket.Connected)
                 throw new SocketException((int)SocketError.ConnectionRefused);
 
-            socket.NoDelay = true;
-
             return socket;
         }
 
@@ -185,9 +176,41 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             Socket socket = GetProxyConnection(timeout);
 
-            socket.SendTimeout = SOCKET_SEND_TIMEOUT;
-            socket.ReceiveTimeout = SOCKET_RECV_TIMEOUT;
+            socket.SendTimeout = timeout;
+            socket.ReceiveTimeout = timeout;
 
+            return Connect(address, port, socket);
+        }
+
+        public Socket Connect(EndPoint remoteEP, Socket viaSocket)
+        {
+            switch (remoteEP.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    {
+                        IPEndPoint ep = remoteEP as IPEndPoint;
+                        return Connect(ep.Address.ToString(), ep.Port, viaSocket);
+                    }
+
+                case AddressFamily.InterNetworkV6:
+                    {
+                        IPEndPoint ep = remoteEP as IPEndPoint;
+                        return Connect("[" + ep.Address.ToString() + "]", ep.Port, viaSocket);
+                    }
+
+                case AddressFamily.Unspecified: //domain
+                    {
+                        DomainEndPoint ep = remoteEP as DomainEndPoint;
+                        return Connect(ep.Address, ep.Port, viaSocket);
+                    }
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
+        }
+
+        public Socket Connect(string address, int port, Socket viaSocket)
+        {
             try
             {
                 NetworkCredential credentials = null;
@@ -204,34 +227,99 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 httpConnectRequest += "\r\n";
 
-                socket.Send(Encoding.ASCII.GetBytes(httpConnectRequest));
+                viaSocket.Send(Encoding.ASCII.GetBytes(httpConnectRequest));
 
                 byte[] buffer = new byte[128];
-                int bytesRecv = socket.Receive(buffer);
+                int bytesRecv = viaSocket.Receive(buffer);
 
                 if (bytesRecv < 1)
-                    throw new WebException("No response was received from Http proxy server.");
+                    throw new WebProxyExException("No response was received from Http proxy server.");
 
-                string[] httpResponse = Encoding.ASCII.GetString(buffer, 0, bytesRecv).Split('\r')[0].Split(new char[] { ' ' }, 3);
+                string httpResponse = Encoding.ASCII.GetString(buffer, 0, bytesRecv);
+                string[] httpResponseParts = httpResponse.Split('\r')[0].Split(new char[] { ' ' }, 3);
 
-                switch (httpResponse[1])
+                if (httpResponseParts.Length != 3)
+                    throw new WebProxyExException("Invalid response received from remote server: " + httpResponse);
+
+                switch (httpResponseParts[1])
                 {
                     case "200":
-                        return socket;
+                        return viaSocket;
 
                     case "407":
-                        throw new WebException("The remote server returned an error: (" + httpResponse[1] + ") Proxy Authorization Required");
+                        throw new WebProxyExAuthenticationFailedException("The remote server returned an error: (" + httpResponseParts[1] + ") Proxy Authorization Required");
 
                     default:
-                        throw new WebException("The remote server returned an error: (" + httpResponse[1] + ") " + httpResponse[2]);
+                        throw new WebProxyExException("The remote server returned an error: (" + httpResponseParts[1] + ") " + httpResponseParts[2]);
                 }
             }
             catch
             {
-                socket.Dispose();
+                viaSocket.Dispose();
                 throw;
             }
         }
+
+        #endregion
+
+        #region properties
+
+        public EndPoint ProxyEndPoint
+        {
+            get
+            {
+                if (IPAddress.TryParse(this.Address.Host, out IPAddress address))
+                    return new IPEndPoint(address, this.Address.Port);
+                else
+                    return new DomainEndPoint(this.Address.Host, this.Address.Port);
+            }
+        }
+
+        #endregion
+    }
+
+    public class WebProxyExException : NetProxyException
+    {
+        #region constructors
+
+        public WebProxyExException()
+            : base()
+        { }
+
+        public WebProxyExException(string message)
+            : base(message)
+        { }
+
+        public WebProxyExException(string message, Exception innerException)
+            : base(message, innerException)
+        { }
+
+        protected WebProxyExException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+            : base(info, context)
+        { }
+
+        #endregion
+    }
+
+    public class WebProxyExAuthenticationFailedException : NetProxyAuthenticationFailedException
+    {
+        #region constructors
+
+        public WebProxyExAuthenticationFailedException()
+            : base()
+        { }
+
+        public WebProxyExAuthenticationFailedException(string message)
+            : base(message)
+        { }
+
+        public WebProxyExAuthenticationFailedException(string message, Exception innerException)
+            : base(message, innerException)
+        { }
+
+        protected WebProxyExAuthenticationFailedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+            : base(info, context)
+        { }
 
         #endregion
     }
