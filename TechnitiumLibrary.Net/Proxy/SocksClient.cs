@@ -22,7 +22,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
@@ -151,17 +150,17 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 case SocksMethod.UsernamePassword:
                     if (_authRequest == null)
-                        throw new SocksClientException("Socks proxy server requires authentication.");
+                        throw new SocksClientAuthenticationFailedException("Socks proxy server requires authentication.");
 
                     socket.Send(_authRequest);
                     if (socket.Receive(response) != 2)
                         throw new SocksClientException("The connection was reset by the remote peer.");
 
                     if (response[0] != 0x01)
-                        throw new SocksClientException("Socks proxy server does not support username/password method version 1.");
+                        throw new SocksClientAuthenticationFailedException("Socks proxy server does not support username/password method version 1.");
 
                     if (response[1] != 0x00)
-                        throw new SocksClientException("Socks proxy server authentication failed: invalid username or password.");
+                        throw new SocksClientAuthenticationFailedException("Socks proxy server authentication failed: invalid username or password.");
 
                     break;
 
@@ -170,9 +169,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 case SocksMethod.NoAcceptableMethods:
                     if (_authRequest == null)
-                        throw new SocksClientException("Socks proxy server requires authentication.");
+                        throw new SocksClientAuthenticationFailedException("Socks proxy server requires authentication.");
                     else
-                        throw new SocksClientException("Socks proxy server does not support username/password method.");
+                        throw new SocksClientAuthenticationFailedException("Socks proxy server does not support username/password method.");
 
                 default:
                     throw new SocksClientException("Socks proxy server returned unknown method.");
@@ -292,7 +291,7 @@ namespace TechnitiumLibrary.Net.Proxy
             //create request
             byte[] request = new byte[address.Length + 6];
 
-            request[0] = SocksClient.SOCKS_VERSION;
+            request[0] = SOCKS_VERSION;
             request[1] = (byte)command;
             request[3] = (byte)type;
 
@@ -358,8 +357,6 @@ namespace TechnitiumLibrary.Net.Proxy
             if (!socket.Connected)
                 throw new SocketException((int)SocketError.ConnectionRefused);
 
-            socket.NoDelay = true;
-
             return socket;
         }
 
@@ -400,34 +397,39 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public SocksConnectRequestHandler Connect(IPAddress address, int port, int timeout = 10000)
+        public Socket Connect(IPAddress address, int port, int timeout = 10000)
         {
             return Connect(new IPEndPoint(address, port), timeout);
         }
 
-        public SocksConnectRequestHandler Connect(string address, int port, int timeout = 10000)
+        public Socket Connect(string address, int port, int timeout = 10000)
         {
             return Connect(new DomainEndPoint(address, port), timeout);
         }
 
-        public SocksConnectRequestHandler Connect(EndPoint remoteEP, int timeout = 10000)
+        public Socket Connect(EndPoint remoteEP, int timeout = 10000)
         {
             //connect to proxy server
             Socket socket = GetProxyConnection(timeout);
 
-            socket.SendTimeout = 30000;
-            socket.ReceiveTimeout = 30000;
+            socket.SendTimeout = timeout;
+            socket.ReceiveTimeout = timeout;
 
+            return Connect(remoteEP, socket);
+        }
+
+        public Socket Connect(EndPoint remoteEP, Socket viaSocket)
+        {
             try
             {
-                Negotiate(socket);
-                EndPoint bindEP = Request(socket, SocksRequestCommand.Connect, remoteEP);
+                Negotiate(viaSocket);
+                Request(viaSocket, SocksRequestCommand.Connect, remoteEP);
 
-                return new SocksConnectRequestHandler(socket, remoteEP, bindEP);
+                return viaSocket;
             }
             catch
             {
-                socket.Dispose();
+                viaSocket.Dispose();
                 throw;
             }
         }
@@ -520,171 +522,12 @@ namespace TechnitiumLibrary.Net.Proxy
         #endregion
     }
 
-    public class SocksConnectRequestHandler : IDisposable
-    {
-        #region variables
-
-        Socket _socket;
-        EndPoint _dstEP;
-        EndPoint _bindEP;
-
-        bool _emulateHttpProxy;
-        Socket _tunnelSocketListener;
-        Timer _timeoutTimer;
-        Joint _tunnelJoint;
-
-        #endregion
-
-        #region constructor
-
-        internal SocksConnectRequestHandler(Socket socket, EndPoint dstEP, EndPoint bindEP)
-        {
-            _socket = socket;
-            _dstEP = dstEP;
-            _bindEP = bindEP;
-        }
-
-        #endregion
-
-        #region IDisposable
-
-        public void Dispose()
-        {
-            Dispose(true);
-        }
-
-        bool _disposed = false;
-
-        private void Dispose(bool disposing)
-        {
-            if (_disposed)
-                return;
-
-            if (disposing)
-            {
-                if (_socket != null)
-                {
-                    _socket.Shutdown(SocketShutdown.Both);
-                    _socket.Dispose();
-                }
-
-                if (_tunnelSocketListener != null)
-                    _tunnelSocketListener.Dispose();
-
-                if (_timeoutTimer != null)
-                    _timeoutTimer.Dispose();
-
-                if (_tunnelJoint != null)
-                    _tunnelJoint.Dispose();
-            }
-
-            _disposed = true;
-        }
-
-        #endregion
-
-        #region private
-
-        private void AcceptTunnelConnectionAsync(object state)
-        {
-            try
-            {
-                _timeoutTimer = new Timer(TimeoutTimerAsync, null, 30000, Timeout.Infinite);
-
-                Socket tunnelSocket = _tunnelSocketListener.Accept();
-
-                tunnelSocket.NoDelay = true;
-
-                _timeoutTimer.Dispose();
-                _timeoutTimer = null;
-
-                _tunnelSocketListener.Dispose();
-                _tunnelSocketListener = null;
-
-                if (_emulateHttpProxy)
-                {
-                    byte[] proxyRequest = new byte[128];
-                    byte[] proxyResponse = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n");
-
-                    do
-                    {
-                        tunnelSocket.Receive(proxyRequest);
-                    }
-                    while (tunnelSocket.Available > 0);
-
-                    tunnelSocket.Send(proxyResponse);
-                }
-
-                _tunnelJoint = new Joint(new NetworkStream(_socket), new NetworkStream(tunnelSocket));
-                _tunnelJoint.Start();
-            }
-            catch
-            {
-                this.Dispose();
-            }
-        }
-
-        private void TimeoutTimerAsync(object state)
-        {
-            try
-            {
-                if (_tunnelSocketListener != null)
-                    this.Dispose();
-            }
-            catch
-            { }
-        }
-
-        #endregion
-
-        #region public
-
-        public IPEndPoint CreateLocalTunnel()
-        {
-            _tunnelSocketListener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            _tunnelSocketListener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-            _tunnelSocketListener.Listen(1);
-
-            ThreadPool.QueueUserWorkItem(AcceptTunnelConnectionAsync);
-
-            return (IPEndPoint)_tunnelSocketListener.LocalEndPoint;
-        }
-
-        public WebProxy CreateLocalHttpProxyConnectTunnel()
-        {
-            IPEndPoint proxyEP = CreateLocalTunnel();
-            _emulateHttpProxy = true;
-
-            return new WebProxy(proxyEP.Address.ToString(), proxyEP.Port);
-        }
-
-        public Socket GetSocket()
-        {
-            Socket socket = _socket;
-            _socket = null;
-
-            return socket;
-        }
-
-        #endregion
-
-        #region properties
-
-        public EndPoint ProxyRemoteEndPoint
-        { get { return _dstEP; } }
-
-        public EndPoint ProxyLocalEndPoint
-        { get { return _bindEP; } }
-
-        #endregion
-    }
-
     public class SocksBindRequestHandler : IDisposable
     {
         #region variables
 
         Socket _socket;
-        EndPoint _bindEP;
+        readonly EndPoint _bindEP;
 
         EndPoint _dstEP;
 
@@ -769,7 +612,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         Socket _controlSocket;
         Socket _udpSocket;
-        EndPoint _relayEP;
+        readonly EndPoint _relayEP;
 
         Thread _watchThread;
 
@@ -997,7 +840,7 @@ namespace TechnitiumLibrary.Net.Proxy
         #endregion
     }
 
-    public class SocksClientException : Exception
+    public class SocksClientException : NetProxyException
     {
         #region variables
 
@@ -1026,6 +869,48 @@ namespace TechnitiumLibrary.Net.Proxy
         { }
 
         protected SocksClientException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+            : base(info, context)
+        { }
+
+        #endregion
+
+        #region properties
+
+        public SocksReplyCode ReplyCode
+        { get { return _replyCode; } }
+
+        #endregion
+    }
+
+    public class SocksClientAuthenticationFailedException : NetProxyAuthenticationFailedException
+    {
+        #region variables
+
+        SocksReplyCode _replyCode;
+
+        #endregion
+
+        #region constructors
+
+        public SocksClientAuthenticationFailedException()
+            : base()
+        { }
+
+        public SocksClientAuthenticationFailedException(string message)
+            : base(message)
+        { }
+
+        public SocksClientAuthenticationFailedException(string message, SocksReplyCode replyCode)
+            : base(message)
+        {
+            _replyCode = replyCode;
+        }
+
+        public SocksClientAuthenticationFailedException(string message, Exception innerException)
+            : base(message, innerException)
+        { }
+
+        protected SocksClientAuthenticationFailedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
             : base(info, context)
         { }
 
