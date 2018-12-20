@@ -42,13 +42,13 @@ namespace TechnitiumLibrary.Net
         string _userAgent;
         bool _keepAlive = true;
         Dictionary<string, string> _headers = new Dictionary<string, string>();
-        int _timeout = 0;
+        int _timeout = 10000;
         int _maximumAutomaticRedirections = 10;
 
         NetProxy _proxy;
         WebClientExNetworkType _networkType = WebClientExNetworkType.Default;
 
-        SocksConnectRequestHandler _proxyRequestHandler;
+        TunnelProxy _tunnelProxy;
         Stream _openResponseStream;
 
         #endregion
@@ -78,8 +78,8 @@ namespace TechnitiumLibrary.Net
 
             if (disposing)
             {
-                if (_proxyRequestHandler != null)
-                    _proxyRequestHandler.Dispose();
+                if (_tunnelProxy != null)
+                    _tunnelProxy.Dispose();
 
                 if (_openResponseStream != null)
                     _openResponseStream.Dispose();
@@ -236,35 +236,24 @@ namespace TechnitiumLibrary.Net
             }
             else
             {
-                switch (_proxy.Type)
+                if (_tunnelProxy != null)
+                    _tunnelProxy.Dispose();
+
+                _tunnelProxy = _proxy.CreateLocalTunnelProxy(address.Host, address.Port, _timeout);
+
+                if (address.Scheme == "https")
                 {
-                    case NetProxyType.Http:
-                        request = base.GetWebRequest(address) as HttpWebRequest;
-                        request.Proxy = _proxy.HttpProxy;
-                        break;
+                    WebProxy httpProxy = _tunnelProxy.EmulateHttpProxy();
 
-                    case NetProxyType.Socks5:
-                        _proxyRequestHandler = _proxy.SocksProxy.Connect(address.Host, address.Port);
+                    request = base.GetWebRequest(address) as HttpWebRequest;
+                    request.Proxy = httpProxy;
+                }
+                else
+                {
+                    Uri proxyUri = new Uri("http://" + _tunnelProxy.TunnelEndPoint.Address.ToString() + ":" + _tunnelProxy.TunnelEndPoint.Port + address.PathAndQuery);
 
-                        if (address.Scheme == "https")
-                        {
-                            IWebProxy httpProxy = _proxyRequestHandler.CreateLocalHttpProxyConnectTunnel();
-
-                            request = base.GetWebRequest(address) as HttpWebRequest;
-                            request.Proxy = httpProxy;
-                        }
-                        else
-                        {
-                            IPEndPoint localTunnelEP = _proxyRequestHandler.CreateLocalTunnel();
-                            Uri proxyUri = new Uri("http://" + localTunnelEP.Address.ToString() + ":" + localTunnelEP.Port + address.PathAndQuery);
-
-                            request = base.GetWebRequest(proxyUri) as HttpWebRequest;
-                            request.Host = address.Host;
-                        }
-                        break;
-
-                    default:
-                        throw new NotSupportedException("Proxy type not supported.");
+                    request = base.GetWebRequest(proxyUri) as HttpWebRequest;
+                    request.Host = address.Host;
                 }
             }
 
@@ -329,10 +318,10 @@ namespace TechnitiumLibrary.Net
                 }
                 finally
                 {
-                    if (_proxyRequestHandler != null)
+                    if (_tunnelProxy != null)
                     {
-                        _proxyRequestHandler.Dispose();
-                        _proxyRequestHandler = null;
+                        _tunnelProxy.Dispose();
+                        _tunnelProxy = null;
                     }
                 }
 
