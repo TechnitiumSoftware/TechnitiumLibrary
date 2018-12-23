@@ -42,7 +42,7 @@ namespace TechnitiumLibrary.Net
         string _userAgent;
         bool _keepAlive = true;
         Dictionary<string, string> _headers = new Dictionary<string, string>();
-        int _timeout = 10000;
+        int _timeout = 90000;
         int _maximumAutomaticRedirections = 10;
 
         NetProxy _proxy;
@@ -236,24 +236,28 @@ namespace TechnitiumLibrary.Net
             }
             else
             {
-                if (_tunnelProxy != null)
-                    _tunnelProxy.Dispose();
-
-                _tunnelProxy = _proxy.CreateLocalTunnelProxy(address.Host, address.Port, _timeout);
-
-                if (address.Scheme == "https")
+                if ((_proxy.ViaProxy == null) && (_proxy.Type == NetProxyType.Http))
                 {
-                    WebProxy httpProxy = _tunnelProxy.EmulateHttpProxy();
-
                     request = base.GetWebRequest(address) as HttpWebRequest;
-                    request.Proxy = httpProxy;
+                    request.Proxy = _proxy.HttpProxy;
                 }
                 else
                 {
-                    Uri proxyUri = new Uri("http://" + _tunnelProxy.TunnelEndPoint.Address.ToString() + ":" + _tunnelProxy.TunnelEndPoint.Port + address.PathAndQuery);
+                    if (_tunnelProxy != null)
+                        _tunnelProxy.Dispose();
 
-                    request = base.GetWebRequest(proxyUri) as HttpWebRequest;
-                    request.Host = address.Host;
+                    _tunnelProxy = _proxy.CreateLocalTunnelProxy(address.Host, address.Port, _timeout);
+
+                    if (address.Scheme == "https")
+                    {
+                        request = base.GetWebRequest(address) as HttpWebRequest;
+                        request.Proxy = _tunnelProxy.EmulateHttpProxy();
+                    }
+                    else
+                    {
+                        request = base.GetWebRequest(new Uri("http://" + _tunnelProxy.TunnelEndPoint.Address.ToString() + ":" + _tunnelProxy.TunnelEndPoint.Port + address.PathAndQuery)) as HttpWebRequest;
+                        request.Host = address.Host;
+                    }
                 }
             }
 
