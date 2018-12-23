@@ -391,7 +391,7 @@ namespace TechnitiumLibrary.Net.Proxy
         #endregion
     }
 
-    public class NetProxyAuthenticationFailedException : Exception
+    public class NetProxyAuthenticationFailedException : NetProxyException
     {
         #region constructors
 
