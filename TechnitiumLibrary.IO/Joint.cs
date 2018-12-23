@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,18 +25,13 @@ namespace TechnitiumLibrary.IO
 {
     public class Joint : IDisposable
     {
-        #region events
-
-        public event EventHandler Disposed;
-
-        #endregion
-
         #region variables
 
         const int BUFFER_SIZE = 4096;
 
-        Stream _stream1;
-        Stream _stream2;
+        readonly Stream _stream1;
+        readonly Stream _stream2;
+        readonly WaitCallback _onDisposed;
 
         Thread _worker1;
         Thread _worker2;
@@ -45,10 +40,11 @@ namespace TechnitiumLibrary.IO
 
         #region constructor
 
-        public Joint(Stream stream1, Stream stream2)
+        public Joint(Stream stream1, Stream stream2, WaitCallback onDisposed = null)
         {
             _stream1 = stream1;
             _stream2 = stream2;
+            _onDisposed = onDisposed;
         }
 
         #endregion
@@ -78,7 +74,7 @@ namespace TechnitiumLibrary.IO
                     if (_stream2 != null)
                         _stream2.Dispose();
 
-                    Disposed?.Invoke(this, EventArgs.Empty);
+                    _onDisposed?.Invoke(this);
                 }
 
                 _disposed = true;
