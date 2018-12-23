@@ -821,7 +821,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     retry++;
 
-                    request.Header.ResetIdentifier(); //each retry must have differnt ID
+                    request.Header.SetRandomIdentifier(); //each retry must have differnt ID
 
                     DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy);
 

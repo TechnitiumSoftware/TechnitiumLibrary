@@ -170,7 +170,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public void ResetIdentifier()
+        public void SetIdentifier(ushort id)
+        {
+            _ID = id;
+        }
+
+        public void SetRandomIdentifier()
         {
             byte[] buffer = new byte[2];
             _rnd.GetBytes(buffer);

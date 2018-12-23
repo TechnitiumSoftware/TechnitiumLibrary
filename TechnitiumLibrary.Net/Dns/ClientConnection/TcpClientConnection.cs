@@ -220,7 +220,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 while (_transactions.ContainsKey(request.Header.Identifier))
                 {
-                    request.Header.ResetIdentifier();
+                    request.Header.SetRandomIdentifier();
                 }
 
                 _transactions.Add(request.Header.Identifier, transaction);
