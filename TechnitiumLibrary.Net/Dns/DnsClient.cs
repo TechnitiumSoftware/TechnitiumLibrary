@@ -179,7 +179,7 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsClient(NameServerAddress[] servers)
         {
             if (servers.Length == 0)
-                throw new DnsClientException("Atleast one name server must be available for DnsClient.");
+                throw new DnsClientException("At least one name server must be available for DnsClient.");
 
             _servers = servers;
         }
@@ -409,9 +409,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
 
                         DnsClient client = new DnsClient(currentNameServer);
-
                         client._proxy = proxy;
-                        client._preferIPv6 = preferIPv6;
                         client._protocol = protocol;
                         client._retries = retries;
                         client._timeout = timeout;
@@ -421,7 +419,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         try
                         {
-                            response = client.Resolve(request, cache);
+                            response = client.Resolve(request);
                         }
                         catch (DnsClientException ex)
                         {
@@ -434,7 +432,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if (protocol == DnsClientProtocol.Udp)
                             {
                                 client.Protocol = DnsClientProtocol.Tcp;
-                                response = client.Resolve(request, cache);
+                                response = client.Resolve(request);
                             }
                             else
                             {
@@ -756,9 +754,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
-        #region private
+        #region public
 
-        private DnsDatagram Resolve(DnsDatagram request, IDnsCache cache)
+        public DnsDatagram Resolve(DnsDatagram request)
         {
             int nextServerIndex = 0;
             int retries = _retries;
@@ -801,13 +799,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if ((server.IPEndPoint == null) && (_proxy == null))
                 {
-                    if (cache == null)
-                        cache = new SimpleDnsCache();
-
                     //recursive resolve name server via root servers when proxy is null else let proxy resolve it
                     try
                     {
-                        server.RecursiveResolveIPAddress(cache, null, _preferIPv6, _recursiveResolveProtocol, _retries);
+                        server.RecursiveResolveIPAddress(new SimpleDnsCache(), null, _preferIPv6, _recursiveResolveProtocol, _retries);
                     }
                     catch
                     {
@@ -824,7 +819,6 @@ namespace TechnitiumLibrary.Net.Dns
                     request.Header.SetRandomIdentifier(); //each retry must have differnt ID
 
                     DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy);
-
                     connection.Timeout = _timeout;
 
                     DnsDatagram response = connection.Query(request);
@@ -848,18 +842,9 @@ namespace TechnitiumLibrary.Net.Dns
             throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.", lastException);
         }
 
-        #endregion
-
-        #region public
-
-        public DnsDatagram Resolve(DnsDatagram request)
-        {
-            return Resolve(request, null);
-        }
-
         public DnsDatagram Resolve(DnsQuestionRecord questionRecord)
         {
-            return Resolve(new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { questionRecord }, null, null, null), null);
+            return Resolve(new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { questionRecord }, null, null, null));
         }
 
         public DnsDatagram Resolve(string domain, DnsResourceRecordType queryType)
