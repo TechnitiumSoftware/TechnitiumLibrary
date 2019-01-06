@@ -369,6 +369,9 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsResourceRecordData RDATA
         { get { return _data; } }
 
+        [IgnoreDataMember]
+        public object Tag { get; set; }
+
         #endregion
     }
 }

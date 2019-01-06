@@ -385,7 +385,7 @@ namespace TechnitiumLibrary.Net.Dns
         { get { return _additional; } }
 
         [IgnoreDataMember]
-        public string Tag { get; set; }
+        public object Tag { get; set; }
 
         #endregion
     }
