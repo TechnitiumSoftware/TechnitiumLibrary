@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -36,9 +36,6 @@ namespace TechnitiumLibrary.Net.Mail
         readonly FieldInfo _localHostName = GetLocalHostNameField();
         DnsClient _dnsClient;
         NetProxy _proxy;
-
-        bool _enableSsl = false;
-        bool _ignoreCertificateErrors = false;
 
         string _host;
         int _port;
@@ -125,7 +122,7 @@ namespace TechnitiumLibrary.Net.Mail
                 else
                     remoteEP = new DomainEndPoint(_host, _port);
 
-                using (TunnelProxy localTunnel = _proxy.CreateLocalTunnelProxy(remoteEP, base.Timeout, _enableSsl, _ignoreCertificateErrors))
+                using (TunnelProxy localTunnel = _proxy.CreateLocalTunnelProxy(remoteEP, base.Timeout))
                 {
                     base.Host = localTunnel.TunnelEndPoint.Address.ToString();
                     base.Port = localTunnel.TunnelEndPoint.Port;
@@ -173,13 +170,11 @@ namespace TechnitiumLibrary.Net.Mail
                         base.Host = _host;
 
                     base.Port = _port;
-                    base.EnableSsl = _enableSsl;
                 }
                 else
                 {
                     _host = base.Host;
                     _port = base.Port;
-                    _enableSsl = base.EnableSsl;
                 }
             }
         }
@@ -218,30 +213,6 @@ namespace TechnitiumLibrary.Net.Mail
                 else
                     _port = value;
             }
-        }
-
-        public new bool EnableSsl
-        {
-            get
-            {
-                if (_proxy == null)
-                    return base.EnableSsl;
-                else
-                    return _enableSsl;
-            }
-            set
-            {
-                if (_proxy == null)
-                    base.EnableSsl = value;
-                else
-                    _enableSsl = value;
-            }
-        }
-
-        public bool IgnoreCertificateErrors
-        {
-            get { return _ignoreCertificateErrors; }
-            set { _ignoreCertificateErrors = value; }
         }
 
         #endregion
