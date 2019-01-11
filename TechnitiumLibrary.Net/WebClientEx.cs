@@ -316,18 +316,7 @@ namespace TechnitiumLibrary.Net
 
             while (redirectCount < _maximumAutomaticRedirections)
             {
-                try
-                {
-                    response = request.GetResponse() as HttpWebResponse;
-                }
-                finally
-                {
-                    if (_tunnelProxy != null)
-                    {
-                        _tunnelProxy.Dispose();
-                        _tunnelProxy = null;
-                    }
-                }
+                response = request.GetResponse() as HttpWebResponse;
 
                 switch (response.StatusCode)
                 {
