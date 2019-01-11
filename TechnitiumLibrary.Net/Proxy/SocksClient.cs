@@ -526,7 +526,7 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        Socket _socket;
+        readonly Socket _socket;
         readonly EndPoint _bindEP;
 
         EndPoint _dstEP;
@@ -610,8 +610,8 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        Socket _controlSocket;
-        Socket _udpSocket;
+        readonly Socket _controlSocket;
+        readonly Socket _udpSocket;
         readonly EndPoint _relayEP;
 
         Thread _watchThread;
@@ -626,7 +626,30 @@ namespace TechnitiumLibrary.Net.Proxy
             _udpSocket = udpSocket;
             _relayEP = relayEP;
 
-            _watchThread = new Thread(ControlSocketWatchAsync);
+            _watchThread = new Thread(delegate (object state)
+            {
+                try
+                {
+                    byte[] buffer = new byte[128];
+                    int bytesRecv;
+
+                    while (true)
+                    {
+                        bytesRecv = _controlSocket.Receive(buffer);
+                        if (bytesRecv < 1)
+                            break;
+                    }
+
+                    this.Dispose();
+                }
+                catch (ObjectDisposedException)
+                { }
+                catch
+                {
+                    this.Dispose();
+                }
+            });
+
             _watchThread.IsBackground = true;
             _watchThread.Start();
         }
@@ -641,38 +664,32 @@ namespace TechnitiumLibrary.Net.Proxy
         }
 
         bool _disposed = false;
+        readonly object _disposeLock = new object();
 
         private void Dispose(bool disposing)
         {
-            if (_disposed)
-                return;
-
-            if (disposing)
+            lock (_disposeLock)
             {
-                if (_watchThread != null)
+                if (_disposed)
+                    return;
+
+                if (disposing)
                 {
-                    try
+                    if (_controlSocket != null)
                     {
-                        _watchThread.Abort();
+                        _controlSocket.Shutdown(SocketShutdown.Both);
+                        _controlSocket.Dispose();
                     }
-                    catch (PlatformNotSupportedException)
-                    { }
+
+                    if (_udpSocket != null)
+                    {
+                        _udpSocket.Shutdown(SocketShutdown.Both);
+                        _udpSocket.Dispose();
+                    }
                 }
 
-                if (_controlSocket != null)
-                {
-                    _controlSocket.Shutdown(SocketShutdown.Both);
-                    _controlSocket.Dispose();
-                }
-
-                if (_udpSocket != null)
-                {
-                    _udpSocket.Shutdown(SocketShutdown.Both);
-                    _udpSocket.Dispose();
-                }
+                _disposed = true;
             }
-
-            _disposed = true;
         }
 
         #endregion
@@ -737,34 +754,6 @@ namespace TechnitiumLibrary.Net.Proxy
             Buffer.BlockCopy(buffer, offset, datagram, 4 + address.Length + 2, size);
 
             return datagram;
-        }
-
-        private void ControlSocketWatchAsync(object state)
-        {
-            try
-            {
-                byte[] buffer = new byte[128];
-
-                while (true)
-                {
-                    int bytesRecv = _controlSocket.Receive(buffer);
-
-                    if (bytesRecv < 1)
-                    {
-                        _watchThread = null;
-                        this.Dispose();
-                        break;
-                    }
-                }
-            }
-            catch (ObjectDisposedException)
-            { }
-            catch (ThreadAbortException)
-            { }
-            catch
-            {
-                this.Dispose();
-            }
         }
 
         #endregion
@@ -844,7 +833,7 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        SocksReplyCode _replyCode;
+        readonly SocksReplyCode _replyCode;
 
         #endregion
 
@@ -886,7 +875,7 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        SocksReplyCode _replyCode;
+        readonly SocksReplyCode _replyCode;
 
         #endregion
 
