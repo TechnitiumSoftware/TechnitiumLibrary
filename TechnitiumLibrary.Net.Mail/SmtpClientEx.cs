@@ -118,43 +118,50 @@ namespace TechnitiumLibrary.Net.Mail
 
         public new void Send(MailMessage message)
         {
-            if (string.IsNullOrEmpty(this.Host))
+            if (DeliveryMethod == SmtpDeliveryMethod.Network)
             {
-                if (_dnsClient == null)
-                    _dnsClient = new DnsClient();
+                if (string.IsNullOrEmpty(this.Host))
+                {
+                    if (_dnsClient == null)
+                        _dnsClient = new DnsClient();
 
-                string[] mxServers = _dnsClient.ResolveMX(message.To[0]);
-                if (mxServers.Length > 0)
-                    this.Host = mxServers[0];
+                    string[] mxServers = _dnsClient.ResolveMX(message.To[0]);
+                    if (mxServers.Length > 0)
+                        this.Host = mxServers[0];
+                    else
+                        this.Host = message.To[0].Host;
+
+                    this.Port = 25;
+                    this.Credentials = null;
+                }
+
+                if (_proxy == null)
+                {
+                    base.Send(message);
+                }
                 else
-                    this.Host = message.To[0].Host;
+                {
+                    EndPoint remoteEP;
 
-                this.Port = 25;
-                this.Credentials = null;
-            }
+                    if (IPAddress.TryParse(_host, out IPAddress address))
+                        remoteEP = new IPEndPoint(address, _port);
+                    else
+                        remoteEP = new DomainEndPoint(_host, _port);
 
-            if (_proxy == null)
-            {
-                base.Send(message);
+                    if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
+                        _tunnelProxy.Dispose();
+
+                    if ((_tunnelProxy == null) || _tunnelProxy.Disposed)
+                        _tunnelProxy = _proxy.CreateLocalTunnelProxy(remoteEP, base.Timeout);
+
+                    base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
+                    base.Port = _tunnelProxy.TunnelEndPoint.Port;
+
+                    base.Send(message);
+                }
             }
             else
             {
-                EndPoint remoteEP;
-
-                if (IPAddress.TryParse(_host, out IPAddress address))
-                    remoteEP = new IPEndPoint(address, _port);
-                else
-                    remoteEP = new DomainEndPoint(_host, _port);
-
-                if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
-                    _tunnelProxy.Dispose();
-
-                if ((_tunnelProxy == null) || _tunnelProxy.Disposed)
-                    _tunnelProxy = _proxy.CreateLocalTunnelProxy(remoteEP, base.Timeout);
-
-                base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
-                base.Port = _tunnelProxy.TunnelEndPoint.Port;
-
                 base.Send(message);
             }
         }
