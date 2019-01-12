@@ -40,6 +40,8 @@ namespace TechnitiumLibrary.Net.Mail
         string _host;
         int _port;
 
+        TunnelProxy _tunnelProxy;
+
         #endregion
 
         #region constructors
@@ -55,6 +57,28 @@ namespace TechnitiumLibrary.Net.Mail
         public SmtpClientEx(string host, int port)
             : base(host, port)
         { }
+
+        #endregion
+
+        #region IDisposable
+
+        private bool _disposed = false;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+
+            if (disposing)
+            {
+                if (_tunnelProxy != null)
+                    _tunnelProxy.Dispose();
+            }
+
+            _disposed = true;
+
+            base.Dispose(disposing);
+        }
 
         #endregion
 
@@ -122,13 +146,16 @@ namespace TechnitiumLibrary.Net.Mail
                 else
                     remoteEP = new DomainEndPoint(_host, _port);
 
-                using (TunnelProxy localTunnel = _proxy.CreateLocalTunnelProxy(remoteEP, base.Timeout))
-                {
-                    base.Host = localTunnel.TunnelEndPoint.Address.ToString();
-                    base.Port = localTunnel.TunnelEndPoint.Port;
+                if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
+                    _tunnelProxy.Dispose();
 
-                    base.Send(message);
-                }
+                if ((_tunnelProxy == null) || _tunnelProxy.Disposed)
+                    _tunnelProxy = _proxy.CreateLocalTunnelProxy(remoteEP, base.Timeout);
+
+                base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
+                base.Port = _tunnelProxy.TunnelEndPoint.Port;
+
+                base.Send(message);
             }
         }
 
