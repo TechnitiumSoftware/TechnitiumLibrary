@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -112,7 +112,16 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             try
             {
-                _tunnelWaitTimeoutTimer = new Timer(TimeoutTimerAsync, null, TUNNEL_WAIT_TIMEOUT, Timeout.Infinite);
+                _tunnelWaitTimeoutTimer = new Timer(delegate (object state2)
+                {
+                    try
+                    {
+                        if (_tunnelSocketListener != null)
+                            Dispose();
+                    }
+                    catch
+                    { }
+                }, null, TUNNEL_WAIT_TIMEOUT, Timeout.Infinite);
 
                 Socket tunnelSocket = _tunnelSocketListener.Accept();
 
@@ -143,9 +152,16 @@ namespace TechnitiumLibrary.Net.Proxy
                     SslStream sslStream;
 
                     if (_ignoreCertificateErrors)
-                        sslStream = new SslStream(stream, false, RemoteCertificateValidationCallback);
+                    {
+                        sslStream = new SslStream(stream, false, delegate (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+                        {
+                            return true; //ignore cert errors
+                        });
+                    }
                     else
+                    {
                         sslStream = new SslStream(stream, false);
+                    }
 
                     string targetHost;
 
@@ -180,22 +196,6 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        private void TimeoutTimerAsync(object state)
-        {
-            try
-            {
-                if (_tunnelSocketListener != null)
-                    this.Dispose();
-            }
-            catch
-            { }
-        }
-
-        private bool RemoteCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
-        {
-            return true; //ignore cert errors
-        }
-
         #endregion
 
         #region public
@@ -215,6 +215,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public IPEndPoint TunnelEndPoint
         { get { return _tunnelEP; } }
+
+        public bool Disposed
+        { get { return _disposed; } }
 
         #endregion
     }
