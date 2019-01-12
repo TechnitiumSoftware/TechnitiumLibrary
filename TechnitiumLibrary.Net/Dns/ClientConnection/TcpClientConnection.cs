@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -78,16 +78,6 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     tcpStream.Dispose();
                 }
 
-                if (_readThread != null)
-                {
-                    try
-                    {
-                        _readThread.Abort();
-                    }
-                    catch (PlatformNotSupportedException)
-                    { }
-                }
-
                 if (_sendBuffer != null)
                     _sendBuffer.Dispose();
 
@@ -134,8 +124,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 socket.SendTimeout = _timeout;
                 socket.ReceiveTimeout = SOCKET_RECEIVE_TIMEOUT;
+                socket.SendBufferSize = 512;
+                socket.ReceiveBufferSize = 2048;
+                socket.NoDelay = true;
 
-                tcpStream = GetNetworkStream(socket);
+                tcpStream = new WriteBufferedStream(GetNetworkStream(socket), 2048);
                 _tcpStream = tcpStream;
 
                 _readThread = new Thread(ReadDnsDatagramAsync);
@@ -246,6 +239,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         tcpStream.Write(lengthBuffer);
                         _sendBuffer.Position = 0;
                         _sendBuffer.CopyTo(tcpStream, 32);
+
+                        tcpStream.Flush();
                     }
 
                     //wait for response
