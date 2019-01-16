@@ -20,8 +20,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Net;
 using System.Net.Mail;
+using System.Net.Security;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using TechnitiumLibrary.Net.Dns;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -39,6 +41,7 @@ namespace TechnitiumLibrary.Net.Mail
 
         string _host;
         int _port;
+        bool _ignoreCertificateErrors;
 
         TunnelProxy _tunnelProxy;
 
@@ -78,6 +81,48 @@ namespace TechnitiumLibrary.Net.Mail
             _disposed = true;
 
             base.Dispose(disposing);
+        }
+
+        #endregion
+
+        #region static
+
+        public static void HandleServerCertificateValidation()
+        {
+            ServicePointManager.ServerCertificateValidationCallback = SmtpClientEx.ServerCertificateValidationCallback;
+        }
+
+        public static bool ServerCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            SmtpClientEx smtpClient = sender as SmtpClientEx;
+            if (smtpClient != null)
+            {
+                if (smtpClient._ignoreCertificateErrors)
+                    return true;
+
+                switch (sslPolicyErrors)
+                {
+                    case SslPolicyErrors.None:
+                        return true;
+
+                    case SslPolicyErrors.RemoteCertificateNameMismatch:
+                        if (smtpClient._proxy == null)
+                            return false;
+
+                        X509Certificate2 cert = certificate as X509Certificate2;
+                        if (cert == null)
+                            cert = new X509Certificate2(certificate);
+
+                        return cert.GetNameInfo(X509NameType.DnsFromAlternativeName, false).Equals(smtpClient._host, StringComparison.CurrentCultureIgnoreCase);
+
+                    default:
+                        return false;
+                }
+            }
+            else
+            {
+                return (sslPolicyErrors == SslPolicyErrors.None);
+            }
         }
 
         #endregion
@@ -247,6 +292,12 @@ namespace TechnitiumLibrary.Net.Mail
                 else
                     _port = value;
             }
+        }
+
+        public bool IgnoreCertificateErrors
+        {
+            get { return _ignoreCertificateErrors; }
+            set { _ignoreCertificateErrors = value; }
         }
 
         #endregion
