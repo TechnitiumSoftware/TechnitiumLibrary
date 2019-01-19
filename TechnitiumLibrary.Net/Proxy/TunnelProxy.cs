@@ -185,7 +185,10 @@ namespace TechnitiumLibrary.Net.Proxy
                     stream = sslStream;
                 }
 
-                _tunnelJoint = new Joint(stream, new NetworkStream(tunnelSocket, true));
+                _tunnelJoint = new Joint(stream, new NetworkStream(tunnelSocket, true), delegate (object state2)
+                {
+                    this.Dispose();
+                });
                 _tunnelJoint.Start();
 
                 _socket = null;
