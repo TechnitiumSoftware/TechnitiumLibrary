@@ -73,11 +73,10 @@ namespace TechnitiumLibrary.IO
 
                     if (_stream2 != null)
                         _stream2.Dispose();
-
-                    _onDisposed?.Invoke(this);
                 }
 
                 _disposed = true;
+                _onDisposed?.Invoke(this);
             }
         }
 
