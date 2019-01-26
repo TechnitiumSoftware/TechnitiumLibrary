@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -54,16 +54,17 @@ namespace TechnitiumLibrary.IO
         {
             #region variables
 
-            byte[] _buffer;
-            int _offset;
-            int _count;
+            const int MAX_BUFFER_SIZE = 64 * 1024;
+
+            readonly object _bufferLock = new object();
+            byte[] _buffer = new byte[MAX_BUFFER_SIZE];
+            int _position;
+            int _length;
 
             int _readTimeout = Timeout.Infinite;
             int _writeTimeout = Timeout.Infinite;
 
             PipeStream _otherPipe;
-
-            readonly object _readBufferLock = new object();
 
             #endregion
 
@@ -71,6 +72,34 @@ namespace TechnitiumLibrary.IO
 
             private PipeStream()
             { }
+
+            #endregion
+
+            #region IDisposable
+
+            bool _disposed;
+
+            protected override void Dispose(bool disposing)
+            {
+                try
+                {
+                    lock (_bufferLock)
+                    {
+                        if (_disposed)
+                            return;
+
+                        _disposed = true;
+
+                        Monitor.Pulse(_bufferLock);
+                    }
+
+                    _otherPipe.Dispose();
+                }
+                finally
+                {
+                    base.Dispose(disposing);
+                }
+            }
 
             #endregion
 
@@ -157,21 +186,35 @@ namespace TechnitiumLibrary.IO
 
             public override int Read(byte[] buffer, int offset, int count)
             {
+                if (count < 1)
+                    throw new ArgumentOutOfRangeException("Count cannot be less than 1.");
+
                 return _otherPipe.ReadBuffer(buffer, offset, count, _readTimeout);
             }
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                lock (_readBufferLock)
+                if (count > 0)
                 {
-                    _buffer = buffer;
-                    _offset = offset;
-                    _count = count;
+                    lock (_bufferLock)
+                    {
+                        if (_disposed)
+                            throw new ObjectDisposedException("DataStream");
 
-                    Monitor.Pulse(this);
+                        while (_length + count > _buffer.Length)
+                        {
+                            if (!Monitor.Wait(_bufferLock, _writeTimeout))
+                                throw new IOException("Write timed out.");
 
-                    if (!Monitor.Wait(this, _writeTimeout))
-                        throw new IOException("Write timed out.");
+                            if (_disposed)
+                                throw new ObjectDisposedException("DataStream");
+                        }
+
+                        Buffer.BlockCopy(buffer, offset, _buffer, _length, count);
+                        _length += count;
+
+                        Monitor.Pulse(_bufferLock);
+                    }
                 }
             }
 
@@ -181,37 +224,38 @@ namespace TechnitiumLibrary.IO
 
             private int ReadBuffer(byte[] buffer, int offset, int count, int timeout)
             {
-                lock (_readBufferLock)
+                lock (_bufferLock)
                 {
-                    if (_buffer == null)
+                    int bytesAvailable = _length - _position;
+                    if (bytesAvailable < 1)
                     {
-                        if (!Monitor.Wait(this, timeout))
+                        if (_disposed)
+                            return 0;
+
+                        if (!Monitor.Wait(_bufferLock, timeout))
                             throw new IOException("Read timed out.");
 
-                        if (_buffer == null)
+                        bytesAvailable = _length - _position;
+                        if (bytesAvailable < 1)
                             return 0;
                     }
 
-                    int bytesCopied = count;
+                    if (count > bytesAvailable)
+                        count = bytesAvailable;
 
-                    if (bytesCopied > _count)
-                        bytesCopied = _count;
+                    Buffer.BlockCopy(_buffer, _position, buffer, offset, count);
 
-                    Buffer.BlockCopy(_buffer, _offset, buffer, offset, bytesCopied);
+                    _position += count;
 
-                    if (bytesCopied < _count)
+                    if (_position >= _length)
                     {
-                        _offset += bytesCopied;
-                        _count -= bytesCopied;
-                    }
-                    else
-                    {
-                        _buffer = null;
+                        _position = 0;
+                        _length = 0;
 
-                        Monitor.Pulse(this);
+                        Monitor.Pulse(_bufferLock);
                     }
 
-                    return bytesCopied;
+                    return count;
                 }
             }
 
