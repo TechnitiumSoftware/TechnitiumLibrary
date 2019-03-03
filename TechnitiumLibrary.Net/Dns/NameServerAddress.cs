@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -56,7 +56,10 @@ namespace TechnitiumLibrary.Net.Dns
             _dohEndPoint = dohEndPoint;
             _ipEndPoint = new IPEndPoint(address, _dohEndPoint.Port);
 
-            _originalAddress = _dohEndPoint.AbsoluteUri;
+            if (address.AddressFamily == AddressFamily.InterNetworkV6)
+                _originalAddress = _dohEndPoint.AbsoluteUri + " ([" + address.ToString() + "])";
+            else
+                _originalAddress = _dohEndPoint.AbsoluteUri + " (" + address.ToString() + ")";
         }
 
         public NameServerAddress(string address)
@@ -76,7 +79,10 @@ namespace TechnitiumLibrary.Net.Dns
             _domainEndPoint = new DomainEndPoint(domain, 53);
             _ipEndPoint = new IPEndPoint(address, 53);
 
-            _originalAddress = domain;
+            if (address.AddressFamily == AddressFamily.InterNetworkV6)
+                _originalAddress = domain + " ([" + address.ToString() + "])";
+            else
+                _originalAddress = domain + " (" + address.ToString() + ")";
         }
 
         public NameServerAddress(string domain, IPEndPoint ipEndPoint)
@@ -84,7 +90,10 @@ namespace TechnitiumLibrary.Net.Dns
             _domainEndPoint = new DomainEndPoint(domain, ipEndPoint.Port);
             _ipEndPoint = ipEndPoint;
 
-            _originalAddress = domain + ":" + ipEndPoint.Port;
+            if (ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
+                _originalAddress = domain + " ([" + ipEndPoint.Address.ToString() + "]:" + ipEndPoint.Port + ")";
+            else
+                _originalAddress = domain + " (" + ipEndPoint.ToString() + ")";
         }
 
         public NameServerAddress(EndPoint endPoint)
@@ -104,7 +113,10 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new NotSupportedException("AddressFamily not supported.");
             }
 
-            _originalAddress = endPoint.ToString();
+            if (endPoint.AddressFamily == AddressFamily.InterNetworkV6)
+                _originalAddress = "[" + (endPoint as IPEndPoint).Address.ToString() + "]:" + (endPoint as IPEndPoint).Port;
+            else
+                _originalAddress = endPoint.ToString();
         }
 
         public NameServerAddress(BinaryReader bR)
@@ -264,7 +276,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool selectOnlyNameServersWithGlue)
+        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool preferIPv6)
         {
             List<NameServerAddress> nameServers = new List<NameServerAddress>(response.Authority.Length);
 
@@ -298,8 +310,8 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    if ((endPoint == null) && !selectOnlyNameServersWithGlue)
-                        nameServers.Add(new NameServerAddress(nsRecord.NSDomainName));
+                    if (endPoint == null)
+                        nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NSDomainName, 53)));
                 }
             }
 
@@ -307,7 +319,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             Shuffle(nsArray);
 
-            if (preferIPv6 || !selectOnlyNameServersWithGlue)
+            if (preferIPv6)
                 Array.Sort(nsArray);
 
             return nsArray;
@@ -331,7 +343,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public void ResolveIPAddress(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000)
+        public void ResolveIPAddress(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000)
         {
             string domain;
 
@@ -375,7 +387,7 @@ namespace TechnitiumLibrary.Net.Dns
             _ipEndPoint = new IPEndPoint(serverIPs[0], this.Port);
         }
 
-        public void RecursiveResolveIPAddress(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
+        public void RecursiveResolveIPAddress(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp)
         {
             string domain;
 
@@ -416,7 +428,7 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new DnsClientException("No IP address was found for name server: " + domain);
         }
 
-        public void ResolveDomainName(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000)
+        public void ResolveDomainName(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPoint != null)
             {
@@ -443,7 +455,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void RecursiveResolveDomainName(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp)
+        public void RecursiveResolveDomainName(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp)
         {
             if (_ipEndPoint != null)
             {
@@ -483,12 +495,6 @@ namespace TechnitiumLibrary.Net.Dns
 
         public int CompareTo(NameServerAddress other)
         {
-            if ((this._ipEndPoint == null) && (other._ipEndPoint != null))
-                return 1;
-
-            if ((this._ipEndPoint != null) && (other._ipEndPoint == null))
-                return -1;
-
             if ((this._ipEndPoint == null) && (other._ipEndPoint == null))
                 return 0;
 
