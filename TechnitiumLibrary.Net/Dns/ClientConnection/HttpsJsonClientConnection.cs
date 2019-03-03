@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using Newtonsoft.Json;
 using System;
-using System.IO;
 using System.Text;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -30,7 +29,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region constructor
 
         public HttpsJsonClientConnection(NameServerAddress server, NetProxy proxy)
-            : base(DnsClientProtocol.Https, server, proxy)
+            : base(DnsTransportProtocol.Https, server, proxy)
         {
             _timeout = 5000;
         }

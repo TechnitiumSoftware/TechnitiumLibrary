@@ -49,12 +49,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region constructor
 
         public TcpClientConnection(NameServerAddress server, NetProxy proxy)
-            : base(DnsClientProtocol.Tcp, server, proxy)
+            : base(DnsTransportProtocol.Tcp, server, proxy)
         {
             _timeout = 2000;
         }
 
-        protected TcpClientConnection(DnsClientProtocol protocol, NameServerAddress server, NetProxy proxy)
+        protected TcpClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
             : base(protocol, server, proxy)
         { }
 

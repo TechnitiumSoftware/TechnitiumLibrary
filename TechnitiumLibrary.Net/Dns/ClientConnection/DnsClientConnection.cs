@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
     {
         #region variables
 
-        protected readonly DnsClientProtocol _protocol;
+        protected readonly DnsTransportProtocol _protocol;
         protected readonly NameServerAddress _server;
         protected readonly NetProxy _proxy;
 
@@ -40,7 +40,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region constructor
 
-        protected DnsClientConnection(DnsClientProtocol protocol, NameServerAddress server, NetProxy proxy)
+        protected DnsClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
         {
             _protocol = protocol;
             _server = server;
@@ -63,20 +63,20 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region static
 
-        public static DnsClientConnection GetConnection(DnsClientProtocol protocol, NameServerAddress server, NetProxy proxy)
+        public static DnsClientConnection GetConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
         {
             switch (protocol)
             {
-                case DnsClientProtocol.Udp:
+                case DnsTransportProtocol.Udp:
                     return new UdpClientConnection(server, proxy);
 
-                case DnsClientProtocol.Https:
+                case DnsTransportProtocol.Https:
                     return new HttpsClientConnection(server, proxy);
 
-                case DnsClientProtocol.HttpsJson:
+                case DnsTransportProtocol.HttpsJson:
                     return new HttpsJsonClientConnection(server, proxy);
 
-                case DnsClientProtocol.Tcp:
+                case DnsTransportProtocol.Tcp:
                     {
                         ConcurrentDictionary<NetProxy, DnsClientConnection> existingTcpConnection = _existingTcpConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
                         {
@@ -94,7 +94,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         });
                     }
 
-                case DnsClientProtocol.Tls:
+                case DnsTransportProtocol.Tls:
                     {
                         ConcurrentDictionary<NetProxy, DnsClientConnection> existingTlsConnection = _existingTlsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
                         {
@@ -127,7 +127,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region properties
 
-        public DnsClientProtocol Protocol
+        public DnsTransportProtocol Protocol
         { get { return _protocol; } }
 
         public NameServerAddress Server

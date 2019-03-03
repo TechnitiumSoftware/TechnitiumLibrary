@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns
 {
-    public enum DnsClientProtocol : byte
+    public enum DnsTransportProtocol : byte
     {
         Udp = 0,
         Tcp = 1,
@@ -54,8 +54,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         NetProxy _proxy;
         bool _preferIPv6 = false;
-        DnsClientProtocol _protocol = DnsClientProtocol.Udp;
-        DnsClientProtocol _recursiveResolveProtocol = DnsClientProtocol.Udp;
+        DnsTransportProtocol _protocol = DnsTransportProtocol.Udp;
+        DnsTransportProtocol _recursiveResolveProtocol = DnsTransportProtocol.Udp;
         int _retries = 2;
         int _timeout = 2000;
 
@@ -188,12 +188,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp, int maxStackCount = 10)
+        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
         {
             return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount);
         }
 
-        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp, int maxStackCount = 10)
+        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
         {
             DnsQuestionRecord question;
 
@@ -205,7 +205,7 @@ namespace TechnitiumLibrary.Net.Dns
             return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount);
         }
 
-        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsClientProtocol protocol = DnsClientProtocol.Udp, int retries = 2, int timeout = 2000, DnsClientProtocol recursiveResolveProtocol = DnsClientProtocol.Udp, int maxStackCount = 10)
+        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
         {
             if ((nameServers != null) && (nameServers.Length > 0))
             {
@@ -260,8 +260,8 @@ namespace TechnitiumLibrary.Net.Dns
                                         case DnsResourceRecordType.AAAA:
                                             switch (protocol)
                                             {
-                                                case DnsClientProtocol.Https:
-                                                case DnsClientProtocol.HttpsJson:
+                                                case DnsTransportProtocol.Https:
+                                                case DnsTransportProtocol.HttpsJson:
                                                     nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].DnsOverHttpEndPoint, (cacheResponse.Answer[0].RDATA as DnsAAAARecord).Address);
                                                     break;
 
@@ -275,8 +275,8 @@ namespace TechnitiumLibrary.Net.Dns
                                         case DnsResourceRecordType.A:
                                             switch (protocol)
                                             {
-                                                case DnsClientProtocol.Https:
-                                                case DnsClientProtocol.HttpsJson:
+                                                case DnsTransportProtocol.Https:
+                                                case DnsTransportProtocol.HttpsJson:
                                                     nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].DnsOverHttpEndPoint, (cacheResponse.Answer[0].RDATA as DnsARecord).Address);
                                                     break;
 
@@ -327,7 +327,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
                                 else if ((nameServers == null) || (nameServers.Length == 0))
                                 {
-                                    NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
+                                    NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6);
 
                                     if (cacheNameServers.Length > 0)
                                         nameServers = cacheNameServers;
@@ -429,9 +429,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                         if (response.Header.Truncation)
                         {
-                            if (protocol == DnsClientProtocol.Udp)
+                            if (protocol == DnsTransportProtocol.Udp)
                             {
-                                client.Protocol = DnsClientProtocol.Tcp;
+                                client.Protocol = DnsTransportProtocol.Tcp;
                                 response = client.Resolve(request);
                             }
                             else
@@ -485,8 +485,8 @@ namespace TechnitiumLibrary.Net.Dns
                                             case DnsResourceRecordType.AAAA:
                                                 switch (protocol)
                                                 {
-                                                    case DnsClientProtocol.Https:
-                                                    case DnsClientProtocol.HttpsJson:
+                                                    case DnsTransportProtocol.Https:
+                                                    case DnsTransportProtocol.HttpsJson:
                                                         nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].DnsOverHttpEndPoint, (response.Answer[0].RDATA as DnsAAAARecord).Address);
                                                         break;
 
@@ -500,8 +500,8 @@ namespace TechnitiumLibrary.Net.Dns
                                             case DnsResourceRecordType.A:
                                                 switch (protocol)
                                                 {
-                                                    case DnsClientProtocol.Https:
-                                                    case DnsClientProtocol.HttpsJson:
+                                                    case DnsTransportProtocol.Https:
+                                                    case DnsTransportProtocol.HttpsJson:
                                                         nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].DnsOverHttpEndPoint, (response.Answer[0].RDATA as DnsARecord).Address);
                                                         break;
 
@@ -603,7 +603,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
 
                                         //get next hop name servers
-                                        nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
+                                        nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6);
 
                                         if (nameServers.Length == 0)
                                         {
@@ -633,9 +633,9 @@ namespace TechnitiumLibrary.Net.Dns
                                         //check for protocol downgrade
                                         switch (protocol)
                                         {
-                                            case DnsClientProtocol.Https:
-                                            case DnsClientProtocol.HttpsJson:
-                                            case DnsClientProtocol.Tls:
+                                            case DnsTransportProtocol.Https:
+                                            case DnsTransportProtocol.HttpsJson:
+                                            case DnsTransportProtocol.Tls:
                                                 //secure protocols dont support recursive resolution and are only used as forwarders
                                                 if (resolverStack.Count == 0)
                                                 {
@@ -761,13 +761,13 @@ namespace TechnitiumLibrary.Net.Dns
             int nextServerIndex = 0;
             int retries = _retries;
             Exception lastException = null;
-            DnsClientProtocol protocol = _protocol;
+            DnsTransportProtocol protocol = _protocol;
 
             if (_proxy != null)
             {
                 //upgrade protocol to TCP when UDP is not supported by proxy
-                if ((protocol == DnsClientProtocol.Udp) && !_proxy.IsUdpAvailable())
-                    protocol = DnsClientProtocol.Tcp;
+                if ((protocol == DnsTransportProtocol.Udp) && !_proxy.IsUdpAvailable())
+                    protocol = DnsTransportProtocol.Tcp;
             }
 
             //init server selection parameters
@@ -1092,13 +1092,13 @@ namespace TechnitiumLibrary.Net.Dns
             set { _preferIPv6 = value; }
         }
 
-        public DnsClientProtocol Protocol
+        public DnsTransportProtocol Protocol
         {
             get { return _protocol; }
             set { _protocol = value; }
         }
 
-        public DnsClientProtocol RecursiveResolveProtocol
+        public DnsTransportProtocol RecursiveResolveProtocol
         {
             get { return _recursiveResolveProtocol; }
             set { _recursiveResolveProtocol = value; }
@@ -1123,9 +1123,9 @@ namespace TechnitiumLibrary.Net.Dns
             public DnsQuestionRecord Question;
             public NameServerAddress[] NameServers;
             public int NameServerIndex;
-            public DnsClientProtocol Protocol;
+            public DnsTransportProtocol Protocol;
 
-            public ResolverData(DnsQuestionRecord question, NameServerAddress[] nameServers, int nameServerIndex, DnsClientProtocol protocol)
+            public ResolverData(DnsQuestionRecord question, NameServerAddress[] nameServers, int nameServerIndex, DnsTransportProtocol protocol)
             {
                 this.Question = question;
                 this.NameServers = nameServers;
