@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -360,6 +361,85 @@ namespace TechnitiumLibrary.Net.Dns
 
             for (int i = 0; i < _header.ARCOUNT; i++)
                 _additional[i].WriteTo(s, domainEntries);
+        }
+
+        public void WriteTo(JsonTextWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WritePropertyName("Status");
+            jsonWriter.WriteValue((int)_header.RCODE);
+
+            jsonWriter.WritePropertyName("TC");
+            jsonWriter.WriteValue(_header.Truncation);
+
+            jsonWriter.WritePropertyName("RD");
+            jsonWriter.WriteValue(_header.RecursionDesired);
+
+            jsonWriter.WritePropertyName("RA");
+            jsonWriter.WriteValue(_header.RecursionAvailable);
+
+            jsonWriter.WritePropertyName("AD");
+            jsonWriter.WriteValue(_header.AuthenticData);
+
+            jsonWriter.WritePropertyName("CD");
+            jsonWriter.WriteValue(_header.CheckingDisabled);
+
+            jsonWriter.WritePropertyName("Question");
+            jsonWriter.WriteStartArray();
+
+            foreach (DnsQuestionRecord question in _question)
+            {
+                jsonWriter.WriteStartObject();
+
+                jsonWriter.WritePropertyName("name");
+                jsonWriter.WriteValue(question.Name + ".");
+
+                jsonWriter.WritePropertyName("type");
+                jsonWriter.WriteValue((int)question.Type);
+
+                jsonWriter.WriteEndObject();
+            }
+
+            jsonWriter.WriteEndArray();
+
+            if (_answer.Length > 0)
+                WriteSection(jsonWriter, _answer, "Answer");
+
+            if (_authority.Length > 0)
+                WriteSection(jsonWriter, _authority, "Authority");
+
+            if (_additional.Length > 0)
+                WriteSection(jsonWriter, _additional, "Additional");
+
+            jsonWriter.WriteEndObject();
+        }
+
+        private void WriteSection(JsonTextWriter jsonWriter, DnsResourceRecord[] section, string sectionName)
+        {
+            jsonWriter.WritePropertyName(sectionName);
+            jsonWriter.WriteStartArray();
+
+            foreach (DnsResourceRecord record in section)
+            {
+                jsonWriter.WriteStartObject();
+
+                jsonWriter.WritePropertyName("name");
+                jsonWriter.WriteValue(record.Name + ".");
+
+                jsonWriter.WritePropertyName("type");
+                jsonWriter.WriteValue((int)record.Type);
+
+                jsonWriter.WritePropertyName("TTL");
+                jsonWriter.WriteValue(record.TTLValue);
+
+                jsonWriter.WritePropertyName("data");
+                jsonWriter.WriteValue(record.RDATA.ToString());
+
+                jsonWriter.WriteEndObject();
+            }
+
+            jsonWriter.WriteEndArray();
         }
 
         #endregion

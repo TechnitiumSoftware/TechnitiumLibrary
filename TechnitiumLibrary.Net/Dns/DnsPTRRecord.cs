@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -99,7 +99,7 @@ namespace TechnitiumLibrary.Net.Dns
         #region properties
 
         public string PTRDomainName
-        { get { return _ptrDomainName; } }
+        { get { return _ptrDomainName + "."; } }
 
         #endregion
     }
