@@ -29,7 +29,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region constructor
 
         public HttpsJsonClientConnection(NameServerAddress server, NetProxy proxy)
-            : base(DnsTransportProtocol.Https, server, proxy)
+            : base(DnsTransportProtocol.HttpsJson, server, proxy)
         {
             _timeout = 5000;
         }
