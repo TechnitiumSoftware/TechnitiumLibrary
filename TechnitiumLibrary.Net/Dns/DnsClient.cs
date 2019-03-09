@@ -120,27 +120,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             _preferIPv6 = preferIPv6;
 
-            NetworkInfo defaultNetworkInfo;
-
-            if (_preferIPv6)
-            {
-                defaultNetworkInfo = NetUtilities.GetDefaultIPv6NetworkInfo();
-
-                if ((defaultNetworkInfo == null) || (defaultNetworkInfo.Interface.GetIPProperties().DnsAddresses.Count == 0))
-                    defaultNetworkInfo = NetUtilities.GetDefaultIPv4NetworkInfo();
-            }
-            else
-            {
-                defaultNetworkInfo = NetUtilities.GetDefaultIPv4NetworkInfo();
-            }
-
-            if (defaultNetworkInfo == null)
-                throw new DnsClientException("No default network connection was found on this computer.");
-
-            IPAddressCollection servers = defaultNetworkInfo.Interface.GetIPProperties().DnsAddresses;
-
-            if (servers.Count == 0)
-                throw new DnsClientException("Default network does not have any DNS server configured.");
+            IPAddressCollection servers = GetSystemDnsServers(_preferIPv6);
 
             _servers = new NameServerAddress[servers.Count];
 
@@ -752,11 +732,25 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static Uri[] FindResolverAssociatedDohServers()
+        public static Uri[] FindResolverAssociatedDohServers(bool preferIPv6 = false)
         {
-            IPAddress[] resolverAddresses = System.Net.Dns.GetHostAddresses("resolver-addresses.arpa");
-            if ((resolverAddresses == null) || (resolverAddresses.Length < 1))
-                return new Uri[] { };
+            IPAddress[] resolverAddresses = null;
+
+            try
+            {
+                //find system dns servers
+                IPAddressCollection servers = GetSystemDnsServers(preferIPv6);
+
+                resolverAddresses = new IPAddress[servers.Count];
+                servers.CopyTo(resolverAddresses, 0);
+            }
+            catch
+            {
+                //error while finding system configured dns servers, try query method
+                resolverAddresses = System.Net.Dns.GetHostAddresses("resolver-addresses.arpa");
+                if ((resolverAddresses == null) || (resolverAddresses.Length < 1))
+                    return new Uri[] { };
+            }
 
             DnsClient client = new DnsClient(resolverAddresses);
 
@@ -767,6 +761,33 @@ namespace TechnitiumLibrary.Net.Dns
                 dohUris.Add(new Uri(value));
 
             return dohUris.ToArray();
+        }
+
+        public static IPAddressCollection GetSystemDnsServers(bool preferIPv6 = false)
+        {
+            NetworkInfo defaultNetworkInfo;
+
+            if (preferIPv6)
+            {
+                defaultNetworkInfo = NetUtilities.GetDefaultIPv6NetworkInfo();
+
+                if ((defaultNetworkInfo == null) || (defaultNetworkInfo.Interface.GetIPProperties().DnsAddresses.Count == 0))
+                    defaultNetworkInfo = NetUtilities.GetDefaultIPv4NetworkInfo();
+            }
+            else
+            {
+                defaultNetworkInfo = NetUtilities.GetDefaultIPv4NetworkInfo();
+            }
+
+            if (defaultNetworkInfo == null)
+                throw new DnsClientException("No default network connection was found on this computer.");
+
+            IPAddressCollection servers = defaultNetworkInfo.Interface.GetIPProperties().DnsAddresses;
+
+            if (servers.Count == 0)
+                throw new DnsClientException("Default network does not have any DNS server configured.");
+
+            return servers;
         }
 
         #endregion
