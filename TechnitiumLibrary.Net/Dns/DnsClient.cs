@@ -752,6 +752,23 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        public static Uri[] FindResolverAssociatedDohServers()
+        {
+            IPAddress[] resolverAddresses = System.Net.Dns.GetHostAddresses("resolver-addresses.arpa");
+            if ((resolverAddresses == null) || (resolverAddresses.Length < 1))
+                return new Uri[] { };
+
+            DnsClient client = new DnsClient(resolverAddresses);
+
+            string[] values = client.ResolveTXT("resolver-associated-doh.arpa");
+            List<Uri> dohUris = new List<Uri>();
+
+            foreach (string value in values)
+                dohUris.Add(new Uri(value));
+
+            return dohUris.ToArray();
+        }
+
         #endregion
 
         #region public
@@ -1002,6 +1019,36 @@ namespace TechnitiumLibrary.Net.Dns
 
                 case DnsResponseCode.NameError:
                     throw new NameErrorDnsClientException("PTR record does not exists for ip: " + ip.ToString() + "; Name server: " + response.Metadata.NameServerAddress.ToString());
+
+                default:
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+            }
+        }
+
+        public string[] ResolveTXT(string domain)
+        {
+            DnsDatagram response = Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.TXT, DnsClass.IN));
+
+            switch (response.Header.RCODE)
+            {
+                case DnsResponseCode.NoError:
+                    if (response.Header.ANCOUNT > 0)
+                    {
+                        List<string> values = new List<string>();
+
+                        foreach (DnsResourceRecord rr in response.Answer)
+                        {
+                            if (response.Answer[0].Type == DnsResourceRecordType.TXT)
+                                values.Add(((DnsTXTRecord)response.Answer[0].RDATA).TXTData);
+                        }
+
+                        return values.ToArray();
+                    }
+
+                    return new string[] { };
+
+                case DnsResponseCode.NameError:
+                    throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name server: " + response.Metadata.NameServerAddress.ToString());
 
                 default:
                     throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
