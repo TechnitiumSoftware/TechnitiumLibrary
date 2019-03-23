@@ -124,7 +124,7 @@ namespace TechnitiumLibrary.Net.Dns
         ANY = 255
     }
 
-    public class DnsResourceRecord
+    public class DnsResourceRecord : IComparable<DnsResourceRecord>
     {
         #region variables
 
@@ -318,6 +318,21 @@ namespace TechnitiumLibrary.Net.Dns
             hashCode = hashCode * -1521134295 + _ttl.GetHashCode();
             hashCode = hashCode * -1521134295 + EqualityComparer<DnsResourceRecordData>.Default.GetHashCode(_data);
             return hashCode;
+        }
+
+        public int CompareTo(DnsResourceRecord other)
+        {
+            int value;
+
+            value = this._name.CompareTo(other._name);
+            if (value != 0)
+                return value;
+
+            value = this._type.CompareTo(other._type);
+            if (value != 0)
+                return value;
+
+            return this._ttl.CompareTo(other._ttl);
         }
 
         #endregion
