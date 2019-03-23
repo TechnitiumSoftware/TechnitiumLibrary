@@ -63,14 +63,14 @@ namespace TechnitiumLibrary.Net.Dns
                     for (int i = ipBytes.Length - 1; i >= 0; i += -1)
                         _name += ipBytes[i] + ".";
 
-                    _name += "IN-ADDR.ARPA";
+                    _name += "in-addr.arpa";
                     break;
 
                 case AddressFamily.InterNetworkV6:
                     for (int i = ipBytes.Length - 1; i >= 0; i += -1)
                         _name += (ipBytes[i] & 0x0F).ToString("X") + "." + (ipBytes[i] >> 4).ToString("X") + ".";
 
-                    _name += "IP6.ARPA";
+                    _name += "ip6.arpa";
                     break;
 
                 default:
