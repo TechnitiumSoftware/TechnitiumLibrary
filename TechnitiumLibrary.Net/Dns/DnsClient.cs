@@ -168,12 +168,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram ResolveViaRootNameServers(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
+        public static DnsDatagram RecursiveResolve(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
         {
-            return ResolveViaNameServers(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount);
+            return RecursiveResolve(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount);
         }
 
-        public static DnsDatagram ResolveViaNameServers(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
+        public static DnsDatagram RecursiveResolve(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
         {
             DnsQuestionRecord question;
 
@@ -182,10 +182,10 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
 
-            return ResolveViaNameServers(question, nameServers, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount);
+            return RecursiveResolve(question, nameServers, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount);
         }
 
-        public static DnsDatagram ResolveViaNameServers(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
+        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
         {
             if ((nameServers != null) && (nameServers.Length > 0))
             {
@@ -734,7 +734,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static Uri[] FindResolverAssociatedDohServers(bool preferIPv6 = false)
         {
-            IPAddress[] resolverAddresses = null;
+            IPAddress[] resolverAddresses;
 
             try
             {
@@ -758,7 +758,13 @@ namespace TechnitiumLibrary.Net.Dns
             List<Uri> dohUris = new List<Uri>();
 
             foreach (string value in values)
-                dohUris.Add(new Uri(value));
+            {
+                if (Uri.TryCreate(value, UriKind.Absolute, out Uri dohUri))
+                {
+                    if (dohUri.Scheme.Equals("https", StringComparison.CurrentCultureIgnoreCase))
+                        dohUris.Add(dohUri);
+                }
+            }
 
             return dohUris.ToArray();
         }
