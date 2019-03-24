@@ -752,6 +752,11 @@ namespace TechnitiumLibrary.Net.Dns
                     return new Uri[] { };
             }
 
+            return FindResolverAssociatedDohServers(resolverAddresses, preferIPv6);
+        }
+
+        public static Uri[] FindResolverAssociatedDohServers(IPAddress[] resolverAddresses, bool preferIPv6 = false)
+        {
             DnsClient client = new DnsClient(resolverAddresses);
 
             string[] values = client.ResolveTXT("resolver-associated-doh.arpa");
@@ -759,7 +764,12 @@ namespace TechnitiumLibrary.Net.Dns
 
             foreach (string value in values)
             {
-                if (Uri.TryCreate(value, UriKind.Absolute, out Uri dohUri))
+                string uriValue = value;
+
+                if (uriValue.EndsWith("{?dns}"))
+                    uriValue = uriValue.Replace("{?dns}", "");
+
+                if (Uri.TryCreate(uriValue, UriKind.Absolute, out Uri dohUri))
                 {
                     if (dohUri.Scheme.Equals("https", StringComparison.CurrentCultureIgnoreCase))
                         dohUris.Add(dohUri);
