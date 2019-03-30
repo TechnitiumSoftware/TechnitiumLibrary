@@ -42,8 +42,8 @@ namespace TechnitiumLibrary.Net.Dns
             _size = size;
             _rtt = rtt;
 
-            if (_rtt < 1.0)
-                _rtt = 1.0;
+            if (_rtt < 0.1)
+                _rtt = 0.1;
         }
 
         #endregion
