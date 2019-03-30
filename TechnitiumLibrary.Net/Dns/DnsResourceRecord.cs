@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -136,6 +136,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         bool _setExpiry = false;
         DateTime _dateExpires;
+        uint _serveStaleTtl;
 
         #endregion
 
@@ -143,7 +144,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsResourceRecord(string name, DnsResourceRecordType type, DnsClass @class, uint ttl, DnsResourceRecordData data)
         {
-            DnsDatagram.IsDomainNameValid(name, true);
+            DnsClient.IsDomainNameValid(name, true);
 
             _name = name.ToLower();
             _type = type;
@@ -258,13 +259,22 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public void SetExpiry()
+        public void SetExpiry(uint serveStaleTtl)
         {
             if (_ttl < 10)
                 _ttl = 10; //to help DNS Server keep record in cache for a while
 
             _setExpiry = true;
+            _serveStaleTtl = serveStaleTtl;
             _dateExpires = DateTime.UtcNow.AddSeconds(_ttl);
+        }
+
+        public void ResetExpiry(int seconds)
+        {
+            if (!_setExpiry)
+                throw new InvalidOperationException("Must call SetExpiry() before ResetExpiry().");
+
+            _dateExpires = DateTime.UtcNow.AddSeconds(seconds);
         }
 
         public void WriteTo(Stream s)
@@ -355,17 +365,35 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (_setExpiry)
                 {
-                    DateTime currentDate = DateTime.UtcNow;
+                    int ttl = Convert.ToInt32((_dateExpires - DateTime.UtcNow).TotalSeconds);
+                    if (ttl < 1)
+                    {
+                        if ((ttl + _serveStaleTtl) > 0)
+                            return 30u;
 
-                    if (currentDate > _dateExpires)
                         return 0u;
-                    else
-                        return Convert.ToUInt32((_dateExpires - currentDate).TotalSeconds);
+                    }
+
+                    return Convert.ToUInt32(ttl);
                 }
-                else
+
+                return _ttl;
+            }
+        }
+
+        [IgnoreDataMember]
+        public bool IsStale
+        {
+            get
+            {
+                if (_setExpiry)
                 {
-                    return _ttl;
+                    int ttl = Convert.ToInt32((_dateExpires - DateTime.UtcNow).TotalSeconds);
+
+                    return ttl < 1;
                 }
+
+                return false;
             }
         }
 
@@ -373,7 +401,19 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get
             {
-                uint ttl = this.TTLValue;
+                int ttl;
+
+                if (_setExpiry)
+                {
+                    ttl = Convert.ToInt32((_dateExpires - DateTime.UtcNow).TotalSeconds);
+                    if (ttl < 1)
+                        ttl = 0;
+                }
+                else
+                {
+                    ttl = Convert.ToInt32(_ttl);
+                }
+
                 return ttl + " (" + WebUtilities.GetFormattedTime(ttl) + ")";
             }
         }
