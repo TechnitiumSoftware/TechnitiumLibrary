@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ using System.IO;
 using System.Net;
 using System.Net.Mime;
 using System.Net.Sockets;
+using System.Text;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net
@@ -83,21 +84,55 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        public static string GetFormattedTime(double seconds, bool bitsPerSecond = true, int roundToDigits = 2)
+        public static string GetFormattedTime(int seconds)
         {
-            if (seconds < 60)
-                return seconds + " sec";
+            TimeSpan timeSpan = new TimeSpan(0, 0, seconds);
+            StringBuilder sB = new StringBuilder(35);
 
-            seconds = seconds / 60;
-            if (seconds < 60)
-                return Math.Round(seconds, roundToDigits) + " min" + (seconds > 1 ? "s" : "");
+            if (timeSpan.Days > 0)
+            {
+                sB.Append(timeSpan.Days);
 
-            seconds = seconds / 60;
-            if (seconds < 24)
-                return Math.Round(seconds, roundToDigits) + " hour" + (seconds > 1 ? "s" : "");
+                if (timeSpan.Days > 1)
+                    sB.Append(" days");
+                else
+                    sB.Append(" day");
+            }
 
-            seconds = seconds / 24;
-            return Math.Round(seconds, roundToDigits) + " day" + (seconds > 1 ? "s" : "");
+            if (timeSpan.Hours > 0)
+            {
+                if (sB.Length > 0)
+                    sB.Append(' ');
+
+                sB.Append(timeSpan.Hours);
+                sB.Append(" hour");
+
+                if (timeSpan.Hours > 1)
+                    sB.Append("s");
+            }
+
+            if (timeSpan.Minutes > 0)
+            {
+                if (sB.Length > 0)
+                    sB.Append(' ');
+
+                sB.Append(timeSpan.Minutes);
+                sB.Append(" min");
+
+                if (timeSpan.Minutes > 1)
+                    sB.Append("s");
+            }
+
+            if ((timeSpan.Seconds > 0) || (sB.Length < 1))
+            {
+                if (sB.Length > 0)
+                    sB.Append(' ');
+
+                sB.Append(timeSpan.Seconds);
+                sB.Append(" sec");
+            }
+
+            return sB.ToString();
         }
 
         public static ContentType GetContentType(string fileName)
@@ -361,7 +396,7 @@ namespace TechnitiumLibrary.Net
         public static bool IsWebAccessible(Uri[] uriCheckList = null, NetProxy proxy = null, WebClientExNetworkType networkType = WebClientExNetworkType.Default, int timeout = 10000, bool throwException = false)
         {
             if (uriCheckList == null)
-                uriCheckList = new Uri[] { new Uri("http://www.google.com/"), new Uri("http://www.microsoft.com/") };
+                uriCheckList = new Uri[] { new Uri("https://www.google.com/"), new Uri("https://www.microsoft.com/") };
 
             using (WebClientEx client = new WebClientEx())
             {
