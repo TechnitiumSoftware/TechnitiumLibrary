@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -162,7 +162,7 @@ namespace TechnitiumLibrary.Net.Dns
                             foreach (DnsQuestionRecord question in response.Question)
                             {
                                 DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsNXRecord(authority));
-                                record.SetExpiry();
+                                record.SetExpiry(0u);
 
                                 CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
                             }
@@ -184,7 +184,7 @@ namespace TechnitiumLibrary.Net.Dns
                             foreach (DnsQuestionRecord question in response.Question)
                             {
                                 DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsEmptyRecord(authority));
-                                record.SetExpiry();
+                                record.SetExpiry(0u);
 
                                 CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
                             }
@@ -199,7 +199,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         //empty response from authority name server
                                         DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsEmptyRecord(null));
-                                        record.SetExpiry();
+                                        record.SetExpiry(0u);
 
                                         CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
                                         break;
@@ -214,7 +214,7 @@ namespace TechnitiumLibrary.Net.Dns
                         foreach (DnsQuestionRecord question in response.Question)
                         {
                             DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsEmptyRecord(null));
-                            record.SetExpiry();
+                            record.SetExpiry(0u);
 
                             CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
                         }
@@ -275,7 +275,7 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsResourceRecord[] records = cacheTypeEntry.Value.ToArray();
 
                     foreach (DnsResourceRecord record in records)
-                        record.SetExpiry();
+                        record.SetExpiry(0u);
 
                     CacheEntry(domain, type, records);
                 }
@@ -312,7 +312,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (_entries.TryGetValue(type, out records))
                 {
-                    if (records[0].TTLValue < 1u)
+                    if (records[0].IsStale)
                         return null;
 
                     return records;
@@ -322,7 +322,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     if (_entries.TryGetValue(DnsResourceRecordType.CNAME, out records))
                     {
-                        if (records[0].TTLValue < 1u)
+                        if (records[0].IsStale)
                             return null;
 
                         return records;
