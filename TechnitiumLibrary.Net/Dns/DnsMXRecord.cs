@@ -36,7 +36,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsMXRecord(ushort preference, string exchange)
         {
-            DnsDatagram.IsDomainNameValid(exchange, true);
+            DnsClient.IsDomainNameValid(exchange, true);
 
             _preference = preference;
             _exchange = exchange;

@@ -166,7 +166,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries)
         {
-            IsDomainNameValid(domain, true);
+            DnsClient.IsDomainNameValid(domain, true);
 
             while (!string.IsNullOrEmpty(domain))
             {
@@ -246,90 +246,9 @@ namespace TechnitiumLibrary.Net.Dns
                 domain.Length--;
 
             string domainName = domain.ToString();
-            IsDomainNameValid(domainName, true);
+            DnsClient.IsDomainNameValid(domainName, true);
 
             return domainName;
-        }
-
-        public static bool IsDomainNameValid(string domain, bool throwException = false)
-        {
-            if (domain.Length == 0)
-                return true; //domain is root zone
-
-            if (domain.Length > 255)
-            {
-                if (throwException)
-                    throw new DnsClientException("Invalid domain name [" + domain + "]: length cannot exceed 255 bytes.");
-
-                return false;
-            }
-
-            string[] labels = domain.Split('.');
-
-            foreach (string label in labels)
-            {
-                if (label.Length == 0)
-                {
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot be 0 byte.");
-
-                    return false;
-                }
-
-                if (label.Length > 63)
-                {
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot exceed 63 bytes.");
-
-                    return false;
-                }
-
-                if (label.StartsWith("-"))
-                {
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot start with hyphen.");
-
-                    return false;
-                }
-
-                if (label.EndsWith("-"))
-                {
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot end with hyphen.");
-
-                    return false;
-                }
-
-                if (label.Equals("*"))
-                    continue; //[*] allowed for wild card domain entries in dns server
-
-                byte[] labelBytes = Encoding.ASCII.GetBytes(label);
-
-                foreach (byte labelByte in labelBytes)
-                {
-                    if ((labelByte >= 97) && (labelByte <= 122)) //[a-z]
-                        continue;
-
-                    if ((labelByte >= 65) && (labelByte <= 90)) //[A-Z]
-                        continue;
-
-                    if ((labelByte >= 48) && (labelByte <= 57)) //[0-9]
-                        continue;
-
-                    if (labelByte == 45) //[-]
-                        continue;
-
-                    if (labelByte == 95) //[_]
-                        continue;
-
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name: invalid character [" + labelByte + "] found in domain name [" + domain + "].");
-
-                    return false;
-                }
-            }
-
-            return true;
         }
 
         #endregion

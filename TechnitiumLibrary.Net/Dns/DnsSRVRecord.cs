@@ -38,7 +38,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsSRVRecord(ushort priority, ushort weight, ushort port, string target)
         {
-            DnsDatagram.IsDomainNameValid(target, true);
+            DnsClient.IsDomainNameValid(target, true);
 
             _priority = priority;
             _weight = weight;

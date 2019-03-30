@@ -35,7 +35,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsCNAMERecord(string cnameDomainName)
         {
-            DnsDatagram.IsDomainNameValid(cnameDomainName, true);
+            DnsClient.IsDomainNameValid(cnameDomainName, true);
 
             _cnameDomainName = cnameDomainName;
         }

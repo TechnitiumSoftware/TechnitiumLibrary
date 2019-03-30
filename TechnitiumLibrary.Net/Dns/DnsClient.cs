@@ -25,6 +25,7 @@ using System.Net.Mail;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Text;
 using TechnitiumLibrary.Net.Dns.ClientConnection;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -209,7 +210,7 @@ namespace TechnitiumLibrary.Net.Dns
                         question = data.Question;
                     }
 
-                    throw new DnsClientException("DnsClient exceeded the maximum stack count to resolve the domain: " + question.Name);
+                    throw new DnsClientException("DnsClient recursive resolution exceeded the maximum stack count for domain: " + question.Name);
                 }
 
                 if (cache != null)
@@ -357,10 +358,10 @@ namespace TechnitiumLibrary.Net.Dns
                     }
                 }
 
-                NameServerAddress.Shuffle(nameServers);
+                DnsClient.ShuffleArray(nameServers);
 
                 int hopCount = 0;
-                while ((hopCount++) < MAX_HOPS) //resolver loop
+                while (hopCount++ < MAX_HOPS) //resolver loop
                 {
                     //copy and reset stack name server index since its one time use only after stack pop
                     int i = stackNameServerIndex;
@@ -709,7 +710,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     if (resolverStack.Count == 0)
                     {
-                        throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.", lastException);
+                        throw new DnsClientException("DnsClient recursive resolution failed: no response from name servers.", lastException);
                     }
                     else
                     {
@@ -804,6 +805,102 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new DnsClientException("Default network does not have any DNS server configured.");
 
             return servers;
+        }
+
+        public static bool IsDomainNameValid(string domain, bool throwException = false)
+        {
+            if (domain.Length == 0)
+                return true; //domain is root zone
+
+            if (domain.Length > 255)
+            {
+                if (throwException)
+                    throw new DnsClientException("Invalid domain name [" + domain + "]: length cannot exceed 255 bytes.");
+
+                return false;
+            }
+
+            string[] labels = domain.Split('.');
+
+            foreach (string label in labels)
+            {
+                if (label.Length == 0)
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot be 0 byte.");
+
+                    return false;
+                }
+
+                if (label.Length > 63)
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot exceed 63 bytes.");
+
+                    return false;
+                }
+
+                if (label.StartsWith("-"))
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot start with hyphen.");
+
+                    return false;
+                }
+
+                if (label.EndsWith("-"))
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot end with hyphen.");
+
+                    return false;
+                }
+
+                if (label.Equals("*"))
+                    continue; //[*] allowed for wild card domain entries in dns server
+
+                byte[] labelBytes = Encoding.ASCII.GetBytes(label);
+
+                foreach (byte labelByte in labelBytes)
+                {
+                    if ((labelByte >= 97) && (labelByte <= 122)) //[a-z]
+                        continue;
+
+                    if ((labelByte >= 65) && (labelByte <= 90)) //[A-Z]
+                        continue;
+
+                    if ((labelByte >= 48) && (labelByte <= 57)) //[0-9]
+                        continue;
+
+                    if (labelByte == 45) //[-]
+                        continue;
+
+                    if (labelByte == 95) //[_]
+                        continue;
+
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name: invalid character [" + labelByte + "] found in domain name [" + domain + "].");
+
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public static void ShuffleArray<T>(T[] array)
+        {
+            byte[] buffer = new byte[4];
+
+            int n = array.Length;
+            while (n > 1)
+            {
+                _rnd.GetBytes(buffer);
+                int k = (int)(BitConverter.ToUInt32(buffer, 0) % n--);
+                T temp = array[n];
+                array[n] = array[k];
+                array[k] = temp;
+            }
         }
 
         #endregion

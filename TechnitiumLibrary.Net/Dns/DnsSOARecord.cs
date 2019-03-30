@@ -41,8 +41,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsSOARecord(string masterNameServer, string responsiblePerson, uint serial, uint refresh, uint retry, uint expire, uint minimum)
         {
-            DnsDatagram.IsDomainNameValid(masterNameServer, true);
-            DnsDatagram.IsDomainNameValid(responsiblePerson, true);
+            DnsClient.IsDomainNameValid(masterNameServer, true);
+            DnsClient.IsDomainNameValid(responsiblePerson, true);
 
             _masterNameServer = masterNameServer;
             _responsiblePerson = responsiblePerson;

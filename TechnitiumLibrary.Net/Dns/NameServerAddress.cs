@@ -317,26 +317,12 @@ namespace TechnitiumLibrary.Net.Dns
 
             NameServerAddress[] nsArray = nameServers.ToArray();
 
-            Shuffle(nsArray);
+            DnsClient.ShuffleArray(nsArray);
 
             if (preferIPv6)
                 Array.Sort(nsArray);
 
             return nsArray;
-        }
-
-        public static void Shuffle<T>(T[] array)
-        {
-            Random rng = new Random();
-
-            int n = array.Length;
-            while (n > 1)
-            {
-                int k = rng.Next(n--);
-                T temp = array[n];
-                array[n] = array[k];
-                array[k] = temp;
-            }
         }
 
         #endregion

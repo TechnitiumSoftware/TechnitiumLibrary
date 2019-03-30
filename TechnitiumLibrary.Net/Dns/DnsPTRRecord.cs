@@ -35,7 +35,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsPTRRecord(string ptrDomainName)
         {
-            DnsDatagram.IsDomainNameValid(ptrDomainName, true);
+            DnsClient.IsDomainNameValid(ptrDomainName, true);
 
             _ptrDomainName = ptrDomainName;
         }
