@@ -45,7 +45,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return new DnsCacheEntry();
             });
 
-            entry.Add(type, records);
+            entry.SetRecords(type, records);
         }
 
         private string GetParentZone(string domain)
@@ -159,6 +159,8 @@ namespace TechnitiumLibrary.Net.Dns
                         DnsResourceRecord authority = response.Authority[0];
                         if (authority.Type == DnsResourceRecordType.SOA)
                         {
+                            authority.SetExpiry(0u);
+
                             foreach (DnsQuestionRecord question in response.Question)
                             {
                                 DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsNXRecord(authority));
@@ -173,13 +175,58 @@ namespace TechnitiumLibrary.Net.Dns
                 case DnsResponseCode.NoError:
                     if (response.Answer.Length > 0)
                     {
-                        allRecords.AddRange(response.Answer);
+                        foreach (DnsQuestionRecord question in response.Question)
+                        {
+                            string qName = question.Name;
+
+                            foreach (DnsResourceRecord answer in response.Answer)
+                            {
+                                if (answer.Name.Equals(qName, StringComparison.CurrentCultureIgnoreCase))
+                                {
+                                    allRecords.Add(answer);
+
+                                    switch (answer.Type)
+                                    {
+                                        case DnsResourceRecordType.CNAME:
+                                            qName = (answer.RDATA as DnsCNAMERecord).CNAMEDomainName;
+                                            break;
+
+                                        case DnsResourceRecordType.NS:
+                                            string nsDomain = (answer.RDATA as DnsNSRecord).NSDomainName;
+
+                                            if (!nsDomain.EndsWith(".root-servers.net", StringComparison.CurrentCultureIgnoreCase))
+                                            {
+                                                foreach (DnsResourceRecord record in response.Additional)
+                                                {
+                                                    if (nsDomain.Equals(record.Name, StringComparison.CurrentCultureIgnoreCase))
+                                                        allRecords.Add(record);
+                                                }
+                                            }
+
+                                            break;
+
+                                        case DnsResourceRecordType.MX:
+                                            string mxExchange = (answer.RDATA as DnsMXRecord).Exchange;
+
+                                            foreach (DnsResourceRecord record in response.Additional)
+                                            {
+                                                if (mxExchange.Equals(record.Name, StringComparison.CurrentCultureIgnoreCase))
+                                                    allRecords.Add(record);
+                                            }
+
+                                            break;
+                                    }
+                                }
+                            }
+                        }
                     }
                     else if (response.Authority.Length > 0)
                     {
                         DnsResourceRecord authority = response.Authority[0];
                         if (authority.Type == DnsResourceRecordType.SOA)
                         {
+                            authority.SetExpiry(0u);
+
                             //empty response with authority
                             foreach (DnsQuestionRecord question in response.Question)
                             {
@@ -226,8 +273,37 @@ namespace TechnitiumLibrary.Net.Dns
                     return; //nothing to do
             }
 
-            allRecords.AddRange(response.Authority);
-            allRecords.AddRange(response.Additional);
+            if ((response.Question.Length > 0) && (response.Question[0].Type != DnsResourceRecordType.NS))
+            {
+                foreach (DnsQuestionRecord question in response.Question)
+                {
+                    foreach (DnsResourceRecord authority in response.Authority)
+                    {
+                        if (question.Name.Equals(authority.Name, StringComparison.CurrentCultureIgnoreCase) || question.Name.EndsWith("." + authority.Name, StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            allRecords.Add(authority);
+
+                            if (authority.Type == DnsResourceRecordType.NS)
+                            {
+                                string nsDomain = (authority.RDATA as DnsNSRecord).NSDomainName;
+
+                                if (!nsDomain.EndsWith(".root-servers.net", StringComparison.CurrentCultureIgnoreCase))
+                                {
+                                    foreach (DnsResourceRecord record in response.Additional)
+                                    {
+                                        if (nsDomain.Equals(record.Name, StringComparison.CurrentCultureIgnoreCase))
+                                            allRecords.Add(record);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            //set expiry for cached records
+            foreach (DnsResourceRecord record in allRecords)
+                record.SetExpiry(0u);
 
             #region group all records by domain and type
 
@@ -274,9 +350,6 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsResourceRecordType type = cacheTypeEntry.Key;
                     DnsResourceRecord[] records = cacheTypeEntry.Value.ToArray();
 
-                    foreach (DnsResourceRecord record in records)
-                        record.SetExpiry(0u);
-
                     CacheEntry(domain, type, records);
                 }
             }
@@ -298,7 +371,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             #region public
 
-            public void Add(DnsResourceRecordType type, DnsResourceRecord[] records)
+            public void SetRecords(DnsResourceRecordType type, DnsResourceRecord[] records)
             {
                 _entries.AddOrUpdate(type, records, delegate (DnsResourceRecordType key, DnsResourceRecord[] oldValue)
                 {
