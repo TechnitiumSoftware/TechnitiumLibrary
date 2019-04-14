@@ -351,14 +351,15 @@ namespace TechnitiumLibrary.Net.Dns
                         nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv6.Length];
                         Array.Copy(ROOT_NAME_SERVERS_IPv6, nameServers, ROOT_NAME_SERVERS_IPv6.Length);
                     }
-                    else
-                    {
-                        nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv4.Length];
-                        Array.Copy(ROOT_NAME_SERVERS_IPv4, nameServers, ROOT_NAME_SERVERS_IPv4.Length);
-                    }
+
+                    nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv4.Length];
+                    Array.Copy(ROOT_NAME_SERVERS_IPv4, nameServers, ROOT_NAME_SERVERS_IPv4.Length);
                 }
 
-                DnsClient.ShuffleArray(nameServers);
+                ShuffleArray(nameServers);
+
+                if (preferIPv6)
+                    Array.Sort(nameServers);
 
                 int hopCount = 0;
                 while (hopCount++ < MAX_HOPS) //resolver loop
