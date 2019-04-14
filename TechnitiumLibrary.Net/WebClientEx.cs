@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using TechnitiumLibrary.Net.Dns;
 using TechnitiumLibrary.Net.Proxy;
@@ -44,12 +45,12 @@ namespace TechnitiumLibrary.Net
         Dictionary<string, string> _headers = new Dictionary<string, string>();
         int _timeout = 90000;
         int _maximumAutomaticRedirections = 10;
+        bool _enableAutomaticDecompression = true;
 
         NetProxy _proxy;
         WebClientExNetworkType _networkType = WebClientExNetworkType.Default;
 
         TunnelProxy _tunnelProxy;
-        Stream _openResponseStream;
 
         #endregion
 
@@ -80,9 +81,6 @@ namespace TechnitiumLibrary.Net
             {
                 if (_tunnelProxy != null)
                     _tunnelProxy.Dispose();
-
-                if (_openResponseStream != null)
-                    _openResponseStream.Dispose();
             }
 
             _disposed = true;
@@ -114,29 +112,17 @@ namespace TechnitiumLibrary.Net
             _headers.Clear();
         }
 
-        public Stream OpenWriteEx(string address, string method = "POST")
+        public WriteStream OpenWriteEx(string address, string method = "POST", bool gzip = false)
         {
-            return OpenWriteEx(new Uri(address), method);
+            return OpenWriteEx(new Uri(address), method, gzip);
         }
 
-        public Stream OpenWriteEx(Uri address, string method = "POST")
+        public WriteStream OpenWriteEx(Uri address, string method = "POST", bool gzip = false)
         {
             WebRequest request = GetWebRequest(address);
             request.Method = method;
 
-            _openResponseStream = null; //clear previous stream if any
-
-            return new WebClientWriteStream(this, request);
-        }
-
-        public Stream GetResponseStream()
-        {
-            if (_openResponseStream == null)
-                throw new WebException("No response stream available. Call OpenWriteEx() and close write stream to create response stream .");
-
-            Stream s = _openResponseStream;
-            _openResponseStream = null; //clear stream handle
-            return s;
+            return new WriteStream(this, request, gzip);
         }
 
         #endregion
@@ -281,8 +267,10 @@ namespace TechnitiumLibrary.Net
                 request.UserAgent = _userAgent;
 
             request.KeepAlive = _keepAlive;
-
             request.AllowAutoRedirect = false;
+
+            if (_enableAutomaticDecompression)
+                request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
 
             foreach (KeyValuePair<string, string> header in _headers)
             {
@@ -395,6 +383,12 @@ namespace TechnitiumLibrary.Net
             set { _maximumAutomaticRedirections = value; }
         }
 
+        public bool EnableAutomaticDecompression
+        {
+            get { return _enableAutomaticDecompression; }
+            set { _enableAutomaticDecompression = value; }
+        }
+
         public new NetProxy Proxy
         {
             get { return _proxy; }
@@ -409,7 +403,7 @@ namespace TechnitiumLibrary.Net
 
         #endregion
 
-        class WebClientWriteStream : Stream
+        public class WriteStream : Stream
         {
             #region variables
 
@@ -421,11 +415,20 @@ namespace TechnitiumLibrary.Net
 
             #region constructor
 
-            public WebClientWriteStream(WebClientEx webClient, WebRequest request)
+            public WriteStream(WebClientEx webClient, WebRequest request, bool gzip)
             {
                 _webClient = webClient;
                 _request = request;
-                _requestStream = request.GetRequestStream();
+
+                if (gzip)
+                {
+                    _request.Headers.Add("Content-Encoding", "gzip");
+                    _requestStream = new GZipStream(request.GetRequestStream(), CompressionMode.Compress);
+                }
+                else
+                {
+                    _requestStream = request.GetRequestStream();
+                }
             }
 
             #endregion
@@ -436,26 +439,32 @@ namespace TechnitiumLibrary.Net
 
             protected override void Dispose(bool disposing)
             {
-                if (_disposed)
-                    return;
-
-                if (disposing)
+                try
                 {
-                    if (_requestStream != null)
-                        _requestStream.Dispose();
+                    if (_disposed)
+                        return;
 
-                    try
+                    if (disposing)
                     {
-                        WebResponse response = _webClient.GetWebResponse(_request);
-                        _webClient._openResponseStream = response.GetResponseStream();
+                        if (_requestStream != null)
+                            _requestStream.Dispose();
                     }
-                    catch
-                    { }
+
+                    _disposed = true;
                 }
+                finally
+                {
+                    base.Dispose(disposing);
+                }
+            }
 
-                _disposed = true;
+            #endregion
 
-                base.Dispose(disposing);
+            #region public
+
+            public Stream GetResponseStream()
+            {
+                return _webClient.GetWebResponse(_request).GetResponseStream();
             }
 
             #endregion
@@ -472,12 +481,12 @@ namespace TechnitiumLibrary.Net
             { get { return true; } }
 
             public override long Length
-            { get { throw new NotImplementedException(); } }
+            { get { throw new NotSupportedException(); } }
 
             public override long Position
             {
-                get { throw new NotImplementedException(); }
-                set { throw new NotImplementedException(); }
+                get { throw new NotSupportedException(); }
+                set { throw new NotSupportedException(); }
             }
 
             public override void Flush()
@@ -487,17 +496,17 @@ namespace TechnitiumLibrary.Net
 
             public override int Read(byte[] buffer, int offset, int count)
             {
-                throw new NotImplementedException();
+                throw new NotSupportedException();
             }
 
             public override long Seek(long offset, SeekOrigin origin)
             {
-                throw new NotImplementedException();
+                throw new NotSupportedException();
             }
 
             public override void SetLength(long value)
             {
-                throw new NotImplementedException();
+                throw new NotSupportedException();
             }
 
             public override void Write(byte[] buffer, int offset, int count)
