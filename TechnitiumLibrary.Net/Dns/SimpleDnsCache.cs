@@ -29,6 +29,7 @@ namespace TechnitiumLibrary.Net.Dns
         #region variables
 
         const uint DEFAULT_RECORD_TTL = 60u;
+        const uint MINIMUM_RECORD_TTL = 10u;
 
         ConcurrentDictionary<string, DnsCacheEntry> _cache = new ConcurrentDictionary<string, DnsCacheEntry>();
 
@@ -159,12 +160,12 @@ namespace TechnitiumLibrary.Net.Dns
                         DnsResourceRecord authority = response.Authority[0];
                         if (authority.Type == DnsResourceRecordType.SOA)
                         {
-                            authority.SetExpiry(0u);
+                            authority.SetExpiry(MINIMUM_RECORD_TTL, 0u);
 
                             foreach (DnsQuestionRecord question in response.Question)
                             {
                                 DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsNXRecord(authority));
-                                record.SetExpiry(0u);
+                                record.SetExpiry(MINIMUM_RECORD_TTL, 0u);
 
                                 CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
                             }
@@ -225,13 +226,13 @@ namespace TechnitiumLibrary.Net.Dns
                         DnsResourceRecord authority = response.Authority[0];
                         if (authority.Type == DnsResourceRecordType.SOA)
                         {
-                            authority.SetExpiry(0u);
+                            authority.SetExpiry(MINIMUM_RECORD_TTL, 0u);
 
                             //empty response with authority
                             foreach (DnsQuestionRecord question in response.Question)
                             {
                                 DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsEmptyRecord(authority));
-                                record.SetExpiry(0u);
+                                record.SetExpiry(MINIMUM_RECORD_TTL, 0u);
 
                                 CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
                             }
@@ -246,7 +247,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         //empty response from authority name server
                                         DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsEmptyRecord(null));
-                                        record.SetExpiry(0u);
+                                        record.SetExpiry(MINIMUM_RECORD_TTL, 0u);
 
                                         CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
                                         break;
@@ -261,7 +262,7 @@ namespace TechnitiumLibrary.Net.Dns
                         foreach (DnsQuestionRecord question in response.Question)
                         {
                             DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsEmptyRecord(null));
-                            record.SetExpiry(0u);
+                            record.SetExpiry(MINIMUM_RECORD_TTL, 0u);
 
                             CacheEntry(question.Name, question.Type, new DnsResourceRecord[] { record });
                         }
@@ -303,7 +304,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             //set expiry for cached records
             foreach (DnsResourceRecord record in allRecords)
-                record.SetExpiry(0u);
+                record.SetExpiry(MINIMUM_RECORD_TTL, 0u);
 
             #region group all records by domain and type
 
