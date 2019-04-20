@@ -312,7 +312,26 @@ namespace TechnitiumLibrary.Net
 
             while (redirectCount < _maximumAutomaticRedirections)
             {
-                response = request.GetResponse() as HttpWebResponse;
+                try
+                {
+                    response = request.GetResponse() as HttpWebResponse;
+                }
+                catch (WebException ex)
+                {
+                    response = ex.Response as HttpWebResponse;
+
+                    switch (response.StatusCode)
+                    {
+                        case HttpStatusCode.MovedPermanently:
+                        case HttpStatusCode.Found:
+                        case HttpStatusCode.SeeOther:
+                        case HttpStatusCode.RedirectKeepVerb:
+                            break;
+
+                        default:
+                            throw;
+                    }
+                }
 
                 switch (response.StatusCode)
                 {
