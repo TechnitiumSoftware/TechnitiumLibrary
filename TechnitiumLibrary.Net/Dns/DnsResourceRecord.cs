@@ -259,10 +259,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public void SetExpiry(uint serveStaleTtl)
+        public void SetExpiry(uint minimumTtl, uint serveStaleTtl)
         {
-            if (_ttl < 10)
-                _ttl = 10; //to help DNS Server keep record in cache for a while
+            if (_ttl < minimumTtl)
+                _ttl = minimumTtl; //to help DNS Server keep record in cache for a while
 
             _setExpiry = true;
             _serveStaleTtl = serveStaleTtl;
