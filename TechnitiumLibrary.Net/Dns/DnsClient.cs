@@ -730,10 +730,10 @@ namespace TechnitiumLibrary.Net.Dns
                         break; //to stack loop
                     }
 
-                    resolverLoop:;
+                resolverLoop:;
                 }
 
-                stackLoop:;
+            stackLoop:;
             }
         }
 
