@@ -169,11 +169,6 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram RecursiveResolve(string domain, DnsResourceRecordType queryType, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
-        {
-            return RecursiveResolve(domain, queryType, null, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount);
-        }
-
         public static DnsDatagram RecursiveResolve(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
         {
             DnsQuestionRecord question;
@@ -194,6 +189,11 @@ namespace TechnitiumLibrary.Net.Dns
                 NameServerAddress[] nameServersCopy = new NameServerAddress[nameServers.Length];
                 Array.Copy(nameServers, nameServersCopy, nameServers.Length);
                 nameServers = nameServersCopy;
+
+                ShuffleArray(nameServers);
+
+                if (preferIPv6)
+                    Array.Sort(nameServers);
             }
 
             Stack<ResolverData> resolverStack = new Stack<ResolverData>();
@@ -348,18 +348,21 @@ namespace TechnitiumLibrary.Net.Dns
                     //create copy of root name servers array so that the values in original array are not messed due to shuffling feature
                     if (preferIPv6)
                     {
-                        nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv6.Length];
+                        nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv6.Length + ROOT_NAME_SERVERS_IPv4.Length];
                         Array.Copy(ROOT_NAME_SERVERS_IPv6, nameServers, ROOT_NAME_SERVERS_IPv6.Length);
+                        Array.Copy(ROOT_NAME_SERVERS_IPv4, 0, nameServers, ROOT_NAME_SERVERS_IPv6.Length, ROOT_NAME_SERVERS_IPv4.Length);
+
+                        ShuffleArray(nameServers);
+                        Array.Sort(nameServers);
                     }
+                    else
+                    {
+                        nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv4.Length];
+                        Array.Copy(ROOT_NAME_SERVERS_IPv4, nameServers, ROOT_NAME_SERVERS_IPv4.Length);
 
-                    nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv4.Length];
-                    Array.Copy(ROOT_NAME_SERVERS_IPv4, nameServers, ROOT_NAME_SERVERS_IPv4.Length);
+                        ShuffleArray(nameServers);
+                    }
                 }
-
-                ShuffleArray(nameServers);
-
-                if (preferIPv6)
-                    Array.Sort(nameServers);
 
                 int hopCount = 0;
                 while (hopCount++ < MAX_HOPS) //resolver loop
