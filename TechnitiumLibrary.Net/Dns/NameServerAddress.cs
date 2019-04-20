@@ -481,7 +481,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public int CompareTo(NameServerAddress other)
         {
-            if ((this._ipEndPoint == null) && (other._ipEndPoint == null))
+            if ((this._ipEndPoint == null) || (other._ipEndPoint == null))
                 return 0;
 
             if ((this._ipEndPoint.AddressFamily == AddressFamily.InterNetwork) && (other._ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
