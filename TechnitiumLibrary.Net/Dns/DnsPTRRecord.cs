@@ -91,7 +91,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public override string ToString()
         {
-            return _ptrDomainName;
+            return _ptrDomainName + ".";
         }
 
         #endregion
@@ -99,7 +99,7 @@ namespace TechnitiumLibrary.Net.Dns
         #region properties
 
         public string PTRDomainName
-        { get { return _ptrDomainName + "."; } }
+        { get { return _ptrDomainName; } }
 
         #endregion
     }
