@@ -350,7 +350,7 @@ namespace TechnitiumLibrary.Net.Dns
                 jsonWriter.WriteValue((int)record.Type);
 
                 jsonWriter.WritePropertyName("TTL");
-                jsonWriter.WriteValue(record.TTLValue);
+                jsonWriter.WriteValue(record.TtlValue);
 
                 jsonWriter.WritePropertyName("data");
                 jsonWriter.WriteValue(record.RDATA.ToString());

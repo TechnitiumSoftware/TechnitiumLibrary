@@ -135,8 +135,8 @@ namespace TechnitiumLibrary.Net.Dns
         DnsResourceRecordData _data;
 
         bool _setExpiry = false;
-        DateTime _dateExpires;
-        uint _serveStaleTtl;
+        DateTime _ttlExpires;
+        DateTime _serveStaleTtlExpires;
 
         #endregion
 
@@ -262,11 +262,11 @@ namespace TechnitiumLibrary.Net.Dns
         public void SetExpiry(uint minimumTtl, uint serveStaleTtl)
         {
             if (_ttl < minimumTtl)
-                _ttl = minimumTtl; //to help DNS Server keep record in cache for a while
+                _ttl = minimumTtl; //to help keep record in cache for a minimum time
 
             _setExpiry = true;
-            _serveStaleTtl = serveStaleTtl;
-            _dateExpires = DateTime.UtcNow.AddSeconds(_ttl);
+            _ttlExpires = DateTime.UtcNow.AddSeconds(_ttl);
+            _serveStaleTtlExpires = _ttlExpires.AddSeconds(serveStaleTtl);
         }
 
         public void ResetExpiry(int seconds)
@@ -274,7 +274,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (!_setExpiry)
                 throw new InvalidOperationException("Must call SetExpiry() before ResetExpiry().");
 
-            _dateExpires = DateTime.UtcNow.AddSeconds(seconds);
+            _ttlExpires = DateTime.UtcNow.AddSeconds(seconds);
         }
 
         public void WriteTo(Stream s)
@@ -287,7 +287,7 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram.SerializeDomainName(_name, s, domainEntries);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
-            DnsDatagram.WriteUInt32NetworkOrder(TTLValue, s);
+            DnsDatagram.WriteUInt32NetworkOrder(TtlValue, s);
 
             _data.WriteTo(s, domainEntries);
         }
@@ -359,20 +359,20 @@ namespace TechnitiumLibrary.Net.Dns
         { get { return _class; } }
 
         [IgnoreDataMember]
-        public uint TTLValue
+        public uint TtlValue
         {
             get
             {
                 if (_setExpiry)
                 {
-                    int ttl = Convert.ToInt32((_dateExpires - DateTime.UtcNow).TotalSeconds);
-                    if (ttl < 1)
-                    {
-                        if ((ttl + _serveStaleTtl) > 0)
-                            return 30u;
+                    DateTime utcNow = DateTime.UtcNow;
 
+                    if (Convert.ToInt32((_serveStaleTtlExpires - utcNow).TotalSeconds) < 1)
                         return 0u;
-                    }
+
+                    int ttl = Convert.ToInt32((_ttlExpires - utcNow).TotalSeconds);
+                    if (ttl < 1)
+                        return 30u;
 
                     return Convert.ToUInt32(ttl);
                 }
@@ -388,7 +388,12 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (_setExpiry)
                 {
-                    int ttl = Convert.ToInt32((_dateExpires - DateTime.UtcNow).TotalSeconds);
+                    DateTime utcNow = DateTime.UtcNow;
+
+                    if (Convert.ToInt32((_serveStaleTtlExpires - utcNow).TotalSeconds) < 1)
+                        return true;
+
+                    int ttl = Convert.ToInt32((_ttlExpires - utcNow).TotalSeconds);
 
                     return ttl < 1;
                 }
@@ -405,9 +410,18 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (_setExpiry)
                 {
-                    ttl = Convert.ToInt32((_dateExpires - DateTime.UtcNow).TotalSeconds);
-                    if (ttl < 1)
+                    DateTime utcNow = DateTime.UtcNow;
+
+                    if (Convert.ToInt32((_serveStaleTtlExpires - utcNow).TotalSeconds) < 1)
+                    {
                         ttl = 0;
+                    }
+                    else
+                    {
+                        ttl = Convert.ToInt32((_ttlExpires - utcNow).TotalSeconds);
+                        if (ttl < 1)
+                            ttl = 0;
+                    }
                 }
                 else
                 {
@@ -417,6 +431,10 @@ namespace TechnitiumLibrary.Net.Dns
                 return ttl + " (" + WebUtilities.GetFormattedTime(ttl) + ")";
             }
         }
+
+        [IgnoreDataMember]
+        public uint OriginalTtlValue
+        { get { return _ttl; } }
 
         public string RDLENGTH
         { get { return _data.RDLENGTH + " bytes"; } }
