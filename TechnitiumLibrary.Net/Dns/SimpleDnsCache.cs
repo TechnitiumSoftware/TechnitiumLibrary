@@ -60,6 +60,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         private DnsResourceRecord[] GetRecords(string domain, DnsResourceRecordType type)
         {
+            domain = domain.ToLower();
+
             if (_cache.TryGetValue(domain, out DnsCacheEntry entry))
             {
                 DnsResourceRecord[] records = entry.GetRecords(type);
@@ -72,6 +74,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         private DnsResourceRecord[] GetNearestNameServers(string domain)
         {
+            domain = domain.ToLower();
+
             while (domain != null)
             {
                 if (_cache.TryGetValue(domain, out DnsCacheEntry entry))
@@ -94,9 +98,8 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsDatagram Query(DnsDatagram request)
         {
             DnsQuestionRecord question = request.Question[0];
-            string domain = question.Name.ToLower();
 
-            DnsResourceRecord[] records = GetRecords(domain, question.Type);
+            DnsResourceRecord[] records = GetRecords(question.Name, question.Type);
             if (records != null)
             {
                 if (records[0].RDATA is DnsEmptyRecord)
@@ -118,7 +121,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, (ushort)records.Length, 0, 0), request.Question, records, new DnsResourceRecord[] { }, new DnsResourceRecord[] { });
             }
 
-            DnsResourceRecord[] nameServers = GetNearestNameServers(domain);
+            DnsResourceRecord[] nameServers = GetNearestNameServers(question.Name);
             if (nameServers != null)
             {
                 List<DnsResourceRecord> glueRecords = new List<DnsResourceRecord>();
@@ -128,11 +131,11 @@ namespace TechnitiumLibrary.Net.Dns
                     string nsDomain = (nameServer.RDATA as DnsNSRecord).NSDomainName;
 
                     DnsResourceRecord[] glueAs = GetRecords(nsDomain, DnsResourceRecordType.A);
-                    if (glueAs != null)
+                    if ((glueAs != null) && (glueAs.Length > 0) && (glueAs[0].RDATA is DnsARecord))
                         glueRecords.AddRange(glueAs);
 
                     DnsResourceRecord[] glueAAAAs = GetRecords(nsDomain, DnsResourceRecordType.AAAA);
-                    if (glueAAAAs != null)
+                    if ((glueAAAAs != null) && (glueAAAAs.Length > 0) && (glueAAAAs[0].RDATA is DnsAAAARecord))
                         glueRecords.AddRange(glueAAAAs);
                 }
 
@@ -182,7 +185,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                             foreach (DnsResourceRecord answer in response.Answer)
                             {
-                                if (answer.Name.Equals(qName, StringComparison.CurrentCultureIgnoreCase))
+                                if (answer.Name.Equals(qName, StringComparison.OrdinalIgnoreCase))
                                 {
                                     allRecords.Add(answer);
 
@@ -195,11 +198,11 @@ namespace TechnitiumLibrary.Net.Dns
                                         case DnsResourceRecordType.NS:
                                             string nsDomain = (answer.RDATA as DnsNSRecord).NSDomainName;
 
-                                            if (!nsDomain.EndsWith(".root-servers.net", StringComparison.CurrentCultureIgnoreCase))
+                                            if (!nsDomain.EndsWith(".root-servers.net", StringComparison.OrdinalIgnoreCase))
                                             {
                                                 foreach (DnsResourceRecord record in response.Additional)
                                                 {
-                                                    if (nsDomain.Equals(record.Name, StringComparison.CurrentCultureIgnoreCase))
+                                                    if (nsDomain.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
                                                         allRecords.Add(record);
                                                 }
                                             }
@@ -211,7 +214,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                             foreach (DnsResourceRecord record in response.Additional)
                                             {
-                                                if (mxExchange.Equals(record.Name, StringComparison.CurrentCultureIgnoreCase))
+                                                if (mxExchange.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
                                                     allRecords.Add(record);
                                             }
 
@@ -243,7 +246,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 foreach (DnsResourceRecord authorityRecord in response.Authority)
                                 {
-                                    if ((authorityRecord.Type == DnsResourceRecordType.NS) && question.Name.Equals(authorityRecord.Name, StringComparison.CurrentCultureIgnoreCase) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.Metadata.NameServerAddress.Host, StringComparison.CurrentCultureIgnoreCase))
+                                    if ((authorityRecord.Type == DnsResourceRecordType.NS) && question.Name.Equals(authorityRecord.Name, StringComparison.OrdinalIgnoreCase) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
                                     {
                                         //empty response from authority name server
                                         DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, DnsClass.IN, DEFAULT_RECORD_TTL, new DnsEmptyRecord(null));
@@ -280,7 +283,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     foreach (DnsResourceRecord authority in response.Authority)
                     {
-                        if (question.Name.Equals(authority.Name, StringComparison.CurrentCultureIgnoreCase) || question.Name.EndsWith("." + authority.Name, StringComparison.CurrentCultureIgnoreCase))
+                        if (question.Name.Equals(authority.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authority.Name, StringComparison.OrdinalIgnoreCase))
                         {
                             allRecords.Add(authority);
 
@@ -288,11 +291,11 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 string nsDomain = (authority.RDATA as DnsNSRecord).NSDomainName;
 
-                                if (!nsDomain.EndsWith(".root-servers.net", StringComparison.CurrentCultureIgnoreCase))
+                                if (!nsDomain.EndsWith(".root-servers.net", StringComparison.OrdinalIgnoreCase))
                                 {
                                     foreach (DnsResourceRecord record in response.Additional)
                                     {
-                                        if (nsDomain.Equals(record.Name, StringComparison.CurrentCultureIgnoreCase))
+                                        if (nsDomain.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
                                             allRecords.Add(record);
                                     }
                                 }
@@ -313,15 +316,16 @@ namespace TechnitiumLibrary.Net.Dns
             foreach (DnsResourceRecord record in allRecords)
             {
                 Dictionary<DnsResourceRecordType, List<DnsResourceRecord>> cacheTypeEntries;
+                string recordName = record.Name.ToLower();
 
-                if (cacheEntries.ContainsKey(record.Name))
+                if (cacheEntries.ContainsKey(recordName))
                 {
-                    cacheTypeEntries = cacheEntries[record.Name];
+                    cacheTypeEntries = cacheEntries[recordName];
                 }
                 else
                 {
                     cacheTypeEntries = new Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>();
-                    cacheEntries.Add(record.Name, cacheTypeEntries);
+                    cacheEntries.Add(recordName, cacheTypeEntries);
                 }
 
                 List<DnsResourceRecord> cacheRREntries;
