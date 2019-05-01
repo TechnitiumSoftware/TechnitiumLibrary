@@ -374,7 +374,7 @@ namespace TechnitiumLibrary.Net
                             if (string.IsNullOrEmpty(TMP))
                                 break;
 
-                            if (TMP.StartsWith("location", StringComparison.CurrentCultureIgnoreCase))
+                            if (TMP.StartsWith("location", StringComparison.OrdinalIgnoreCase))
                             {
                                 int i = TMP.IndexOf(':');
                                 if (i > -1)

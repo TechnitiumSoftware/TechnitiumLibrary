@@ -77,7 +77,7 @@ namespace TechnitiumLibrary.Net
             if (other == null)
                 return false;
 
-            if (!_address.Equals(other._address, StringComparison.CurrentCultureIgnoreCase))
+            if (!_address.Equals(other._address, StringComparison.OrdinalIgnoreCase))
                 return false;
 
             if (_port != other._port)
