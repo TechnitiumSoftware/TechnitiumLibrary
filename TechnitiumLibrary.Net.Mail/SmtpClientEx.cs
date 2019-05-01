@@ -113,7 +113,7 @@ namespace TechnitiumLibrary.Net.Mail
                         if (cert == null)
                             cert = new X509Certificate2(certificate);
 
-                        return cert.GetNameInfo(X509NameType.DnsFromAlternativeName, false).Equals(smtpClient._host, StringComparison.CurrentCultureIgnoreCase);
+                        return cert.GetNameInfo(X509NameType.DnsFromAlternativeName, false).Equals(smtpClient._host, StringComparison.OrdinalIgnoreCase);
 
                     default:
                         return false;

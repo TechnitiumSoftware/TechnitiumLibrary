@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -101,10 +101,10 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                     if (tmp == null)
                                         break;
 
-                                    if (tmp.StartsWith("location:", StringComparison.CurrentCultureIgnoreCase))
+                                    if (tmp.StartsWith("location:", StringComparison.OrdinalIgnoreCase))
                                         descriptionUri = new Uri(tmp.Substring(9).Trim());
-                                    else if (tmp.StartsWith("st:", StringComparison.CurrentCultureIgnoreCase))
-                                        isRootDevice = tmp.Substring(3).Trim().Equals("upnp:rootdevice", StringComparison.CurrentCultureIgnoreCase);
+                                    else if (tmp.StartsWith("st:", StringComparison.OrdinalIgnoreCase))
+                                        isRootDevice = tmp.Substring(3).Trim().Equals("upnp:rootdevice", StringComparison.OrdinalIgnoreCase);
                                 }
                             }
 
@@ -131,7 +131,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                     node = desc.SelectSingleNode("//tns:service[tns:serviceType=\"urn:schemas-upnp-org:service:WANIPConnection:1\"]/tns:controlURL/text()", nsMgr);
                                     if (node != null)
                                     {
-                                        if (node.Value.StartsWith("http:", StringComparison.CurrentCultureIgnoreCase))
+                                        if (node.Value.StartsWith("http:", StringComparison.OrdinalIgnoreCase))
                                             controlUrlWanIP = new Uri(node.Value);
                                         else
                                             controlUrlWanIP = new Uri(descriptionUri, node.Value);
@@ -140,7 +140,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                     node = desc.SelectSingleNode("//tns:service[tns:serviceType=\"urn:schemas-upnp-org:service:WANPPPConnection:1\"]/tns:controlURL/text()", nsMgr);
                                     if (node != null)
                                     {
-                                        if (node.Value.StartsWith("http:", StringComparison.CurrentCultureIgnoreCase))
+                                        if (node.Value.StartsWith("http:", StringComparison.OrdinalIgnoreCase))
                                             controlUrlWanPPP = new Uri(node.Value);
                                         else
                                             controlUrlWanPPP = new Uri(descriptionUri, node.Value);

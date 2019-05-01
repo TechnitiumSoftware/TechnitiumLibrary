@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -129,7 +129,7 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
 
         public int Command(WebSqlCommand sqlCmd)
         {
-            if (sqlCmd.SqlQuery.StartsWith("SELECT", StringComparison.CurrentCultureIgnoreCase))
+            if (sqlCmd.SqlQuery.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
                 throw new WebDatabaseException("SELECT query is not supported in WebDatabase Command function.");
 
             byte[] buffer;
@@ -193,7 +193,7 @@ namespace TechnitiumLibrary.Database.WebDatabase.Client
 
         public WebDataTable TableQuery(WebSqlCommand sqlCmd)
         {
-            if (!sqlCmd.SqlQuery.StartsWith("SELECT", StringComparison.CurrentCultureIgnoreCase))
+            if (!sqlCmd.SqlQuery.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
                 throw new WebDatabaseException("Only SELECT query is supported in WebDatabase TableQuery function.");
 
             if (_inTransaction)

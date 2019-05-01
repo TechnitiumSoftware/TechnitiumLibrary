@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -140,7 +140,7 @@ namespace TechnitiumLibrary.Net.Firewall
 
             foreach (INetFwRule rule in firewallPolicy.Rules)
             {
-                if (((rule.Name != null) && rule.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)) || ((rule.ApplicationName != null) && rule.ApplicationName.Equals(applicationPath, StringComparison.CurrentCultureIgnoreCase)))
+                if (((rule.Name != null) && rule.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) || ((rule.ApplicationName != null) && rule.ApplicationName.Equals(applicationPath, StringComparison.OrdinalIgnoreCase)))
                     removeRules.Add(rule);
             }
 
@@ -156,7 +156,7 @@ namespace TechnitiumLibrary.Net.Firewall
 
             foreach (INetFwRule rule in firewallPolicy.Rules)
             {
-                if (((rule.Name != null) && rule.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)) || ((rule.ApplicationName != null) && rule.ApplicationName.Equals(applicationPath, StringComparison.CurrentCultureIgnoreCase)))
+                if (((rule.Name != null) && rule.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) || ((rule.ApplicationName != null) && rule.ApplicationName.Equals(applicationPath, StringComparison.OrdinalIgnoreCase)))
                 {
                     if (rule.Enabled)
                     {
@@ -289,7 +289,7 @@ namespace TechnitiumLibrary.Net.Firewall
 
             foreach (INetFwAuthorizedApplication app in firewallManager.LocalPolicy.CurrentProfile.AuthorizedApplications)
             {
-                if (app.ProcessImageFileName.Equals(path, StringComparison.CurrentCultureIgnoreCase))
+                if (app.ProcessImageFileName.Equals(path, StringComparison.OrdinalIgnoreCase))
                 {
                     if (app.Enabled)
                         return RuleStatus.Allowed;
