@@ -412,12 +412,21 @@ namespace TechnitiumLibrary.Net.Dns
                             continue; //resolver loop
                         }
 
-                        if (response.Header.Truncation)
+                        if (response.Header.Truncation && (response.Answer.Length == 0) && (response.Authority.Length == 0))
                         {
                             if (protocol == DnsTransportProtocol.Udp)
                             {
-                                client.Protocol = DnsTransportProtocol.Tcp;
-                                response = client.Resolve(request);
+                                client._protocol = DnsTransportProtocol.Tcp;
+
+                                try
+                                {
+                                    response = client.Resolve(request);
+                                }
+                                catch (DnsClientException ex)
+                                {
+                                    lastException = ex;
+                                    continue; //resolver loop
+                                }
                             }
                             else
                             {
@@ -449,7 +458,7 @@ namespace TechnitiumLibrary.Net.Dns
                             case DnsResponseCode.NoError:
                                 if (response.Answer.Length > 0)
                                 {
-                                    if (!response.Answer[0].Name.Equals(question.Name, StringComparison.CurrentCultureIgnoreCase))
+                                    if (!response.Answer[0].Name.Equals(question.Name, StringComparison.OrdinalIgnoreCase))
                                         continue; //continue to next name server since current name server may be misconfigured
 
                                     if (resolverStack.Count == 0)
@@ -541,7 +550,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         //check if empty response was received from the authoritative name server
                                         foreach (DnsResourceRecord authorityRecord in response.Authority)
                                         {
-                                            if ((authorityRecord.Type == DnsResourceRecordType.NS) && question.Name.Equals(authorityRecord.Name, StringComparison.CurrentCultureIgnoreCase) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.Metadata.NameServerAddress.Host, StringComparison.CurrentCultureIgnoreCase))
+                                            if ((authorityRecord.Type == DnsResourceRecordType.NS) && question.Name.Equals(authorityRecord.Name, StringComparison.OrdinalIgnoreCase) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
                                             {
                                                 //empty response from authoritative name server
                                                 if (resolverStack.Count == 0)
@@ -714,7 +723,17 @@ namespace TechnitiumLibrary.Net.Dns
 
                     if (resolverStack.Count == 0)
                     {
-                        throw new DnsClientException("DnsClient recursive resolution failed: no response from name servers.", lastException);
+                        string strNameServers = null;
+
+                        foreach (NameServerAddress nameServer in nameServers)
+                        {
+                            if (strNameServers == null)
+                                strNameServers = nameServer.ToString();
+                            else
+                                strNameServers += ", " + nameServer.ToString();
+                        }
+
+                        throw new DnsClientException("DnsClient recursive resolution failed: no response from name servers [" + strNameServers + "]", lastException);
                     }
                     else
                     {
@@ -730,10 +749,10 @@ namespace TechnitiumLibrary.Net.Dns
                         break; //to stack loop
                     }
 
-                resolverLoop:;
+                    resolverLoop:;
                 }
 
-            stackLoop:;
+                stackLoop:;
             }
         }
 
@@ -776,7 +795,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (Uri.TryCreate(uriValue, UriKind.Absolute, out Uri dohUri))
                 {
-                    if (dohUri.Scheme.Equals("https", StringComparison.CurrentCultureIgnoreCase))
+                    if (dohUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
                         dohUris.Add(dohUri);
                 }
             }
@@ -1039,7 +1058,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         foreach (DnsResourceRecord record in response.Answer)
                         {
-                            if (record.Name.Equals(domain, StringComparison.CurrentCultureIgnoreCase))
+                            if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
                             {
                                 switch (record.Type)
                                 {
@@ -1076,7 +1095,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                     foreach (DnsResourceRecord record in response.Additional)
                                     {
-                                        if (record.Name.Equals(mxDomain, StringComparison.CurrentCultureIgnoreCase))
+                                        if (record.Name.Equals(mxDomain, StringComparison.OrdinalIgnoreCase))
                                         {
                                             switch (record.Type)
                                             {
@@ -1220,7 +1239,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         foreach (DnsResourceRecord record in response.Answer)
                         {
-                            if (record.Name.Equals(domain, StringComparison.CurrentCultureIgnoreCase))
+                            if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
                             {
                                 switch (record.Type)
                                 {
