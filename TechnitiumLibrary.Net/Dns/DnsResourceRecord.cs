@@ -304,7 +304,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (other == null)
                 return false;
 
-            if (!this._name.Equals(other._name, StringComparison.CurrentCultureIgnoreCase))
+            if (!this._name.Equals(other._name, StringComparison.OrdinalIgnoreCase))
                 return false;
 
             if (this._type != other._type)

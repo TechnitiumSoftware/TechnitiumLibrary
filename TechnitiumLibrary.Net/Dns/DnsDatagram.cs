@@ -175,7 +175,7 @@ namespace TechnitiumLibrary.Net.Dns
                     //search domain list
                     foreach (DnsDomainOffset domainEntry in domainEntries)
                     {
-                        if (domain.Equals(domainEntry.Domain, StringComparison.CurrentCultureIgnoreCase))
+                        if (domain.Equals(domainEntry.Domain, StringComparison.OrdinalIgnoreCase))
                         {
                             //found matching domain offset for compression
                             ushort pointer = 0xC000;

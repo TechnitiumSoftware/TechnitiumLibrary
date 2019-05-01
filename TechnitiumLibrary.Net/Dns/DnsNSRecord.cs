@@ -81,7 +81,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (other == null)
                 return false;
 
-            return this._nsDomainName.Equals(other._nsDomainName, System.StringComparison.CurrentCultureIgnoreCase);
+            return this._nsDomainName.Equals(other._nsDomainName, StringComparison.OrdinalIgnoreCase);
         }
 
         public override int GetHashCode()

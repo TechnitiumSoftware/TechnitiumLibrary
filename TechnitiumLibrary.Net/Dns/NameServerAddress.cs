@@ -176,7 +176,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     string strDomainPart = address.Substring(0, posRoundBracketStart).Trim();
 
-                    if (strDomainPart.StartsWith("https://", StringComparison.CurrentCultureIgnoreCase) || strDomainPart.StartsWith("http://", StringComparison.CurrentCultureIgnoreCase))
+                    if (strDomainPart.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || strDomainPart.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
                     {
                         _dohEndPoint = new Uri(strDomainPart);
                     }
@@ -194,7 +194,7 @@ namespace TechnitiumLibrary.Net.Dns
                 address = address.Substring(posRoundBracketStart + 1, posRoundBracketEnd - posRoundBracketStart - 1);
             }
 
-            if (address.StartsWith("https://", StringComparison.CurrentCultureIgnoreCase) || address.StartsWith("http://", StringComparison.CurrentCultureIgnoreCase))
+            if (address.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || address.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
             {
                 _dohEndPoint = new Uri(address);
             }
@@ -290,7 +290,7 @@ namespace TechnitiumLibrary.Net.Dns
                     //find ip address of authoritative name server from additional records
                     foreach (DnsResourceRecord rr in response.Additional)
                     {
-                        if (nsRecord.NSDomainName.Equals(rr.Name, StringComparison.CurrentCultureIgnoreCase))
+                        if (nsRecord.NSDomainName.Equals(rr.Name, StringComparison.OrdinalIgnoreCase))
                         {
                             switch (rr.Type)
                             {

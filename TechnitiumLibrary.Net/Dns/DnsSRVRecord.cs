@@ -101,7 +101,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (_port != other._port)
                 return false;
 
-            if (!_target.Equals(other._target, StringComparison.CurrentCultureIgnoreCase))
+            if (!_target.Equals(other._target, StringComparison.OrdinalIgnoreCase))
                 return false;
 
             return true;

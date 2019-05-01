@@ -93,7 +93,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (other == null)
                 return false;
 
-            return this._exchange.Equals(other._exchange, StringComparison.CurrentCultureIgnoreCase);
+            return this._exchange.Equals(other._exchange, StringComparison.OrdinalIgnoreCase);
         }
 
         public override int GetHashCode()

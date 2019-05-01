@@ -115,7 +115,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (other == null)
                 return false;
 
-            if (!_name.Equals(other._name, StringComparison.CurrentCultureIgnoreCase))
+            if (!_name.Equals(other._name, StringComparison.OrdinalIgnoreCase))
                 return false;
 
             if (_type != other._type)

@@ -114,10 +114,10 @@ namespace TechnitiumLibrary.Net.Dns
             if (other == null)
                 return false;
 
-            if (!this._masterNameServer.Equals(other._masterNameServer, System.StringComparison.CurrentCultureIgnoreCase))
+            if (!this._masterNameServer.Equals(other._masterNameServer, StringComparison.OrdinalIgnoreCase))
                 return false;
 
-            if (!this._responsiblePerson.Equals(other._responsiblePerson, System.StringComparison.CurrentCultureIgnoreCase))
+            if (!this._responsiblePerson.Equals(other._responsiblePerson, StringComparison.OrdinalIgnoreCase))
                 return false;
 
             if (this._serial != other._serial)
