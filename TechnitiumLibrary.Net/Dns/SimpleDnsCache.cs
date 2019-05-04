@@ -31,7 +31,7 @@ namespace TechnitiumLibrary.Net.Dns
         const uint DEFAULT_RECORD_TTL = 60u;
         const uint MINIMUM_RECORD_TTL = 10u;
 
-        ConcurrentDictionary<string, DnsCacheEntry> _cache = new ConcurrentDictionary<string, DnsCacheEntry>();
+        readonly ConcurrentDictionary<string, DnsCacheEntry> _cache = new ConcurrentDictionary<string, DnsCacheEntry>();
 
         #endregion
 
@@ -72,7 +72,7 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
-        private DnsResourceRecord[] GetNearestNameServers(string domain)
+        private DnsResourceRecord[] GetClosestNameServers(string domain)
         {
             domain = domain.ToLower();
 
@@ -121,7 +121,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, (ushort)records.Length, 0, 0), request.Question, records, new DnsResourceRecord[] { }, new DnsResourceRecord[] { });
             }
 
-            DnsResourceRecord[] nameServers = GetNearestNameServers(question.Name);
+            DnsResourceRecord[] nameServers = GetClosestNameServers(question.Name);
             if (nameServers != null)
             {
                 List<DnsResourceRecord> glueRecords = new List<DnsResourceRecord>();
@@ -370,7 +370,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             #region variables
 
-            ConcurrentDictionary<DnsResourceRecordType, DnsResourceRecord[]> _entries = new ConcurrentDictionary<DnsResourceRecordType, DnsResourceRecord[]>();
+            readonly ConcurrentDictionary<DnsResourceRecordType, DnsResourceRecord[]> _entries = new ConcurrentDictionary<DnsResourceRecordType, DnsResourceRecord[]>();
 
             #endregion
 
@@ -386,9 +386,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             public DnsResourceRecord[] GetRecords(DnsResourceRecordType type)
             {
-                DnsResourceRecord[] records;
-
-                if (_entries.TryGetValue(type, out records))
+                if (_entries.TryGetValue(type, out DnsResourceRecord[] records))
                 {
                     if (records[0].IsStale)
                         return null;
@@ -417,7 +415,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             #region variables
 
-            DnsResourceRecord _authority;
+            readonly DnsResourceRecord _authority;
 
             #endregion
 
@@ -481,7 +479,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             #region variables
 
-            DnsResourceRecord _authority;
+            readonly DnsResourceRecord _authority;
 
             #endregion
 
