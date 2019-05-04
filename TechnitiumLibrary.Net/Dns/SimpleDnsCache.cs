@@ -81,7 +81,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if (_cache.TryGetValue(domain, out DnsCacheEntry entry))
                 {
                     DnsResourceRecord[] records = entry.GetRecords(DnsResourceRecordType.NS);
-                    if (records != null)
+                    if ((records != null) && (records.Length > 0) && (records[0].RDATA is DnsNSRecord))
                         return records;
                 }
 
@@ -277,7 +277,7 @@ namespace TechnitiumLibrary.Net.Dns
                     return; //nothing to do
             }
 
-            if ((response.Question.Length > 0) && (response.Question[0].Type != DnsResourceRecordType.NS))
+            if ((response.Question.Length > 0) && ((response.Question[0].Type != DnsResourceRecordType.NS) || (response.Answer.Length == 0)))
             {
                 foreach (DnsQuestionRecord question in response.Question)
                 {
