@@ -280,7 +280,14 @@ namespace TechnitiumLibrary.Net.Dns
         {
             List<NameServerAddress> nameServers = new List<NameServerAddress>(response.Authority.Length);
 
-            foreach (DnsResourceRecord authorityRecord in response.Authority)
+            DnsResourceRecord[] authorityRecords;
+
+            if ((response.Question.Length > 0) && (response.Question[0].Type == DnsResourceRecordType.NS) && (response.Answer.Length > 0))
+                authorityRecords = response.Answer;
+            else
+                authorityRecords = response.Authority;
+
+            foreach (DnsResourceRecord authorityRecord in authorityRecords)
             {
                 if (authorityRecord.Type == DnsResourceRecordType.NS)
                 {
