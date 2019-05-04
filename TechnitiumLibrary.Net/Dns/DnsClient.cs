@@ -169,7 +169,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram RecursiveResolve(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
+        public static DnsDatagram RecursiveResolve(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10, bool getDelegationNS = false)
         {
             DnsQuestionRecord question;
 
@@ -178,10 +178,10 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
 
-            return RecursiveResolve(question, nameServers, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount);
+            return RecursiveResolve(question, nameServers, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount, getDelegationNS);
         }
 
-        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10)
+        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10, bool getDelegationNS = false)
         {
             if ((nameServers != null) && (nameServers.Length > 0))
             {
@@ -547,6 +547,9 @@ namespace TechnitiumLibrary.Net.Dns
                                     }
                                     else
                                     {
+                                        if ((resolverStack.Count == 0) && (question.Type == DnsResourceRecordType.NS) && getDelegationNS)
+                                            return response; //query needs NS from delegation
+
                                         //check if empty response was received from the authoritative name server
                                         foreach (DnsResourceRecord authorityRecord in response.Authority)
                                         {
@@ -776,10 +779,10 @@ namespace TechnitiumLibrary.Net.Dns
                     return new Uri[] { };
             }
 
-            return FindResolverAssociatedDohServers(resolverAddresses, preferIPv6);
+            return FindResolverAssociatedDohServers(resolverAddresses);
         }
 
-        public static Uri[] FindResolverAssociatedDohServers(IPAddress[] resolverAddresses, bool preferIPv6 = false)
+        public static Uri[] FindResolverAssociatedDohServers(IPAddress[] resolverAddresses)
         {
             DnsClient client = new DnsClient(resolverAddresses);
 
@@ -947,7 +950,7 @@ namespace TechnitiumLibrary.Net.Dns
             //init server selection parameters
             if (_servers.Length > 1)
             {
-                retries = retries * _servers.Length; //retries on per server basis
+                retries *= _servers.Length; //retries on per server basis
 
                 byte[] select = new byte[1];
                 _rnd.GetBytes(select);
@@ -1036,7 +1039,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public string[] ResolveMX(string domain, bool resolveIP = false, bool preferIPv6 = false)
         {
-            if (IPAddress.TryParse(domain, out IPAddress parsedIP))
+            if (IPAddress.TryParse(domain, out _))
             {
                 //host is valid ip address
                 return new string[] { domain };
