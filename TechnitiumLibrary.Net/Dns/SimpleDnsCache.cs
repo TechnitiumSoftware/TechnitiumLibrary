@@ -309,41 +309,7 @@ namespace TechnitiumLibrary.Net.Dns
             foreach (DnsResourceRecord record in allRecords)
                 record.SetExpiry(MINIMUM_RECORD_TTL, 0u);
 
-            #region group all records by domain and type
-
-            Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> cacheEntries = new Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>>();
-
-            foreach (DnsResourceRecord record in allRecords)
-            {
-                Dictionary<DnsResourceRecordType, List<DnsResourceRecord>> cacheTypeEntries;
-                string recordName = record.Name.ToLower();
-
-                if (cacheEntries.ContainsKey(recordName))
-                {
-                    cacheTypeEntries = cacheEntries[recordName];
-                }
-                else
-                {
-                    cacheTypeEntries = new Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>();
-                    cacheEntries.Add(recordName, cacheTypeEntries);
-                }
-
-                List<DnsResourceRecord> cacheRREntries;
-
-                if (cacheTypeEntries.ContainsKey(record.Type))
-                {
-                    cacheRREntries = cacheTypeEntries[record.Type];
-                }
-                else
-                {
-                    cacheRREntries = new List<DnsResourceRecord>();
-                    cacheTypeEntries.Add(record.Type, cacheRREntries);
-                }
-
-                cacheRREntries.Add(record);
-            }
-
-            #endregion
+            Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> cacheEntries = DnsResourceRecord.GroupRecords(allRecords);
 
             //add grouped entries into cache
             foreach (KeyValuePair<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> cacheEntry in cacheEntries)
