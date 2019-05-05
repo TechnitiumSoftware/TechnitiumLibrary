@@ -128,11 +128,11 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        string _name;
-        DnsResourceRecordType _type;
-        DnsClass _class;
+        readonly string _name;
+        readonly DnsResourceRecordType _type;
+        readonly DnsClass _class;
         uint _ttl;
-        DnsResourceRecordData _data;
+        readonly DnsResourceRecordData _data;
 
         bool _setExpiry = false;
         DateTime _ttlExpires;
@@ -253,6 +253,47 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsUnknownRecord(jsonResourceRecord);
                     break;
             }
+        }
+
+        #endregion
+
+        #region static
+
+        public static Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> GroupRecords(ICollection<DnsResourceRecord> records)
+        {
+            Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> groupedByDomainRecords = new Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>>();
+
+            foreach (DnsResourceRecord record in records)
+            {
+                Dictionary<DnsResourceRecordType, List<DnsResourceRecord>> groupedByTypeRecords;
+                string recordName = record.Name.ToLower();
+
+                if (groupedByDomainRecords.ContainsKey(recordName))
+                {
+                    groupedByTypeRecords = groupedByDomainRecords[recordName];
+                }
+                else
+                {
+                    groupedByTypeRecords = new Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>();
+                    groupedByDomainRecords.Add(recordName, groupedByTypeRecords);
+                }
+
+                List<DnsResourceRecord> groupedRecords;
+
+                if (groupedByTypeRecords.ContainsKey(record.Type))
+                {
+                    groupedRecords = groupedByTypeRecords[record.Type];
+                }
+                else
+                {
+                    groupedRecords = new List<DnsResourceRecord>();
+                    groupedByTypeRecords.Add(record.Type, groupedRecords);
+                }
+
+                groupedRecords.Add(record);
+            }
+
+            return groupedByDomainRecords;
         }
 
         #endregion
