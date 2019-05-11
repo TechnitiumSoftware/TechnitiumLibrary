@@ -37,6 +37,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         string _originalAddress;
 
+        bool _ipEndPointExpires;
+        DateTime _ipEndPointExpiresOn;
+        readonly object _ipEndPointResolverLock = new object();
+
         #endregion
 
         #region constructors
@@ -338,87 +342,114 @@ namespace TechnitiumLibrary.Net.Dns
 
         public void ResolveIPAddress(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000)
         {
-            string domain;
-
-            if (_dohEndPoint != null)
-                domain = _dohEndPoint.Host;
-            else if (_domainEndPoint != null)
-                domain = _domainEndPoint.Address;
-            else
-                return;
-
-            if (domain == "localhost")
+            lock (_ipEndPointResolverLock)
             {
-                _ipEndPoint = new IPEndPoint((preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback), this.Port);
-                return;
+                if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
+                    return;
+
+                string domain;
+
+                if (_dohEndPoint != null)
+                    domain = _dohEndPoint.Host;
+                else if (_domainEndPoint != null)
+                    domain = _domainEndPoint.Address;
+                else
+                    return;
+
+                if (domain == "localhost")
+                {
+                    _ipEndPoint = new IPEndPoint((preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback), this.Port);
+                    return;
+                }
+
+                if (IPAddress.TryParse(domain, out IPAddress address))
+                {
+                    _ipEndPoint = new IPEndPoint(address, this.Port);
+                    return;
+                }
+
+                DnsClient dnsClient;
+
+                if (nameServers == null)
+                    dnsClient = new DnsClient();
+                else
+                    dnsClient = new DnsClient(nameServers);
+
+                dnsClient.Proxy = proxy;
+                dnsClient.PreferIPv6 = preferIPv6;
+                dnsClient.Protocol = protocol;
+                dnsClient.Retries = retries;
+                dnsClient.Timeout = timeout;
+
+                IPAddress[] serverIPs = dnsClient.ResolveIP(domain, preferIPv6);
+
+                if (serverIPs.Length == 0)
+                    throw new DnsClientException("No IP address was found for name server: " + domain);
+
+                _ipEndPoint = new IPEndPoint(serverIPs[0], this.Port);
+                _ipEndPointExpires = true;
+                _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(60);
             }
-
-            if (IPAddress.TryParse(domain, out IPAddress address))
-            {
-                _ipEndPoint = new IPEndPoint(address, this.Port);
-                return;
-            }
-
-            DnsClient dnsClient;
-
-            if (nameServers == null)
-                dnsClient = new DnsClient();
-            else
-                dnsClient = new DnsClient(nameServers);
-
-            dnsClient.Proxy = proxy;
-            dnsClient.PreferIPv6 = preferIPv6;
-            dnsClient.Protocol = protocol;
-            dnsClient.Retries = retries;
-            dnsClient.Timeout = timeout;
-
-            IPAddress[] serverIPs = dnsClient.ResolveIP(domain, preferIPv6);
-
-            if (serverIPs.Length == 0)
-                throw new DnsClientException("No IP address was found for name server: " + domain);
-
-            _ipEndPoint = new IPEndPoint(serverIPs[0], this.Port);
         }
 
-        public void RecursiveResolveIPAddress(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp)
+        public void RecursiveResolveIPAddress(DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp)
         {
-            string domain;
-
-            if (_dohEndPoint != null)
-                domain = _dohEndPoint.Host;
-            else if (_domainEndPoint != null)
-                domain = _domainEndPoint.Address;
-            else
-                return;
-
-            if (domain == "localhost")
+            lock (_ipEndPointResolverLock)
             {
-                _ipEndPoint = new IPEndPoint((preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback), this.Port);
-                return;
-            }
+                if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
+                    return;
 
-            if (IPAddress.TryParse(domain, out IPAddress address))
-            {
-                _ipEndPoint = new IPEndPoint(address, this.Port);
-                return;
-            }
+                string domain;
 
-            if (preferIPv6)
-            {
-                DnsDatagram nsResponse = DnsClient.RecursiveResolve(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, proxy, true, protocol, retries, timeout, recursiveResolveProtocol);
-                if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
-                    _ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, this.Port);
-            }
+                if (_dohEndPoint != null)
+                    domain = _dohEndPoint.Host;
+                else if (_domainEndPoint != null)
+                    domain = _domainEndPoint.Address;
+                else
+                    return;
 
-            if (_ipEndPoint == null)
-            {
-                DnsDatagram nsResponse = DnsClient.RecursiveResolve(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), null, cache, proxy, false, protocol, retries, timeout, recursiveResolveProtocol);
-                if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
-                    _ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, this.Port);
-            }
+                if (domain == "localhost")
+                {
+                    _ipEndPoint = new IPEndPoint((preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback), this.Port);
+                    return;
+                }
 
-            if (_ipEndPoint == null)
-                throw new DnsClientException("No IP address was found for name server: " + domain);
+                if (IPAddress.TryParse(domain, out IPAddress address))
+                {
+                    _ipEndPoint = new IPEndPoint(address, this.Port);
+                    return;
+                }
+
+                IPEndPoint ipEndPoint = null;
+                DateTime ipEndPointExpiresOn = DateTime.MinValue;
+
+                if (preferIPv6)
+                {
+                    DnsDatagram nsResponse = DnsClient.RecursiveResolve(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, proxy, true, protocol, retries, timeout, recursiveResolveProtocol);
+                    if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
+                    {
+                        ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, this.Port);
+                        ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(nsResponse.Answer[0].TtlValue);
+                    }
+                }
+
+                if (ipEndPoint == null)
+                {
+                    DnsDatagram nsResponse = DnsClient.RecursiveResolve(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), null, cache, proxy, false, protocol, retries, timeout, recursiveResolveProtocol);
+                    if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
+                    {
+                        ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, this.Port);
+                        ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(nsResponse.Answer[0].TtlValue);
+                    }
+                }
+
+                if (ipEndPoint == null)
+                    throw new DnsClientException("No IP address was found for name server: " + domain);
+
+                _ipEndPoint = ipEndPoint;
+                _ipEndPointExpires = true;
+                _ipEndPointExpiresOn = ipEndPointExpiresOn;
+            }
         }
 
         public void ResolveDomainName(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000)
@@ -448,7 +479,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void RecursiveResolveDomainName(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp)
+        public void RecursiveResolveDomainName(DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp)
         {
             if (_ipEndPoint != null)
             {
@@ -591,6 +622,9 @@ namespace TechnitiumLibrary.Net.Dns
                 return _domainEndPoint;
             }
         }
+
+        public bool IsIPEndPointStale
+        { get { return (_ipEndPoint == null) || (_ipEndPointExpires && (DateTime.UtcNow > _ipEndPointExpiresOn)); } }
 
         #endregion
     }
