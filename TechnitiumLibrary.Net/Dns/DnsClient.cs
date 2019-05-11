@@ -169,7 +169,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram RecursiveResolve(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10, bool getDelegationNS = false)
+        public static DnsDatagram RecursiveResolve(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10, bool getDelegationNS = false)
         {
             DnsQuestionRecord question;
 
@@ -181,7 +181,7 @@ namespace TechnitiumLibrary.Net.Dns
             return RecursiveResolve(question, nameServers, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount, getDelegationNS);
         }
 
-        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, NameServerAddress[] nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10, bool getDelegationNS = false)
+        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, NameServerAddress[] nameServers = null, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10, bool getDelegationNS = false)
         {
             if ((nameServers != null) && (nameServers.Length > 0))
             {
@@ -399,7 +399,7 @@ namespace TechnitiumLibrary.Net.Dns
                         client._retries = retries;
                         client._timeout = timeout;
 
-                        DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
+                        DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
                         DnsDatagram response;
 
                         try
@@ -412,7 +412,7 @@ namespace TechnitiumLibrary.Net.Dns
                             continue; //resolver loop
                         }
 
-                        if (response.Header.Truncation && (response.Answer.Length == 0) && (response.Authority.Length == 0))
+                        if (response.Header.Truncation)
                         {
                             if (protocol == DnsTransportProtocol.Udp)
                             {
@@ -974,12 +974,12 @@ namespace TechnitiumLibrary.Net.Dns
                     server = _servers[0];
                 }
 
-                if ((server.IPEndPoint == null) && (_proxy == null))
+                if (server.IsIPEndPointStale && (_proxy == null))
                 {
                     //recursive resolve name server via root servers when proxy is null else let proxy resolve it
                     try
                     {
-                        server.RecursiveResolveIPAddress(new SimpleDnsCache(), null, _preferIPv6, _recursiveResolveProtocol, _retries);
+                        server.RecursiveResolveIPAddress(new SimpleDnsCache(), null, _preferIPv6, _recursiveResolveProtocol, _retries, _timeout, _recursiveResolveProtocol);
                     }
                     catch
                     {
