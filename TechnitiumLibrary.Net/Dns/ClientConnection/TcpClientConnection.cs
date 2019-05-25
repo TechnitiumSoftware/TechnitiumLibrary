@@ -106,7 +106,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if (_proxy == null)
                 {
                     if (_server.IPEndPoint == null)
-                        _server.RecursiveResolveIPAddress(new SimpleDnsCache());
+                        _server.RecursiveResolveIPAddress();
 
                     socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 

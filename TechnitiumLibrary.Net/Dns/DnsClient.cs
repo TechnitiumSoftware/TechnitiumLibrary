@@ -56,7 +56,6 @@ namespace TechnitiumLibrary.Net.Dns
         NetProxy _proxy;
         bool _preferIPv6 = false;
         DnsTransportProtocol _protocol = DnsTransportProtocol.Udp;
-        DnsTransportProtocol _recursiveResolveProtocol = DnsTransportProtocol.Udp;
         int _retries = 2;
         int _timeout = 2000;
 
@@ -169,20 +168,11 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram RecursiveResolve(string domain, DnsResourceRecordType queryType, NameServerAddress[] nameServers = null, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10, bool getDelegationNS = false)
+        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, NameServerAddress[] nameServers = null, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10, bool getDelegationNS = false)
         {
-            DnsQuestionRecord question;
+            if (cache == null)
+                cache = new SimpleDnsCache();
 
-            if (queryType == DnsResourceRecordType.PTR)
-                question = new DnsQuestionRecord(IPAddress.Parse(domain), DnsClass.IN);
-            else
-                question = new DnsQuestionRecord(domain, queryType, DnsClass.IN);
-
-            return RecursiveResolve(question, nameServers, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol, maxStackCount, getDelegationNS);
-        }
-
-        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, NameServerAddress[] nameServers = null, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp, int maxStackCount = 10, bool getDelegationNS = false)
-        {
             if ((nameServers != null) && (nameServers.Length > 0))
             {
                 //create copy of name servers array so that the values in original array are not messed due to shuffling feature
@@ -213,7 +203,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientException("DnsClient recursive resolution exceeded the maximum stack count for domain: " + question.Name);
                 }
 
-                if (cache != null)
+                //query cache
                 {
                     DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
                     DnsDatagram cacheResponse = cache.Query(request);
@@ -234,38 +224,15 @@ namespace TechnitiumLibrary.Net.Dns
                                     question = data.Question;
                                     nameServers = data.NameServers;
                                     stackNameServerIndex = data.NameServerIndex;
-                                    protocol = data.Protocol;
 
                                     switch (cacheResponse.Answer[0].Type)
                                     {
                                         case DnsResourceRecordType.AAAA:
-                                            switch (protocol)
-                                            {
-                                                case DnsTransportProtocol.Https:
-                                                case DnsTransportProtocol.HttpsJson:
-                                                    nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].DnsOverHttpEndPoint, (cacheResponse.Answer[0].RDATA as DnsAAAARecord).Address);
-                                                    break;
-
-                                                default:
-                                                    nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsAAAARecord).Address, nameServers[stackNameServerIndex].Port));
-                                                    break;
-                                            }
-
+                                            nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsAAAARecord).Address, nameServers[stackNameServerIndex].Port));
                                             break;
 
                                         case DnsResourceRecordType.A:
-                                            switch (protocol)
-                                            {
-                                                case DnsTransportProtocol.Https:
-                                                case DnsTransportProtocol.HttpsJson:
-                                                    nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].DnsOverHttpEndPoint, (cacheResponse.Answer[0].RDATA as DnsARecord).Address);
-                                                    break;
-
-                                                default:
-                                                    nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsARecord).Address, nameServers[stackNameServerIndex].Port));
-                                                    break;
-                                            }
-
+                                            nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsARecord).Address, nameServers[stackNameServerIndex].Port));
                                             break;
 
                                         default:
@@ -300,7 +267,6 @@ namespace TechnitiumLibrary.Net.Dns
                                             question = data.Question;
                                             nameServers = data.NameServers;
                                             stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                            protocol = data.Protocol;
                                         }
 
                                         continue; //to stack loop
@@ -336,7 +302,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 question = data.Question;
                                 nameServers = data.NameServers;
                                 stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                protocol = data.Protocol;
 
                                 continue; //stack loop
                             }
@@ -380,7 +345,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         if ((currentNameServer.IPEndPoint == null) && (proxy == null))
                         {
-                            resolverStack.Push(new ResolverData(question, nameServers, i, protocol));
+                            resolverStack.Push(new ResolverData(question, nameServers, i));
 
                             if (preferIPv6)
                                 question = new DnsQuestionRecord(currentNameServer.Host, DnsResourceRecordType.AAAA, question.Class);
@@ -388,14 +353,12 @@ namespace TechnitiumLibrary.Net.Dns
                                 question = new DnsQuestionRecord(currentNameServer.Host, DnsResourceRecordType.A, question.Class);
 
                             nameServers = null;
-                            protocol = recursiveResolveProtocol;
-
                             goto stackLoop;
                         }
 
                         DnsClient client = new DnsClient(currentNameServer);
                         client._proxy = proxy;
-                        client._protocol = protocol;
+                        client._protocol = useTcp ? DnsTransportProtocol.Tcp : DnsTransportProtocol.Udp;
                         client._retries = retries;
                         client._timeout = timeout;
 
@@ -414,7 +377,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         if (response.Header.Truncation)
                         {
-                            if (protocol == DnsTransportProtocol.Udp)
+                            if (client._protocol == DnsTransportProtocol.Udp)
                             {
                                 client._protocol = DnsTransportProtocol.Tcp;
 
@@ -443,15 +406,13 @@ namespace TechnitiumLibrary.Net.Dns
                                     question = data.Question;
                                     nameServers = data.NameServers;
                                     stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                    protocol = data.Protocol;
 
                                     goto stackLoop; //goto stack loop
                                 }
                             }
                         }
 
-                        if (cache != null)
-                            cache.CacheResponse(response);
+                        cache.CacheResponse(response);
 
                         switch (response.Header.RCODE)
                         {
@@ -472,38 +433,15 @@ namespace TechnitiumLibrary.Net.Dns
                                         question = data.Question;
                                         nameServers = data.NameServers;
                                         stackNameServerIndex = data.NameServerIndex;
-                                        protocol = data.Protocol;
 
                                         switch (response.Answer[0].Type)
                                         {
                                             case DnsResourceRecordType.AAAA:
-                                                switch (protocol)
-                                                {
-                                                    case DnsTransportProtocol.Https:
-                                                    case DnsTransportProtocol.HttpsJson:
-                                                        nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].DnsOverHttpEndPoint, (response.Answer[0].RDATA as DnsAAAARecord).Address);
-                                                        break;
-
-                                                    default:
-                                                        nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsAAAARecord).Address, nameServers[stackNameServerIndex].Port));
-                                                        break;
-                                                }
-
+                                                nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsAAAARecord).Address, nameServers[stackNameServerIndex].Port));
                                                 break;
 
                                             case DnsResourceRecordType.A:
-                                                switch (protocol)
-                                                {
-                                                    case DnsTransportProtocol.Https:
-                                                    case DnsTransportProtocol.HttpsJson:
-                                                        nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].DnsOverHttpEndPoint, (response.Answer[0].RDATA as DnsARecord).Address);
-                                                        break;
-
-                                                    default:
-                                                        nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsARecord).Address, nameServers[stackNameServerIndex].Port));
-                                                        break;
-                                                }
-
+                                                nameServers[stackNameServerIndex] = new NameServerAddress(nameServers[stackNameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsARecord).Address, nameServers[stackNameServerIndex].Port));
                                                 break;
 
                                             default:
@@ -539,7 +477,6 @@ namespace TechnitiumLibrary.Net.Dns
                                                 question = data.Question;
                                                 nameServers = data.NameServers;
                                                 stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                                protocol = data.Protocol;
                                             }
 
                                             goto stackLoop; //goto stack loop
@@ -547,7 +484,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     }
                                     else
                                     {
-                                        if ((resolverStack.Count == 0) && (question.Type == DnsResourceRecordType.NS) && getDelegationNS)
+                                        if ((resolverStack.Count == 0) && (question.Type == DnsResourceRecordType.NS) && getDelegationNS && (response.Authority[0].Type == DnsResourceRecordType.NS) && question.Name.Equals(response.Authority[0].Name, StringComparison.OrdinalIgnoreCase))
                                             return response; //query needs NS from delegation
 
                                         //check if empty response was received from the authoritative name server
@@ -569,7 +506,6 @@ namespace TechnitiumLibrary.Net.Dns
                                                     question = data.Question;
                                                     nameServers = data.NameServers;
                                                     stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                                    protocol = data.Protocol;
 
                                                     goto stackLoop; //goto stack loop
                                                 }
@@ -593,7 +529,6 @@ namespace TechnitiumLibrary.Net.Dns
                                                 question = data.Question;
                                                 nameServers = data.NameServers;
                                                 stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                                protocol = data.Protocol;
 
                                                 goto stackLoop; //goto stack loop
                                             }
@@ -618,38 +553,12 @@ namespace TechnitiumLibrary.Net.Dns
                                                     question = data.Question;
                                                     nameServers = data.NameServers;
                                                     stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                                    protocol = data.Protocol;
 
                                                     goto stackLoop; //goto stack loop
                                                 }
                                             }
 
                                             continue; //continue to next name server since current name server may be misconfigured
-                                        }
-
-                                        //check for protocol downgrade
-                                        switch (protocol)
-                                        {
-                                            case DnsTransportProtocol.Https:
-                                            case DnsTransportProtocol.HttpsJson:
-                                            case DnsTransportProtocol.Tls:
-                                                //secure protocols dont support recursive resolution and are only used as forwarders
-                                                if (resolverStack.Count == 0)
-                                                {
-                                                    return response;
-                                                }
-                                                else
-                                                {
-                                                    //pop and try next name server
-                                                    ResolverData data = resolverStack.Pop();
-
-                                                    question = data.Question;
-                                                    nameServers = data.NameServers;
-                                                    stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                                    protocol = data.Protocol;
-
-                                                    goto stackLoop; //goto stack loop
-                                                }
                                         }
 
                                         goto resolverLoop;
@@ -671,7 +580,6 @@ namespace TechnitiumLibrary.Net.Dns
                                             question = data.Question;
                                             nameServers = data.NameServers;
                                             stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                            protocol = data.Protocol;
 
                                             goto stackLoop; //goto stack loop
                                         }
@@ -694,7 +602,6 @@ namespace TechnitiumLibrary.Net.Dns
                                     question = data.Question;
                                     nameServers = data.NameServers;
                                     stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                    protocol = data.Protocol;
 
                                     goto stackLoop; //goto stack loop
                                 }
@@ -714,7 +621,6 @@ namespace TechnitiumLibrary.Net.Dns
                                         question = data.Question;
                                         nameServers = data.NameServers;
                                         stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                                        protocol = data.Protocol;
 
                                         goto stackLoop; //goto stack loop
                                     }
@@ -747,7 +653,6 @@ namespace TechnitiumLibrary.Net.Dns
                         question = data.Question;
                         nameServers = data.NameServers;
                         stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-                        protocol = data.Protocol;
 
                         break; //to stack loop
                     }
@@ -756,6 +661,326 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 stackLoop:;
+            }
+        }
+
+        public static DnsDatagram RecursiveQuery(DnsQuestionRecord question, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10)
+        {
+            if (cache == null)
+                cache = new SimpleDnsCache();
+
+            DnsDatagram response = RecursiveResolve(question, null, cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount);
+
+            DnsResourceRecord[] authority;
+            DnsResourceRecord[] additional;
+
+            if (response.Answer.Length > 0)
+            {
+                DnsResourceRecord lastRR = response.Answer[response.Answer.Length - 1];
+
+                if ((lastRR.Type != question.Type) && (lastRR.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
+                {
+                    List<DnsResourceRecord> responseAnswer = new List<DnsResourceRecord>();
+                    responseAnswer.AddRange(response.Answer);
+
+                    DnsDatagram lastResponse;
+                    int queryCount = 0;
+
+                    while (true)
+                    {
+                        DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecord).CNAMEDomainName, question.Type, question.Class);
+
+                        lastResponse = RecursiveResolve(cnameQuestion, null, cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount);
+
+                        if (lastResponse.Answer.Length == 0)
+                            break;
+
+                        responseAnswer.AddRange(lastResponse.Answer);
+
+                        lastRR = lastResponse.Answer[lastResponse.Answer.Length - 1];
+
+                        if (lastRR.Type == question.Type)
+                            break;
+
+                        if (lastRR.Type != DnsResourceRecordType.CNAME)
+                            throw new DnsClientException("Invalid response received from DNS server.");
+
+                        queryCount++;
+                        if (queryCount > MAX_HOPS)
+                            throw new DnsClientException("Recursive resolution exceeded max hops.");
+                    }
+
+                    if ((lastResponse.Authority.Length > 0) && (lastResponse.Authority[0].Type == DnsResourceRecordType.SOA))
+                        authority = lastResponse.Authority;
+                    else
+                        authority = new DnsResourceRecord[] { };
+
+                    if ((response.Additional.Length > 0) && (question.Type == DnsResourceRecordType.MX))
+                        additional = response.Additional;
+                    else
+                        additional = new DnsResourceRecord[] { };
+
+                    DnsDatagram compositeResponse = new DnsDatagram(new DnsHeader(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, lastResponse.Header.RCODE, 1, (ushort)responseAnswer.Count, (ushort)authority.Length, (ushort)additional.Length), new DnsQuestionRecord[] { question }, responseAnswer.ToArray(), authority, additional);
+
+                    if (lastResponse.Metadata != null)
+                        compositeResponse.SetMetadata(new DnsDatagramMetadata(lastResponse.Metadata.NameServerAddress, lastResponse.Metadata.Protocol, -1, lastResponse.Metadata.RTT));
+
+                    return compositeResponse;
+                }
+            }
+
+            if ((response.Authority.Length > 0) && (response.Authority[0].Type == DnsResourceRecordType.SOA))
+                authority = response.Authority;
+            else
+                authority = new DnsResourceRecord[] { };
+
+            if ((response.Additional.Length > 0) && (question.Type == DnsResourceRecordType.MX))
+                additional = response.Additional;
+            else
+                additional = new DnsResourceRecord[] { };
+
+            DnsDatagram finalResponse = new DnsDatagram(new DnsHeader(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, response.Header.RCODE, 1, (ushort)response.Answer.Length, (ushort)authority.Length, (ushort)additional.Length), new DnsQuestionRecord[] { question }, response.Answer, authority, additional);
+
+            if (response.Metadata != null)
+                finalResponse.SetMetadata(new DnsDatagramMetadata(response.Metadata.NameServerAddress, response.Metadata.Protocol, -1, response.Metadata.RTT));
+
+            return finalResponse;
+        }
+
+        public static IPAddress[] RecursiveResolveIP(string domain, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10)
+        {
+            if (cache == null)
+                cache = new SimpleDnsCache();
+
+            if (preferIPv6)
+            {
+                IPAddress[] addresses = ParseResponseAAAA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount));
+                if (addresses.Length > 0)
+                    return addresses;
+            }
+
+            return ParseResponseA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount));
+        }
+
+        public static IPAddress[] ParseResponseA(DnsDatagram response)
+        {
+            string domain = response.Question[0].Name;
+
+            switch (response.Header.RCODE)
+            {
+                case DnsResponseCode.NoError:
+                    if (response.Header.ANCOUNT == 0)
+                        return new IPAddress[] { };
+
+                    List<IPAddress> ipAddresses = new List<IPAddress>();
+
+                    foreach (DnsResourceRecord record in response.Answer)
+                    {
+                        if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            switch (record.Type)
+                            {
+                                case DnsResourceRecordType.A:
+                                    ipAddresses.Add(((DnsARecord)record.RDATA).Address);
+                                    break;
+
+                                case DnsResourceRecordType.CNAME:
+                                    domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
+                                    break;
+
+                                default:
+                                    throw new DnsClientException("Name server [" + (response.Metadata == null ? "cached" : response.Metadata.NameServerAddress.ToString()) + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
+                            }
+                        }
+                    }
+
+                    return ipAddresses.ToArray();
+
+                case DnsResponseCode.NameError:
+                    throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+
+                default:
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+            }
+        }
+
+        public static IPAddress[] ParseResponseAAAA(DnsDatagram response)
+        {
+            string domain = response.Question[0].Name;
+
+            switch (response.Header.RCODE)
+            {
+                case DnsResponseCode.NoError:
+                    if (response.Header.ANCOUNT == 0)
+                        return new IPAddress[] { };
+
+                    List<IPAddress> ipAddresses = new List<IPAddress>();
+
+                    foreach (DnsResourceRecord record in response.Answer)
+                    {
+                        if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            switch (record.Type)
+                            {
+                                case DnsResourceRecordType.AAAA:
+                                    ipAddresses.Add(((DnsAAAARecord)record.RDATA).Address);
+                                    break;
+
+                                case DnsResourceRecordType.CNAME:
+                                    domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
+                                    break;
+
+                                default:
+                                    throw new DnsClientException("Name server [" + (response.Metadata == null ? "cached" : response.Metadata.NameServerAddress.ToString()) + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
+                            }
+                        }
+                    }
+
+                    return ipAddresses.ToArray();
+
+                case DnsResponseCode.NameError:
+                    throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+
+                default:
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+            }
+        }
+
+        public static string[] ParseResponseTXT(DnsDatagram response)
+        {
+            string domain = response.Question[0].Name;
+
+            switch (response.Header.RCODE)
+            {
+                case DnsResponseCode.NoError:
+                    if (response.Header.ANCOUNT == 0)
+                        return new string[] { };
+
+                    List<string> txtRecords = new List<string>();
+
+                    foreach (DnsResourceRecord record in response.Answer)
+                    {
+                        if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            switch (record.Type)
+                            {
+                                case DnsResourceRecordType.TXT:
+                                    txtRecords.Add(((DnsTXTRecord)record.RDATA).TXTData);
+                                    break;
+
+                                case DnsResourceRecordType.CNAME:
+                                    domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
+                                    break;
+
+                                default:
+                                    throw new DnsClientException("Name server [" + (response.Metadata == null ? "cached" : response.Metadata.NameServerAddress.ToString()) + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
+                            }
+                        }
+                    }
+
+                    return txtRecords.ToArray();
+
+                case DnsResponseCode.NameError:
+                    throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+
+                default:
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+            }
+        }
+
+        public static string ParseResponsePTR(DnsDatagram response)
+        {
+            string domain = response.Question[0].Name;
+
+            switch (response.Header.RCODE)
+            {
+                case DnsResponseCode.NoError:
+                    if (response.Header.ANCOUNT == 0)
+                        return null;
+
+                    foreach (DnsResourceRecord record in response.Answer)
+                    {
+                        if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            switch (record.Type)
+                            {
+                                case DnsResourceRecordType.PTR:
+                                    return ((DnsPTRRecord)record.RDATA).PTRDomainName;
+
+                                case DnsResourceRecordType.CNAME:
+                                    domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
+                                    break;
+
+                                default:
+                                    throw new DnsClientException("Name server [" + (response.Metadata == null ? "cached" : response.Metadata.NameServerAddress.ToString()) + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
+                            }
+                        }
+                    }
+
+                    return null;
+
+                case DnsResponseCode.NameError:
+                    throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+
+                default:
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+            }
+        }
+
+        public static string[] ParseResponseMX(DnsDatagram response)
+        {
+            string domain = response.Question[0].Name;
+
+            switch (response.Header.RCODE)
+            {
+                case DnsResponseCode.NoError:
+                    if (response.Header.ANCOUNT == 0)
+                        return new string[] { };
+
+                    List<DnsMXRecord> mxRecordsList = new List<DnsMXRecord>();
+
+                    foreach (DnsResourceRecord record in response.Answer)
+                    {
+                        if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            switch (record.Type)
+                            {
+                                case DnsResourceRecordType.MX:
+                                    mxRecordsList.Add((DnsMXRecord)record.RDATA);
+                                    break;
+
+                                case DnsResourceRecordType.CNAME:
+                                    domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
+                                    break;
+
+                                default:
+                                    throw new DnsClientException("Name server [" + (response.Metadata == null ? "cached" : response.Metadata.NameServerAddress.ToString()) + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
+                            }
+                        }
+                    }
+
+                    if (mxRecordsList.Count > 0)
+                    {
+                        DnsMXRecord[] mxRecords = mxRecordsList.ToArray();
+
+                        //sort by mx preference
+                        Array.Sort(mxRecords);
+
+                        string[] mxEntries = new string[mxRecords.Length];
+
+                        for (int i = 0; i < mxRecords.Length; i++)
+                            mxEntries[i] = mxRecords[i].Exchange;
+
+                        return mxEntries;
+                    }
+
+                    return new string[] { };
+
+                case DnsResponseCode.NameError:
+                    throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+
+                default:
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
             }
         }
 
@@ -979,7 +1204,7 @@ namespace TechnitiumLibrary.Net.Dns
                     //recursive resolve name server via root servers when proxy is null else let proxy resolve it
                     try
                     {
-                        server.RecursiveResolveIPAddress(new SimpleDnsCache(), null, _preferIPv6, _recursiveResolveProtocol, _retries, _timeout, _recursiveResolveProtocol);
+                        server.RecursiveResolveIPAddress(null, null, _preferIPv6, _retries, _timeout, false);
                     }
                     catch
                     {
@@ -1045,239 +1270,86 @@ namespace TechnitiumLibrary.Net.Dns
                 return new string[] { domain };
             }
 
-            int hopCount = 0;
+            DnsDatagram response = Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.MX, DnsClass.IN));
+            string[] mxEntries = ParseResponseMX(response);
 
-            while ((hopCount++) < MAX_HOPS)
+            if (!resolveIP)
+                return mxEntries;
+
+            //resolve IP addresses
+            List<string> mxAddresses = new List<string>();
+
+            //check glue records
+            foreach (string mxEntry in mxEntries)
             {
-                DnsDatagram response = Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.MX, DnsClass.IN));
+                bool glueRecordFound = false;
 
-                switch (response.Header.RCODE)
+                foreach (DnsResourceRecord record in response.Additional)
                 {
-                    case DnsResponseCode.NoError:
-                        if (response.Header.ANCOUNT == 0)
-                            return new string[] { };
-
-                        List<DnsMXRecord> mxRecordsList = new List<DnsMXRecord>();
-
-                        foreach (DnsResourceRecord record in response.Answer)
+                    if (record.Name.Equals(mxEntry, StringComparison.OrdinalIgnoreCase))
+                    {
+                        switch (record.Type)
                         {
-                            if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
-                            {
-                                switch (record.Type)
+                            case DnsResourceRecordType.A:
+                                if (!preferIPv6)
                                 {
-                                    case DnsResourceRecordType.MX:
-                                        mxRecordsList.Add((DnsMXRecord)record.RDATA);
-                                        break;
-
-                                    case DnsResourceRecordType.CNAME:
-                                        domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
-                                        break;
-
-                                    default:
-                                        throw new DnsClientException("Name server [" + response.Metadata.NameServerAddress.ToString() + "] returned unexpected record type [" + record.Type.ToString() + "] for domain: " + domain);
+                                    mxAddresses.Add(((DnsARecord)record.RDATA).Address.ToString());
+                                    glueRecordFound = true;
                                 }
-                            }
-                        }
+                                break;
 
-                        if (mxRecordsList.Count > 0)
-                        {
-                            DnsMXRecord[] mxRecords = mxRecordsList.ToArray();
-
-                            //sort by mx preference
-                            Array.Sort(mxRecords);
-
-                            if (resolveIP)
-                            {
-                                List<string> mxEntries = new List<string>();
-
-                                //check glue records
-                                for (int i = 0; i < mxRecords.Length; i++)
+                            case DnsResourceRecordType.AAAA:
+                                if (preferIPv6)
                                 {
-                                    string mxDomain = mxRecords[i].Exchange;
-                                    bool glueRecordFound = false;
-
-                                    foreach (DnsResourceRecord record in response.Additional)
-                                    {
-                                        if (record.Name.Equals(mxDomain, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            switch (record.Type)
-                                            {
-                                                case DnsResourceRecordType.A:
-                                                    if (!preferIPv6)
-                                                    {
-                                                        mxEntries.Add(((DnsARecord)record.RDATA).Address.ToString());
-                                                        glueRecordFound = true;
-                                                    }
-                                                    break;
-
-                                                case DnsResourceRecordType.AAAA:
-                                                    if (preferIPv6)
-                                                    {
-                                                        mxEntries.Add(((DnsAAAARecord)record.RDATA).Address.ToString());
-                                                        glueRecordFound = true;
-                                                    }
-                                                    break;
-                                            }
-                                        }
-                                    }
-
-                                    if (!glueRecordFound)
-                                    {
-                                        try
-                                        {
-                                            IPAddress[] ipList = ResolveIP(mxDomain, preferIPv6);
-
-                                            foreach (IPAddress ip in ipList)
-                                                mxEntries.Add(ip.ToString());
-                                        }
-                                        catch (NameErrorDnsClientException)
-                                        { }
-                                        catch (DnsClientException)
-                                        {
-                                            mxEntries.Add(mxDomain);
-                                        }
-                                    }
+                                    mxAddresses.Add(((DnsAAAARecord)record.RDATA).Address.ToString());
+                                    glueRecordFound = true;
                                 }
-
-                                return mxEntries.ToArray();
-                            }
-                            else
-                            {
-                                string[] mxEntries = new string[mxRecords.Length];
-
-                                for (int i = 0; i < mxRecords.Length; i++)
-                                    mxEntries[i] = mxRecords[i].Exchange;
-
-                                return mxEntries;
-                            }
+                                break;
                         }
+                    }
+                }
 
-                        break;
+                if (!glueRecordFound)
+                {
+                    try
+                    {
+                        IPAddress[] ipList = ResolveIP(mxEntry, preferIPv6);
 
-                    case DnsResponseCode.NameError:
-                        throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name server: " + response.Metadata.NameServerAddress.ToString());
-
-                    default:
-                        throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+                        foreach (IPAddress ip in ipList)
+                            mxAddresses.Add(ip.ToString());
+                    }
+                    catch (NameErrorDnsClientException)
+                    { }
+                    catch (DnsClientException)
+                    {
+                        mxAddresses.Add(mxEntry);
+                    }
                 }
             }
 
-            throw new DnsClientException("No answer received from name server for domain: " + domain);
+            return mxAddresses.ToArray();
         }
 
         public string ResolvePTR(IPAddress ip)
         {
-            DnsDatagram response = Resolve(new DnsQuestionRecord(ip, DnsClass.IN));
-
-            switch (response.Header.RCODE)
-            {
-                case DnsResponseCode.NoError:
-                    if ((response.Header.ANCOUNT > 0) && (response.Answer[0].Type == DnsResourceRecordType.PTR))
-                        return ((DnsPTRRecord)response.Answer[0].RDATA).PTRDomainName;
-
-                    return null;
-
-                case DnsResponseCode.NameError:
-                    throw new NameErrorDnsClientException("PTR record does not exists for ip: " + ip.ToString() + "; Name server: " + response.Metadata.NameServerAddress.ToString());
-
-                default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
-            }
+            return ParseResponsePTR(Resolve(new DnsQuestionRecord(ip, DnsClass.IN)));
         }
 
         public string[] ResolveTXT(string domain)
         {
-            DnsDatagram response = Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.TXT, DnsClass.IN));
-
-            switch (response.Header.RCODE)
-            {
-                case DnsResponseCode.NoError:
-                    if (response.Header.ANCOUNT > 0)
-                    {
-                        List<string> values = new List<string>();
-
-                        foreach (DnsResourceRecord rr in response.Answer)
-                        {
-                            if (response.Answer[0].Type == DnsResourceRecordType.TXT)
-                                values.Add(((DnsTXTRecord)response.Answer[0].RDATA).TXTData);
-                        }
-
-                        return values.ToArray();
-                    }
-
-                    return new string[] { };
-
-                case DnsResponseCode.NameError:
-                    throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name server: " + response.Metadata.NameServerAddress.ToString());
-
-                default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
-            }
+            return ParseResponseTXT(Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.TXT, DnsClass.IN)));
         }
 
         public IPAddress[] ResolveIP(string domain, bool preferIPv6 = false)
         {
-            int hopCount = 0;
-            DnsResourceRecordType type = preferIPv6 ? DnsResourceRecordType.AAAA : DnsResourceRecordType.A;
-
-            while ((hopCount++) < MAX_HOPS)
+            if (preferIPv6)
             {
-                DnsDatagram response = Resolve(new DnsQuestionRecord(domain, type, DnsClass.IN));
-
-                switch (response.Header.RCODE)
-                {
-                    case DnsResponseCode.NoError:
-                        if (response.Header.ANCOUNT == 0)
-                        {
-                            if (type == DnsResourceRecordType.AAAA)
-                            {
-                                type = DnsResourceRecordType.A;
-                                continue;
-                            }
-
-                            return new IPAddress[] { };
-                        }
-
-                        List<IPAddress> ipAddresses = new List<IPAddress>();
-
-                        foreach (DnsResourceRecord record in response.Answer)
-                        {
-                            if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
-                            {
-                                switch (record.Type)
-                                {
-                                    case DnsResourceRecordType.A:
-                                        ipAddresses.Add(((DnsARecord)record.RDATA).Address);
-                                        break;
-
-                                    case DnsResourceRecordType.AAAA:
-                                        ipAddresses.Add(((DnsAAAARecord)record.RDATA).Address);
-                                        break;
-
-                                    case DnsResourceRecordType.CNAME:
-                                        domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
-                                        break;
-
-                                    default:
-                                        throw new DnsClientException("Name server [" + response.Metadata.NameServerAddress.ToString() + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
-                                }
-                            }
-                        }
-
-                        if (ipAddresses.Count > 0)
-                            return ipAddresses.ToArray();
-
-                        break;
-
-                    case DnsResponseCode.NameError:
-                        throw new NameErrorDnsClientException("Domain does not exists: " + domain + "; Name server: " + response.Metadata.NameServerAddress.ToString());
-
-                    default:
-                        throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
-                }
+                IPAddress[] addresses = ParseResponseAAAA(Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN)));
+                if (addresses.Length > 0)
+                    return addresses;
             }
 
-            throw new DnsClientException("No answer received from name server for domain: " + domain);
+            return ParseResponseA(Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN)));
         }
 
         #endregion
@@ -1305,12 +1377,6 @@ namespace TechnitiumLibrary.Net.Dns
             set { _protocol = value; }
         }
 
-        public DnsTransportProtocol RecursiveResolveProtocol
-        {
-            get { return _recursiveResolveProtocol; }
-            set { _recursiveResolveProtocol = value; }
-        }
-
         public int Retries
         {
             get { return _retries; }
@@ -1330,14 +1396,12 @@ namespace TechnitiumLibrary.Net.Dns
             public DnsQuestionRecord Question;
             public NameServerAddress[] NameServers;
             public int NameServerIndex;
-            public DnsTransportProtocol Protocol;
 
-            public ResolverData(DnsQuestionRecord question, NameServerAddress[] nameServers, int nameServerIndex, DnsTransportProtocol protocol)
+            public ResolverData(DnsQuestionRecord question, NameServerAddress[] nameServers, int nameServerIndex)
             {
                 this.Question = question;
                 this.NameServers = nameServers;
                 this.NameServerIndex = nameServerIndex;
-                this.Protocol = protocol;
             }
         }
     }

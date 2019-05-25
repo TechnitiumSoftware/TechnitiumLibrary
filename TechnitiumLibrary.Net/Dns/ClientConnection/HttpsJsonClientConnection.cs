@@ -57,7 +57,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if (_proxy == null)
                 {
                     if (_server.IPEndPoint == null)
-                        _server.RecursiveResolveIPAddress(new SimpleDnsCache());
+                        _server.RecursiveResolveIPAddress();
 
                     queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }

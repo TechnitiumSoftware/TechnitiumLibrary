@@ -40,6 +40,7 @@ namespace TechnitiumLibrary.Net.Dns
         bool _ipEndPointExpires;
         DateTime _ipEndPointExpiresOn;
         readonly object _ipEndPointResolverLock = new object();
+        const int IP_ENDPOINT_DEFAULT_TTL = 900;
 
         #endregion
 
@@ -340,7 +341,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public void ResolveIPAddress(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000)
+        public void ResolveIPAddress(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, DnsTransportProtocol protocol = DnsTransportProtocol.Udp)
         {
             lock (_ipEndPointResolverLock)
             {
@@ -388,11 +389,11 @@ namespace TechnitiumLibrary.Net.Dns
 
                 _ipEndPoint = new IPEndPoint(serverIPs[0], this.Port);
                 _ipEndPointExpires = true;
-                _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(60);
+                _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
             }
         }
 
-        public void RecursiveResolveIPAddress(DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp)
+        public void RecursiveResolveIPAddress(DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false)
         {
             lock (_ipEndPointResolverLock)
             {
@@ -421,38 +422,21 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 IPEndPoint ipEndPoint = null;
-                DateTime ipEndPointExpiresOn = DateTime.MinValue;
 
-                if (preferIPv6)
-                {
-                    DnsDatagram nsResponse = DnsClient.RecursiveResolve(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), null, cache, proxy, true, protocol, retries, timeout, recursiveResolveProtocol);
-                    if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
-                    {
-                        ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsAAAARecord).Address, this.Port);
-                        ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(nsResponse.Answer[0].TtlValue);
-                    }
-                }
-
-                if (ipEndPoint == null)
-                {
-                    DnsDatagram nsResponse = DnsClient.RecursiveResolve(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), null, cache, proxy, false, protocol, retries, timeout, recursiveResolveProtocol);
-                    if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.A))
-                    {
-                        ipEndPoint = new IPEndPoint((nsResponse.Answer[0].RDATA as DnsARecord).Address, this.Port);
-                        ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(nsResponse.Answer[0].TtlValue);
-                    }
-                }
+                IPAddress[] addresses = DnsClient.RecursiveResolveIP(domain, cache, proxy, preferIPv6, retries, timeout, useTcp);
+                if (addresses.Length > 0)
+                    ipEndPoint = new IPEndPoint(addresses[0], this.Port);
 
                 if (ipEndPoint == null)
                     throw new DnsClientException("No IP address was found for name server: " + domain);
 
                 _ipEndPoint = ipEndPoint;
                 _ipEndPointExpires = true;
-                _ipEndPointExpiresOn = ipEndPointExpiresOn;
+                _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
             }
         }
 
-        public void ResolveDomainName(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000)
+        public void ResolveDomainName(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, DnsTransportProtocol protocol = DnsTransportProtocol.Udp)
         {
             if (_ipEndPoint != null)
             {
@@ -479,15 +463,15 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void RecursiveResolveDomainName(DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int retries = 2, int timeout = 2000, DnsTransportProtocol recursiveResolveProtocol = DnsTransportProtocol.Udp)
+        public void RecursiveResolveDomainName(DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false)
         {
             if (_ipEndPoint != null)
             {
                 try
                 {
-                    DnsDatagram nsResponse = DnsClient.RecursiveResolve(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), null, cache, proxy, preferIPv6, protocol, retries, timeout, recursiveResolveProtocol);
-                    if ((nsResponse.Header.RCODE == DnsResponseCode.NoError) && (nsResponse.Answer.Length > 0) && (nsResponse.Answer[0].Type == DnsResourceRecordType.PTR))
-                        _domainEndPoint = new DomainEndPoint((nsResponse.Answer[0].RDATA as DnsPTRRecord).PTRDomainName, _ipEndPoint.Port);
+                    string ptrDomain = DnsClient.ParseResponsePTR(DnsClient.RecursiveQuery(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, useTcp));
+                    if (ptrDomain != null)
+                        _domainEndPoint = new DomainEndPoint(ptrDomain, _ipEndPoint.Port);
                 }
                 catch
                 { }

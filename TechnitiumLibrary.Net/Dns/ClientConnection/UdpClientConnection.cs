@@ -70,7 +70,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             if (_proxy == null)
             {
                 if (_server.IPEndPoint == null)
-                    _server.RecursiveResolveIPAddress(new SimpleDnsCache());
+                    _server.RecursiveResolveIPAddress();
 
                 using (Socket socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
                 {
