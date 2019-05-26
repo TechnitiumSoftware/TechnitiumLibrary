@@ -55,11 +55,11 @@ namespace TechnitiumLibrary.Net.Dns
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
+            string[] parts = (jsonResourceRecord.data.Value as string).Split(new char[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
 
             _flags = byte.Parse(parts[0]);
             _tag = parts[1];
-            _value = parts[2];
+            _value = DnsDatagram.DecodeCharacterString(parts[2]);
         }
 
         #endregion
@@ -128,7 +128,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public override string ToString()
         {
-            return _flags + " " + _tag + " " + _value;
+            return _flags + " " + _tag + " " + DnsDatagram.EncodeCharacterString(_value);
         }
 
         #endregion
