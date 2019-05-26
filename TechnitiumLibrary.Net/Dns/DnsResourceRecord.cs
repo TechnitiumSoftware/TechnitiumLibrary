@@ -253,6 +253,10 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsSRVRecord(jsonResourceRecord);
                     break;
 
+                case DnsResourceRecordType.CAA:
+                    _data = new DnsCAARecord(jsonResourceRecord);
+                    break;
+
                 default:
                     _data = new DnsUnknownRecord(jsonResourceRecord);
                     break;
