@@ -251,6 +251,22 @@ namespace TechnitiumLibrary.Net.Dns
             return domainName;
         }
 
+        internal static string EncodeCharacterString(string value)
+        {
+            if (value.Contains(" ") || value.Contains("\t"))
+                value = "\"" + value.Replace("\"", "\\\"") + "\"";
+
+            return value;
+        }
+
+        internal static string DecodeCharacterString(string value)
+        {
+            if (value.StartsWith("\"") && value.EndsWith("\""))
+                value = value.Substring(1, value.Length - 2).Replace("\\\"", "\"");
+
+            return value;
+        }
+
         #endregion
 
         #region public
