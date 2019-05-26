@@ -198,6 +198,10 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsSRVRecord(s);
                     break;
 
+                case DnsResourceRecordType.CAA:
+                    _data = new DnsCAARecord(s);
+                    break;
+
                 default:
                     _data = new DnsUnknownRecord(s);
                     break;
