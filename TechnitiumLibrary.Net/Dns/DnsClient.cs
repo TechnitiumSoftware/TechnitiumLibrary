@@ -375,41 +375,25 @@ namespace TechnitiumLibrary.Net.Dns
                             continue; //resolver loop
                         }
 
+                        if (response.Header.Truncation && (client._protocol == DnsTransportProtocol.Udp))
+                        {
+                            client._protocol = DnsTransportProtocol.Tcp;
+
+                            try
+                            {
+                                response = client.Resolve(request);
+                            }
+                            catch (DnsClientException ex)
+                            {
+                                lastException = ex;
+                                continue; //resolver loop
+                            }
+                        }
+
                         if (response.Header.Truncation)
                         {
-                            if (client._protocol == DnsTransportProtocol.Udp)
-                            {
-                                client._protocol = DnsTransportProtocol.Tcp;
-
-                                try
-                                {
-                                    response = client.Resolve(request);
-                                }
-                                catch (DnsClientException ex)
-                                {
-                                    lastException = ex;
-                                    continue; //resolver loop
-                                }
-                            }
-                            else
-                            {
-                                //received truncated response for non UDP protocol!
-                                if (resolverStack.Count == 0)
-                                {
-                                    return response;
-                                }
-                                else
-                                {
-                                    //pop and try next name server
-                                    ResolverData data = resolverStack.Pop();
-
-                                    question = data.Question;
-                                    nameServers = data.NameServers;
-                                    stackNameServerIndex = data.NameServerIndex + 1; //increment to skip current name server
-
-                                    goto stackLoop; //goto stack loop
-                                }
-                            }
+                            lastException = new DnsClientException("DnsClient received a truncated response for " + client._protocol.ToString() + " protocol from name server: " + currentNameServer.ToString());
+                            continue; //resolver loop
                         }
 
                         cache.CacheResponse(response);
@@ -657,10 +641,10 @@ namespace TechnitiumLibrary.Net.Dns
                         break; //to stack loop
                     }
 
-                    resolverLoop:;
+                resolverLoop:;
                 }
 
-                stackLoop:;
+            stackLoop:;
             }
         }
 
