@@ -178,9 +178,14 @@ namespace TechnitiumLibrary.Net.Dns
                 return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, (ushort)answerRecords.Length, 0, 0), request.Question, answerRecords, new DnsResourceRecord[] { }, new DnsResourceRecord[] { });
             }
 
-            DnsResourceRecord[] nameServers = GetClosestNameServers(question.Name);
-            if (nameServers != null)
+            string currentZone = question.Name;
+
+            while (currentZone != null)
             {
+                DnsResourceRecord[] nameServers = GetClosestNameServers(currentZone);
+                if (nameServers == null)
+                    break;
+
                 List<DnsResourceRecord> glueRecords = new List<DnsResourceRecord>();
 
                 foreach (DnsResourceRecord nameServer in nameServers)
@@ -196,9 +201,13 @@ namespace TechnitiumLibrary.Net.Dns
                         glueRecords.AddRange(glueAAAAs);
                 }
 
-                DnsResourceRecord[] additional = glueRecords.ToArray();
+                if (glueRecords.Count > 0)
+                {
+                    DnsResourceRecord[] additional = glueRecords.ToArray();
+                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, 0, (ushort)nameServers.Length, (ushort)additional.Length), request.Question, new DnsResourceRecord[] { }, nameServers, additional);
+                }
 
-                return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, 0, (ushort)nameServers.Length, (ushort)additional.Length), request.Question, new DnsResourceRecord[] { }, nameServers, additional);
+                currentZone = GetParentZone(currentZone);
             }
 
             return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.Refused, 1, 0, 0, 0), request.Question, new DnsResourceRecord[] { }, new DnsResourceRecord[] { }, new DnsResourceRecord[] { });
