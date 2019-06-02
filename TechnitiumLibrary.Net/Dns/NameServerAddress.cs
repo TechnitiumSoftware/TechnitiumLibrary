@@ -281,7 +281,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool preferIPv6)
+        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool selectOnlyNameServersWithGlue)
         {
             List<NameServerAddress> nameServers = new List<NameServerAddress>(response.Authority.Length);
 
@@ -322,7 +322,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    if (endPoint == null)
+                    if ((endPoint == null) && !selectOnlyNameServersWithGlue)
                         nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NSDomainName, 53)));
                 }
             }
