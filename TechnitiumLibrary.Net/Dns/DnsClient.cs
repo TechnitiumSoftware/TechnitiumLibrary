@@ -274,7 +274,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
                                 else if ((nameServers == null) || (nameServers.Length == 0))
                                 {
-                                    NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6);
+                                    NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
 
                                     if (cacheNameServers.Length > 0)
                                         nameServers = cacheNameServers;
@@ -519,7 +519,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
 
                                         //get next hop name servers
-                                        nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6);
+                                        nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
 
                                         if (nameServers.Length == 0)
                                         {
