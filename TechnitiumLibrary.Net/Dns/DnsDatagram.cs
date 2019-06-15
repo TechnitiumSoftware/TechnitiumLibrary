@@ -164,7 +164,7 @@ namespace TechnitiumLibrary.Net.Dns
             s.Write(b, 0, b.Length);
         }
 
-        internal static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries)
+        public static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries = null)
         {
             DnsClient.IsDomainNameValid(domain, true);
 
@@ -217,7 +217,7 @@ namespace TechnitiumLibrary.Net.Dns
             s.WriteByte(Convert.ToByte(0));
         }
 
-        internal static string DeserializeDomainName(Stream s)
+        public static string DeserializeDomainName(Stream s)
         {
             StringBuilder domain = new StringBuilder();
             byte labelLength = Convert.ToByte(s.ReadByte());
