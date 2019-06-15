@@ -60,14 +60,14 @@ namespace TechnitiumLibrary.Net.Dns
             switch (ip.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    for (int i = ipBytes.Length - 1; i >= 0; i += -1)
+                    for (int i = ipBytes.Length - 1; i >= 0; i--)
                         _name += ipBytes[i] + ".";
 
                     _name += "in-addr.arpa";
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    for (int i = ipBytes.Length - 1; i >= 0; i += -1)
+                    for (int i = ipBytes.Length - 1; i >= 0; i--)
                         _name += (ipBytes[i] & 0x0F).ToString("X") + "." + (ipBytes[i] >> 4).ToString("X") + ".";
 
                     _name += "ip6.arpa";
