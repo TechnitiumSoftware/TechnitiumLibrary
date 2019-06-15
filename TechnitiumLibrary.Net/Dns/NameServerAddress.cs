@@ -23,6 +23,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Dns.ResourceRecords;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns
