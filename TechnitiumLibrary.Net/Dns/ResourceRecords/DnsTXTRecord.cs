@@ -20,35 +20,35 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
+using TechnitiumLibrary.IO;
 
-namespace TechnitiumLibrary.Net.Dns
+namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsCNAMERecord : DnsResourceRecordData
+    public class DnsTXTRecord : DnsResourceRecordData
     {
         #region variables
 
-        string _cnameDomainName;
+        string _txtData;
 
         #endregion
 
         #region constructor
 
-        public DnsCNAMERecord(string cnameDomainName)
+        public DnsTXTRecord(string txtData)
         {
-            DnsClient.IsDomainNameValid(cnameDomainName, true);
-
-            _cnameDomainName = cnameDomainName;
+            _txtData = txtData;
         }
 
-        public DnsCNAMERecord(Stream s)
+        public DnsTXTRecord(Stream s)
             : base(s)
         { }
 
-        public DnsCNAMERecord(dynamic jsonResourceRecord)
+        public DnsTXTRecord(dynamic jsonResourceRecord)
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _cnameDomainName = (jsonResourceRecord.data.Value as string).TrimEnd('.');
+            _txtData = DnsDatagram.DecodeCharacterString(jsonResourceRecord.data.Value);
         }
 
         #endregion
@@ -57,12 +57,19 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected override void Parse(Stream s)
         {
-            _cnameDomainName = DnsDatagram.DeserializeDomainName(s);
+            int length = s.ReadByte();
+            if (length < 0)
+                throw new EndOfStreamException();
+
+            _txtData = Encoding.ASCII.GetString(s.ReadBytes(length));
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(_cnameDomainName, s, domainEntries);
+            byte[] data = Encoding.ASCII.GetBytes(_txtData);
+
+            s.WriteByte(Convert.ToByte(data.Length));
+            s.Write(data, 0, data.Length);
         }
 
         #endregion
@@ -77,29 +84,29 @@ namespace TechnitiumLibrary.Net.Dns
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsCNAMERecord other = obj as DnsCNAMERecord;
+            DnsTXTRecord other = obj as DnsTXTRecord;
             if (other == null)
                 return false;
 
-            return this._cnameDomainName.Equals(other._cnameDomainName, StringComparison.OrdinalIgnoreCase);
+            return this._txtData.Equals(other._txtData);
         }
 
         public override int GetHashCode()
         {
-            return _cnameDomainName.GetHashCode();
+            return _txtData.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _cnameDomainName + ".";
+            return DnsDatagram.EncodeCharacterString(_txtData);
         }
 
         #endregion
 
         #region properties
 
-        public string CNAMEDomainName
-        { get { return _cnameDomainName; } }
+        public string TXTData
+        { get { return _txtData; } }
 
         #endregion
     }

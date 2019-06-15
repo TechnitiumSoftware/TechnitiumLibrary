@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,39 +20,35 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net;
-using System.Runtime.Serialization;
-using TechnitiumLibrary.IO;
 
-namespace TechnitiumLibrary.Net.Dns
+namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsARecord : DnsResourceRecordData
+    public class DnsCNAMERecord : DnsResourceRecordData
     {
         #region variables
 
-        IPAddress _address;
+        string _cnameDomainName;
 
         #endregion
 
         #region constructor
 
-        public DnsARecord(IPAddress address)
+        public DnsCNAMERecord(string cnameDomainName)
         {
-            _address = address;
+            DnsClient.IsDomainNameValid(cnameDomainName, true);
 
-            if (_address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
-                throw new DnsClientException("Invalid IP address family.");
+            _cnameDomainName = cnameDomainName;
         }
 
-        public DnsARecord(Stream s)
+        public DnsCNAMERecord(Stream s)
             : base(s)
         { }
 
-        public DnsARecord(dynamic jsonResourceRecord)
+        public DnsCNAMERecord(dynamic jsonResourceRecord)
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _address = System.Net.IPAddress.Parse(jsonResourceRecord.data.Value);
+            _cnameDomainName = (jsonResourceRecord.data.Value as string).TrimEnd('.');
         }
 
         #endregion
@@ -61,12 +57,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected override void Parse(Stream s)
         {
-            _address = new IPAddress(s.ReadBytes(4));
+            _cnameDomainName = DnsDatagram.DeserializeDomainName(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            s.Write(_address.GetAddressBytes());
+            DnsDatagram.SerializeDomainName(_cnameDomainName, s, domainEntries);
         }
 
         #endregion
@@ -81,33 +77,29 @@ namespace TechnitiumLibrary.Net.Dns
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsARecord other = obj as DnsARecord;
+            DnsCNAMERecord other = obj as DnsCNAMERecord;
             if (other == null)
                 return false;
 
-            return this._address.Equals(other._address);
+            return this._cnameDomainName.Equals(other._cnameDomainName, StringComparison.OrdinalIgnoreCase);
         }
 
         public override int GetHashCode()
         {
-            return _address.GetHashCode();
+            return _cnameDomainName.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _address.ToString();
+            return _cnameDomainName + ".";
         }
 
         #endregion
 
         #region properties
 
-        [IgnoreDataMember]
-        public IPAddress Address
-        { get { return _address; } }
-
-        public string IPAddress
-        { get { return _address.ToString(); } }
+        public string CNAMEDomainName
+        { get { return _cnameDomainName; } }
 
         #endregion
     }

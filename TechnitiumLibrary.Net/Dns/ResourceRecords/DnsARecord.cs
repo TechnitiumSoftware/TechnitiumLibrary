@@ -20,35 +20,39 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Runtime.Serialization;
+using TechnitiumLibrary.IO;
 
-namespace TechnitiumLibrary.Net.Dns
+namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsPTRRecord : DnsResourceRecordData
+    public class DnsARecord : DnsResourceRecordData
     {
         #region variables
 
-        string _ptrDomainName;
+        IPAddress _address;
 
         #endregion
 
         #region constructor
 
-        public DnsPTRRecord(string ptrDomainName)
+        public DnsARecord(IPAddress address)
         {
-            DnsClient.IsDomainNameValid(ptrDomainName, true);
+            _address = address;
 
-            _ptrDomainName = ptrDomainName;
+            if (_address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+                throw new DnsClientException("Invalid IP address family.");
         }
 
-        public DnsPTRRecord(Stream s)
+        public DnsARecord(Stream s)
             : base(s)
         { }
 
-        public DnsPTRRecord(dynamic jsonResourceRecord)
+        public DnsARecord(dynamic jsonResourceRecord)
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _ptrDomainName = (jsonResourceRecord.data.Value as string).TrimEnd('.');
+            _address = System.Net.IPAddress.Parse(jsonResourceRecord.data.Value);
         }
 
         #endregion
@@ -57,12 +61,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected override void Parse(Stream s)
         {
-            _ptrDomainName = DnsDatagram.DeserializeDomainName(s);
+            _address = new IPAddress(s.ReadBytes(4));
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(_ptrDomainName, s, domainEntries);
+            s.Write(_address.GetAddressBytes());
         }
 
         #endregion
@@ -77,29 +81,33 @@ namespace TechnitiumLibrary.Net.Dns
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsPTRRecord other = obj as DnsPTRRecord;
+            DnsARecord other = obj as DnsARecord;
             if (other == null)
                 return false;
 
-            return this._ptrDomainName.Equals(other._ptrDomainName, StringComparison.OrdinalIgnoreCase);
+            return this._address.Equals(other._address);
         }
 
         public override int GetHashCode()
         {
-            return _ptrDomainName.GetHashCode();
+            return _address.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _ptrDomainName + ".";
+            return _address.ToString();
         }
 
         #endregion
 
         #region properties
 
-        public string PTRDomainName
-        { get { return _ptrDomainName; } }
+        [IgnoreDataMember]
+        public IPAddress Address
+        { get { return _address; } }
+
+        public string IPAddress
+        { get { return _address.ToString(); } }
 
         #endregion
     }

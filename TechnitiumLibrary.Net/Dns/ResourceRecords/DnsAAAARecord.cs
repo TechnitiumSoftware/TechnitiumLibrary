@@ -20,35 +20,39 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
+using System.Net;
+using System.Runtime.Serialization;
 using TechnitiumLibrary.IO;
 
-namespace TechnitiumLibrary.Net.Dns
+namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsTXTRecord : DnsResourceRecordData
+    public class DnsAAAARecord : DnsResourceRecordData
     {
         #region variables
 
-        string _txtData;
+        IPAddress _address;
 
         #endregion
 
         #region constructor
 
-        public DnsTXTRecord(string txtData)
+        public DnsAAAARecord(IPAddress address)
         {
-            _txtData = txtData;
+            _address = address;
+
+            if (_address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6)
+                throw new DnsClientException("Invalid IP address family.");
         }
 
-        public DnsTXTRecord(Stream s)
+        public DnsAAAARecord(Stream s)
             : base(s)
         { }
 
-        public DnsTXTRecord(dynamic jsonResourceRecord)
+        public DnsAAAARecord(dynamic jsonResourceRecord)
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _txtData = DnsDatagram.DecodeCharacterString(jsonResourceRecord.data.Value);
+            _address = System.Net.IPAddress.Parse(jsonResourceRecord.data.Value);
         }
 
         #endregion
@@ -57,19 +61,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected override void Parse(Stream s)
         {
-            int length = s.ReadByte();
-            if (length < 0)
-                throw new EndOfStreamException();
-
-            _txtData = Encoding.ASCII.GetString(s.ReadBytes(length));
+            _address = new IPAddress(s.ReadBytes(16));
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            byte[] data = Encoding.ASCII.GetBytes(_txtData);
-
-            s.WriteByte(Convert.ToByte(data.Length));
-            s.Write(data, 0, data.Length);
+            s.Write(_address.GetAddressBytes());
         }
 
         #endregion
@@ -84,29 +81,33 @@ namespace TechnitiumLibrary.Net.Dns
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsTXTRecord other = obj as DnsTXTRecord;
+            DnsAAAARecord other = obj as DnsAAAARecord;
             if (other == null)
                 return false;
 
-            return this._txtData.Equals(other._txtData);
+            return this._address.Equals(other._address);
         }
 
         public override int GetHashCode()
         {
-            return _txtData.GetHashCode();
+            return _address.GetHashCode();
         }
 
         public override string ToString()
         {
-            return DnsDatagram.EncodeCharacterString(_txtData);
+            return _address.ToString();
         }
 
         #endregion
 
         #region properties
 
-        public string TXTData
-        { get { return _txtData; } }
+        [IgnoreDataMember]
+        public IPAddress Address
+        { get { return _address; } }
+
+        public string IPAddress
+        { get { return _address.ToString(); } }
 
         #endregion
     }

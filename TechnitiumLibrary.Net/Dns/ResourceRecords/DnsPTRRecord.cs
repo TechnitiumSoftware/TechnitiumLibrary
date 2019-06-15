@@ -21,34 +21,34 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace TechnitiumLibrary.Net.Dns
+namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsNSRecord : DnsResourceRecordData
+    public class DnsPTRRecord : DnsResourceRecordData
     {
         #region variables
 
-        string _nsDomainName;
+        string _ptrDomainName;
 
         #endregion
 
         #region constructor
 
-        public DnsNSRecord(string nsDomainName)
+        public DnsPTRRecord(string ptrDomainName)
         {
-            DnsClient.IsDomainNameValid(nsDomainName, true);
+            DnsClient.IsDomainNameValid(ptrDomainName, true);
 
-            _nsDomainName = nsDomainName;
+            _ptrDomainName = ptrDomainName;
         }
 
-        public DnsNSRecord(Stream s)
+        public DnsPTRRecord(Stream s)
             : base(s)
         { }
 
-        public DnsNSRecord(dynamic jsonResourceRecord)
+        public DnsPTRRecord(dynamic jsonResourceRecord)
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _nsDomainName = (jsonResourceRecord.data.Value as string).TrimEnd('.');
+            _ptrDomainName = (jsonResourceRecord.data.Value as string).TrimEnd('.');
         }
 
         #endregion
@@ -57,12 +57,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected override void Parse(Stream s)
         {
-            _nsDomainName = DnsDatagram.DeserializeDomainName(s);
+            _ptrDomainName = DnsDatagram.DeserializeDomainName(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(_nsDomainName, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_ptrDomainName, s, domainEntries);
         }
 
         #endregion
@@ -77,29 +77,29 @@ namespace TechnitiumLibrary.Net.Dns
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsNSRecord other = obj as DnsNSRecord;
+            DnsPTRRecord other = obj as DnsPTRRecord;
             if (other == null)
                 return false;
 
-            return this._nsDomainName.Equals(other._nsDomainName, StringComparison.OrdinalIgnoreCase);
+            return this._ptrDomainName.Equals(other._ptrDomainName, StringComparison.OrdinalIgnoreCase);
         }
 
         public override int GetHashCode()
         {
-            return _nsDomainName.GetHashCode();
+            return _ptrDomainName.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _nsDomainName + ".";
+            return _ptrDomainName + ".";
         }
 
         #endregion
 
         #region properties
 
-        public string NSDomainName
-        { get { return _nsDomainName; } }
+        public string PTRDomainName
+        { get { return _ptrDomainName; } }
 
         #endregion
     }

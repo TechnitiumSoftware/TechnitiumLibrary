@@ -23,7 +23,7 @@ using System.IO;
 using System.Text;
 using TechnitiumLibrary.IO;
 
-namespace TechnitiumLibrary.Net.Dns
+namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
     public class DnsCAARecord : DnsResourceRecordData
     {
