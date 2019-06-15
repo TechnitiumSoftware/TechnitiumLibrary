@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -60,6 +60,51 @@ namespace TechnitiumLibrary.Net
             }
 
             bW.Write(address.GetAddressBytes());
+        }
+
+        public static uint ConvertIpToNumber(this IPAddress address)
+        {
+            if (address.AddressFamily != AddressFamily.InterNetwork)
+                throw new ArgumentException("Address family not supported.");
+
+            byte[] addr = address.GetAddressBytes();
+            Array.Reverse(addr);
+            return BitConverter.ToUInt32(addr, 0);
+        }
+
+        public static IPAddress ConvertNumberToIp(uint address)
+        {
+            byte[] addr = BitConverter.GetBytes(address);
+            Array.Reverse(addr);
+            return new IPAddress(addr);
+        }
+
+        public static int GetSubnetMaskWidth(this IPAddress address)
+        {
+            if (address.AddressFamily != AddressFamily.InterNetwork)
+                throw new ArgumentException("Address family not supported.");
+
+            uint subnetMaskNumber = address.ConvertIpToNumber();
+            int subnetMaskWidth = 0;
+
+            while (subnetMaskNumber > 0u)
+            {
+                subnetMaskNumber <<= 1;
+                subnetMaskWidth++;
+            }
+
+            return subnetMaskWidth;
+        }
+
+        public static IPAddress GetSubnetMask(int subnetMaskWidth)
+        {
+            if (subnetMaskWidth > 32)
+                throw new ArgumentOutOfRangeException("Invalid subnet mask width.");
+
+            byte[] subnetMaskBuffer = BitConverter.GetBytes(0xFFFFFFFFu << (32 - subnetMaskWidth));
+            Array.Reverse(subnetMaskBuffer);
+
+            return new IPAddress(subnetMaskBuffer);
         }
 
         #endregion
