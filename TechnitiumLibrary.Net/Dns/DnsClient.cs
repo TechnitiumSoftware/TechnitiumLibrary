@@ -27,6 +27,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using TechnitiumLibrary.Net.Dns.ClientConnection;
+using TechnitiumLibrary.Net.Dns.ResourceRecords;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -274,6 +275,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
                                 else if ((nameServers == null) || (nameServers.Length == 0))
                                 {
+                                    //select only name servers with glue from cache to avoid getting stack overflow due to getting same set of NS records with no address every time from cache
                                     NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
 
                                     if (cacheNameServers.Length > 0)
@@ -771,9 +773,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 case DnsResourceRecordType.CNAME:
                                     domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
                                     break;
-
-                                default:
-                                    throw new DnsClientException("Name server [" + (response.Metadata == null ? "cached" : response.Metadata.NameServerAddress.ToString()) + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
                             }
                         }
                     }
@@ -813,9 +812,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 case DnsResourceRecordType.CNAME:
                                     domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
                                     break;
-
-                                default:
-                                    throw new DnsClientException("Name server [" + (response.Metadata == null ? "cached" : response.Metadata.NameServerAddress.ToString()) + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
                             }
                         }
                     }
@@ -855,9 +851,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 case DnsResourceRecordType.CNAME:
                                     domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
                                     break;
-
-                                default:
-                                    throw new DnsClientException("Name server [" + (response.Metadata == null ? "cached" : response.Metadata.NameServerAddress.ToString()) + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
                             }
                         }
                     }
@@ -894,9 +887,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 case DnsResourceRecordType.CNAME:
                                     domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
                                     break;
-
-                                default:
-                                    throw new DnsClientException("Name server [" + (response.Metadata == null ? "cached" : response.Metadata.NameServerAddress.ToString()) + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
                             }
                         }
                     }
@@ -936,9 +926,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 case DnsResourceRecordType.CNAME:
                                     domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
                                     break;
-
-                                default:
-                                    throw new DnsClientException("Name server [" + (response.Metadata == null ? "cached" : response.Metadata.NameServerAddress.ToString()) + "] returned unexpected record type [ " + record.Type.ToString() + "] for domain: " + domain);
                             }
                         }
                     }
