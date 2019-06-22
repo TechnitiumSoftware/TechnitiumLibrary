@@ -319,6 +319,8 @@ namespace TechnitiumLibrary.Net
                 catch (WebException ex)
                 {
                     response = ex.Response as HttpWebResponse;
+                    if (response == null)
+                        throw;
 
                     switch (response.StatusCode)
                     {
