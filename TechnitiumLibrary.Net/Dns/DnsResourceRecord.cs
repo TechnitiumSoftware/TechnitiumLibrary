@@ -326,6 +326,11 @@ namespace TechnitiumLibrary.Net.Dns
             _ttlExpires = DateTime.UtcNow.AddSeconds(seconds);
         }
 
+        public void RemoveExpiry()
+        {
+            _setExpiry = false;
+        }
+
         public void WriteTo(Stream s)
         {
             WriteTo(s, null);
