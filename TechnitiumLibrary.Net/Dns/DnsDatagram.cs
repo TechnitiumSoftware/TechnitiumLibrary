@@ -227,17 +227,19 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if ((labelLength & 0xC0) == 0xC0)
                 {
-                    short Offset = BitConverter.ToInt16(new byte[] { Convert.ToByte(s.ReadByte()), Convert.ToByte((labelLength & 0x3F)) }, 0);
+                    short Offset = BitConverter.ToInt16(new byte[] { Convert.ToByte(s.ReadByte()), Convert.ToByte(labelLength & 0x3F) }, 0);
                     long CurrentPosition = s.Position;
                     s.Position = Offset;
-                    domain.Append(DeserializeDomainName(s) + ".");
+                    domain.Append(DeserializeDomainName(s));
+                    domain.Append(".");
                     s.Position = CurrentPosition;
                     break;
                 }
                 else
                 {
                     s.ReadBytes(buffer, 0, labelLength);
-                    domain.Append(Encoding.ASCII.GetString(buffer, 0, labelLength) + ".");
+                    domain.Append(Encoding.ASCII.GetString(buffer, 0, labelLength));
+                    domain.Append(".");
                     labelLength = Convert.ToByte(s.ReadByte());
                 }
             }
