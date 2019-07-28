@@ -410,7 +410,7 @@ namespace TechnitiumLibrary.Net
                 {
                     try
                     {
-                        client.OpenRead(uri);
+                        client.OpenRead(uri).Dispose();
                         return true;
                     }
                     catch (WebException ex)
