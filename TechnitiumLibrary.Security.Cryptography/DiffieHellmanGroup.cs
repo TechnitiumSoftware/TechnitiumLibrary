@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,7 +24,9 @@ namespace TechnitiumLibrary.Security.Cryptography
     public enum DiffieHellmanGroupType : byte
     {
         None = 0,
-        RFC3526 = 1
+        RFC3526_GROUP14_2048BIT = 14,
+        RFC3526_GROUP15_3072BIT = 15,
+        RFC3526_GROUP16_4096BIT = 16
     }
 
     public class DiffieHellmanGroup
@@ -335,10 +337,10 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region variables
 
-        DiffieHellmanGroupType _group;
-        int _keySize;
-        BigInteger _p;
-        BigInteger _g;
+        readonly DiffieHellmanGroupType _group;
+        readonly int _keySize;
+        readonly BigInteger _p;
+        readonly BigInteger _g;
 
         #endregion
 
@@ -356,25 +358,18 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region shared
 
-        public static DiffieHellmanGroup GetGroup(DiffieHellmanGroupType group, int keySize)
+        public static DiffieHellmanGroup GetGroup(DiffieHellmanGroupType group)
         {
             switch (group)
             {
-                case DiffieHellmanGroupType.RFC3526:
-                    switch (keySize)
-                    {
-                        case 2048:
-                            return new DiffieHellmanGroup(group, keySize, new BigInteger(p2048), new BigInteger(2));
+                case DiffieHellmanGroupType.RFC3526_GROUP14_2048BIT:
+                    return new DiffieHellmanGroup(group, 2048, new BigInteger(p2048), new BigInteger(2));
 
-                        case 3072:
-                            return new DiffieHellmanGroup(group, keySize, new BigInteger(p3072), new BigInteger(2));
+                case DiffieHellmanGroupType.RFC3526_GROUP15_3072BIT:
+                    return new DiffieHellmanGroup(group, 3072, new BigInteger(p3072), new BigInteger(2));
 
-                        case 4096:
-                            return new DiffieHellmanGroup(group, keySize, new BigInteger(p4096), new BigInteger(2));
-
-                        default:
-                            throw new CryptoException("DiffieHellman key size not supported.");
-                    }
+                case DiffieHellmanGroupType.RFC3526_GROUP16_4096BIT:
+                    return new DiffieHellmanGroup(group, 4096, new BigInteger(p4096), new BigInteger(2));
 
                 default:
                     throw new CryptoException("DiffieHellman group not supported.");

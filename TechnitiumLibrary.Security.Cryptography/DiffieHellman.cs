@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,62 +26,60 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
-        static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+        static RandomNumberGenerator _rng = new RNGCryptoServiceProvider();
 
-        DiffieHellmanGroupType _group;
-        int _keySize;
-
-        BigInteger _p;
-        BigInteger _g;
-        BigInteger _privateKey;
+        readonly DiffieHellmanGroupType _group;
+        readonly int _keySize;
+        readonly BigInteger _p;
+        readonly BigInteger _g;
+        readonly BigInteger _privateKey;
 
         #endregion
 
         #region constructor
 
-        public DiffieHellman(DiffieHellmanGroupType group, int keySize, KeyAgreementKeyDerivationFunction kdFunc, KeyAgreementKeyDerivationHashAlgorithm kdHashAlgo)
+        public DiffieHellman(DiffieHellmanGroupType group, KeyAgreementKeyDerivationFunction kdFunc, KeyAgreementKeyDerivationHashAlgorithm kdHashAlgo)
             : base(kdFunc, kdHashAlgo)
         {
             _group = group;
-            _keySize = keySize;
 
-            DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(_group, _keySize);
+            DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(_group);
 
+            _keySize = dhg.KeySize;
             _p = dhg.P;
             _g = dhg.G;
-
-            GeneratePrivateKey();
+            _privateKey = GeneratePrivateKey(_p);
         }
 
         public DiffieHellman(DiffieHellmanPublicKey publicKey, KeyAgreementKeyDerivationFunction kdFunc, KeyAgreementKeyDerivationHashAlgorithm kdHashAlgo)
             : base(kdFunc, kdHashAlgo)
         {
+            _group = DiffieHellmanGroupType.None;
             _keySize = publicKey.KeySize;
-
             _p = publicKey.P;
             _g = publicKey.G;
-
-            GeneratePrivateKey();
+            _privateKey = GeneratePrivateKey(_p);
         }
 
         #endregion
 
         #region private
 
-        private void GeneratePrivateKey()
+        private static BigInteger GeneratePrivateKey(BigInteger p)
         {
-            byte[] p = _p.ToByteArray();
-            byte[] buffer = new byte[p.Length - 1];
+            byte[] buffer = new byte[p.ToByteArray().Length - 1];
 
-            _rnd.GetBytes(buffer);
+            _rng.GetBytes(buffer);
             buffer[buffer.Length - 1] &= 0x7F; //to keep BigInteger positive
-            _privateKey = new BigInteger(buffer);
+            BigInteger privateKey = new BigInteger(buffer);
 
-            BigInteger pm2 = _p - 2;
-            while (_privateKey > pm2)
+            BigInteger pm2 = p - 2;
+            while (privateKey > pm2)
             {
-                _privateKey >>= 1;
+                privateKey >>= 1;
             }
+
+            return privateKey;
         }
 
         #endregion
@@ -93,7 +91,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             if (_group == DiffieHellmanGroupType.None)
                 return (new DiffieHellmanPublicKey(_keySize, _p, _g, BigInteger.ModPow(_g, _privateKey, _p))).PublicKey();
             else
-                return (new DiffieHellmanPublicKey(_group, _keySize, BigInteger.ModPow(_g, _privateKey, _p))).PublicKey();
+                return (new DiffieHellmanPublicKey(_group, BigInteger.ModPow(_g, _privateKey, _p))).PublicKey();
         }
 
         #endregion

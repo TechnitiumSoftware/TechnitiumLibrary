@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,23 +29,24 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
-        DiffieHellmanGroupType _group;
-        int _keySize;
-        BigInteger _p;
-        BigInteger _g;
-        BigInteger _x;
+        readonly DiffieHellmanGroupType _group;
+        readonly int _keySize;
+        readonly BigInteger _p;
+        readonly BigInteger _g;
+        readonly BigInteger _x;
 
         #endregion
 
         #region constructor
 
-        public DiffieHellmanPublicKey(DiffieHellmanGroupType group, int keySize, BigInteger x)
+        public DiffieHellmanPublicKey(DiffieHellmanGroupType group, BigInteger x)
         {
             _group = group;
-            _keySize = keySize;
             _x = x;
 
-            DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(group, keySize);
+            DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(group);
+            _keySize = dhg.KeySize;
+
             VerifyPublicKey(_keySize, dhg.P, dhg.G, x);
         }
 
@@ -71,27 +72,23 @@ namespace TechnitiumLibrary.Security.Cryptography
 
                 switch (bR.ReadByte()) //version
                 {
-                    case 2:
-                        _keySize = bR.ReadInt32();
+                    case 3:
                         _group = (DiffieHellmanGroupType)bR.ReadByte();
 
-                        switch (_group)
+                        if (_group == DiffieHellmanGroupType.None)
                         {
-                            case DiffieHellmanGroupType.RFC3526:
-                                DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(_group, _keySize);
-                                _p = dhg.P;
-                                _g = dhg.G;
-                                _x = ReadPositiveNumber(bR.ReadBuffer());
-                                break;
-
-                            case DiffieHellmanGroupType.None:
-                                _p = ReadPositiveNumber(bR.ReadBuffer());
-                                _g = ReadPositiveNumber(bR.ReadBuffer());
-                                _x = ReadPositiveNumber(bR.ReadBuffer());
-                                break;
-
-                            default:
-                                throw new NotSupportedException("DiffieHellmanGroup type not supported.");
+                            _keySize = bR.ReadInt32();
+                            _p = ReadPositiveNumber(bR.ReadBuffer());
+                            _g = ReadPositiveNumber(bR.ReadBuffer());
+                            _x = ReadPositiveNumber(bR.ReadBuffer());
+                        }
+                        else
+                        {
+                            DiffieHellmanGroup dhg = DiffieHellmanGroup.GetGroup(_group);
+                            _keySize = dhg.KeySize;
+                            _p = dhg.P;
+                            _g = dhg.G;
+                            _x = ReadPositiveNumber(bR.ReadBuffer());
                         }
 
                         break;
@@ -143,18 +140,20 @@ namespace TechnitiumLibrary.Security.Cryptography
                 BinaryWriter bW = new BinaryWriter(mS);
 
                 bW.Write(Encoding.ASCII.GetBytes("DH"));
-                bW.Write((byte)2);
+                bW.Write((byte)3);
 
-                bW.Write(_keySize);
                 bW.Write((byte)_group);
 
                 switch (_group)
                 {
-                    case DiffieHellmanGroupType.RFC3526:
+                    case DiffieHellmanGroupType.RFC3526_GROUP14_2048BIT:
+                    case DiffieHellmanGroupType.RFC3526_GROUP15_3072BIT:
+                    case DiffieHellmanGroupType.RFC3526_GROUP16_4096BIT:
                         bW.WriteBuffer(_x.ToByteArray());
                         break;
 
                     default:
+                        bW.Write(_keySize);
                         bW.WriteBuffer(_p.ToByteArray());
                         bW.WriteBuffer(_g.ToByteArray());
                         bW.WriteBuffer(_x.ToByteArray());
