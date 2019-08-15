@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -57,9 +57,6 @@ namespace TechnitiumLibrary.Net.Tor
         StreamWriter _sW;
         StreamReader _sR;
 
-        Timer _autoSwitchCircuitTimer;
-        int _autoSwitchCircuitInterval = 900000;
-
         #endregion
 
         #region constructor
@@ -84,16 +81,7 @@ namespace TechnitiumLibrary.Net.Tor
                 return;
 
             if (disposing)
-            {
-                if (_process != null)
-                    Stop();
-
-                if (_autoSwitchCircuitTimer != null)
-                {
-                    _autoSwitchCircuitTimer.Dispose();
-                    _autoSwitchCircuitTimer = null;
-                }
-            }
+                Stop();
 
             _disposed = true;
         }
@@ -140,7 +128,7 @@ namespace TechnitiumLibrary.Net.Tor
         public void Start(int connectionTimeout = 10000)
         {
             if (_process != null)
-                return;
+                throw new InvalidOperationException("Tor is already running.");
 
             string password;
 
@@ -202,7 +190,6 @@ namespace TechnitiumLibrary.Net.Tor
             processInfo.CreateNoWindow = true;
 
             Process process = Process.Start(processInfo);
-            Thread.Sleep(2000); //wait for process to start
 
             int retry = 1;
             while (true)
@@ -211,8 +198,8 @@ namespace TechnitiumLibrary.Net.Tor
                 {
                     _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-                    _socket.ReceiveTimeout = 10000;
-                    _socket.SendTimeout = 10000;
+                    _socket.ReceiveTimeout = connectionTimeout + 5000;
+                    _socket.SendTimeout = 5000;
 
                     IAsyncResult result = _socket.BeginConnect(IPAddress.Loopback, _controlPort, null, null);
 
@@ -254,7 +241,7 @@ namespace TechnitiumLibrary.Net.Tor
                     if (retry < 3)
                     {
                         retry++;
-                        Thread.Sleep(1000); //wait before retrying
+                        Thread.Sleep(2000); //wait before retrying
                     }
                     else
                     {
@@ -271,17 +258,23 @@ namespace TechnitiumLibrary.Net.Tor
             }
         }
 
-        public void Stop()
+        public void Stop(int waitTimeout = 10000)
         {
             if (_process != null)
             {
-                Shutdown();
+                try
+                {
+                    Shutdown();
+                    _socket.Shutdown(SocketShutdown.Both);
+                }
+                catch
+                { }
 
-                _socket.Close();
+                _socket.Dispose();
 
                 try
                 {
-                    if (!_process.WaitForExit(10000))
+                    if (!_process.WaitForExit(waitTimeout))
                         _process.Kill();
                 }
                 catch
@@ -351,7 +344,7 @@ namespace TechnitiumLibrary.Net.Tor
         { get { return _torExecutableFilePath; } }
 
         public bool IsRunning
-        { get { return _process != null; } }
+        { get { return (_process != null) && !_process.HasExited; } }
 
         public int ControlPort
         {
@@ -422,46 +415,6 @@ namespace TechnitiumLibrary.Net.Tor
                     throw new InvalidOperationException("Tor is already running.");
 
                 _proxyCredential = value;
-            }
-        }
-
-        public int AutoSwitchCircuitInterval
-        {
-            get { return _autoSwitchCircuitInterval; }
-            set { _autoSwitchCircuitInterval = value; }
-        }
-
-        public bool AutoSwitchCircuit
-        {
-            get
-            { return (_autoSwitchCircuitTimer != null); }
-            set
-            {
-                if (value)
-                {
-                    if (_autoSwitchCircuitTimer == null)
-                    {
-                        _autoSwitchCircuitTimer = new Timer(delegate (object state)
-                        {
-                            try
-                            {
-                                this.SwitchCircuit();
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine(ex.ToString());
-                            }
-                        }, null, _autoSwitchCircuitInterval, _autoSwitchCircuitInterval);
-                    }
-                }
-                else
-                {
-                    if (_autoSwitchCircuitTimer != null)
-                    {
-                        _autoSwitchCircuitTimer.Dispose();
-                        _autoSwitchCircuitTimer = null;
-                    }
-                }
             }
         }
 
