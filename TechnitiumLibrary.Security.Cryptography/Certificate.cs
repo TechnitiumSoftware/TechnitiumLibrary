@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -203,7 +203,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                         case CertificateCapability.SignDomainUserCertificate:
                             //check if issuer email domain matches with user email domain
 
-                            if (!_issuedTo.FieldExists(CertificateProfileFlags.EmailAddress) || !signingCert.IssuedTo.EmailAddress.Host.Equals(_issuedTo.EmailAddress.Host, StringComparison.CurrentCultureIgnoreCase))
+                            if (!_issuedTo.FieldExists(CertificateProfileFlags.EmailAddress) || !signingCert.IssuedTo.EmailAddress.Host.Equals(_issuedTo.EmailAddress.Host, StringComparison.OrdinalIgnoreCase))
                                 throw new CryptoException("Signing certificate domain must match with user certificate email address domain.");
 
                             break;
@@ -299,7 +299,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                         case CertificateCapability.SignDomainUserCertificate:
                             //check if issuer email domain matches with user email domain
 
-                            if (!_issuedTo.FieldExists(CertificateProfileFlags.EmailAddress) || !issuerCert.IssuedTo.EmailAddress.Host.Equals(_issuedTo.EmailAddress.Host, StringComparison.CurrentCultureIgnoreCase))
+                            if (!_issuedTo.FieldExists(CertificateProfileFlags.EmailAddress) || !issuerCert.IssuedTo.EmailAddress.Host.Equals(_issuedTo.EmailAddress.Host, StringComparison.OrdinalIgnoreCase))
                                 throw new CryptoException("Certificate issuer '" + issuerCert._issuedTo.Name + "' domain must match with user certificate email address domain.");
 
                             break;
