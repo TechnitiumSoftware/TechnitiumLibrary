@@ -166,8 +166,6 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries = null)
         {
-            DnsClient.IsDomainNameValid(domain, true);
-
             while (!string.IsNullOrEmpty(domain))
             {
                 if (domainEntries != null)
@@ -217,8 +215,11 @@ namespace TechnitiumLibrary.Net.Dns
             s.WriteByte(Convert.ToByte(0));
         }
 
-        public static string DeserializeDomainName(Stream s)
+        public static string DeserializeDomainName(Stream s, int maxDepth = 10)
         {
+            if (maxDepth < 0)
+                throw new DnsClientException("Error while reading domain name: max depth for decompression reached");
+
             StringBuilder domain = new StringBuilder();
             byte labelLength = Convert.ToByte(s.ReadByte());
             byte[] buffer = new byte[255];
@@ -230,7 +231,7 @@ namespace TechnitiumLibrary.Net.Dns
                     short Offset = BitConverter.ToInt16(new byte[] { Convert.ToByte(s.ReadByte()), Convert.ToByte(labelLength & 0x3F) }, 0);
                     long CurrentPosition = s.Position;
                     s.Position = Offset;
-                    domain.Append(DeserializeDomainName(s));
+                    domain.Append(DeserializeDomainName(s, maxDepth - 1));
                     domain.Append(".");
                     s.Position = CurrentPosition;
                     break;
@@ -247,10 +248,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (domain.Length > 0)
                 domain.Length--;
 
-            string domainName = domain.ToString();
-            DnsClient.IsDomainNameValid(domainName, true);
-
-            return domainName;
+            return domain.ToString();
         }
 
         internal static string EncodeCharacterString(string value)
