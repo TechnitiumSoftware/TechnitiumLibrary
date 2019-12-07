@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2016  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,13 +21,6 @@ using System.Security.Cryptography;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
-    public enum KeyAgreementAlgorithm
-    {
-        Unknown = 0,
-        DiffieHellman = 1,
-        ECDiffieHellman = 2
-    }
-
     public enum KeyAgreementKeyDerivationFunction
     {
         Unknown = 0,
@@ -47,9 +40,9 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
-        KeyAgreementKeyDerivationFunction _kdFunc = KeyAgreementKeyDerivationFunction.Hash;
-        KeyAgreementKeyDerivationHashAlgorithm _kdHashAlgo = KeyAgreementKeyDerivationHashAlgorithm.SHA256;
-        byte[] _hmacMessage;
+        readonly KeyAgreementKeyDerivationFunction _kdFunc = KeyAgreementKeyDerivationFunction.Hash;
+        readonly KeyAgreementKeyDerivationHashAlgorithm _kdHashAlgo = KeyAgreementKeyDerivationHashAlgorithm.SHA256;
+        byte[] _hmacKey;
 
         #endregion
 
@@ -67,43 +60,60 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public byte[] DeriveKeyMaterial(byte[] otherPartyPublicKey)
         {
-            HashAlgorithm hash;
-
-            switch (_kdHashAlgo)
+            switch (_kdFunc)
             {
-                case KeyAgreementKeyDerivationHashAlgorithm.SHA256:
-                    hash = HashAlgorithm.Create("SHA256");
-                    break;
+                case KeyAgreementKeyDerivationFunction.Hash:
+                    switch (_kdHashAlgo)
+                    {
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA256:
+                            using (HashAlgorithm hash = HashAlgorithm.Create("SHA256"))
+                            {
+                                return hash.ComputeHash(ComputeKey(otherPartyPublicKey));
+                            }
 
-                case KeyAgreementKeyDerivationHashAlgorithm.SHA384:
-                    hash = HashAlgorithm.Create("SHA384");
-                    break;
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA384:
+                            using (HashAlgorithm hash = HashAlgorithm.Create("SHA384"))
+                            {
+                                return hash.ComputeHash(ComputeKey(otherPartyPublicKey));
+                            }
 
-                case KeyAgreementKeyDerivationHashAlgorithm.SHA512:
-                    hash = HashAlgorithm.Create("SHA512");
-                    break;
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA512:
+                            using (HashAlgorithm hash = HashAlgorithm.Create("SHA512"))
+                            {
+                                return hash.ComputeHash(ComputeKey(otherPartyPublicKey));
+                            }
+
+                        default:
+                            throw new CryptoException("Key derivation hash algorithm not supported.");
+                    }
+
+                case KeyAgreementKeyDerivationFunction.Hmac:
+                    switch (_kdHashAlgo)
+                    {
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA256:
+                            using (HMAC hmac = new HMACSHA256(_hmacKey))
+                            {
+                                return hmac.ComputeHash(ComputeKey(otherPartyPublicKey));
+                            }
+
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA384:
+                            using (HMAC hmac = new HMACSHA384(_hmacKey))
+                            {
+                                return hmac.ComputeHash(ComputeKey(otherPartyPublicKey));
+                            }
+
+                        case KeyAgreementKeyDerivationHashAlgorithm.SHA512:
+                            using (HMAC hmac = new HMACSHA512(_hmacKey))
+                            {
+                                return hmac.ComputeHash(ComputeKey(otherPartyPublicKey));
+                            }
+
+                        default:
+                            throw new CryptoException("Key derivation hash algorithm not supported.");
+                    }
 
                 default:
-                    throw new CryptoException("Key derivation hash algorithm not supported.");
-            }
-
-            try
-            {
-                switch (_kdFunc)
-                {
-                    case KeyAgreementKeyDerivationFunction.Hash:
-                        return hash.ComputeHash(ComputeKey(otherPartyPublicKey));
-
-                    case KeyAgreementKeyDerivationFunction.Hmac:
-                        return hash.ComputeHash(_hmacMessage);
-
-                    default:
-                        throw new CryptoException("Key derivation function not supported.");
-                }
-            }
-            finally
-            {
-                hash.Dispose();
+                    throw new CryptoException("Key derivation function not supported.");
             }
         }
 
@@ -125,10 +135,10 @@ namespace TechnitiumLibrary.Security.Cryptography
         public KeyAgreementKeyDerivationHashAlgorithm KeyDerivationHashAlgorithm
         { get { return _kdHashAlgo; } }
 
-        public byte[] HmacMessage
+        public byte[] HmacKey
         {
-            get { return _hmacMessage; }
-            set { _hmacMessage = value; }
+            get { return _hmacKey; }
+            set { _hmacKey = value; }
         }
 
         #endregion
