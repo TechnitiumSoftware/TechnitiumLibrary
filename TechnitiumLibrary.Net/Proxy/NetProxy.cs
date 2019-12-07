@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -103,6 +103,25 @@ namespace TechnitiumLibrary.Net.Proxy
         private NetProxy()
         {
             _type = NetProxyType.None;
+        }
+
+        #endregion
+
+        #region static
+
+        public static NetProxy GetDefaultProxy()
+        {
+            IWebProxy proxy = WebRequest.DefaultWebProxy;
+            Uri testUri = new Uri("https://www.google.com/");
+
+            if (proxy.IsBypassed(testUri))
+                return null; //no proxy configured
+
+            Uri proxyAddress = proxy.GetProxy(testUri);
+            if (proxyAddress.Equals(testUri))
+                return null; //no proxy configured
+
+            return new NetProxy(new WebProxyEx(proxyAddress) { Credentials = proxy.Credentials });
         }
 
         #endregion
