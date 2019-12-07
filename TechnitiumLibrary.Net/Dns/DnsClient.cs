@@ -476,7 +476,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         //check if empty response was received from the authoritative name server
                                         foreach (DnsResourceRecord authorityRecord in response.Authority)
                                         {
-                                            if ((authorityRecord.Type == DnsResourceRecordType.NS) && question.Name.Equals(authorityRecord.Name, StringComparison.OrdinalIgnoreCase) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
+                                            if ((authorityRecord.Type == DnsResourceRecordType.NS) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
                                             {
                                                 //empty response from authoritative name server
                                                 if (resolverStack.Count == 0)
@@ -1222,8 +1222,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsDatagram Resolve(string domain, DnsResourceRecordType queryType)
         {
-            if (queryType == DnsResourceRecordType.PTR)
-                return Resolve(new DnsQuestionRecord(IPAddress.Parse(domain), DnsClass.IN));
+            if ((queryType == DnsResourceRecordType.PTR) && IPAddress.TryParse(domain, out IPAddress address))
+                return Resolve(new DnsQuestionRecord(address, DnsClass.IN));
             else
                 return Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.IN));
         }
