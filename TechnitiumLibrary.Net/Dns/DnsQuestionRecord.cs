@@ -41,13 +41,9 @@ namespace TechnitiumLibrary.Net.Dns
         {
             DnsClient.IsDomainNameValid(name, true);
 
+            _name = name;
             _type = type;
             _class = @class;
-
-            if (_type == DnsResourceRecordType.PTR)
-                throw new DnsClientException("Invalid type selected for question record.");
-            else
-                _name = name;
         }
 
         public DnsQuestionRecord(IPAddress ip, DnsClass @class)
