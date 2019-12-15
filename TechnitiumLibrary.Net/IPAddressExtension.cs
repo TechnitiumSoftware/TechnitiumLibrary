@@ -107,6 +107,51 @@ namespace TechnitiumLibrary.Net
             return new IPAddress(subnetMaskBuffer);
         }
 
+        public static IPAddress GetNetworkAddress(this IPAddress address, int subnetMaskWidth)
+        {
+            switch (address.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    {
+                        if (subnetMaskWidth > 32)
+                            throw new ArgumentOutOfRangeException("Invalid subnet mask width.");
+
+                        byte[] addressBytes = address.GetAddressBytes();
+                        byte[] networkAddress = new byte[4];
+                        int copyBytes = subnetMaskWidth / 8;
+                        int balanceBits = subnetMaskWidth - (copyBytes * 8);
+
+                        Buffer.BlockCopy(addressBytes, 0, networkAddress, 0, copyBytes);
+
+                        if (balanceBits > 0)
+                            networkAddress[copyBytes] = (byte)(addressBytes[copyBytes] & (0xFF << (8 - balanceBits)));
+
+                        return new IPAddress(networkAddress);
+                    }
+
+                case AddressFamily.InterNetworkV6:
+                    {
+                        if (subnetMaskWidth > 128)
+                            throw new ArgumentOutOfRangeException("Invalid subnet mask width.");
+
+                        byte[] addressBytes = address.GetAddressBytes();
+                        byte[] networkAddress = new byte[16];
+                        int copyBytes = subnetMaskWidth / 8;
+                        int balanceBits = subnetMaskWidth - (copyBytes * 8);
+
+                        Buffer.BlockCopy(addressBytes, 0, networkAddress, 0, copyBytes);
+
+                        if (balanceBits > 0)
+                            networkAddress[copyBytes] = (byte)(addressBytes[copyBytes] & (0xFF << (8 - balanceBits)));
+
+                        return new IPAddress(networkAddress);
+                    }
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
+        }
+
         #endregion
     }
 }
