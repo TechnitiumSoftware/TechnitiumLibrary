@@ -129,9 +129,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #endregion
 
-        #region private
+        #region public
 
-        private bool IsBypassed(EndPoint remoteEP)
+        public bool IsProxyBypassed(EndPoint remoteEP)
         {
             foreach (NetProxyBypassItem bypassItem in _proxyBypassList)
             {
@@ -141,10 +141,6 @@ namespace TechnitiumLibrary.Net.Proxy
 
             return false;
         }
-
-        #endregion
-
-        #region public
 
         public bool IsProxyAvailable()
         {
@@ -235,7 +231,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public Socket Connect(EndPoint remoteEP, int timeout = 10000)
         {
-            if (IsBypassed(remoteEP))
+            if (IsProxyBypassed(remoteEP))
             {
                 IPEndPoint hostEP = remoteEP.GetIPEndPoint();
                 Socket socket = new Socket(hostEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -298,7 +294,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestSize, byte[] response, int responseOffset = 0, int timeout = 10000)
         {
-            if (IsBypassed(remoteEP))
+            if (IsProxyBypassed(remoteEP))
             {
                 IPEndPoint hostEP = remoteEP.GetIPEndPoint();
 
