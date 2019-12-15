@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -88,6 +88,34 @@ namespace TechnitiumLibrary.Net
                 default:
                     throw new NotSupportedException("AddressFamily not supported.");
             }
+        }
+
+        public static IPEndPoint GetIPEndPoint(this EndPoint ep)
+        {
+            IPEndPoint hostEP;
+
+            switch (ep.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                case AddressFamily.InterNetworkV6:
+                    hostEP = ep as IPEndPoint;
+                    break;
+
+                case AddressFamily.Unspecified:
+                    DomainEndPoint dep = ep as DomainEndPoint;
+
+                    IPAddress[] ipAddresses = System.Net.Dns.GetHostAddresses(dep.Address);
+                    if (ipAddresses.Length == 0)
+                        throw new SocketException((int)SocketError.HostNotFound);
+
+                    hostEP = new IPEndPoint(ipAddresses[0], dep.Port);
+                    break;
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
+
+            return hostEP;
         }
 
         #endregion
