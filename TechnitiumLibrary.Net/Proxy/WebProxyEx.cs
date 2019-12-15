@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -79,21 +79,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 throw new SocketException((int)SocketError.HostNotFound);
 
             IPEndPoint hostEP = new IPEndPoint(ipAddresses[0], this.Address.Port);
-            Socket socket;
-
-            switch (hostEP.AddressFamily)
-            {
-                case AddressFamily.InterNetwork:
-                    socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                    break;
-
-                case AddressFamily.InterNetworkV6:
-                    socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
-                    break;
-
-                default:
-                    throw new NotSupportedException("AddressFamily not supported.");
-            }
+            Socket socket = new Socket(hostEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
             IAsyncResult result = socket.BeginConnect(hostEP, null, null);
             if (!result.AsyncWaitHandle.WaitOne(timeout))
@@ -274,52 +260,6 @@ namespace TechnitiumLibrary.Net.Proxy
                     return new DomainEndPoint(this.Address.Host, this.Address.Port);
             }
         }
-
-        #endregion
-    }
-
-    public class WebProxyExException : NetProxyException
-    {
-        #region constructors
-
-        public WebProxyExException()
-            : base()
-        { }
-
-        public WebProxyExException(string message)
-            : base(message)
-        { }
-
-        public WebProxyExException(string message, Exception innerException)
-            : base(message, innerException)
-        { }
-
-        protected WebProxyExException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base(info, context)
-        { }
-
-        #endregion
-    }
-
-    public class WebProxyExAuthenticationFailedException : NetProxyAuthenticationFailedException
-    {
-        #region constructors
-
-        public WebProxyExAuthenticationFailedException()
-            : base()
-        { }
-
-        public WebProxyExAuthenticationFailedException(string message)
-            : base(message)
-        { }
-
-        public WebProxyExAuthenticationFailedException(string message, Exception innerException)
-            : base(message, innerException)
-        { }
-
-        protected WebProxyExAuthenticationFailedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base(info, context)
-        { }
 
         #endregion
     }
