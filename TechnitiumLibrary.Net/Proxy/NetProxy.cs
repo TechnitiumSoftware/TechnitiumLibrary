@@ -292,7 +292,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return UdpReceiveFrom(remoteEP, request, 0, request.Length, response, 0, timeout);
         }
 
-        public int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestSize, byte[] response, int responseOffset = 0, int timeout = 10000)
+        public int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestSize, byte[] response, int responseOffset, int timeout = 10000)
         {
             if (IsProxyBypassed(remoteEP))
             {

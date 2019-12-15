@@ -96,7 +96,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
             else
             {
-                bufferSize = _proxy.UdpReceiveFrom(_server.EndPoint, buffer, buffer, _timeout);
+                bufferSize = _proxy.UdpReceiveFrom(_server.EndPoint, buffer, 0, bufferSize, buffer, 0, _timeout);
             }
 
             //parse response
