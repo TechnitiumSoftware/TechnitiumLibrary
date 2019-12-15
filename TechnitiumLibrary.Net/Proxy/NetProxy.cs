@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
@@ -40,6 +41,8 @@ namespace TechnitiumLibrary.Net.Proxy
         readonly SocksClient _socksProxy;
 
         NetProxy _viaProxy;
+
+        ICollection<NetProxyBypassItem> _proxyBypassList = new NetProxyBypassItem[] { new NetProxyBypassItem("127.0.0.0/8"), new NetProxyBypassItem("169.254.0.0/16"), new NetProxyBypassItem("fe80::/10"), new NetProxyBypassItem("::1"), new NetProxyBypassItem("loopback"), new NetProxyBypassItem(Environment.MachineName.ToLower()) };
 
         public readonly static NetProxy None = new NetProxy();
 
@@ -122,6 +125,21 @@ namespace TechnitiumLibrary.Net.Proxy
                 return null; //no proxy configured
 
             return new NetProxy(new WebProxyEx(proxyAddress) { Credentials = proxy.Credentials });
+        }
+
+        #endregion
+
+        #region private
+
+        private bool IsBypassed(EndPoint remoteEP)
+        {
+            foreach (NetProxyBypassItem bypassItem in _proxyBypassList)
+            {
+                if (bypassItem.IsMatching(remoteEP))
+                    return true;
+            }
+
+            return false;
         }
 
         #endregion
@@ -217,6 +235,21 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public Socket Connect(EndPoint remoteEP, int timeout = 10000)
         {
+            if (IsBypassed(remoteEP))
+            {
+                IPEndPoint hostEP = remoteEP.GetIPEndPoint();
+                Socket socket = new Socket(hostEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+                IAsyncResult result = socket.BeginConnect(hostEP, null, null);
+                if (!result.AsyncWaitHandle.WaitOne(timeout))
+                    throw new SocketException((int)SocketError.TimedOut);
+
+                if (!socket.Connected)
+                    throw new SocketException((int)SocketError.ConnectionRefused);
+
+                return socket;
+            }
+
             Socket viaProxySocket = null;
 
             if (_viaProxy != null)
@@ -263,8 +296,39 @@ namespace TechnitiumLibrary.Net.Proxy
             return UdpReceiveFrom(remoteEP, request, 0, request.Length, response, 0, timeout);
         }
 
-        public int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset = 0, int timeout = 10000)
+        public int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestSize, byte[] response, int responseOffset = 0, int timeout = 10000)
         {
+            if (IsBypassed(remoteEP))
+            {
+                IPEndPoint hostEP = remoteEP.GetIPEndPoint();
+
+                using (Socket socket = new Socket(hostEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
+                {
+                    socket.ReceiveTimeout = timeout;
+
+                    //send request
+                    socket.SendTo(request, requestOffset, requestSize, SocketFlags.None, hostEP);
+
+                    //receive request
+                    EndPoint ep;
+
+                    if (hostEP.AddressFamily == AddressFamily.InterNetworkV6)
+                        ep = new IPEndPoint(IPAddress.IPv6Any, 0);
+                    else
+                        ep = new IPEndPoint(IPAddress.Any, 0);
+
+                    int bytesReceived;
+
+                    do
+                    {
+                        bytesReceived = socket.ReceiveFrom(response, responseOffset, response.Length, SocketFlags.None, ref ep);
+                    }
+                    while (!hostEP.Equals(ep));
+
+                    return bytesReceived;
+                }
+            }
+
             switch (_type)
             {
                 case NetProxyType.Socks5:
@@ -276,7 +340,7 @@ namespace TechnitiumLibrary.Net.Proxy
                         proxyUdpRequestHandler.ReceiveTimeout = timeout;
 
                         //send request
-                        proxyUdpRequestHandler.SendTo(request, requestOffset, requestCount, remoteEP);
+                        proxyUdpRequestHandler.SendTo(request, requestOffset, requestSize, remoteEP);
 
                         //receive request
                         return proxyUdpRequestHandler.ReceiveFrom(response, responseOffset, response.Length - responseOffset, out EndPoint ep);
@@ -384,51 +448,23 @@ namespace TechnitiumLibrary.Net.Proxy
             set { _viaProxy = value; }
         }
 
-        #endregion
-    }
+        public ICollection<NetProxyBypassItem> ProxyBypassList
+        {
+            get
+            {
+                NetProxyBypassItem[] copy = new NetProxyBypassItem[_proxyBypassList.Count];
+                _proxyBypassList.CopyTo(copy, 0);
 
-    public class NetProxyException : Exception
-    {
-        #region constructors
+                return copy;
+            }
+            set
+            {
+                NetProxyBypassItem[] copy = new NetProxyBypassItem[value.Count];
+                value.CopyTo(copy, 0);
 
-        public NetProxyException()
-            : base()
-        { }
-
-        public NetProxyException(string message)
-            : base(message)
-        { }
-
-        public NetProxyException(string message, Exception innerException)
-            : base(message, innerException)
-        { }
-
-        protected NetProxyException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base(info, context)
-        { }
-
-        #endregion
-    }
-
-    public class NetProxyAuthenticationFailedException : NetProxyException
-    {
-        #region constructors
-
-        public NetProxyAuthenticationFailedException()
-            : base()
-        { }
-
-        public NetProxyAuthenticationFailedException(string message)
-            : base(message)
-        { }
-
-        public NetProxyAuthenticationFailedException(string message, Exception innerException)
-            : base(message, innerException)
-        { }
-
-        protected NetProxyAuthenticationFailedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base(info, context)
-        { }
+                _proxyBypassList = copy;
+            }
+        }
 
         #endregion
     }
