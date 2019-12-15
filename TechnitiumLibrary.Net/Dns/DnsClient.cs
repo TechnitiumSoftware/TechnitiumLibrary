@@ -1134,14 +1134,6 @@ namespace TechnitiumLibrary.Net.Dns
             int nextServerIndex = 0;
             int retries = _retries;
             Exception lastException = null;
-            DnsTransportProtocol protocol = _protocol;
-
-            if (_proxy != null)
-            {
-                //upgrade protocol to TCP when UDP is not supported by proxy
-                if ((protocol == DnsTransportProtocol.Udp) && !_proxy.IsUdpAvailable())
-                    protocol = DnsTransportProtocol.Tcp;
-            }
 
             //init server selection parameters
             if (_servers.Length > 1)
@@ -1190,6 +1182,12 @@ namespace TechnitiumLibrary.Net.Dns
                     retry++;
 
                     request.Header.SetRandomIdentifier(); //each retry must have differnt ID
+
+                    DnsTransportProtocol protocol = _protocol;
+
+                    //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
+                    if ((_proxy != null) && (protocol == DnsTransportProtocol.Udp) && !_proxy.IsUdpAvailable() && !_proxy.IsProxyBypassed(server.EndPoint))
+                        protocol = DnsTransportProtocol.Tcp;
 
                     DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy);
                     connection.Timeout = _timeout;
