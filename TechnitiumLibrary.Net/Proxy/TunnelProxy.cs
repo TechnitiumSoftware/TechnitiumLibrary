@@ -36,13 +36,13 @@ namespace TechnitiumLibrary.Net.Proxy
         const int TUNNEL_WAIT_TIMEOUT = 10000;
 
         Socket _socket;
-        EndPoint _remoteEP;
+        readonly EndPoint _remoteEP;
         readonly bool _enableSsl;
         readonly bool _ignoreCertificateErrors;
 
         bool _emulateHttpProxy;
         Socket _tunnelSocketListener;
-        IPEndPoint _tunnelEP;
+        readonly IPEndPoint _tunnelEP;
         Timer _tunnelWaitTimeoutTimer;
         Joint _tunnelJoint;
 
@@ -78,7 +78,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         bool _disposed = false;
 
-        private void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (_disposed)
                 return;
