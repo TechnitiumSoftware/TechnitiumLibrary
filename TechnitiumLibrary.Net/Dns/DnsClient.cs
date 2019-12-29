@@ -643,10 +643,10 @@ namespace TechnitiumLibrary.Net.Dns
                         break; //to stack loop
                     }
 
-                resolverLoop:;
+                    resolverLoop:;
                 }
 
-            stackLoop:;
+                stackLoop:;
             }
         }
 
@@ -953,53 +953,6 @@ namespace TechnitiumLibrary.Net.Dns
                 default:
                     throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
             }
-        }
-
-        public static Uri[] FindResolverAssociatedDohServers(bool preferIPv6 = false)
-        {
-            IPAddress[] resolverAddresses;
-
-            try
-            {
-                //find system dns servers
-                IPAddressCollection servers = GetSystemDnsServers(preferIPv6);
-
-                resolverAddresses = new IPAddress[servers.Count];
-                servers.CopyTo(resolverAddresses, 0);
-            }
-            catch
-            {
-                //error while finding system configured dns servers, try query method
-                resolverAddresses = System.Net.Dns.GetHostAddresses("resolver-addresses.arpa");
-                if ((resolverAddresses == null) || (resolverAddresses.Length < 1))
-                    return new Uri[] { };
-            }
-
-            return FindResolverAssociatedDohServers(resolverAddresses);
-        }
-
-        public static Uri[] FindResolverAssociatedDohServers(IPAddress[] resolverAddresses)
-        {
-            DnsClient client = new DnsClient(resolverAddresses);
-
-            string[] values = client.ResolveTXT("resolver-associated-doh.arpa");
-            List<Uri> dohUris = new List<Uri>();
-
-            foreach (string value in values)
-            {
-                string uriValue = value;
-
-                if (uriValue.EndsWith("{?dns}"))
-                    uriValue = uriValue.Replace("{?dns}", "");
-
-                if (Uri.TryCreate(uriValue, UriKind.Absolute, out Uri dohUri))
-                {
-                    if (dohUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
-                        dohUris.Add(dohUri);
-                }
-            }
-
-            return dohUris.ToArray();
         }
 
         public static IPAddressCollection GetSystemDnsServers(bool preferIPv6 = false)
