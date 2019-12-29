@@ -74,6 +74,22 @@ namespace TechnitiumLibrary.Net
             }
         }
 
+        public static string GetAddress(this EndPoint ep)
+        {
+            switch (ep.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                case AddressFamily.InterNetworkV6:
+                    return (ep as IPEndPoint).Address.ToString();
+
+                case AddressFamily.Unspecified:
+                    return (ep as DomainEndPoint).Address;
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
+        }
+
         public static int GetPort(this EndPoint ep)
         {
             switch (ep.AddressFamily)
@@ -92,14 +108,11 @@ namespace TechnitiumLibrary.Net
 
         public static IPEndPoint GetIPEndPoint(this EndPoint ep)
         {
-            IPEndPoint hostEP;
-
             switch (ep.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
                 case AddressFamily.InterNetworkV6:
-                    hostEP = ep as IPEndPoint;
-                    break;
+                    return ep as IPEndPoint;
 
                 case AddressFamily.Unspecified:
                     DomainEndPoint dep = ep as DomainEndPoint;
@@ -108,14 +121,11 @@ namespace TechnitiumLibrary.Net
                     if (ipAddresses.Length == 0)
                         throw new SocketException((int)SocketError.HostNotFound);
 
-                    hostEP = new IPEndPoint(ipAddresses[0], dep.Port);
-                    break;
+                    return new IPEndPoint(ipAddresses[0], dep.Port);
 
                 default:
                     throw new NotSupportedException("AddressFamily not supported.");
             }
-
-            return hostEP;
         }
 
         #endregion
