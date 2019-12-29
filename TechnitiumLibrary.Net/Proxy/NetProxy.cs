@@ -54,36 +54,25 @@ namespace TechnitiumLibrary.Net.Proxy
         #region constructor
 
         public NetProxy(NetProxyType type, IPAddress address, int port, NetworkCredential credential = null)
-        {
-            _type = type;
-
-            switch (type)
-            {
-                case NetProxyType.Http:
-                    _httpProxy = new WebProxyEx(new Uri("http://" + address.ToString() + ":" + port), false, new string[] { }, credential);
-                    break;
-
-                case NetProxyType.Socks5:
-                    _socksProxy = new SocksClient(address, port, credential);
-                    break;
-
-                default:
-                    throw new NotSupportedException("Proxy type not supported.");
-            }
-        }
+               : this(type, new IPEndPoint(address, port), credential)
+        { }
 
         public NetProxy(NetProxyType type, string address, int port, NetworkCredential credential = null)
+            : this(type, IPAddress.TryParse(address, out IPAddress ipAddress) ? (EndPoint)new IPEndPoint(ipAddress, port) : new DomainEndPoint(address, port), credential)
+        { }
+
+        public NetProxy(NetProxyType type, EndPoint proxyEndPoint, NetworkCredential credential = null)
         {
             _type = type;
 
             switch (type)
             {
                 case NetProxyType.Http:
-                    _httpProxy = new WebProxyEx(new Uri("http://" + address + ":" + port), false, new string[] { }, credential);
+                    _httpProxy = new WebProxyEx(new Uri("http://" + proxyEndPoint.GetAddress() + ":" + proxyEndPoint.GetPort()), false, new string[] { }, credential);
                     break;
 
                 case NetProxyType.Socks5:
-                    _socksProxy = new SocksClient(address, port, credential);
+                    _socksProxy = new SocksClient(proxyEndPoint, credential);
                     break;
 
                 default:

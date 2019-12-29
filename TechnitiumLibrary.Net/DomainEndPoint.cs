@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.Net
 
             DnsClient.IsDomainNameValid(address, true);
 
-            if (IPAddress.TryParse(address, out IPAddress ipAddress))
+            if (IPAddress.TryParse(address, out _))
                 throw new ArgumentException("Address must be a domain name: " + address);
 
             _address = address;
