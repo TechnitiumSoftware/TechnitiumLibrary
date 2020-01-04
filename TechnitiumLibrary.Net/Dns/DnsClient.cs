@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -984,6 +984,14 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static bool IsDomainNameValid(string domain, bool throwException = false)
         {
+            if (domain == null)
+            {
+                if (throwException)
+                    throw new DnsClientException("Invalid domain name: <null>.");
+
+                return false;
+            }
+
             if (domain.Length == 0)
                 return true; //domain is root zone
 
