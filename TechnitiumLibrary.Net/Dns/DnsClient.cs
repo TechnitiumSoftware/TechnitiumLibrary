@@ -19,11 +19,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
 using System.Net.Mail;
 using System.Net.NetworkInformation;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using TechnitiumLibrary.Net.Dns.ClientConnection;
@@ -699,12 +697,12 @@ namespace TechnitiumLibrary.Net.Dns
                     if ((lastResponse.Authority.Length > 0) && (lastResponse.Authority[0].Type == DnsResourceRecordType.SOA))
                         authority = lastResponse.Authority;
                     else
-                        authority = new DnsResourceRecord[] { };
+                        authority = Array.Empty<DnsResourceRecord>();
 
                     if ((response.Additional.Length > 0) && (question.Type == DnsResourceRecordType.MX))
                         additional = response.Additional;
                     else
-                        additional = new DnsResourceRecord[] { };
+                        additional = Array.Empty<DnsResourceRecord>();
 
                     DnsDatagram compositeResponse = new DnsDatagram(new DnsHeader(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, lastResponse.Header.RCODE, 1, (ushort)responseAnswer.Count, (ushort)authority.Length, (ushort)additional.Length), new DnsQuestionRecord[] { question }, responseAnswer.ToArray(), authority, additional);
 
@@ -718,12 +716,12 @@ namespace TechnitiumLibrary.Net.Dns
             if ((response.Authority.Length > 0) && (response.Authority[0].Type == DnsResourceRecordType.SOA))
                 authority = response.Authority;
             else
-                authority = new DnsResourceRecord[] { };
+                authority = Array.Empty<DnsResourceRecord>();
 
             if ((response.Additional.Length > 0) && (question.Type == DnsResourceRecordType.MX))
                 additional = response.Additional;
             else
-                additional = new DnsResourceRecord[] { };
+                additional = Array.Empty<DnsResourceRecord>();
 
             DnsDatagram finalResponse = new DnsDatagram(new DnsHeader(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, response.Header.RCODE, 1, (ushort)response.Answer.Length, (ushort)authority.Length, (ushort)additional.Length), new DnsQuestionRecord[] { question }, response.Answer, authority, additional);
 
@@ -756,7 +754,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 case DnsResponseCode.NoError:
                     if (response.Header.ANCOUNT == 0)
-                        return new IPAddress[] { };
+                        return Array.Empty<IPAddress>();
 
                     List<IPAddress> ipAddresses = new List<IPAddress>();
 
@@ -783,7 +781,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE + " (" + (int)response.Header.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -795,7 +793,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 case DnsResponseCode.NoError:
                     if (response.Header.ANCOUNT == 0)
-                        return new IPAddress[] { };
+                        return Array.Empty<IPAddress>();
 
                     List<IPAddress> ipAddresses = new List<IPAddress>();
 
@@ -822,7 +820,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE + " (" + (int)response.Header.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -834,7 +832,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 case DnsResponseCode.NoError:
                     if (response.Header.ANCOUNT == 0)
-                        return new string[] { };
+                        return Array.Empty<string>();
 
                     List<string> txtRecords = new List<string>();
 
@@ -861,7 +859,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE + " (" + (int)response.Header.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -897,7 +895,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE + " (" + (int)response.Header.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -909,7 +907,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 case DnsResponseCode.NoError:
                     if (response.Header.ANCOUNT == 0)
-                        return new string[] { };
+                        return Array.Empty<string>();
 
                     List<DnsMXRecord> mxRecordsList = new List<DnsMXRecord>();
 
@@ -945,13 +943,13 @@ namespace TechnitiumLibrary.Net.Dns
                         return mxEntries;
                     }
 
-                    return new string[] { };
+                    return Array.Empty<string>();
 
                 case DnsResponseCode.NameError:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE.ToString() + " (" + response.Header.RCODE + ")");
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE + " (" + (int)response.Header.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -1157,15 +1155,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (response != null)
                         return response;
                 }
-                catch (WebException ex)
-                {
-                    lastException = ex;
-                }
-                catch (IOException ex)
-                {
-                    lastException = ex;
-                }
-                catch (SocketException ex)
+                catch (Exception ex)
                 {
                     lastException = ex;
                 }
