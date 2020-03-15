@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -54,34 +54,41 @@ namespace TechnitiumLibrary.Net.Dns
             _additional = additional;
 
             if (_answer == null)
-                _answer = new DnsResourceRecord[] { };
+                _answer = Array.Empty<DnsResourceRecord>();
 
             if (_authority == null)
-                _authority = new DnsResourceRecord[] { };
+                _authority = Array.Empty<DnsResourceRecord>();
 
             if (_additional == null)
-                _additional = new DnsResourceRecord[] { };
+                _additional = Array.Empty<DnsResourceRecord>();
         }
 
         public DnsDatagram(Stream s)
         {
-            _header = new DnsHeader(s);
+            try
+            {
+                _header = new DnsHeader(s);
 
-            _question = new DnsQuestionRecord[_header.QDCOUNT];
-            for (int i = 0; i < _header.QDCOUNT; i++)
-                _question[i] = new DnsQuestionRecord(s);
+                _question = new DnsQuestionRecord[_header.QDCOUNT];
+                for (int i = 0; i < _header.QDCOUNT; i++)
+                    _question[i] = new DnsQuestionRecord(s);
 
-            _answer = new DnsResourceRecord[_header.ANCOUNT];
-            for (int i = 0; i < _header.ANCOUNT; i++)
-                _answer[i] = new DnsResourceRecord(s);
+                _answer = new DnsResourceRecord[_header.ANCOUNT];
+                for (int i = 0; i < _header.ANCOUNT; i++)
+                    _answer[i] = new DnsResourceRecord(s);
 
-            _authority = new DnsResourceRecord[_header.NSCOUNT];
-            for (int i = 0; i < _header.NSCOUNT; i++)
-                _authority[i] = new DnsResourceRecord(s);
+                _authority = new DnsResourceRecord[_header.NSCOUNT];
+                for (int i = 0; i < _header.NSCOUNT; i++)
+                    _authority[i] = new DnsResourceRecord(s);
 
-            _additional = new DnsResourceRecord[_header.ARCOUNT];
-            for (int i = 0; i < _header.ARCOUNT; i++)
-                _additional[i] = new DnsResourceRecord(s);
+                _additional = new DnsResourceRecord[_header.ARCOUNT];
+                for (int i = 0; i < _header.ARCOUNT; i++)
+                    _additional[i] = new DnsResourceRecord(s);
+            }
+            catch (Exception ex)
+            {
+                throw new DnsDatagramFormatException("Error while parsing DNS datagram.", ex, this);
+            }
         }
 
         public DnsDatagram(dynamic jsonResponse)
@@ -97,7 +104,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (jsonResponse.Answer == null)
             {
-                _answer = new DnsResourceRecord[] { };
+                _answer = Array.Empty<DnsResourceRecord>();
             }
             else
             {
@@ -109,7 +116,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (jsonResponse.Authority == null)
             {
-                _authority = new DnsResourceRecord[] { };
+                _authority = Array.Empty<DnsResourceRecord>();
             }
             else
             {
@@ -121,7 +128,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (jsonResponse.Additional == null)
             {
-                _additional = new DnsResourceRecord[] { };
+                _additional = Array.Empty<DnsResourceRecord>();
             }
             else
             {
