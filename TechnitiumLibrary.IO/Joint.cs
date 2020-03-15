@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -59,7 +59,7 @@ namespace TechnitiumLibrary.IO
         bool _disposed = false;
         readonly object _disposeLock = new object();
 
-        private void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             lock (_disposeLock)
             {
