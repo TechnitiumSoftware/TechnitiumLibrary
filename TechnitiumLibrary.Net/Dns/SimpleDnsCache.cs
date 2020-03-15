@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
@@ -147,11 +148,11 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsResourceRecord authority = (answerRecords[0].RDATA as DnsEmptyRecord).Authority;
 
                     if (authority == null)
-                        responseAuthority = new DnsResourceRecord[] { };
+                        responseAuthority = Array.Empty<DnsResourceRecord>();
                     else
                         responseAuthority = new DnsResourceRecord[] { authority };
 
-                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, 0, 1, 0), request.Question, new DnsResourceRecord[] { }, responseAuthority, new DnsResourceRecord[] { });
+                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, 0, 1, 0), request.Question, Array.Empty<DnsResourceRecord>(), responseAuthority, Array.Empty<DnsResourceRecord>());
                 }
 
                 if (answerRecords[0].RDATA is DnsNXRecord)
@@ -160,23 +161,23 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsResourceRecord authority = (answerRecords[0].RDATA as DnsNXRecord).Authority;
 
                     if (authority == null)
-                        responseAuthority = new DnsResourceRecord[] { };
+                        responseAuthority = Array.Empty<DnsResourceRecord>();
                     else
                         responseAuthority = new DnsResourceRecord[] { authority };
 
-                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NameError, 1, 0, 1, 0), request.Question, new DnsResourceRecord[] { }, responseAuthority, new DnsResourceRecord[] { });
+                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NameError, 1, 0, 1, 0), request.Question, Array.Empty<DnsResourceRecord>(), responseAuthority, Array.Empty<DnsResourceRecord>());
                 }
 
                 if (answerRecords[0].RDATA is DnsANYRecord)
                 {
                     DnsANYRecord anyRR = answerRecords[0].RDATA as DnsANYRecord;
-                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, (ushort)anyRR.Records.Length, 0, 0), request.Question, anyRR.Records, new DnsResourceRecord[] { }, new DnsResourceRecord[] { });
+                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, (ushort)anyRR.Records.Length, 0, 0), request.Question, anyRR.Records, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>());
                 }
 
                 if (answerRecords[0].RDATA is DnsFailureRecord)
-                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, (answerRecords[0].RDATA as DnsFailureRecord).RCODE, 1, 0, 0, 0), request.Question, new DnsResourceRecord[] { }, new DnsResourceRecord[] { }, new DnsResourceRecord[] { });
+                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, (answerRecords[0].RDATA as DnsFailureRecord).RCODE, 1, 0, 0, 0), request.Question, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>());
 
-                return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, (ushort)answerRecords.Length, 0, 0), request.Question, answerRecords, new DnsResourceRecord[] { }, new DnsResourceRecord[] { });
+                return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, (ushort)answerRecords.Length, 0, 0), request.Question, answerRecords, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>());
             }
 
             string currentZone = question.Name;
@@ -205,13 +206,13 @@ namespace TechnitiumLibrary.Net.Dns
                 if (glueRecords.Count > 0)
                 {
                     DnsResourceRecord[] additional = glueRecords.ToArray();
-                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, 0, (ushort)nameServers.Length, (ushort)additional.Length), request.Question, new DnsResourceRecord[] { }, nameServers, additional);
+                    return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.NoError, 1, 0, (ushort)nameServers.Length, (ushort)additional.Length), request.Question, Array.Empty<DnsResourceRecord>(), nameServers, additional);
                 }
 
                 currentZone = GetParentZone(currentZone);
             }
 
-            return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.Refused, 1, 0, 0, 0), request.Question, new DnsResourceRecord[] { }, new DnsResourceRecord[] { }, new DnsResourceRecord[] { });
+            return new DnsDatagram(new DnsHeader(request.Header.Identifier, true, DnsOpcode.StandardQuery, false, false, request.Header.RecursionDesired, true, false, false, DnsResponseCode.Refused, 1, 0, 0, 0), request.Question, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>());
         }
 
         #endregion

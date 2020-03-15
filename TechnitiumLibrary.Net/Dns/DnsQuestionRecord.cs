@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,9 +29,9 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        string _name;
-        DnsResourceRecordType _type;
-        DnsClass _class;
+        readonly string _name;
+        readonly DnsResourceRecordType _type;
+        readonly DnsClass _class;
 
         #endregion
 

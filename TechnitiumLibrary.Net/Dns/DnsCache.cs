@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -144,7 +144,7 @@ namespace TechnitiumLibrary.Net.Dns
                         //empty response with authority
                         foreach (DnsQuestionRecord question in response.Question)
                         {
-                            if (question.Name.Equals(authority.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authority.Name, StringComparison.OrdinalIgnoreCase) || authority.Name.Equals("", StringComparison.OrdinalIgnoreCase))
+                            if (question.Name.Equals(authority.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authority.Name, StringComparison.OrdinalIgnoreCase) || (authority.Name.Length == 0))
                             {
                                 DnsResourceRecord record = null;
 
@@ -539,7 +539,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             #region variables
 
-            DnsResponseCode _rcode;
+            readonly DnsResponseCode _rcode;
 
             #endregion
 
