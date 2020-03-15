@@ -40,6 +40,8 @@ namespace TechnitiumLibrary.Net.Dns
         readonly DnsResourceRecord[] _authority;
         readonly DnsResourceRecord[] _additional;
 
+        readonly Exception _parsingException;
+
         #endregion
 
         #region constructor
@@ -69,26 +71,46 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 _header = new DnsHeader(s);
 
-                _question = new DnsQuestionRecord[_header.QDCOUNT];
+                DnsQuestionRecord[] question = new DnsQuestionRecord[_header.QDCOUNT];
                 for (int i = 0; i < _header.QDCOUNT; i++)
-                    _question[i] = new DnsQuestionRecord(s);
+                    question[i] = new DnsQuestionRecord(s);
 
-                _answer = new DnsResourceRecord[_header.ANCOUNT];
+                _question = question;
+
+                DnsResourceRecord[] answer = new DnsResourceRecord[_header.ANCOUNT];
                 for (int i = 0; i < _header.ANCOUNT; i++)
-                    _answer[i] = new DnsResourceRecord(s);
+                    answer[i] = new DnsResourceRecord(s);
 
-                _authority = new DnsResourceRecord[_header.NSCOUNT];
+                _answer = answer;
+
+                DnsResourceRecord[] authority = new DnsResourceRecord[_header.NSCOUNT];
                 for (int i = 0; i < _header.NSCOUNT; i++)
-                    _authority[i] = new DnsResourceRecord(s);
+                    authority[i] = new DnsResourceRecord(s);
 
-                _additional = new DnsResourceRecord[_header.ARCOUNT];
+                _authority = authority;
+
+                DnsResourceRecord[] additional = new DnsResourceRecord[_header.ARCOUNT];
                 for (int i = 0; i < _header.ARCOUNT; i++)
-                    _additional[i] = new DnsResourceRecord(s);
+                    additional[i] = new DnsResourceRecord(s);
+
+                _additional = additional;
             }
             catch (Exception ex)
             {
-                throw new DnsDatagramFormatException("Error while parsing DNS datagram.", ex, this);
+                _parsingException = ex;
             }
+
+            if (_question == null)
+                _question = Array.Empty<DnsQuestionRecord>();
+
+            if (_answer == null)
+                _answer = Array.Empty<DnsResourceRecord>();
+
+            if (_authority == null)
+                _authority = Array.Empty<DnsResourceRecord>();
+
+            if (_additional == null)
+                _additional = Array.Empty<DnsResourceRecord>();
         }
 
         public DnsDatagram(dynamic jsonResponse)
@@ -405,6 +427,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsResourceRecord[] Additional
         { get { return _additional; } }
+
+        [IgnoreDataMember]
+        public Exception ParsingException
+        { get { return _parsingException; } }
 
         [IgnoreDataMember]
         public object Tag { get; set; }
