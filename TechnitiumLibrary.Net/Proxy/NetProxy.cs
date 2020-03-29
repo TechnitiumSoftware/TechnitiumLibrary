@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         NetProxy _viaProxy;
 
-        ICollection<NetProxyBypassItem> _proxyBypassList = new NetProxyBypassItem[] { new NetProxyBypassItem("127.0.0.0/8"), new NetProxyBypassItem("169.254.0.0/16"), new NetProxyBypassItem("fe80::/10"), new NetProxyBypassItem("::1"), new NetProxyBypassItem("loopback"), new NetProxyBypassItem(Environment.MachineName.ToLower()) };
+        ICollection<NetProxyBypassItem> _proxyBypassList = new NetProxyBypassItem[] { new NetProxyBypassItem("127.0.0.0/8"), new NetProxyBypassItem("169.254.0.0/16"), new NetProxyBypassItem("fe80::/10"), new NetProxyBypassItem("::1"), new NetProxyBypassItem("localhost") };
 
         public readonly static NetProxy None = new NetProxy();
 
@@ -104,6 +104,9 @@ namespace TechnitiumLibrary.Net.Proxy
         public static NetProxy GetDefaultProxy()
         {
             IWebProxy proxy = WebRequest.DefaultWebProxy;
+            if (proxy == null)
+                return null; //no proxy configured
+
             Uri testUri = new Uri("https://www.google.com/");
 
             if (proxy.IsBypassed(testUri))
