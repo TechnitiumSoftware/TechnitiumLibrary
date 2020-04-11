@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@ namespace TechnitiumLibrary.IO
         public WriteBufferedStream(Stream baseStream, int bufferSize = 4096)
         {
             if (!baseStream.CanWrite)
-                throw new ArgumentException("baseStream not writeable.");
+                throw new NotSupportedException("baseStream is not writeable.");
 
             _baseStream = baseStream;
             _writeBuffer = new byte[bufferSize];
@@ -95,7 +95,7 @@ namespace TechnitiumLibrary.IO
 
         public override void Flush()
         {
-            if (!_baseStream.CanWrite)
+            if (_disposed)
                 throw new ObjectDisposedException("WriteBufferedStream");
 
             if (_writeBufferPosition > 0)
@@ -135,7 +135,7 @@ namespace TechnitiumLibrary.IO
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            if (!_baseStream.CanWrite)
+            if (_disposed)
                 throw new ObjectDisposedException("WriteBufferedStream");
 
             int bytesAvailable;
