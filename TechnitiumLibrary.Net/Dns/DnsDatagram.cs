@@ -251,7 +251,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             StringBuilder domain = new StringBuilder();
             byte labelLength = Convert.ToByte(s.ReadByte());
-            byte[] buffer = new byte[255];
+            byte[] buffer = null;
 
             while (labelLength > 0)
             {
@@ -267,6 +267,9 @@ namespace TechnitiumLibrary.Net.Dns
                 }
                 else
                 {
+                    if (buffer == null)
+                        buffer = new byte[255]; //late buffer init to avoid unnecessary allocation in most cases
+
                     s.ReadBytes(buffer, 0, labelLength);
                     domain.Append(Encoding.ASCII.GetString(buffer, 0, labelLength));
                     domain.Append(".");
