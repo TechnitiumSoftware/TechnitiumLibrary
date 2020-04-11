@@ -24,6 +24,7 @@ using System.Net.Mail;
 using System.Net.NetworkInformation;
 using System.Security.Cryptography;
 using System.Text;
+using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.ClientConnection;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 using TechnitiumLibrary.Net.Proxy;
@@ -179,7 +180,7 @@ namespace TechnitiumLibrary.Net.Dns
                 Array.Copy(nameServers, nameServersCopy, nameServers.Length);
                 nameServers = nameServersCopy;
 
-                ShuffleArray(nameServers);
+                nameServers.Shuffle();
 
                 if (preferIPv6)
                     Array.Sort(nameServers);
@@ -317,7 +318,7 @@ namespace TechnitiumLibrary.Net.Dns
                         Array.Copy(ROOT_NAME_SERVERS_IPv6, nameServers, ROOT_NAME_SERVERS_IPv6.Length);
                         Array.Copy(ROOT_NAME_SERVERS_IPv4, 0, nameServers, ROOT_NAME_SERVERS_IPv6.Length, ROOT_NAME_SERVERS_IPv4.Length);
 
-                        ShuffleArray(nameServers);
+                        nameServers.Shuffle();
                         Array.Sort(nameServers);
                     }
                     else
@@ -325,7 +326,7 @@ namespace TechnitiumLibrary.Net.Dns
                         nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv4.Length];
                         Array.Copy(ROOT_NAME_SERVERS_IPv4, nameServers, ROOT_NAME_SERVERS_IPv4.Length);
 
-                        ShuffleArray(nameServers);
+                        nameServers.Shuffle();
                     }
                 }
 
@@ -1067,21 +1068,6 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             return true;
-        }
-
-        public static void ShuffleArray<T>(T[] array)
-        {
-            byte[] buffer = new byte[4];
-
-            int n = array.Length;
-            while (n > 1)
-            {
-                _rnd.GetBytes(buffer);
-                int k = (int)(BitConverter.ToUInt32(buffer, 0) % n--);
-                T temp = array[n];
-                array[n] = array[k];
-                array[k] = temp;
-            }
         }
 
         #endregion
