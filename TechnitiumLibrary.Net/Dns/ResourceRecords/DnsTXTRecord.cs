@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -57,19 +57,42 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void Parse(Stream s)
         {
-            int length = s.ReadByte();
-            if (length < 0)
-                throw new EndOfStreamException();
+            int bytesRead = 0;
+            int length;
 
-            _txtData = Encoding.ASCII.GetString(s.ReadBytes(length));
+            while (bytesRead < _length)
+            {
+                length = s.ReadByte();
+                if (length < 0)
+                    throw new EndOfStreamException();
+
+                if (_txtData == null)
+                    _txtData = Encoding.ASCII.GetString(s.ReadBytes(length));
+                else
+                    _txtData += Encoding.ASCII.GetString(s.ReadBytes(length));
+
+                bytesRead += length + 1;
+            }
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
             byte[] data = Encoding.ASCII.GetBytes(_txtData);
+            int offset = 0;
+            int length;
 
-            s.WriteByte(Convert.ToByte(data.Length));
-            s.Write(data, 0, data.Length);
+            do
+            {
+                length = data.Length - offset;
+                if (length > 255)
+                    length = 255;
+
+                s.WriteByte(Convert.ToByte(length));
+                s.Write(data, offset, length);
+
+                offset += length;
+            }
+            while (offset < length);
         }
 
         #endregion
