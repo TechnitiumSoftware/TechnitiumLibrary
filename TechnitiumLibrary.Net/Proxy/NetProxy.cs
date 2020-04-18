@@ -31,77 +31,51 @@ namespace TechnitiumLibrary.Net.Proxy
         Socks5 = 2
     }
 
-    public class NetProxy
+    public abstract class NetProxy
     {
         #region variables
 
         readonly NetProxyType _type;
 
-        readonly WebProxyEx _httpProxy;
-        readonly SocksClient _socksProxy;
+        protected EndPoint _proxyEP;
+        protected NetworkCredential _credential;
 
-        NetProxy _viaProxy;
-
-        ICollection<NetProxyBypassItem> _proxyBypassList = new NetProxyBypassItem[] { new NetProxyBypassItem("127.0.0.0/8"), new NetProxyBypassItem("169.254.0.0/16"), new NetProxyBypassItem("fe80::/10"), new NetProxyBypassItem("::1"), new NetProxyBypassItem("localhost") };
-
-        public readonly static NetProxy None = new NetProxy();
-
-        bool _isUdpAvailableChecked;
-        bool _isUdpAvailable;
+        protected NetProxy _viaProxy;
+        ICollection<NetProxyBypassItem> _bypassList = new List<NetProxyBypassItem> { new NetProxyBypassItem("127.0.0.0/8"), new NetProxyBypassItem("169.254.0.0/16"), new NetProxyBypassItem("fe80::/10"), new NetProxyBypassItem("::1"), new NetProxyBypassItem("localhost") };
 
         #endregion
 
         #region constructor
 
-        public NetProxy(NetProxyType type, IPAddress address, int port, NetworkCredential credential = null)
-               : this(type, new IPEndPoint(address, port), credential)
-        { }
-
-        public NetProxy(NetProxyType type, string address, int port, NetworkCredential credential = null)
-            : this(type, IPAddress.TryParse(address, out IPAddress ipAddress) ? (EndPoint)new IPEndPoint(ipAddress, port) : new DomainEndPoint(address, port), credential)
-        { }
-
-        public NetProxy(NetProxyType type, EndPoint proxyEndPoint, NetworkCredential credential = null)
+        protected NetProxy(NetProxyType type, EndPoint proxyEP, NetworkCredential credential)
         {
             _type = type;
-
-            switch (type)
-            {
-                case NetProxyType.Http:
-                    _httpProxy = new WebProxyEx(new Uri("http://" + proxyEndPoint.GetAddress() + ":" + proxyEndPoint.GetPort()), false, new string[] { }, credential);
-                    break;
-
-                case NetProxyType.Socks5:
-                    _socksProxy = new SocksClient(proxyEndPoint, credential);
-                    break;
-
-                default:
-                    throw new NotSupportedException("Proxy type not supported.");
-            }
-        }
-
-        public NetProxy(WebProxyEx httpProxy)
-        {
-            _type = NetProxyType.Http;
-            _httpProxy = httpProxy;
-        }
-
-        public NetProxy(SocksClient socksProxy)
-        {
-            _type = NetProxyType.Socks5;
-            _socksProxy = socksProxy;
-        }
-
-        private NetProxy()
-        {
-            _type = NetProxyType.None;
+            _proxyEP = proxyEP;
+            _credential = credential;
         }
 
         #endregion
 
         #region static
 
-        public static NetProxy GetDefaultProxy()
+        public static NetProxy CreateHttpProxy(string address, int port = 8080, NetworkCredential credential = null)
+        {
+            EndPoint proxyEP;
+
+            if (IPAddress.TryParse(address, out IPAddress ip))
+                proxyEP = new IPEndPoint(ip, port);
+            else
+                proxyEP = new DomainEndPoint(address, port);
+
+            return new HttpProxy(proxyEP, credential);
+        }
+
+        public static NetProxy CreateHttpProxy(EndPoint proxyEP, NetworkCredential credential = null)
+        {
+            return new HttpProxy(proxyEP, credential);
+        }
+
+        public static NetProxy CreateSystemHttpProxy()
         {
             IWebProxy proxy = WebRequest.DefaultWebProxy;
             if (proxy == null)
@@ -116,98 +90,104 @@ namespace TechnitiumLibrary.Net.Proxy
             if (proxyAddress.Equals(testUri))
                 return null; //no proxy configured
 
-            return new NetProxy(new WebProxyEx(proxyAddress) { Credentials = proxy.Credentials });
+            EndPoint proxyEP;
+
+            if (IPAddress.TryParse(proxyAddress.Host, out IPAddress ip))
+                proxyEP = new IPEndPoint(ip, proxyAddress.Port);
+            else
+                proxyEP = new DomainEndPoint(proxyAddress.Host, proxyAddress.Port);
+
+            return CreateHttpProxy(proxyEP, proxy.Credentials.GetCredential(new Uri("http://" + proxyEP.ToString()), "BASIC"));
         }
+
+        public static NetProxy CreateSocksProxy(string address, int port = 1080, NetworkCredential credential = null)
+        {
+            EndPoint proxyEP;
+
+            if (IPAddress.TryParse(address, out IPAddress ip))
+                proxyEP = new IPEndPoint(ip, port);
+            else
+                proxyEP = new DomainEndPoint(address, port);
+
+            return new SocksProxy(proxyEP, credential);
+        }
+
+        public static NetProxy CreateSocksProxy(EndPoint proxyEP, NetworkCredential credential = null)
+        {
+            return new SocksProxy(proxyEP, credential);
+        }
+
+        public static NetProxy CreateProxy(NetProxyType type, string address, int port, NetworkCredential credential)
+        {
+            switch (type)
+            {
+                case NetProxyType.Http:
+                    return CreateHttpProxy(address, port, credential);
+
+                case NetProxyType.Socks5:
+                    return CreateSocksProxy(address, port, credential);
+
+                default:
+                    throw new NotSupportedException("Proxy type not supported.");
+            }
+        }
+
+        #endregion
+
+        #region protected
+
+        protected static Socket GetTcpConnection(EndPoint ep, int timeout)
+        {
+            IPEndPoint hostEP = ep.GetIPEndPoint();
+            Socket socket = new Socket(hostEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+            IAsyncResult result = socket.BeginConnect(hostEP, null, null);
+            if (!result.AsyncWaitHandle.WaitOne(timeout))
+                throw new SocketException((int)SocketError.TimedOut);
+
+            if (!socket.Connected)
+                throw new SocketException((int)SocketError.ConnectionRefused);
+
+            socket.SendTimeout = timeout;
+            socket.ReceiveTimeout = timeout;
+
+            return socket;
+        }
+
+        protected abstract Socket Connect(EndPoint remoteEP, Socket viaSocket);
 
         #endregion
 
         #region public
 
-        public bool IsProxyBypassed(EndPoint remoteEP)
+        public bool IsBypassed(Uri host)
         {
-            foreach (NetProxyBypassItem bypassItem in _proxyBypassList)
+            EndPoint ep;
+
+            if (IPAddress.TryParse(host.Host, out IPAddress address))
+                ep = new IPEndPoint(address, host.Port);
+            else
+                ep = new DomainEndPoint(host.Host, host.Port);
+
+            return IsBypassed(ep);
+        }
+
+        public bool IsBypassed(EndPoint ep)
+        {
+            foreach (NetProxyBypassItem bypassItem in _bypassList)
             {
-                if (bypassItem.IsMatching(remoteEP))
+                if (bypassItem.IsMatching(ep))
                     return true;
             }
 
             return false;
         }
 
-        public bool IsProxyAvailable()
-        {
-            switch (_type)
-            {
-                case NetProxyType.Http:
-                    return _httpProxy.IsProxyAvailable();
+        public abstract bool IsProxyAvailable();
 
-                case NetProxyType.Socks5:
-                    return _socksProxy.IsProxyAvailable();
+        public abstract void CheckProxyAccess();
 
-                default:
-                    return false;
-            }
-        }
-
-        public void CheckProxyAccess()
-        {
-            switch (_type)
-            {
-                case NetProxyType.Http:
-                    _httpProxy.CheckProxyAccess();
-                    break;
-
-                case NetProxyType.Socks5:
-                    _socksProxy.CheckProxyAccess();
-                    break;
-
-                default:
-                    throw new NotSupportedException("Proxy type not supported.");
-            }
-        }
-
-        public bool IsUdpAvailable()
-        {
-            if (_isUdpAvailableChecked)
-                return _isUdpAvailable;
-
-            switch (_type)
-            {
-                case NetProxyType.Http:
-                    _isUdpAvailable = false;
-                    break;
-
-                case NetProxyType.Socks5:
-                    SocksUdpAssociateRequestHandler udpHandler = null;
-
-                    try
-                    {
-                        udpHandler = _socksProxy.UdpAssociate();
-
-                        _isUdpAvailable = true;
-                    }
-                    catch (SocksClientException ex)
-                    {
-                        if (ex.ReplyCode == SocksReplyCode.CommandNotSupported)
-                            _isUdpAvailable = false;
-                        else
-                            throw;
-                    }
-                    finally
-                    {
-                        if (udpHandler != null)
-                            udpHandler.Dispose();
-                    }
-                    break;
-
-                default:
-                    throw new NotSupportedException("Proxy type not supported.");
-            }
-
-            _isUdpAvailableChecked = true;
-
-            return _isUdpAvailable;
-        }
+        public abstract bool IsUdpAvailable();
 
         public Socket Connect(string address, int port, int timeout = 10000)
         {
@@ -223,43 +203,13 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public Socket Connect(EndPoint remoteEP, int timeout = 10000)
         {
-            if (IsProxyBypassed(remoteEP))
-            {
-                IPEndPoint hostEP = remoteEP.GetIPEndPoint();
-                Socket socket = new Socket(hostEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            if (IsBypassed(remoteEP))
+                return GetTcpConnection(remoteEP, timeout);
 
-                IAsyncResult result = socket.BeginConnect(hostEP, null, null);
-                if (!result.AsyncWaitHandle.WaitOne(timeout))
-                    throw new SocketException((int)SocketError.TimedOut);
-
-                if (!socket.Connected)
-                    throw new SocketException((int)SocketError.ConnectionRefused);
-
-                return socket;
-            }
-
-            Socket viaProxySocket = null;
-
-            if (_viaProxy != null)
-                viaProxySocket = _viaProxy.Connect(this.ProxyEndPoint, timeout);
-
-            switch (_type)
-            {
-                case NetProxyType.Http:
-                    if (viaProxySocket == null)
-                        return _httpProxy.Connect(remoteEP, timeout);
-                    else
-                        return _httpProxy.Connect(remoteEP, viaProxySocket);
-
-                case NetProxyType.Socks5:
-                    if (viaProxySocket == null)
-                        return _socksProxy.Connect(remoteEP, timeout);
-                    else
-                        return _socksProxy.Connect(remoteEP, viaProxySocket);
-
-                default:
-                    throw new NotSupportedException("Proxy type not supported.");
-            }
+            if (_viaProxy == null)
+                return Connect(remoteEP, GetTcpConnection(_proxyEP, timeout));
+            else
+                return Connect(remoteEP, _viaProxy.Connect(_proxyEP, timeout));
         }
 
         public TunnelProxy CreateLocalTunnelProxy(string address, int port, int timeout = 10000, bool enableSsl = false, bool ignoreCertificateErrors = false)
@@ -284,60 +234,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return UdpReceiveFrom(remoteEP, request, 0, request.Length, response, 0, timeout);
         }
 
-        public int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestSize, byte[] response, int responseOffset, int timeout = 10000)
-        {
-            if (IsProxyBypassed(remoteEP))
-            {
-                IPEndPoint hostEP = remoteEP.GetIPEndPoint();
-
-                using (Socket socket = new Socket(hostEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
-                {
-                    socket.ReceiveTimeout = timeout;
-
-                    //send request
-                    socket.SendTo(request, requestOffset, requestSize, SocketFlags.None, hostEP);
-
-                    //receive request
-                    EndPoint ep;
-
-                    if (hostEP.AddressFamily == AddressFamily.InterNetworkV6)
-                        ep = new IPEndPoint(IPAddress.IPv6Any, 0);
-                    else
-                        ep = new IPEndPoint(IPAddress.Any, 0);
-
-                    int bytesReceived;
-
-                    do
-                    {
-                        bytesReceived = socket.ReceiveFrom(response, responseOffset, response.Length, SocketFlags.None, ref ep);
-                    }
-                    while (!hostEP.Equals(ep));
-
-                    return bytesReceived;
-                }
-            }
-
-            switch (_type)
-            {
-                case NetProxyType.Socks5:
-                    if (_viaProxy != null)
-                        throw new NotSupportedException("Cannot chain proxies for SOCKS5 Udp protocol.");
-
-                    using (SocksUdpAssociateRequestHandler proxyUdpRequestHandler = _socksProxy.UdpAssociate(timeout))
-                    {
-                        proxyUdpRequestHandler.ReceiveTimeout = timeout;
-
-                        //send request
-                        proxyUdpRequestHandler.SendTo(request, requestOffset, requestSize, remoteEP);
-
-                        //receive request
-                        return proxyUdpRequestHandler.ReceiveFrom(response, responseOffset, response.Length - responseOffset, out EndPoint ep);
-                    }
-
-                default:
-                    throw new NotSupportedException("Proxy type not supported.");
-            }
-        }
+        public abstract int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestSize, byte[] response, int responseOffset, int timeout = 10000);
 
         #endregion
 
@@ -346,89 +243,17 @@ namespace TechnitiumLibrary.Net.Proxy
         public NetProxyType Type
         { get { return _type; } }
 
+        public EndPoint ProxyEndPoint
+        { get { return _proxyEP; } }
+
         public string Address
-        {
-            get
-            {
-                switch (_type)
-                {
-                    case NetProxyType.Http:
-                        return _httpProxy.Address.Host;
-
-                    case NetProxyType.Socks5:
-                        if (_socksProxy.ProxyEndPoint.AddressFamily == AddressFamily.Unspecified)
-                            return (_socksProxy.ProxyEndPoint as DomainEndPoint).Address;
-
-                        return (_socksProxy.ProxyEndPoint as IPEndPoint).Address.ToString();
-
-                    default:
-                        throw new NotSupportedException("Proxy type not supported.");
-                }
-            }
-        }
+        { get { return _proxyEP.GetAddress(); } }
 
         public int Port
-        {
-            get
-            {
-                switch (_type)
-                {
-                    case NetProxyType.Http:
-                        return _httpProxy.Address.Port;
-
-                    case NetProxyType.Socks5:
-                        if (_socksProxy.ProxyEndPoint.AddressFamily == AddressFamily.Unspecified)
-                            return (_socksProxy.ProxyEndPoint as DomainEndPoint).Port;
-
-                        return (_socksProxy.ProxyEndPoint as IPEndPoint).Port;
-
-                    default:
-                        throw new NotSupportedException("Proxy type not supported.");
-                }
-            }
-        }
-
-        public EndPoint ProxyEndPoint
-        {
-            get
-            {
-                switch (_type)
-                {
-                    case NetProxyType.Http:
-                        return _httpProxy.ProxyEndPoint;
-
-                    case NetProxyType.Socks5:
-                        return _socksProxy.ProxyEndPoint;
-
-                    default:
-                        throw new NotSupportedException("Proxy type not supported.");
-                }
-            }
-        }
+        { get { return _proxyEP.GetPort(); } }
 
         public NetworkCredential Credential
-        {
-            get
-            {
-                switch (_type)
-                {
-                    case NetProxyType.Http:
-                        return _httpProxy.Credentials?.GetCredential(new Uri("http://www.google.com/"), "Basic");
-
-                    case NetProxyType.Socks5:
-                        return _socksProxy.Credential;
-
-                    default:
-                        throw new NotSupportedException("Proxy type not supported.");
-                }
-            }
-        }
-
-        public WebProxyEx HttpProxy
-        { get { return _httpProxy; } }
-
-        public SocksClient SocksProxy
-        { get { return _socksProxy; } }
+        { get { return _credential; } }
 
         public NetProxy ViaProxy
         {
@@ -436,22 +261,10 @@ namespace TechnitiumLibrary.Net.Proxy
             set { _viaProxy = value; }
         }
 
-        public ICollection<NetProxyBypassItem> ProxyBypassList
+        public ICollection<NetProxyBypassItem> BypassList
         {
-            get
-            {
-                NetProxyBypassItem[] copy = new NetProxyBypassItem[_proxyBypassList.Count];
-                _proxyBypassList.CopyTo(copy, 0);
-
-                return copy;
-            }
-            set
-            {
-                NetProxyBypassItem[] copy = new NetProxyBypassItem[value.Count];
-                value.CopyTo(copy, 0);
-
-                _proxyBypassList = copy;
-            }
+            get { return _bypassList; }
+            set { _bypassList = value; }
         }
 
         #endregion

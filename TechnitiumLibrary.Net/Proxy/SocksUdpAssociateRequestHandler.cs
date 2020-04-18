@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -193,9 +193,9 @@ namespace TechnitiumLibrary.Net.Proxy
             int bytesReceived = _udpSocket.ReceiveFrom(datagram, 0, datagram.Length, SocketFlags.None, ref dummyEP);
 
             if (bytesReceived < 10)
-                throw new SocksClientException("The connection was reset by the remote peer.");
+                throw new SocksProxyException("The connection was reset by the remote peer.");
 
-            remoteEP = SocksClient.ParseEndpoint(datagram, 3);
+            remoteEP = SocksProxy.ParseEndpoint(datagram, 3);
 
             int addressSize;
 

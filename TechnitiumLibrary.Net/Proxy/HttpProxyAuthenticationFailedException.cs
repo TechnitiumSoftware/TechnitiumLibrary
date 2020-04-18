@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,23 +21,23 @@ using System;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    public class WebProxyExAuthenticationFailedException : NetProxyAuthenticationFailedException
+    public class HttpProxyAuthenticationFailedException : NetProxyAuthenticationFailedException
     {
         #region constructors
 
-        public WebProxyExAuthenticationFailedException()
+        public HttpProxyAuthenticationFailedException()
             : base()
         { }
 
-        public WebProxyExAuthenticationFailedException(string message)
+        public HttpProxyAuthenticationFailedException(string message)
             : base(message)
         { }
 
-        public WebProxyExAuthenticationFailedException(string message, Exception innerException)
+        public HttpProxyAuthenticationFailedException(string message, Exception innerException)
             : base(message, innerException)
         { }
 
-        protected WebProxyExAuthenticationFailedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+        protected HttpProxyAuthenticationFailedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
             : base(info, context)
         { }
 

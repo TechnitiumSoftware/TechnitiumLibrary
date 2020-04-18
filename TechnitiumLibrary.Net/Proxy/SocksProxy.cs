@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -59,54 +59,34 @@ namespace TechnitiumLibrary.Net.Proxy
         IPv6Address = 0x04
     }
 
-    public class SocksClient
+    public class SocksProxy : NetProxy
     {
         #region variables
 
         public const byte SOCKS_VERSION = 5;
 
-        EndPoint _proxyEP;
-        NetworkCredential _credential;
-
         byte[] _negotiationRequest;
         byte[] _authRequest;
+
+        bool _isUdpAvailableChecked;
+        bool _isUdpAvailable;
 
         #endregion
 
         #region constructor
 
-        public SocksClient(string proxyAddress, int port = 1080, NetworkCredential credential = null)
+        public SocksProxy(EndPoint proxyEP, NetworkCredential credential)
+            : base(NetProxyType.Socks5, proxyEP, credential)
         {
-            if (IPAddress.TryParse(proxyAddress, out IPAddress address))
-                _proxyEP = new IPEndPoint(address, port);
-            else
-                _proxyEP = new DomainEndPoint(proxyAddress, port);
-
-            Init(credential);
-        }
-
-        public SocksClient(IPAddress proxyAddress, int port = 1080, NetworkCredential credential = null)
-        {
-            _proxyEP = new IPEndPoint(proxyAddress, port);
-
-            Init(credential);
-        }
-
-        public SocksClient(EndPoint proxyEndPoint, NetworkCredential credential = null)
-        {
-            _proxyEP = proxyEndPoint;
-
-            Init(credential);
+            InitCredential();
         }
 
         #endregion
 
         #region private
 
-        private void Init(NetworkCredential credential)
+        private void InitCredential()
         {
-            _credential = credential;
-
             if (_credential == null)
             {
                 _negotiationRequest = new byte[3];
@@ -140,26 +120,26 @@ namespace TechnitiumLibrary.Net.Proxy
 
             socket.Send(_negotiationRequest);
             if (socket.Receive(response) != 2)
-                throw new SocksClientException("The connection was reset by the remote peer.");
+                throw new SocksProxyException("The connection was reset by the remote peer.");
 
             if (response[0] != SOCKS_VERSION)
-                throw new SocksClientException("Socks version 5 is not supported by the proxy server.");
+                throw new SocksProxyException("Socks version 5 is not supported by the proxy server.");
 
             switch ((SocksMethod)response[1])
             {
                 case SocksMethod.UsernamePassword:
                     if (_authRequest == null)
-                        throw new SocksClientAuthenticationFailedException("Socks proxy server requires authentication.");
+                        throw new SocksProxyAuthenticationFailedException("Socks proxy server requires authentication.");
 
                     socket.Send(_authRequest);
                     if (socket.Receive(response) != 2)
-                        throw new SocksClientException("The connection was reset by the remote peer.");
+                        throw new SocksProxyException("The connection was reset by the remote peer.");
 
                     if (response[0] != 0x01)
-                        throw new SocksClientAuthenticationFailedException("Socks proxy server does not support username/password method version 1.");
+                        throw new SocksProxyAuthenticationFailedException("Socks proxy server does not support username/password method version 1.");
 
                     if (response[1] != 0x00)
-                        throw new SocksClientAuthenticationFailedException("Socks proxy server authentication failed: invalid username or password.");
+                        throw new SocksProxyAuthenticationFailedException("Socks proxy server authentication failed: invalid username or password.");
 
                     break;
 
@@ -168,12 +148,12 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 case SocksMethod.NoAcceptableMethods:
                     if (_authRequest == null)
-                        throw new SocksClientAuthenticationFailedException("Socks proxy server requires authentication.");
+                        throw new SocksProxyAuthenticationFailedException("Socks proxy server requires authentication.");
                     else
-                        throw new SocksClientAuthenticationFailedException("Socks proxy server does not support username/password method.");
+                        throw new SocksProxyAuthenticationFailedException("Socks proxy server does not support username/password method.");
 
                 default:
-                    throw new SocksClientException("Socks proxy server returned unknown method.");
+                    throw new SocksProxyException("Socks proxy server returned unknown method.");
             }
         }
 
@@ -184,15 +164,15 @@ namespace TechnitiumLibrary.Net.Proxy
             byte[] response = new byte[262];
 
             if (socket.Receive(response) < 10)
-                throw new SocksClientException("The connection was reset by the remote peer.");
+                throw new SocksProxyException("The connection was reset by the remote peer.");
 
             if (response[0] != SOCKS_VERSION)
-                throw new SocksClientException("Socks version 5 is not supported by the proxy server.");
+                throw new SocksProxyException("Socks version 5 is not supported by the proxy server.");
 
             SocksReplyCode replyCode = (SocksReplyCode)response[1];
 
             if (replyCode != SocksReplyCode.Succeeded)
-                throw new SocksClientException("Socks proxy server request failed: " + replyCode.ToString(), replyCode);
+                throw new SocksProxyException("Socks proxy server request failed: " + replyCode.ToString(), replyCode);
 
             return ParseEndpoint(response, 3);
         }
@@ -303,80 +283,11 @@ namespace TechnitiumLibrary.Net.Proxy
             return request;
         }
 
-        private Socket GetProxyConnection(int timeout)
-        {
-            IPEndPoint hostEP = _proxyEP.GetIPEndPoint();
-            Socket socket = new Socket(hostEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-
-            IAsyncResult result = socket.BeginConnect(hostEP, null, null);
-            if (!result.AsyncWaitHandle.WaitOne(timeout))
-                throw new SocketException((int)SocketError.TimedOut);
-
-            if (!socket.Connected)
-                throw new SocketException((int)SocketError.ConnectionRefused);
-
-            return socket;
-        }
-
         #endregion
 
-        #region public
+        #region protected
 
-        public bool IsProxyAvailable()
-        {
-            try
-            {
-                //connect to proxy server
-                using (Socket socket = GetProxyConnection(5000))
-                {
-                    socket.SendTimeout = 5000;
-                    socket.ReceiveTimeout = 5000;
-
-                    Negotiate(socket);
-                }
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public void CheckProxyAccess()
-        {
-            //connect to proxy server
-            using (Socket socket = GetProxyConnection(5000))
-            {
-                socket.SendTimeout = 5000;
-                socket.ReceiveTimeout = 5000;
-
-                Negotiate(socket);
-            }
-        }
-
-        public Socket Connect(IPAddress address, int port, int timeout = 10000)
-        {
-            return Connect(new IPEndPoint(address, port), timeout);
-        }
-
-        public Socket Connect(string address, int port, int timeout = 10000)
-        {
-            return Connect(new DomainEndPoint(address, port), timeout);
-        }
-
-        public Socket Connect(EndPoint remoteEP, int timeout = 10000)
-        {
-            //connect to proxy server
-            Socket socket = GetProxyConnection(timeout);
-
-            socket.SendTimeout = timeout;
-            socket.ReceiveTimeout = timeout;
-
-            return Connect(remoteEP, socket);
-        }
-
-        public Socket Connect(EndPoint remoteEP, Socket viaSocket)
+        protected override Socket Connect(EndPoint remoteEP, Socket viaSocket)
         {
             try
             {
@@ -392,13 +303,126 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public SocksBindRequestHandler Bind(EndPoint endpoint, int timeout = 10000)
+        #endregion
+
+        #region public
+
+        public override bool IsProxyAvailable()
+        {
+            try
+            {
+                //connect to proxy server
+                using (Socket socket = GetTcpConnection(_proxyEP, 5000))
+                {
+                    socket.SendTimeout = 5000;
+                    socket.ReceiveTimeout = 5000;
+
+                    Negotiate(socket);
+                }
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public override void CheckProxyAccess()
         {
             //connect to proxy server
-            Socket socket = GetProxyConnection(timeout);
+            using (Socket socket = GetTcpConnection(_proxyEP, 5000))
+            {
+                socket.SendTimeout = 5000;
+                socket.ReceiveTimeout = 5000;
 
-            socket.SendTimeout = 30000;
-            socket.ReceiveTimeout = 30000;
+                Negotiate(socket);
+            }
+        }
+
+        public override bool IsUdpAvailable()
+        {
+            if (_isUdpAvailableChecked)
+                return _isUdpAvailable;
+
+            SocksUdpAssociateRequestHandler udpHandler = null;
+
+            try
+            {
+                udpHandler = UdpAssociate();
+
+                _isUdpAvailable = true;
+            }
+            catch (SocksProxyException ex)
+            {
+                if (ex.ReplyCode == SocksReplyCode.CommandNotSupported)
+                    _isUdpAvailable = false;
+                else
+                    throw;
+            }
+            finally
+            {
+                if (udpHandler != null)
+                    udpHandler.Dispose();
+            }
+
+            _isUdpAvailableChecked = true;
+
+            return _isUdpAvailable;
+        }
+
+        public override int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestSize, byte[] response, int responseOffset, int timeout = 10000)
+        {
+            if (IsBypassed(remoteEP))
+            {
+                IPEndPoint hostEP = remoteEP.GetIPEndPoint();
+
+                using (Socket socket = new Socket(hostEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
+                {
+                    socket.ReceiveTimeout = timeout;
+
+                    //send request
+                    socket.SendTo(request, requestOffset, requestSize, SocketFlags.None, hostEP);
+
+                    //receive request
+                    EndPoint ep;
+
+                    if (hostEP.AddressFamily == AddressFamily.InterNetworkV6)
+                        ep = new IPEndPoint(IPAddress.IPv6Any, 0);
+                    else
+                        ep = new IPEndPoint(IPAddress.Any, 0);
+
+                    int bytesReceived;
+
+                    do
+                    {
+                        bytesReceived = socket.ReceiveFrom(response, responseOffset, response.Length, SocketFlags.None, ref ep);
+                    }
+                    while (!hostEP.Equals(ep));
+
+                    return bytesReceived;
+                }
+            }
+
+            if (_viaProxy != null)
+                throw new NotSupportedException("Cannot chain proxies for Udp protocol.");
+
+            using (SocksUdpAssociateRequestHandler proxyUdpRequestHandler = UdpAssociate(timeout))
+            {
+                proxyUdpRequestHandler.ReceiveTimeout = timeout;
+
+                //send request
+                proxyUdpRequestHandler.SendTo(request, requestOffset, requestSize, remoteEP);
+
+                //receive request
+                return proxyUdpRequestHandler.ReceiveFrom(response, responseOffset, response.Length - responseOffset, out EndPoint ep);
+            }
+        }
+
+        public SocksBindRequestHandler Bind(EndPoint endpoint, int timeout = 30000)
+        {
+            //connect to proxy server
+            Socket socket = GetTcpConnection(_proxyEP, timeout);
 
             try
             {
@@ -431,7 +455,7 @@ namespace TechnitiumLibrary.Net.Proxy
             udpSocket.Bind(localEP);
 
             //connect to proxy server
-            Socket socket = GetProxyConnection(timeout);
+            Socket socket = GetTcpConnection(_proxyEP, timeout);
 
             socket.SendTimeout = 30000;
             socket.ReceiveTimeout = 30000;
@@ -453,27 +477,6 @@ namespace TechnitiumLibrary.Net.Proxy
                     udpSocket.Dispose();
 
                 throw;
-            }
-        }
-
-        #endregion
-
-        #region properties
-
-        public EndPoint ProxyEndPoint
-        {
-            get { return _proxyEP; }
-            set { _proxyEP = value; }
-        }
-
-        public NetworkCredential Credential
-        {
-            get { return _credential; }
-            set
-            {
-                Init(value);
-
-                _credential = value;
             }
         }
 

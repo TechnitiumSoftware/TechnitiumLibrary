@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,44 +21,25 @@ using System;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    public class SocksClientException : NetProxyException
+    public class HttpProxyException : NetProxyException
     {
-        #region variables
-
-        readonly SocksReplyCode _replyCode;
-
-        #endregion
-
         #region constructors
 
-        public SocksClientException()
+        public HttpProxyException()
             : base()
         { }
 
-        public SocksClientException(string message)
+        public HttpProxyException(string message)
             : base(message)
         { }
 
-        public SocksClientException(string message, SocksReplyCode replyCode)
-            : base(message)
-        {
-            _replyCode = replyCode;
-        }
-
-        public SocksClientException(string message, Exception innerException)
+        public HttpProxyException(string message, Exception innerException)
             : base(message, innerException)
         { }
 
-        protected SocksClientException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+        protected HttpProxyException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
             : base(info, context)
         { }
-
-        #endregion
-
-        #region properties
-
-        public SocksReplyCode ReplyCode
-        { get { return _replyCode; } }
 
         #endregion
     }

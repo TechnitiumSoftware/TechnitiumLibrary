@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -79,17 +79,17 @@ namespace TechnitiumLibrary.Net.Proxy
             byte[] response = new byte[262];
 
             if (_socket.Receive(response) < 10)
-                throw new SocksClientException("The connection was reset by the remote peer.");
+                throw new SocksProxyException("The connection was reset by the remote peer.");
 
-            if (response[0] != SocksClient.SOCKS_VERSION)
-                throw new SocksClientException("Socks version 5 is not supported by the proxy server.");
+            if (response[0] != SocksProxy.SOCKS_VERSION)
+                throw new SocksProxyException("Socks version 5 is not supported by the proxy server.");
 
             SocksReplyCode reply = (SocksReplyCode)response[1];
 
             if (reply != SocksReplyCode.Succeeded)
-                throw new SocksClientException("Socks proxy server request failed: " + reply.ToString());
+                throw new SocksProxyException("Socks proxy server request failed: " + reply.ToString());
 
-            _dstEP = SocksClient.ParseEndpoint(response, 3);
+            _dstEP = SocksProxy.ParseEndpoint(response, 3);
 
             return _socket;
         }

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ using System;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    public class SocksClientAuthenticationFailedException : NetProxyAuthenticationFailedException
+    public class SocksProxyAuthenticationFailedException : NetProxyAuthenticationFailedException
     {
         #region variables
 
@@ -31,25 +31,25 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region constructors
 
-        public SocksClientAuthenticationFailedException()
+        public SocksProxyAuthenticationFailedException()
             : base()
         { }
 
-        public SocksClientAuthenticationFailedException(string message)
+        public SocksProxyAuthenticationFailedException(string message)
             : base(message)
         { }
 
-        public SocksClientAuthenticationFailedException(string message, SocksReplyCode replyCode)
+        public SocksProxyAuthenticationFailedException(string message, SocksReplyCode replyCode)
             : base(message)
         {
             _replyCode = replyCode;
         }
 
-        public SocksClientAuthenticationFailedException(string message, Exception innerException)
+        public SocksProxyAuthenticationFailedException(string message, Exception innerException)
             : base(message, innerException)
         { }
 
-        protected SocksClientAuthenticationFailedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+        protected SocksProxyAuthenticationFailedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
             : base(info, context)
         { }
 
