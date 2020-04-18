@@ -250,14 +250,14 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new DnsClientException("Error while reading domain name: max depth for decompression reached");
 
             StringBuilder domain = new StringBuilder();
-            byte labelLength = Convert.ToByte(s.ReadByte());
+            byte labelLength = s.ReadBytes(1)[0];
             byte[] buffer = null;
 
             while (labelLength > 0)
             {
                 if ((labelLength & 0xC0) == 0xC0)
                 {
-                    short Offset = BitConverter.ToInt16(new byte[] { Convert.ToByte(s.ReadByte()), Convert.ToByte(labelLength & 0x3F) }, 0);
+                    short Offset = BitConverter.ToInt16(new byte[] { s.ReadBytes(1)[0], (byte)(labelLength & 0x3F) }, 0);
                     long CurrentPosition = s.Position;
                     s.Position = Offset;
                     domain.Append(DeserializeDomainName(s, maxDepth - 1));
@@ -273,7 +273,7 @@ namespace TechnitiumLibrary.Net.Dns
                     s.ReadBytes(buffer, 0, labelLength);
                     domain.Append(Encoding.ASCII.GetString(buffer, 0, labelLength));
                     domain.Append(".");
-                    labelLength = Convert.ToByte(s.ReadByte());
+                    labelLength = s.ReadBytes(1)[0];
                 }
             }
 
