@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -282,7 +282,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 switch (_proxy.Type)
                 {
                     case NetProxyType.Socks5:
-                        proxyRequestHandler = _proxy.SocksProxy.UdpAssociate();
+                        proxyRequestHandler = (_proxy as SocksProxy).UdpAssociate();
                         proxyRequestHandler.ReceiveTimeout = 10000;
                         break;
 

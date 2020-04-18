@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -131,6 +131,9 @@ namespace TechnitiumLibrary.Net
 
         protected override WebRequest GetWebRequest(Uri address)
         {
+            if (_disposed)
+                throw new ObjectDisposedException("WebClientEx");
+
             HttpWebRequest request = null;
 
             if (_proxy == null)
@@ -225,7 +228,7 @@ namespace TechnitiumLibrary.Net
                 if ((_proxy.ViaProxy == null) && (_proxy.Type == NetProxyType.Http))
                 {
                     request = base.GetWebRequest(address) as HttpWebRequest;
-                    request.Proxy = _proxy.HttpProxy;
+                    request.Proxy = (HttpProxy)_proxy;
                 }
                 else
                 {
@@ -237,9 +240,12 @@ namespace TechnitiumLibrary.Net
                         remoteEP = new DomainEndPoint(address.Host, address.Port);
 
                     if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
+                    {
                         _tunnelProxy.Dispose();
+                        _tunnelProxy = null;
+                    }
 
-                    if ((_tunnelProxy == null) || _tunnelProxy.Disposed)
+                    if (_tunnelProxy == null)
                         _tunnelProxy = _proxy.CreateLocalTunnelProxy(remoteEP, _timeout);
 
                     if (address.Scheme == "https")
@@ -281,7 +287,7 @@ namespace TechnitiumLibrary.Net
                         break;
 
                     case "connection":
-                        request.KeepAlive = (header.Value.ToLower() == "keep-alive");
+                        request.KeepAlive = header.Value.Equals("keep-alive", StringComparison.OrdinalIgnoreCase);
                         break;
 
                     case "content-type":

@@ -33,8 +33,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         protected int _timeout;
 
-        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, DnsClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, DnsClientConnection>>();
-        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, DnsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, DnsClientConnection>>();
+        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, DnsClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, DnsClientConnection>>();
+        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, DnsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, DnsClientConnection>>();
+        const string NO_PROXY = "NO_PROXY";
 
         #endregion
 
@@ -78,17 +79,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 case DnsTransportProtocol.Tcp:
                     {
-                        ConcurrentDictionary<NetProxy, DnsClientConnection> existingTcpConnection = _existingTcpConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        ConcurrentDictionary<object, DnsClientConnection> existingTcpConnection = _existingTcpConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
                         {
-                            return new ConcurrentDictionary<NetProxy, DnsClientConnection>();
+                            return new ConcurrentDictionary<object, DnsClientConnection>();
                         });
 
-                        NetProxy proxyKey = proxy;
+                        object proxyKey = proxy;
 
                         if (proxyKey == null)
-                            proxyKey = NetProxy.None;
+                            proxyKey = NO_PROXY;
 
-                        return existingTcpConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
+                        return existingTcpConnection.GetOrAdd(proxyKey, delegate (object netProxyKey)
                         {
                             return new TcpClientConnection(server, proxy);
                         });
@@ -96,17 +97,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 case DnsTransportProtocol.Tls:
                     {
-                        ConcurrentDictionary<NetProxy, DnsClientConnection> existingTlsConnection = _existingTlsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        ConcurrentDictionary<object, DnsClientConnection> existingTlsConnection = _existingTlsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
                         {
-                            return new ConcurrentDictionary<NetProxy, DnsClientConnection>();
+                            return new ConcurrentDictionary<object, DnsClientConnection>();
                         });
 
-                        NetProxy proxyKey = proxy;
+                        object proxyKey = proxy;
 
                         if (proxyKey == null)
-                            proxyKey = NetProxy.None;
+                            proxyKey = NO_PROXY;
 
-                        return existingTlsConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
+                        return existingTlsConnection.GetOrAdd(proxyKey, delegate (object netProxyKey)
                         {
                             return new TlsClientConnection(server, proxy);
                         });

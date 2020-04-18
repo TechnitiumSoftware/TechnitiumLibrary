@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -163,6 +163,9 @@ namespace TechnitiumLibrary.Net.Mail
 
         public new void Send(MailMessage message)
         {
+            if (_disposed)
+                throw new ObjectDisposedException("SmtpClientEx");
+
             if (DeliveryMethod == SmtpDeliveryMethod.Network)
             {
                 if (string.IsNullOrEmpty(this.Host))
@@ -194,9 +197,12 @@ namespace TechnitiumLibrary.Net.Mail
                         remoteEP = new DomainEndPoint(_host, _port);
 
                     if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
+                    {
                         _tunnelProxy.Dispose();
+                        _tunnelProxy = null;
+                    }
 
-                    if ((_tunnelProxy == null) || _tunnelProxy.Disposed)
+                    if (_tunnelProxy == null)
                         _tunnelProxy = _proxy.CreateLocalTunnelProxy(remoteEP, base.Timeout);
 
                     base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();

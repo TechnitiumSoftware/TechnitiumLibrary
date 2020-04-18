@@ -1131,7 +1131,7 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsTransportProtocol protocol = _protocol;
 
                     //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
-                    if ((_proxy != null) && (protocol == DnsTransportProtocol.Udp) && !_proxy.IsUdpAvailable() && !_proxy.IsProxyBypassed(server.EndPoint))
+                    if ((_proxy != null) && (protocol == DnsTransportProtocol.Udp) && !_proxy.IsUdpAvailable() && !_proxy.IsBypassed(server.EndPoint))
                         protocol = DnsTransportProtocol.Tcp;
 
                     DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy);

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,11 +32,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         public UdpClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsTransportProtocol.Udp, server, proxy)
         {
-            if (proxy != null)
-            {
-                if (proxy.Type == NetProxyType.Http)
-                    throw new NotSupportedException("DnsClient cannot use HTTP proxy with UDP protocol.");
-            }
+            if ((proxy != null) && !proxy.IsUdpAvailable())
+                throw new NotSupportedException("Current configured proxy does not support UDP protocol.");
 
             _timeout = 2000;
         }
