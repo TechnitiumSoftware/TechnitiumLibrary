@@ -189,12 +189,7 @@ namespace TechnitiumLibrary.Net.Mail
                 }
                 else
                 {
-                    EndPoint remoteEP;
-
-                    if (IPAddress.TryParse(_host, out IPAddress address))
-                        remoteEP = new IPEndPoint(address, _port);
-                    else
-                        remoteEP = new DomainEndPoint(_host, _port);
+                    EndPoint remoteEP = EndPointExtension.GetEndPoint(_host, _port);
 
                     if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
                     {
@@ -203,7 +198,7 @@ namespace TechnitiumLibrary.Net.Mail
                     }
 
                     if (_tunnelProxy == null)
-                        _tunnelProxy = _proxy.CreateLocalTunnelProxy(remoteEP, base.Timeout);
+                        _tunnelProxy = _proxy.CreateTunnelProxy(remoteEP, base.Timeout);
 
                     base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
                     base.Port = _tunnelProxy.TunnelEndPoint.Port;

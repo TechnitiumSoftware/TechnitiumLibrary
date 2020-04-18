@@ -47,6 +47,11 @@ namespace TechnitiumLibrary.Net.Proxy
             return new Uri("http://" + _proxyEP.ToString());
         }
 
+        public bool IsBypassed(Uri host)
+        {
+            return IsBypassed(EndPointExtension.GetEndPoint(host.Host, host.Port));
+        }
+
         public override bool IsProxyAvailable()
         {
             try

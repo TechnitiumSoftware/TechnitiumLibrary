@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -126,6 +126,14 @@ namespace TechnitiumLibrary.Net
                 default:
                     throw new NotSupportedException("AddressFamily not supported.");
             }
+        }
+
+        public static EndPoint GetEndPoint(string address, int port)
+        {
+            if (IPAddress.TryParse(address, out IPAddress ipAddress))
+                return new IPEndPoint(ipAddress, port);
+            else
+                return new DomainEndPoint(address, port);
         }
 
         #endregion

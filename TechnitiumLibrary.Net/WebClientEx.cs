@@ -232,12 +232,7 @@ namespace TechnitiumLibrary.Net
                 }
                 else
                 {
-                    EndPoint remoteEP;
-
-                    if (IPAddress.TryParse(address.Host, out IPAddress ipAddr))
-                        remoteEP = new IPEndPoint(ipAddr, address.Port);
-                    else
-                        remoteEP = new DomainEndPoint(address.Host, address.Port);
+                    EndPoint remoteEP = EndPointExtension.GetEndPoint(address.Host, address.Port);
 
                     if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
                     {
@@ -246,7 +241,7 @@ namespace TechnitiumLibrary.Net
                     }
 
                     if (_tunnelProxy == null)
-                        _tunnelProxy = _proxy.CreateLocalTunnelProxy(remoteEP, _timeout);
+                        _tunnelProxy = _proxy.CreateTunnelProxy(remoteEP, _timeout);
 
                     if (address.Scheme == "https")
                     {

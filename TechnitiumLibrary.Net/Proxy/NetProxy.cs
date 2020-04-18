@@ -60,14 +60,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public static NetProxy CreateHttpProxy(string address, int port = 8080, NetworkCredential credential = null)
         {
-            EndPoint proxyEP;
-
-            if (IPAddress.TryParse(address, out IPAddress ip))
-                proxyEP = new IPEndPoint(ip, port);
-            else
-                proxyEP = new DomainEndPoint(address, port);
-
-            return new HttpProxy(proxyEP, credential);
+            return new HttpProxy(EndPointExtension.GetEndPoint(address, port), credential);
         }
 
         public static NetProxy CreateHttpProxy(EndPoint proxyEP, NetworkCredential credential = null)
@@ -90,26 +83,12 @@ namespace TechnitiumLibrary.Net.Proxy
             if (proxyAddress.Equals(testUri))
                 return null; //no proxy configured
 
-            EndPoint proxyEP;
-
-            if (IPAddress.TryParse(proxyAddress.Host, out IPAddress ip))
-                proxyEP = new IPEndPoint(ip, proxyAddress.Port);
-            else
-                proxyEP = new DomainEndPoint(proxyAddress.Host, proxyAddress.Port);
-
-            return CreateHttpProxy(proxyEP, proxy.Credentials.GetCredential(new Uri("http://" + proxyEP.ToString()), "BASIC"));
+            return new HttpProxy(EndPointExtension.GetEndPoint(proxyAddress.Host, proxyAddress.Port), proxy.Credentials.GetCredential(proxyAddress, "BASIC"));
         }
 
         public static NetProxy CreateSocksProxy(string address, int port = 1080, NetworkCredential credential = null)
         {
-            EndPoint proxyEP;
-
-            if (IPAddress.TryParse(address, out IPAddress ip))
-                proxyEP = new IPEndPoint(ip, port);
-            else
-                proxyEP = new DomainEndPoint(address, port);
-
-            return new SocksProxy(proxyEP, credential);
+            return new SocksProxy(EndPointExtension.GetEndPoint(address, port), credential);
         }
 
         public static NetProxy CreateSocksProxy(EndPoint proxyEP, NetworkCredential credential = null)
@@ -122,10 +101,10 @@ namespace TechnitiumLibrary.Net.Proxy
             switch (type)
             {
                 case NetProxyType.Http:
-                    return CreateHttpProxy(address, port, credential);
+                    return new HttpProxy(EndPointExtension.GetEndPoint(address, port), credential);
 
                 case NetProxyType.Socks5:
-                    return CreateSocksProxy(address, port, credential);
+                    return new SocksProxy(EndPointExtension.GetEndPoint(address, port), credential);
 
                 default:
                     throw new NotSupportedException("Proxy type not supported.");
@@ -160,18 +139,6 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public bool IsBypassed(Uri host)
-        {
-            EndPoint ep;
-
-            if (IPAddress.TryParse(host.Host, out IPAddress address))
-                ep = new IPEndPoint(address, host.Port);
-            else
-                ep = new DomainEndPoint(host.Host, host.Port);
-
-            return IsBypassed(ep);
-        }
-
         public bool IsBypassed(EndPoint ep)
         {
             foreach (NetProxyBypassItem bypassItem in _bypassList)
@@ -191,14 +158,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public Socket Connect(string address, int port, int timeout = 10000)
         {
-            EndPoint remoteEP;
-
-            if (IPAddress.TryParse(address, out IPAddress ipAddr))
-                remoteEP = new IPEndPoint(ipAddr, port);
-            else
-                remoteEP = new DomainEndPoint(address, port);
-
-            return Connect(remoteEP, timeout);
+            return Connect(EndPointExtension.GetEndPoint(address, port), timeout);
         }
 
         public Socket Connect(EndPoint remoteEP, int timeout = 10000)
@@ -212,19 +172,12 @@ namespace TechnitiumLibrary.Net.Proxy
                 return Connect(remoteEP, _viaProxy.Connect(_proxyEP, timeout));
         }
 
-        public TunnelProxy CreateLocalTunnelProxy(string address, int port, int timeout = 10000, bool enableSsl = false, bool ignoreCertificateErrors = false)
+        public TunnelProxy CreateTunnelProxy(string address, int port, int timeout = 10000, bool enableSsl = false, bool ignoreCertificateErrors = false)
         {
-            EndPoint remoteEP;
-
-            if (IPAddress.TryParse(address, out IPAddress ipAddr))
-                remoteEP = new IPEndPoint(ipAddr, port);
-            else
-                remoteEP = new DomainEndPoint(address, port);
-
-            return CreateLocalTunnelProxy(remoteEP, timeout, enableSsl, ignoreCertificateErrors);
+            return CreateTunnelProxy(EndPointExtension.GetEndPoint(address, port), timeout, enableSsl, ignoreCertificateErrors);
         }
 
-        public TunnelProxy CreateLocalTunnelProxy(EndPoint remoteEP, int timeout = 10000, bool enableSsl = false, bool ignoreCertificateErrors = false)
+        public TunnelProxy CreateTunnelProxy(EndPoint remoteEP, int timeout = 10000, bool enableSsl = false, bool ignoreCertificateErrors = false)
         {
             return new TunnelProxy(Connect(remoteEP, timeout), remoteEP, enableSsl, ignoreCertificateErrors);
         }
