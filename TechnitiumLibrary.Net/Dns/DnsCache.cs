@@ -36,7 +36,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region constructor
 
-        public DnsCache(uint negativeRecordTtl, uint minimumRecordTtl, uint serveStaleTtl)
+        protected DnsCache(uint negativeRecordTtl, uint minimumRecordTtl, uint serveStaleTtl)
         {
             _negativeRecordTtl = negativeRecordTtl;
             _minimumRecordTtl = minimumRecordTtl;
@@ -374,7 +374,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             public override bool Equals(object obj)
             {
-                if (ReferenceEquals(null, obj))
+                if (obj is null)
                     return false;
 
                 if (ReferenceEquals(this, obj))
@@ -438,7 +438,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             public override bool Equals(object obj)
             {
-                if (ReferenceEquals(null, obj))
+                if (obj is null)
                     return false;
 
                 if (ReferenceEquals(this, obj))
@@ -507,7 +507,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             public override bool Equals(object obj)
             {
-                if (ReferenceEquals(null, obj))
+                if (obj is null)
                     return false;
 
                 if (ReferenceEquals(this, obj))
@@ -566,7 +566,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             public override bool Equals(object obj)
             {
-                if (ReferenceEquals(null, obj))
+                if (obj is null)
                     return false;
 
                 if (ReferenceEquals(this, obj))

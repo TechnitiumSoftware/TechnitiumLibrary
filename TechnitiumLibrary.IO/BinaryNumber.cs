@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -87,14 +87,11 @@ namespace TechnitiumLibrary.IO
 
         public static bool Equals(byte[] value1, byte[] value2)
         {
-            if ((value1 == null) && (value2 == null))
+            if (ReferenceEquals(value1, value2))
                 return true;
 
             if ((value1 == null) || (value2 == null))
                 return false;
-
-            if (ReferenceEquals(value1, value2))
-                return true;
 
             if (value1.Length != value2.Length)
                 return false;
