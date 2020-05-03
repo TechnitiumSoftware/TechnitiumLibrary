@@ -18,12 +18,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 
 namespace TechnitiumLibrary.Collections
 {
-    public class ByteTree<T>
+    public class ByteTree<T> : IEnumerable<T>
     {
         #region variables
 
@@ -36,7 +37,34 @@ namespace TechnitiumLibrary.Collections
 
         public ByteTree(int keySpace = 256)
         {
+            if ((keySpace < 0) || (keySpace > 256))
+                throw new ArgumentOutOfRangeException(nameof(keySpace));
+
             _keySpace = keySpace;
+        }
+
+        #endregion
+
+        #region protected
+
+        protected Node FindClosestNode(byte[] key)
+        {
+            Node current = _root;
+
+            for (int i = 0; i < key.Length; i++)
+            {
+                Node[] children = current._children;
+                if (children == null)
+                    return current;
+
+                Node child = Volatile.Read(ref children[key[i]]);
+                if (child == null)
+                    return current;
+
+                current = child;
+            }
+
+            return current;
         }
 
         #endregion
@@ -53,7 +81,7 @@ namespace TechnitiumLibrary.Collections
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            Node node = _root.FindClosestNode(key);
+            Node node = FindClosestNode(key);
             NodeValue foundValue = node.GetValue(key);
             if (foundValue != null)
                 throw new ArgumentException("Key already exists.");
@@ -66,7 +94,7 @@ namespace TechnitiumLibrary.Collections
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            Node node = _root.FindClosestNode(key);
+            Node node = FindClosestNode(key);
             NodeValue foundValue = node.GetValue(key);
             if (foundValue != null)
                 return false;
@@ -77,29 +105,30 @@ namespace TechnitiumLibrary.Collections
 
         public T AddOrUpdate(byte[] key, Func<byte[], T> addValueFactory, Func<byte[], T, T> updateValueFactory)
         {
-            return AddOrUpdate(key, addValueFactory(key), updateValueFactory);
-        }
-
-        public T AddOrUpdate(byte[] key, T addValue, Func<byte[], T, T> updateValueFactory)
-        {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            Node node = _root.FindClosestNode(key);
+            Node node = FindClosestNode(key);
             NodeValue foundValue = node.GetValue(key);
             if (foundValue == null)
             {
                 //key does not exists; add value
+                T addValue = addValueFactory(key);
                 node.SetValue(key, addValue, _keySpace);
                 return addValue;
             }
             else
             {
                 //key already exists; update its value
-                T updateValue = updateValueFactory(key, foundValue.Value);
+                T updateValue = updateValueFactory(key, foundValue._value);
                 node.SetValue(key, updateValue, _keySpace);
                 return updateValue;
             }
+        }
+
+        public T AddOrUpdate(byte[] key, T addValue, Func<byte[], T, T> updateValueFactory)
+        {
+            return AddOrUpdate(key, delegate (byte[] k) { return addValue; }, updateValueFactory);
         }
 
         public bool ContainsKey(byte[] key)
@@ -107,7 +136,7 @@ namespace TechnitiumLibrary.Collections
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            return _root.FindClosestNode(key).GetValue(key) != null;
+            return FindClosestNode(key).GetValue(key) != null;
         }
 
         public bool TryGet(byte[] key, out T value)
@@ -115,7 +144,7 @@ namespace TechnitiumLibrary.Collections
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            Node node = _root.FindClosestNode(key);
+            Node node = FindClosestNode(key);
             NodeValue foundValue = node.GetValue(key);
             if (foundValue == null)
             {
@@ -123,29 +152,30 @@ namespace TechnitiumLibrary.Collections
                 return false;
             }
 
-            value = foundValue.Value;
+            value = foundValue._value;
             return true;
         }
 
         public T GetOrAdd(byte[] key, Func<byte[], T> valueFactory)
         {
-            return GetOrAdd(key, valueFactory(key));
-        }
-
-        public T GetOrAdd(byte[] key, T value)
-        {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            Node node = _root.FindClosestNode(key);
+            Node node = FindClosestNode(key);
             NodeValue foundValue = node.GetValue(key);
             if (foundValue == null)
             {
+                T value = valueFactory(key);
                 node.SetValue(key, value, _keySpace);
                 return value;
             }
 
-            return foundValue.Value;
+            return foundValue._value;
+        }
+
+        public T GetOrAdd(byte[] key, T value)
+        {
+            return GetOrAdd(key, delegate (byte[] k) { return value; });
         }
 
         public bool TryRemove(byte[] key, out T value)
@@ -153,7 +183,7 @@ namespace TechnitiumLibrary.Collections
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            Node node = _root.FindClosestNode(key);
+            Node node = FindClosestNode(key);
             NodeValue removedValue = node.RemoveValue(key);
             if (removedValue == null)
             {
@@ -163,7 +193,7 @@ namespace TechnitiumLibrary.Collections
 
             node.CleanUp();
 
-            value = removedValue.Value;
+            value = removedValue._value;
             return true;
         }
 
@@ -172,18 +202,28 @@ namespace TechnitiumLibrary.Collections
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            Node node = _root.FindClosestNode(key);
+            Node node = FindClosestNode(key);
             NodeValue foundValue = node.GetValue(key);
             if (foundValue == null)
                 return false;
 
-            if (Equals(foundValue.Value, comparisonValue))
+            if (Equals(foundValue._value, comparisonValue))
             {
                 node.SetValue(key, newValue, _keySpace);
                 return true;
             }
 
             return false;
+        }
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            return new ByteTreeEnumerator(_root);
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return new ByteTreeEnumerator(_root);
         }
 
         #endregion
@@ -200,31 +240,31 @@ namespace TechnitiumLibrary.Collections
                 if (key == null)
                     throw new ArgumentNullException(nameof(key));
 
-                Node node = _root.FindClosestNode(key);
+                Node node = FindClosestNode(key);
                 NodeValue foundValue = node.GetValue(key);
                 if (foundValue == null)
                     throw new KeyNotFoundException();
 
-                return foundValue.Value;
+                return foundValue._value;
             }
             set
             {
-                _root.FindClosestNode(key).SetValue(key, value, _keySpace);
+                FindClosestNode(key).SetValue(key, value, _keySpace);
             }
         }
 
         #endregion
 
-        protected class Node
+        protected sealed class Node
         {
             #region variables
 
-            readonly Node _parent;
-            readonly int _depth;
-            readonly byte _k;
+            public readonly Node _parent;
+            public readonly int _depth;
+            public readonly byte _k;
 
-            volatile Node[] _children;
-            volatile NodeValue _value;
+            public volatile Node[] _children;
+            public volatile NodeValue _value;
 
             #endregion
 
@@ -276,26 +316,6 @@ namespace TechnitiumLibrary.Collections
 
             #region public
 
-            public Node FindClosestNode(byte[] key)
-            {
-                Node current = this;
-
-                for (int i = _depth; i < key.Length; i++)
-                {
-                    Node[] children = current._children;
-                    if (children == null)
-                        return current;
-
-                    Node child = Volatile.Read(ref children[key[i]]);
-                    if (child == null)
-                        return current;
-
-                    current = child;
-                }
-
-                return current;
-            }
-
             public void SetValue(byte[] key, T setValue, int keySpace)
             {
                 Node current = this;
@@ -314,10 +334,10 @@ namespace TechnitiumLibrary.Collections
                         }
 
                         //current node has value
-                        if (value.Key.Length == current._depth)
+                        if (value._key.Length == current._depth)
                         {
                             //current node value belongs here; so update new value
-                            value.Value = setValue;
+                            value._value = setValue;
                             return;
                         }
 
@@ -328,7 +348,7 @@ namespace TechnitiumLibrary.Collections
                             Node[] children = new Node[keySpace];
 
                             //copy current value into a child
-                            int k = value.Key[current._depth];
+                            int k = value._key[current._depth];
                             children[k] = new Node(current, (byte)k, value);
 
                             //set children array
@@ -357,10 +377,10 @@ namespace TechnitiumLibrary.Collections
                             //current node has value and no children so create new children array
                             children = new Node[keySpace];
 
-                            if (value.Key.Length != current._depth)
+                            if (value._key.Length != current._depth)
                             {
                                 //current value does not belong here; copy it into a child
-                                int k1 = value.Key[current._depth];
+                                int k1 = value._key[current._depth];
                                 children[k1] = new Node(current, (byte)k1, value);
                                 current._value = null; //empty current value reference
                             }
@@ -399,7 +419,7 @@ namespace TechnitiumLibrary.Collections
                             return null; //no value available
 
                         //current node has value
-                        if (value.Key.Length == current._depth)
+                        if (value._key.Length == current._depth)
                             return value; //current node value belongs here; return it
 
                         //current node value does not belong here
@@ -415,7 +435,7 @@ namespace TechnitiumLibrary.Collections
                             return null; //no value available
 
                         //check if key equals current value's key
-                        if (!KeyEquals(value.Key, key))
+                        if (!KeyEquals(value._key, key))
                             return null; //keys dont match
 
                         return value;
@@ -445,7 +465,7 @@ namespace TechnitiumLibrary.Collections
                             return null; //no value available
 
                         //current node has value
-                        if (value.Key.Length == current._depth)
+                        if (value._key.Length == current._depth)
                         {
                             //current node value belongs here; remove and return value
                             current._value = null;
@@ -465,7 +485,7 @@ namespace TechnitiumLibrary.Collections
                             return null; //no value available
 
                         //check if key equals current value's key
-                        if (!KeyEquals(value.Key, key))
+                        if (!KeyEquals(value._key, key))
                             return null; //keys dont match
 
                         //remove and return value
@@ -492,9 +512,9 @@ namespace TechnitiumLibrary.Collections
                     Node[] children = current._children;
                     if (children != null)
                     {
-                        foreach (Node child in children)
+                        for (int i = 0; i < children.Length; i++)
                         {
-                            if (child != null)
+                            if (Volatile.Read(ref children[i]) != null)
                                 return; //current node has children; exit
                         }
 
@@ -526,15 +546,52 @@ namespace TechnitiumLibrary.Collections
                 _value = null;
             }
 
+            public Node GetNextValueNode(int baseDepth)
+            {
+                int k = 0;
+                Node current = this;
+
+                while ((current != null) && (current._depth >= baseDepth))
+                {
+                    Node[] children = current._children;
+                    if (children != null)
+                    {
+                        //find child node
+                        Node child = null;
+
+                        for (int i = k; i < children.Length; i++)
+                        {
+                            child = Volatile.Read(ref children[i]);
+                            if (child != null)
+                            {
+                                if (child._value != null)
+                                    return child; //child has value so return it
+
+                                if (child._children != null)
+                                    break;
+                            }
+                        }
+
+                        if (child != null)
+                        {
+                            //make found child as current
+                            k = 0;
+                            current = child;
+                            continue; //start over
+                        }
+                    }
+
+                    //no child nodes available; move up to parent node
+                    k = current._k + 1;
+                    current = current._parent;
+                }
+
+                return null;
+            }
+
             #endregion
 
             #region properties
-
-            public Node[] Children
-            { get { return _children; } }
-
-            public NodeValue Value
-            { get { return _value; } }
 
             public bool IsEmpty
             { get { return (_children == null) && (_value == null); } }
@@ -542,12 +599,12 @@ namespace TechnitiumLibrary.Collections
             #endregion
         }
 
-        protected class NodeValue
+        protected sealed class NodeValue
         {
             #region variables
 
-            readonly byte[] _key;
-            T _value;
+            public readonly byte[] _key;
+            public T _value;
 
             #endregion
 
@@ -569,16 +626,100 @@ namespace TechnitiumLibrary.Collections
             }
 
             #endregion
+        }
 
-            #region properties
+        protected sealed class ByteTreeEnumerator : IEnumerator<T>
+        {
+            #region variables
 
-            public byte[] Key
-            { get { return _key; } }
+            readonly Node _root;
 
-            public T Value
+            Node _current;
+            NodeValue _value;
+            bool _finished;
+
+            #endregion
+
+            #region constructor
+
+            public ByteTreeEnumerator(Node root)
             {
-                get { return _value; }
-                set { _value = value; }
+                _root = root;
+            }
+
+            #endregion
+
+            #region public
+
+            public void Dispose()
+            {
+                //do nothing
+            }
+
+            public T Current
+            {
+                get
+                {
+                    if (_value == null)
+                        return default;
+
+                    return _value._value;
+                }
+            }
+
+            object IEnumerator.Current
+            {
+                get
+                {
+                    if (_value == null)
+                        return default;
+
+                    return _value._value;
+                }
+            }
+
+            public void Reset()
+            {
+                _current = null;
+                _value = null;
+                _finished = false;
+            }
+
+            public bool MoveNext()
+            {
+                if (_finished)
+                    return false;
+
+                if (_current == null)
+                {
+                    _current = _root;
+
+                    NodeValue value = _current._value;
+                    if (value != null)
+                    {
+                        _value = value;
+                        return true;
+                    }
+                }
+
+                do
+                {
+                    _current = _current.GetNextValueNode(_root._depth);
+                    if (_current == null)
+                    {
+                        _value = null;
+                        _finished = true;
+                        return false;
+                    }
+
+                    NodeValue value = _current._value;
+                    if (value != null)
+                    {
+                        _value = value;
+                        return true;
+                    }
+                }
+                while (true);
             }
 
             #endregion
