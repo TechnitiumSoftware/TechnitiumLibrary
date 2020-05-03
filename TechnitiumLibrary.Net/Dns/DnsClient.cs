@@ -23,7 +23,6 @@ using System.Net;
 using System.Net.Mail;
 using System.Net.NetworkInformation;
 using System.Security.Cryptography;
-using System.Text;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.ClientConnection;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
@@ -986,7 +985,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (domain == null)
             {
                 if (throwException)
-                    throw new DnsClientException("Invalid domain name: <null>.");
+                    throw new ArgumentNullException(nameof(domain));
 
                 return false;
             }
@@ -1002,70 +1001,63 @@ namespace TechnitiumLibrary.Net.Dns
                 return false;
             }
 
-            string[] labels = domain.Split('.');
+            int labelStart = 0;
+            int labelEnd;
+            int labelLength;
+            int labelChar;
+            int i;
 
-            foreach (string label in labels)
+            do
             {
-                if (label.Length == 0)
+                labelEnd = domain.IndexOf('.', labelStart);
+                if (labelEnd < 0)
+                    labelEnd = domain.Length;
+
+                labelLength = labelEnd - labelStart;
+
+                if (labelLength == 0)
+                    throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot be 0 byte.");
+
+                if (labelLength > 63)
+                    throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot exceed 63 bytes.");
+
+                if (domain[labelStart] == '-')
+                    throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot start with hyphen.");
+
+                if (domain[labelEnd - 1] == '-')
+                    throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot end with hyphen.");
+
+                if ((labelLength == 1) && (domain[labelStart] == '*'))
+                    continue;
+
+                for (i = labelStart; i < labelEnd; i++)
                 {
+                    labelChar = domain[i];
+
+                    if ((labelChar >= 97) && (labelChar <= 122)) //[a-z]
+                        continue;
+
+                    if ((labelChar >= 65) && (labelChar <= 90)) //[A-Z]
+                        continue;
+
+                    if ((labelChar >= 48) && (labelChar <= 57)) //[0-9]
+                        continue;
+
+                    if (labelChar == 45) //[-]
+                        continue;
+
+                    if (labelChar == 95) //[_]
+                        continue;
+
                     if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot be 0 byte.");
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: invalid character [" + labelChar + "] was found.");
 
                     return false;
                 }
 
-                if (label.Length > 63)
-                {
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot exceed 63 bytes.");
-
-                    return false;
-                }
-
-                if (label.StartsWith("-"))
-                {
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot start with hyphen.");
-
-                    return false;
-                }
-
-                if (label.EndsWith("-"))
-                {
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot end with hyphen.");
-
-                    return false;
-                }
-
-                if (label.Equals("*"))
-                    continue; //[*] allowed for wild card domain entries in dns server
-
-                byte[] labelBytes = Encoding.ASCII.GetBytes(label);
-
-                foreach (byte labelByte in labelBytes)
-                {
-                    if ((labelByte >= 97) && (labelByte <= 122)) //[a-z]
-                        continue;
-
-                    if ((labelByte >= 65) && (labelByte <= 90)) //[A-Z]
-                        continue;
-
-                    if ((labelByte >= 48) && (labelByte <= 57)) //[0-9]
-                        continue;
-
-                    if (labelByte == 45) //[-]
-                        continue;
-
-                    if (labelByte == 95) //[_]
-                        continue;
-
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name: invalid character [" + labelByte + "] found in domain name [" + domain + "].");
-
-                    return false;
-                }
+                labelStart = labelEnd + 1;
             }
+            while (labelEnd < domain.Length);
 
             return true;
         }
