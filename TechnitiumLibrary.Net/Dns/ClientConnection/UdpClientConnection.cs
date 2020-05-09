@@ -103,7 +103,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, bufferSize, (DateTime.UtcNow - sentAt).TotalMilliseconds));
 
-                if (response.Header.Identifier == request.Header.Identifier)
+                if (response.Identifier == request.Identifier)
                     return response;
             }
 

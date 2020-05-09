@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Mail;
 using System.Net.Security;
@@ -173,8 +174,8 @@ namespace TechnitiumLibrary.Net.Mail
                     if (_dnsClient == null)
                         _dnsClient = new DnsClient();
 
-                    string[] mxServers = _dnsClient.ResolveMX(message.To[0]);
-                    if (mxServers.Length > 0)
+                    IReadOnlyList<string> mxServers = _dnsClient.ResolveMX(message.To[0]);
+                    if (mxServers.Count > 0)
                         this.Host = mxServers[0];
                     else
                         this.Host = message.To[0].Host;

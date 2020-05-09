@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -81,7 +81,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, responseBuffer.Length, (DateTime.UtcNow - sentAt).TotalMilliseconds));
 
-                if (response.Header.Identifier == request.Header.Identifier)
+                if (response.Identifier == request.Identifier)
                     return response;
             }
 

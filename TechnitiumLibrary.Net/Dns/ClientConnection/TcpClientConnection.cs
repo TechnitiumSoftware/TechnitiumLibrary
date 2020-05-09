@@ -162,8 +162,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     lock (_transactions)
                     {
-                        if (_transactions.ContainsKey(response.Header.Identifier))
-                            transaction = _transactions[response.Header.Identifier];
+                        if (_transactions.ContainsKey(response.Identifier))
+                            transaction = _transactions[response.Identifier];
                     }
 
                     if (transaction != null)
@@ -211,12 +211,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             lock (_transactions)
             {
-                while (_transactions.ContainsKey(request.Header.Identifier))
+                while (_transactions.ContainsKey(request.Identifier))
                 {
-                    request.Header.SetRandomIdentifier();
+                    request.SetRandomIdentifier();
                 }
 
-                _transactions.Add(request.Header.Identifier, transaction);
+                _transactions.Add(request.Identifier, transaction);
             }
 
             try
@@ -260,7 +260,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 lock (_transactions)
                 {
-                    _transactions.Remove(request.Header.Identifier);
+                    _transactions.Remove(request.Identifier);
                 }
             }
         }

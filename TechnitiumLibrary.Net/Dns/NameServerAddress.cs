@@ -282,13 +282,13 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static NameServerAddress[] GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool selectOnlyNameServersWithGlue)
+        public static List<NameServerAddress> GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool selectOnlyNameServersWithGlue)
         {
-            List<NameServerAddress> nameServers = new List<NameServerAddress>(response.Authority.Length);
+            List<NameServerAddress> nameServers = new List<NameServerAddress>(response.Authority.Count);
 
-            DnsResourceRecord[] authorityRecords;
+            IReadOnlyList<DnsResourceRecord> authorityRecords;
 
-            if ((response.Question.Length > 0) && (response.Question[0].Type == DnsResourceRecordType.NS) && (response.Answer.Length > 0))
+            if ((response.Question.Count > 0) && (response.Question[0].Type == DnsResourceRecordType.NS) && (response.Answer.Count > 0))
                 authorityRecords = response.Answer;
             else
                 authorityRecords = response.Authority;
@@ -328,14 +328,12 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            NameServerAddress[] nsArray = nameServers.ToArray();
-
-            nsArray.Shuffle();
+            nameServers.Shuffle();
 
             if (preferIPv6)
-                Array.Sort(nsArray);
+                nameServers.Sort();
 
-            return nsArray;
+            return nameServers;
         }
 
         #endregion
@@ -383,9 +381,9 @@ namespace TechnitiumLibrary.Net.Dns
                 dnsClient.Retries = retries;
                 dnsClient.Timeout = timeout;
 
-                IPAddress[] serverIPs = dnsClient.ResolveIP(domain, preferIPv6);
+                IReadOnlyList<IPAddress> serverIPs = dnsClient.ResolveIP(domain, preferIPv6);
 
-                if (serverIPs.Length == 0)
+                if (serverIPs.Count == 0)
                     throw new DnsClientException("No IP address was found for name server: " + domain);
 
                 _ipEndPoint = new IPEndPoint(serverIPs[0], this.Port);
@@ -424,8 +422,8 @@ namespace TechnitiumLibrary.Net.Dns
 
                 IPEndPoint ipEndPoint = null;
 
-                IPAddress[] addresses = DnsClient.RecursiveResolveIP(domain, cache, proxy, preferIPv6, retries, timeout, useTcp);
-                if (addresses.Length > 0)
+                IReadOnlyList<IPAddress> addresses = DnsClient.RecursiveResolveIP(domain, cache, proxy, preferIPv6, retries, timeout, useTcp);
+                if (addresses.Count > 0)
                     ipEndPoint = new IPEndPoint(addresses[0], this.Port);
 
                 if (ipEndPoint == null)

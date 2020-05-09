@@ -153,9 +153,9 @@ namespace TechnitiumLibrary.Net
                             try
                             {
                                 DnsClient dns = new DnsClient();
-                                IPAddress[] ipAddresses = dns.ResolveIP(address.Host);
+                                IReadOnlyList<IPAddress> ipAddresses = dns.ResolveIP(address.Host);
 
-                                if (ipAddresses.Length == 0)
+                                if (ipAddresses.Count == 0)
                                     throw new WebException("WebClientEx could not resolve IPv4 address for host: " + address.Host);
 
                                 foreach (IPAddress ipAddress in ipAddresses)
@@ -192,9 +192,9 @@ namespace TechnitiumLibrary.Net
                             try
                             {
                                 DnsClient dns = new DnsClient(true);
-                                IPAddress[] ipAddresses = dns.ResolveIP(address.Host, true);
+                                IReadOnlyList<IPAddress> ipAddresses = dns.ResolveIP(address.Host, true);
 
-                                if (ipAddresses.Length == 0)
+                                if (ipAddresses.Count == 0)
                                     throw new WebException("WebClientEx could not resolve IPv6 address for host: " + address.Host);
 
                                 foreach (IPAddress ipAddress in ipAddresses)
