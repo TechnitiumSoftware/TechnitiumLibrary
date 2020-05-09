@@ -22,23 +22,69 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
+using System.Security.Cryptography;
 using System.Text;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns
 {
+    public enum DnsOpcode : byte
+    {
+        StandardQuery = 0,
+        InverseQuery = 1,
+        ServerStatusRequest = 2,
+        Notify = 4,
+        Update = 5
+    }
+
+    public enum DnsResponseCode : byte
+    {
+        NoError = 0,
+        FormatError = 1,
+        ServerFailure = 2,
+        NameError = 3,
+        NotImplemented = 4,
+        Refused = 5,
+        YXDomain = 6,
+        YXRRSet = 7,
+        NXRRSet = 8,
+        NotAuthorized = 9,
+        NotZone = 10,
+        BADSIG = 16,
+        BADKEY = 17,
+        BADTIME = 18,
+        BADMODE = 19,
+        BADNAME = 20,
+        BADALG = 21,
+        BADTRUNC = 22,
+        BADCOOKIE = 23
+    }
+
     public class DnsDatagram
     {
         #region variables
 
+        readonly static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+
         DnsDatagramMetadata _metadata;
 
-        readonly DnsHeader _header;
+        ushort _ID;
 
-        readonly DnsQuestionRecord[] _question;
-        readonly DnsResourceRecord[] _answer;
-        readonly DnsResourceRecord[] _authority;
-        readonly DnsResourceRecord[] _additional;
+        readonly byte _QR;
+        readonly DnsOpcode _OPCODE;
+        readonly byte _AA;
+        readonly byte _TC;
+        readonly byte _RD;
+        readonly byte _RA;
+        readonly byte _Z;
+        readonly byte _AD;
+        readonly byte _CD;
+        readonly DnsResponseCode _RCODE;
+
+        readonly IReadOnlyList<DnsQuestionRecord> _question;
+        readonly IReadOnlyList<DnsResourceRecord> _answer;
+        readonly IReadOnlyList<DnsResourceRecord> _authority;
+        readonly IReadOnlyList<DnsResourceRecord> _additional;
 
         readonly Exception _parsingException;
 
@@ -46,9 +92,34 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region constructor
 
-        public DnsDatagram(DnsHeader header, DnsQuestionRecord[] question, DnsResourceRecord[] answer, DnsResourceRecord[] authority, DnsResourceRecord[] additional)
+        public DnsDatagram(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, IReadOnlyList<DnsQuestionRecord> question, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
         {
-            _header = header;
+            _ID = ID;
+
+            if (isResponse)
+                _QR = 1;
+
+            _OPCODE = OPCODE;
+
+            if (authoritativeAnswer)
+                _AA = 1;
+
+            if (truncation)
+                _TC = 1;
+
+            if (recursionDesired)
+                _RD = 1;
+
+            if (recursionAvailable)
+                _RA = 1;
+
+            if (authenticData)
+                _AD = 1;
+
+            if (checkingDisabled)
+                _CD = 1;
+
+            _RCODE = RCODE;
 
             _question = question;
             _answer = answer;
@@ -69,28 +140,47 @@ namespace TechnitiumLibrary.Net.Dns
         {
             try
             {
-                _header = new DnsHeader(s);
+                _ID = ReadUInt16NetworkOrder(s);
 
-                DnsQuestionRecord[] question = new DnsQuestionRecord[_header.QDCOUNT];
-                for (int i = 0; i < _header.QDCOUNT; i++)
+                int lB = s.ReadByte();
+                _QR = Convert.ToByte((lB & 0x80) >> 7);
+                _OPCODE = (DnsOpcode)Convert.ToByte((lB & 0x78) >> 3);
+                _AA = Convert.ToByte((lB & 0x4) >> 2);
+                _TC = Convert.ToByte((lB & 0x2) >> 1);
+                _RD = Convert.ToByte(lB & 0x1);
+
+                int rB = s.ReadByte();
+                _RA = Convert.ToByte((rB & 0x80) >> 7);
+                _Z = Convert.ToByte((rB & 0x40) >> 6);
+                _AD = Convert.ToByte((rB & 0x20) >> 5);
+                _CD = Convert.ToByte((rB & 0x10) >> 4);
+                _RCODE = (DnsResponseCode)(rB & 0xf);
+
+                ushort QDCOUNT = ReadUInt16NetworkOrder(s);
+                ushort ANCOUNT = ReadUInt16NetworkOrder(s);
+                ushort NSCOUNT = ReadUInt16NetworkOrder(s);
+                ushort ARCOUNT = ReadUInt16NetworkOrder(s);
+
+                DnsQuestionRecord[] question = new DnsQuestionRecord[QDCOUNT];
+                for (int i = 0; i < question.Length; i++)
                     question[i] = new DnsQuestionRecord(s);
 
                 _question = question;
 
-                DnsResourceRecord[] answer = new DnsResourceRecord[_header.ANCOUNT];
-                for (int i = 0; i < _header.ANCOUNT; i++)
+                DnsResourceRecord[] answer = new DnsResourceRecord[ANCOUNT];
+                for (int i = 0; i < answer.Length; i++)
                     answer[i] = new DnsResourceRecord(s);
 
                 _answer = answer;
 
-                DnsResourceRecord[] authority = new DnsResourceRecord[_header.NSCOUNT];
-                for (int i = 0; i < _header.NSCOUNT; i++)
+                DnsResourceRecord[] authority = new DnsResourceRecord[NSCOUNT];
+                for (int i = 0; i < authority.Length; i++)
                     authority[i] = new DnsResourceRecord(s);
 
                 _authority = authority;
 
-                DnsResourceRecord[] additional = new DnsResourceRecord[_header.ARCOUNT];
-                for (int i = 0; i < _header.ARCOUNT; i++)
+                DnsResourceRecord[] additional = new DnsResourceRecord[ARCOUNT];
+                for (int i = 0; i < additional.Length; i++)
                     additional[i] = new DnsResourceRecord(s);
 
                 _additional = additional;
@@ -115,49 +205,73 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsDatagram(dynamic jsonResponse)
         {
-            _header = new DnsHeader(jsonResponse);
+            _QR = 1; //is response
+            _OPCODE = DnsOpcode.StandardQuery;
 
+            _TC = (byte)(jsonResponse.TC.Value ? 1 : 0);
+            _RD = (byte)(jsonResponse.RD.Value ? 1 : 0);
+            _RA = (byte)(jsonResponse.RA.Value ? 1 : 0);
+            _AD = (byte)(jsonResponse.AD.Value ? 1 : 0);
+            _CD = (byte)(jsonResponse.CD.Value ? 1 : 0);
+            _RCODE = (DnsResponseCode)jsonResponse.Status;
+
+            //question
             {
-                _question = new DnsQuestionRecord[_header.QDCOUNT];
+                ushort QDCOUNT = Convert.ToUInt16(jsonResponse.Question.Count);
+                DnsQuestionRecord[] question = new DnsQuestionRecord[QDCOUNT];
+                _question = question;
                 int i = 0;
+
                 foreach (dynamic jsonQuestionRecord in jsonResponse.Question)
-                    _question[i++] = new DnsQuestionRecord(jsonQuestionRecord);
+                    question[i++] = new DnsQuestionRecord(jsonQuestionRecord);
             }
 
+            //answer
             if (jsonResponse.Answer == null)
             {
                 _answer = Array.Empty<DnsResourceRecord>();
             }
             else
             {
-                _answer = new DnsResourceRecord[_header.ANCOUNT];
+                ushort ANCOUNT = Convert.ToUInt16(jsonResponse.Answer.Count);
+                DnsResourceRecord[] answer = new DnsResourceRecord[ANCOUNT];
+                _answer = answer;
                 int i = 0;
+
                 foreach (dynamic jsonAnswerRecord in jsonResponse.Answer)
-                    _answer[i++] = new DnsResourceRecord(jsonAnswerRecord);
+                    answer[i++] = new DnsResourceRecord(jsonAnswerRecord);
             }
 
+            //authority
             if (jsonResponse.Authority == null)
             {
                 _authority = Array.Empty<DnsResourceRecord>();
             }
             else
             {
-                _authority = new DnsResourceRecord[_header.NSCOUNT];
+                ushort NSCOUNT = Convert.ToUInt16(jsonResponse.Authority.Count);
+                DnsResourceRecord[] authority = new DnsResourceRecord[NSCOUNT];
+                _authority = authority;
                 int i = 0;
+
                 foreach (dynamic jsonAuthorityRecord in jsonResponse.Authority)
-                    _authority[i++] = new DnsResourceRecord(jsonAuthorityRecord);
+                    authority[i++] = new DnsResourceRecord(jsonAuthorityRecord);
             }
 
+            //additional
             if (jsonResponse.Additional == null)
             {
                 _additional = Array.Empty<DnsResourceRecord>();
             }
             else
             {
-                _additional = new DnsResourceRecord[_header.ARCOUNT];
+                ushort ARCOUNT = Convert.ToUInt16(jsonResponse.Additional.Count);
+                DnsResourceRecord[] additional = new DnsResourceRecord[ARCOUNT];
+                _additional = additional;
                 int i = 0;
+
                 foreach (dynamic jsonAdditionalRecord in jsonResponse.Additional)
-                    _additional[i++] = new DnsResourceRecord(jsonAdditionalRecord);
+                    additional[i++] = new DnsResourceRecord(jsonAdditionalRecord);
             }
         }
 
@@ -193,7 +307,7 @@ namespace TechnitiumLibrary.Net.Dns
             s.Write(b, 0, b.Length);
         }
 
-        public static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries = null)
+        internal static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries = null)
         {
             while (!string.IsNullOrEmpty(domain))
             {
@@ -244,7 +358,7 @@ namespace TechnitiumLibrary.Net.Dns
             s.WriteByte(Convert.ToByte(0));
         }
 
-        public static string DeserializeDomainName(Stream s, int maxDepth = 10)
+        internal static string DeserializeDomainName(Stream s, int maxDepth = 10)
         {
             if (maxDepth < 0)
                 throw new DnsClientException("Error while reading domain name: max depth for decompression reached");
@@ -311,22 +425,41 @@ namespace TechnitiumLibrary.Net.Dns
             _metadata = metadata;
         }
 
+        public void SetIdentifier(ushort id)
+        {
+            _ID = id;
+        }
+
+        public void SetRandomIdentifier()
+        {
+            byte[] buffer = new byte[2];
+            _rnd.GetBytes(buffer);
+
+            _ID = BitConverter.ToUInt16(buffer, 0);
+        }
+
         public void WriteTo(Stream s)
         {
-            _header.WriteTo(s);
+            WriteUInt16NetworkOrder(_ID, s);
+            s.WriteByte(Convert.ToByte((_QR << 7) | ((byte)_OPCODE << 3) | (_AA << 2) | (_TC << 1) | _RD));
+            s.WriteByte(Convert.ToByte((_RA << 7) | (_Z << 6) | (_AD << 5) | (_CD << 4) | (byte)_RCODE));
+            WriteUInt16NetworkOrder(Convert.ToUInt16(_question.Count), s);
+            WriteUInt16NetworkOrder(Convert.ToUInt16(_answer.Count), s);
+            WriteUInt16NetworkOrder(Convert.ToUInt16(_authority.Count), s);
+            WriteUInt16NetworkOrder(Convert.ToUInt16(_additional.Count), s);
 
             List<DnsDomainOffset> domainEntries = new List<DnsDomainOffset>(1);
 
-            for (int i = 0; i < _header.QDCOUNT; i++)
+            for (int i = 0; i < _question.Count; i++)
                 _question[i].WriteTo(s, domainEntries);
 
-            for (int i = 0; i < _header.ANCOUNT; i++)
+            for (int i = 0; i < _answer.Count; i++)
                 _answer[i].WriteTo(s, domainEntries);
 
-            for (int i = 0; i < _header.NSCOUNT; i++)
+            for (int i = 0; i < _authority.Count; i++)
                 _authority[i].WriteTo(s, domainEntries);
 
-            for (int i = 0; i < _header.ARCOUNT; i++)
+            for (int i = 0; i < _additional.Count; i++)
                 _additional[i].WriteTo(s, domainEntries);
         }
 
@@ -335,22 +468,22 @@ namespace TechnitiumLibrary.Net.Dns
             jsonWriter.WriteStartObject();
 
             jsonWriter.WritePropertyName("Status");
-            jsonWriter.WriteValue((int)_header.RCODE);
+            jsonWriter.WriteValue((int)_RCODE);
 
             jsonWriter.WritePropertyName("TC");
-            jsonWriter.WriteValue(_header.Truncation);
+            jsonWriter.WriteValue(_TC);
 
             jsonWriter.WritePropertyName("RD");
-            jsonWriter.WriteValue(_header.RecursionDesired);
+            jsonWriter.WriteValue(_RD);
 
             jsonWriter.WritePropertyName("RA");
-            jsonWriter.WriteValue(_header.RecursionAvailable);
+            jsonWriter.WriteValue(_RA);
 
             jsonWriter.WritePropertyName("AD");
-            jsonWriter.WriteValue(_header.AuthenticData);
+            jsonWriter.WriteValue(_AD);
 
             jsonWriter.WritePropertyName("CD");
-            jsonWriter.WriteValue(_header.CheckingDisabled);
+            jsonWriter.WriteValue(_CD);
 
             jsonWriter.WritePropertyName("Question");
             jsonWriter.WriteStartArray();
@@ -370,19 +503,19 @@ namespace TechnitiumLibrary.Net.Dns
 
             jsonWriter.WriteEndArray();
 
-            if (_answer.Length > 0)
+            if (_answer.Count > 0)
                 WriteSection(jsonWriter, _answer, "Answer");
 
-            if (_authority.Length > 0)
+            if (_authority.Count > 0)
                 WriteSection(jsonWriter, _authority, "Authority");
 
-            if (_additional.Length > 0)
+            if (_additional.Count > 0)
                 WriteSection(jsonWriter, _additional, "Additional");
 
             jsonWriter.WriteEndObject();
         }
 
-        private void WriteSection(JsonTextWriter jsonWriter, DnsResourceRecord[] section, string sectionName)
+        private void WriteSection(JsonTextWriter jsonWriter, IReadOnlyList<DnsResourceRecord> section, string sectionName)
         {
             jsonWriter.WritePropertyName(sectionName);
             jsonWriter.WriteStartArray();
@@ -416,19 +549,61 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsDatagramMetadata Metadata
         { get { return _metadata; } }
 
-        public DnsHeader Header
-        { get { return _header; } }
+        public ushort Identifier
+        { get { return _ID; } }
 
-        public DnsQuestionRecord[] Question
+        public bool IsResponse
+        { get { return _QR == 1; } }
+
+        public DnsOpcode OPCODE
+        { get { return _OPCODE; } }
+
+        public bool AuthoritativeAnswer
+        { get { return _AA == 1; } }
+
+        public bool Truncation
+        { get { return _TC == 1; } }
+
+        public bool RecursionDesired
+        { get { return _RD == 1; } }
+
+        public bool RecursionAvailable
+        { get { return _RA == 1; } }
+
+        public byte Z
+        { get { return _Z; } }
+
+        public bool AuthenticData
+        { get { return _AD == 1; } }
+
+        public bool CheckingDisabled
+        { get { return _CD == 1; } }
+
+        public DnsResponseCode RCODE
+        { get { return _RCODE; } }
+
+        public int QDCOUNT
+        { get { return _question.Count; } }
+
+        public int ANCOUNT
+        { get { return _answer.Count; } }
+
+        public int NSCOUNT
+        { get { return _authority.Count; } }
+
+        public int ARCOUNT
+        { get { return _additional.Count; } }
+
+        public IReadOnlyList<DnsQuestionRecord> Question
         { get { return _question; } }
 
-        public DnsResourceRecord[] Answer
+        public IReadOnlyList<DnsResourceRecord> Answer
         { get { return _answer; } }
 
-        public DnsResourceRecord[] Authority
+        public IReadOnlyList<DnsResourceRecord> Authority
         { get { return _authority; } }
 
-        public DnsResourceRecord[] Additional
+        public IReadOnlyList<DnsResourceRecord> Additional
         { get { return _additional; } }
 
         [IgnoreDataMember]
