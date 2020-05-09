@@ -167,22 +167,22 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, NameServerAddress[] nameServers = null, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10, bool getDelegationNS = false)
+        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, IList<NameServerAddress> nameServers = null, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10, bool getDelegationNS = false)
         {
             if (cache == null)
-                cache = new SimpleDnsCache();
+                cache = new DnsCache();
 
-            if ((nameServers != null) && (nameServers.Length > 0))
+            if ((nameServers != null) && (nameServers.Count > 0))
             {
-                //create copy of name servers array so that the values in original array are not messed due to shuffling feature
-                NameServerAddress[] nameServersCopy = new NameServerAddress[nameServers.Length];
-                Array.Copy(nameServers, nameServersCopy, nameServers.Length);
-                nameServers = nameServersCopy;
+                //create copy of name servers to allow shuffling
+                List<NameServerAddress> nameServersCopy = new List<NameServerAddress>(nameServers);
 
-                nameServers.Shuffle();
+                nameServersCopy.Shuffle();
 
                 if (preferIPv6)
-                    Array.Sort(nameServers);
+                    nameServersCopy.Sort();
+
+                nameServers = nameServersCopy;
             }
 
             Stack<ResolverData> resolverStack = new Stack<ResolverData>();
@@ -204,13 +204,13 @@ namespace TechnitiumLibrary.Net.Dns
 
                 //query cache
                 {
-                    DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
+                    DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question });
                     DnsDatagram cacheResponse = cache.Query(request);
 
-                    switch (cacheResponse.Header.RCODE)
+                    switch (cacheResponse.RCODE)
                     {
                         case DnsResponseCode.NoError:
-                            if (cacheResponse.Answer.Length > 0)
+                            if (cacheResponse.Answer.Count > 0)
                             {
                                 if (resolverStack.Count == 0)
                                 {
@@ -243,7 +243,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     continue; //stack loop
                                 }
                             }
-                            else if (cacheResponse.Authority.Length > 0)
+                            else if (cacheResponse.Authority.Count > 0)
                             {
                                 if (cacheResponse.Authority[0].Type == DnsResourceRecordType.SOA)
                                 {
@@ -271,12 +271,11 @@ namespace TechnitiumLibrary.Net.Dns
                                         continue; //to stack loop
                                     }
                                 }
-                                else if ((nameServers == null) || (nameServers.Length == 0))
+                                else if ((nameServers == null) || (nameServers.Count == 0))
                                 {
                                     //select only name servers with glue from cache to avoid getting stack overflow due to getting same set of NS records with no address every time from cache
-                                    NameServerAddress[] cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
-
-                                    if (cacheNameServers.Length > 0)
+                                    List<NameServerAddress> cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
+                                    if (cacheNameServers.Count > 0)
                                         nameServers = cacheNameServers;
                                 }
                             }
@@ -308,24 +307,26 @@ namespace TechnitiumLibrary.Net.Dns
                     }
                 }
 
-                if ((nameServers == null) || (nameServers.Length == 0))
+                if ((nameServers == null) || (nameServers.Count == 0))
                 {
                     //create copy of root name servers array so that the values in original array are not messed due to shuffling feature
                     if (preferIPv6)
                     {
-                        nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv6.Length + ROOT_NAME_SERVERS_IPv4.Length];
-                        Array.Copy(ROOT_NAME_SERVERS_IPv6, nameServers, ROOT_NAME_SERVERS_IPv6.Length);
-                        Array.Copy(ROOT_NAME_SERVERS_IPv4, 0, nameServers, ROOT_NAME_SERVERS_IPv6.Length, ROOT_NAME_SERVERS_IPv4.Length);
+                        List<NameServerAddress> nameServersCopy = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv6.Length + ROOT_NAME_SERVERS_IPv4.Length);
 
-                        nameServers.Shuffle();
-                        Array.Sort(nameServers);
+                        nameServersCopy.AddRange(ROOT_NAME_SERVERS_IPv6);
+                        nameServersCopy.AddRange(ROOT_NAME_SERVERS_IPv4);
+                        nameServersCopy.Shuffle();
+                        nameServersCopy.Sort();
+
+                        nameServers = nameServersCopy;
                     }
                     else
                     {
-                        nameServers = new NameServerAddress[ROOT_NAME_SERVERS_IPv4.Length];
-                        Array.Copy(ROOT_NAME_SERVERS_IPv4, nameServers, ROOT_NAME_SERVERS_IPv4.Length);
+                        List<NameServerAddress> nameServersCopy = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv4);
+                        nameServersCopy.Shuffle();
 
-                        nameServers.Shuffle();
+                        nameServers = nameServersCopy;
                     }
                 }
 
@@ -339,7 +340,7 @@ namespace TechnitiumLibrary.Net.Dns
                     Exception lastException = null;
 
                     //query name servers one by one
-                    for (; i < nameServers.Length; i++) //retry next server loop
+                    for (; i < nameServers.Count; i++) //retry next server loop
                     {
                         NameServerAddress currentNameServer = nameServers[i];
 
@@ -362,7 +363,7 @@ namespace TechnitiumLibrary.Net.Dns
                         client._retries = retries;
                         client._timeout = timeout;
 
-                        DnsDatagram request = new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { question }, null, null, null);
+                        DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question });
                         DnsDatagram response;
 
                         try
@@ -375,7 +376,7 @@ namespace TechnitiumLibrary.Net.Dns
                             continue; //resolver loop
                         }
 
-                        if (response.Header.Truncation && (client._protocol == DnsTransportProtocol.Udp))
+                        if (response.Truncation && (client._protocol == DnsTransportProtocol.Udp))
                         {
                             client._protocol = DnsTransportProtocol.Tcp;
 
@@ -390,7 +391,7 @@ namespace TechnitiumLibrary.Net.Dns
                             }
                         }
 
-                        if (response.Header.Truncation)
+                        if (response.Truncation)
                         {
                             lastException = new DnsClientException("DnsClient received a truncated response for " + client._protocol.ToString() + " protocol from name server: " + currentNameServer.ToString());
                             continue; //resolver loop
@@ -398,10 +399,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                         cache.CacheResponse(response);
 
-                        switch (response.Header.RCODE)
+                        switch (response.RCODE)
                         {
                             case DnsResponseCode.NoError:
-                                if (response.Answer.Length > 0)
+                                if (response.Answer.Count > 0)
                                 {
                                     if (!response.Answer[0].Name.Equals(question.Name, StringComparison.OrdinalIgnoreCase))
                                         continue; //continue to next name server since current name server may be misconfigured
@@ -437,7 +438,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         goto resolverLoop;
                                     }
                                 }
-                                else if (response.Authority.Length > 0)
+                                else if (response.Authority.Count > 0)
                                 {
                                     if (response.Authority[0].Type == DnsResourceRecordType.SOA)
                                     {
@@ -521,9 +522,9 @@ namespace TechnitiumLibrary.Net.Dns
                                         //get next hop name servers
                                         nameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
 
-                                        if (nameServers.Length == 0)
+                                        if (nameServers.Count == 0)
                                         {
-                                            if ((i + 1) == nameServers.Length)
+                                            if ((i + 1) == nameServers.Count)
                                             {
                                                 if (resolverStack.Count == 0)
                                                 {
@@ -550,7 +551,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
                                 else
                                 {
-                                    if ((i + 1) == nameServers.Length)
+                                    if ((i + 1) == nameServers.Count)
                                     {
                                         if (resolverStack.Count == 0)
                                         {
@@ -591,7 +592,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
 
                             default:
-                                if ((i + 1) == nameServers.Length)
+                                if ((i + 1) == nameServers.Count)
                                 {
                                     if (resolverStack.Count == 0)
                                     {
@@ -651,16 +652,16 @@ namespace TechnitiumLibrary.Net.Dns
         public static DnsDatagram RecursiveQuery(DnsQuestionRecord question, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10)
         {
             if (cache == null)
-                cache = new SimpleDnsCache();
+                cache = new DnsCache();
 
             DnsDatagram response = RecursiveResolve(question, null, cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount);
 
-            DnsResourceRecord[] authority;
-            DnsResourceRecord[] additional;
+            IReadOnlyList<DnsResourceRecord> authority;
+            IReadOnlyList<DnsResourceRecord> additional;
 
-            if (response.Answer.Length > 0)
+            if (response.Answer.Count > 0)
             {
-                DnsResourceRecord lastRR = response.Answer[response.Answer.Length - 1];
+                DnsResourceRecord lastRR = response.Answer[response.Answer.Count - 1];
 
                 if ((lastRR.Type != question.Type) && (lastRR.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
                 {
@@ -676,12 +677,12 @@ namespace TechnitiumLibrary.Net.Dns
 
                         lastResponse = RecursiveResolve(cnameQuestion, null, cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount);
 
-                        if (lastResponse.Answer.Length == 0)
+                        if (lastResponse.Answer.Count == 0)
                             break;
 
                         responseAnswer.AddRange(lastResponse.Answer);
 
-                        lastRR = lastResponse.Answer[lastResponse.Answer.Length - 1];
+                        lastRR = lastResponse.Answer[lastResponse.Answer.Count - 1];
 
                         if (lastRR.Type == question.Type)
                             break;
@@ -694,17 +695,17 @@ namespace TechnitiumLibrary.Net.Dns
                             throw new DnsClientException("Recursive resolution exceeded max hops.");
                     }
 
-                    if ((lastResponse.Authority.Length > 0) && (lastResponse.Authority[0].Type == DnsResourceRecordType.SOA))
+                    if ((lastResponse.Authority.Count > 0) && (lastResponse.Authority[0].Type == DnsResourceRecordType.SOA))
                         authority = lastResponse.Authority;
                     else
                         authority = Array.Empty<DnsResourceRecord>();
 
-                    if ((response.Additional.Length > 0) && (question.Type == DnsResourceRecordType.MX))
+                    if ((response.Additional.Count > 0) && (question.Type == DnsResourceRecordType.MX))
                         additional = response.Additional;
                     else
                         additional = Array.Empty<DnsResourceRecord>();
 
-                    DnsDatagram compositeResponse = new DnsDatagram(new DnsHeader(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, lastResponse.Header.RCODE, 1, (ushort)responseAnswer.Count, (ushort)authority.Length, (ushort)additional.Length), new DnsQuestionRecord[] { question }, responseAnswer.ToArray(), authority, additional);
+                    DnsDatagram compositeResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, lastResponse.RCODE, new DnsQuestionRecord[] { question }, responseAnswer, authority, additional);
 
                     if (lastResponse.Metadata != null)
                         compositeResponse.SetMetadata(new DnsDatagramMetadata(lastResponse.Metadata.NameServerAddress, lastResponse.Metadata.Protocol, -1, lastResponse.Metadata.RTT));
@@ -713,17 +714,17 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            if ((response.Authority.Length > 0) && (response.Authority[0].Type == DnsResourceRecordType.SOA))
+            if ((response.Authority.Count > 0) && (response.Authority[0].Type == DnsResourceRecordType.SOA))
                 authority = response.Authority;
             else
                 authority = Array.Empty<DnsResourceRecord>();
 
-            if ((response.Additional.Length > 0) && (question.Type == DnsResourceRecordType.MX))
+            if ((response.Additional.Count > 0) && (question.Type == DnsResourceRecordType.MX))
                 additional = response.Additional;
             else
                 additional = Array.Empty<DnsResourceRecord>();
 
-            DnsDatagram finalResponse = new DnsDatagram(new DnsHeader(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, response.Header.RCODE, 1, (ushort)response.Answer.Length, (ushort)authority.Length, (ushort)additional.Length), new DnsQuestionRecord[] { question }, response.Answer, authority, additional);
+            DnsDatagram finalResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, response.RCODE, new DnsQuestionRecord[] { question }, response.Answer, authority, additional);
 
             if (response.Metadata != null)
                 finalResponse.SetMetadata(new DnsDatagramMetadata(response.Metadata.NameServerAddress, response.Metadata.Protocol, -1, response.Metadata.RTT));
@@ -731,29 +732,29 @@ namespace TechnitiumLibrary.Net.Dns
             return finalResponse;
         }
 
-        public static IPAddress[] RecursiveResolveIP(string domain, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10)
+        public static IReadOnlyList<IPAddress> RecursiveResolveIP(string domain, DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10)
         {
             if (cache == null)
-                cache = new SimpleDnsCache();
+                cache = new DnsCache();
 
             if (preferIPv6)
             {
-                IPAddress[] addresses = ParseResponseAAAA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount));
-                if (addresses.Length > 0)
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount));
+                if (addresses.Count > 0)
                     return addresses;
             }
 
             return ParseResponseA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount));
         }
 
-        public static IPAddress[] ParseResponseA(DnsDatagram response)
+        public static IReadOnlyList<IPAddress> ParseResponseA(DnsDatagram response)
         {
             string domain = response.Question[0].Name;
 
-            switch (response.Header.RCODE)
+            switch (response.RCODE)
             {
                 case DnsResponseCode.NoError:
-                    if (response.Header.ANCOUNT == 0)
+                    if (response.Answer.Count == 0)
                         return Array.Empty<IPAddress>();
 
                     List<IPAddress> ipAddresses = new List<IPAddress>();
@@ -775,24 +776,24 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    return ipAddresses.ToArray();
+                    return ipAddresses;
 
                 case DnsResponseCode.NameError:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE + " (" + (int)response.Header.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
-        public static IPAddress[] ParseResponseAAAA(DnsDatagram response)
+        public static IReadOnlyList<IPAddress> ParseResponseAAAA(DnsDatagram response)
         {
             string domain = response.Question[0].Name;
 
-            switch (response.Header.RCODE)
+            switch (response.RCODE)
             {
                 case DnsResponseCode.NoError:
-                    if (response.Header.ANCOUNT == 0)
+                    if (response.Answer.Count == 0)
                         return Array.Empty<IPAddress>();
 
                     List<IPAddress> ipAddresses = new List<IPAddress>();
@@ -814,24 +815,24 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    return ipAddresses.ToArray();
+                    return ipAddresses;
 
                 case DnsResponseCode.NameError:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE + " (" + (int)response.Header.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
-        public static string[] ParseResponseTXT(DnsDatagram response)
+        public static IReadOnlyList<string> ParseResponseTXT(DnsDatagram response)
         {
             string domain = response.Question[0].Name;
 
-            switch (response.Header.RCODE)
+            switch (response.RCODE)
             {
                 case DnsResponseCode.NoError:
-                    if (response.Header.ANCOUNT == 0)
+                    if (response.Answer.Count == 0)
                         return Array.Empty<string>();
 
                     List<string> txtRecords = new List<string>();
@@ -853,13 +854,13 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    return txtRecords.ToArray();
+                    return txtRecords;
 
                 case DnsResponseCode.NameError:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE + " (" + (int)response.Header.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -867,10 +868,10 @@ namespace TechnitiumLibrary.Net.Dns
         {
             string domain = response.Question[0].Name;
 
-            switch (response.Header.RCODE)
+            switch (response.RCODE)
             {
                 case DnsResponseCode.NoError:
-                    if (response.Header.ANCOUNT == 0)
+                    if (response.Answer.Count == 0)
                         return null;
 
                     foreach (DnsResourceRecord record in response.Answer)
@@ -895,21 +896,21 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE + " (" + (int)response.Header.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
-        public static string[] ParseResponseMX(DnsDatagram response)
+        public static IReadOnlyList<string> ParseResponseMX(DnsDatagram response)
         {
             string domain = response.Question[0].Name;
 
-            switch (response.Header.RCODE)
+            switch (response.RCODE)
             {
                 case DnsResponseCode.NoError:
-                    if (response.Header.ANCOUNT == 0)
+                    if (response.Answer.Count == 0)
                         return Array.Empty<string>();
 
-                    List<DnsMXRecord> mxRecordsList = new List<DnsMXRecord>();
+                    List<DnsMXRecord> mxRecords = new List<DnsMXRecord>();
 
                     foreach (DnsResourceRecord record in response.Answer)
                     {
@@ -918,7 +919,7 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (record.Type)
                             {
                                 case DnsResourceRecordType.MX:
-                                    mxRecordsList.Add((DnsMXRecord)record.RDATA);
+                                    mxRecords.Add((DnsMXRecord)record.RDATA);
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
@@ -928,16 +929,14 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    if (mxRecordsList.Count > 0)
+                    if (mxRecords.Count > 0)
                     {
-                        DnsMXRecord[] mxRecords = mxRecordsList.ToArray();
-
                         //sort by mx preference
-                        Array.Sort(mxRecords);
+                        mxRecords.Sort();
 
-                        string[] mxEntries = new string[mxRecords.Length];
+                        string[] mxEntries = new string[mxRecords.Count];
 
-                        for (int i = 0; i < mxRecords.Length; i++)
+                        for (int i = 0; i < mxEntries.Length; i++)
                             mxEntries[i] = mxRecords[i].Exchange;
 
                         return mxEntries;
@@ -949,7 +948,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.Header.RCODE + " (" + (int)response.Header.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -1016,43 +1015,63 @@ namespace TechnitiumLibrary.Net.Dns
                 labelLength = labelEnd - labelStart;
 
                 if (labelLength == 0)
-                    throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot be 0 byte.");
-
-                if (labelLength > 63)
-                    throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot exceed 63 bytes.");
-
-                if (domain[labelStart] == '-')
-                    throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot start with hyphen.");
-
-                if (domain[labelEnd - 1] == '-')
-                    throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot end with hyphen.");
-
-                if ((labelLength == 1) && (domain[labelStart] == '*'))
-                    continue;
-
-                for (i = labelStart; i < labelEnd; i++)
                 {
-                    labelChar = domain[i];
-
-                    if ((labelChar >= 97) && (labelChar <= 122)) //[a-z]
-                        continue;
-
-                    if ((labelChar >= 65) && (labelChar <= 90)) //[A-Z]
-                        continue;
-
-                    if ((labelChar >= 48) && (labelChar <= 57)) //[0-9]
-                        continue;
-
-                    if (labelChar == 45) //[-]
-                        continue;
-
-                    if (labelChar == 95) //[_]
-                        continue;
-
                     if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: invalid character [" + labelChar + "] was found.");
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot be 0 byte.");
 
                     return false;
+                }
+
+                if (labelLength > 63)
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label length cannot exceed 63 bytes.");
+
+                    return false;
+                }
+
+                if (domain[labelStart] == '-')
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot start with hyphen.");
+
+                    return false;
+                }
+
+                if (domain[labelEnd - 1] == '-')
+                {
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot end with hyphen.");
+
+                    return false;
+                }
+
+                if (labelLength != 1 || domain[labelStart] != '*')
+                {
+                    for (i = labelStart; i < labelEnd; i++)
+                    {
+                        labelChar = domain[i];
+
+                        if ((labelChar >= 97) && (labelChar <= 122)) //[a-z]
+                            continue;
+
+                        if ((labelChar >= 65) && (labelChar <= 90)) //[A-Z]
+                            continue;
+
+                        if ((labelChar >= 48) && (labelChar <= 57)) //[0-9]
+                            continue;
+
+                        if (labelChar == 45) //[-]
+                            continue;
+
+                        if (labelChar == 95) //[_]
+                            continue;
+
+                        if (throwException)
+                            throw new DnsClientException("Invalid domain name [" + domain + "]: invalid character [" + labelChar + "] was found.");
+
+                        return false;
+                    }
                 }
 
                 labelStart = labelEnd + 1;
@@ -1118,7 +1137,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     retry++;
 
-                    request.Header.SetRandomIdentifier(); //each retry must have differnt ID
+                    request.SetRandomIdentifier(); //each retry must have differnt ID
 
                     DnsTransportProtocol protocol = _protocol;
 
@@ -1144,7 +1163,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsDatagram Resolve(DnsQuestionRecord questionRecord)
         {
-            return Resolve(new DnsDatagram(new DnsHeader(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, 1, 0, 0, 0), new DnsQuestionRecord[] { questionRecord }, null, null, null));
+            return Resolve(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { questionRecord }));
         }
 
         public DnsDatagram Resolve(string domain, DnsResourceRecordType queryType)
@@ -1155,12 +1174,12 @@ namespace TechnitiumLibrary.Net.Dns
                 return Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.IN));
         }
 
-        public string[] ResolveMX(MailAddress emailAddress, bool resolveIP = false, bool preferIPv6 = false)
+        public IReadOnlyList<string> ResolveMX(MailAddress emailAddress, bool resolveIP = false, bool preferIPv6 = false)
         {
             return ResolveMX(emailAddress.Host, resolveIP, preferIPv6);
         }
 
-        public string[] ResolveMX(string domain, bool resolveIP = false, bool preferIPv6 = false)
+        public IReadOnlyList<string> ResolveMX(string domain, bool resolveIP = false, bool preferIPv6 = false)
         {
             if (IPAddress.TryParse(domain, out _))
             {
@@ -1169,7 +1188,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             DnsDatagram response = Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.MX, DnsClass.IN));
-            string[] mxEntries = ParseResponseMX(response);
+            IReadOnlyList<string> mxEntries = ParseResponseMX(response);
 
             if (!resolveIP)
                 return mxEntries;
@@ -1211,7 +1230,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     try
                     {
-                        IPAddress[] ipList = ResolveIP(mxEntry, preferIPv6);
+                        IReadOnlyList<IPAddress> ipList = ResolveIP(mxEntry, preferIPv6);
 
                         foreach (IPAddress ip in ipList)
                             mxAddresses.Add(ip.ToString());
@@ -1225,7 +1244,7 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            return mxAddresses.ToArray();
+            return mxAddresses;
         }
 
         public string ResolvePTR(IPAddress ip)
@@ -1233,17 +1252,17 @@ namespace TechnitiumLibrary.Net.Dns
             return ParseResponsePTR(Resolve(new DnsQuestionRecord(ip, DnsClass.IN)));
         }
 
-        public string[] ResolveTXT(string domain)
+        public IReadOnlyList<string> ResolveTXT(string domain)
         {
             return ParseResponseTXT(Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.TXT, DnsClass.IN)));
         }
 
-        public IPAddress[] ResolveIP(string domain, bool preferIPv6 = false)
+        public IReadOnlyList<IPAddress> ResolveIP(string domain, bool preferIPv6 = false)
         {
             if (preferIPv6)
             {
-                IPAddress[] addresses = ParseResponseAAAA(Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN)));
-                if (addresses.Length > 0)
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN)));
+                if (addresses.Count > 0)
                     return addresses;
             }
 
@@ -1292,10 +1311,10 @@ namespace TechnitiumLibrary.Net.Dns
         class ResolverData
         {
             public DnsQuestionRecord Question;
-            public NameServerAddress[] NameServers;
+            public IList<NameServerAddress> NameServers;
             public int NameServerIndex;
 
-            public ResolverData(DnsQuestionRecord question, NameServerAddress[] nameServers, int nameServerIndex)
+            public ResolverData(DnsQuestionRecord question, IList<NameServerAddress> nameServers, int nameServerIndex)
             {
                 this.Question = question;
                 this.NameServers = nameServers;
