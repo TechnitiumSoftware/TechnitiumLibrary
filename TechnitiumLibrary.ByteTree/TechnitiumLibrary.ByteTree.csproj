@@ -2,12 +2,17 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <Version>1.0</Version>
     <Authors>Shreyas Zare</Authors>
     <Company>Technitium</Company>
     <Product>Technitium Library</Product>
     <Description>.NET Standard 2.0</Description>
     <RepositoryUrl>https://github.com/TechnitiumSoftware/TechnitiumLibrary</RepositoryUrl>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <OutputPath>..\bin\</OutputPath>
   </PropertyGroup>
 
 </Project>

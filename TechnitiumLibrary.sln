@@ -29,7 +29,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net.Tor",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Security.Cryptography.EllipticCurve", "TechnitiumLibrary.Security.Cryptography.EllipticCurve\TechnitiumLibrary.Security.Cryptography.EllipticCurve.csproj", "{888D0328-D6F1-4CA8-88A6-F77D59F23CF2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Collections", "TechnitiumLibrary.Collections\TechnitiumLibrary.Collections.csproj", "{74CB1A17-B0A7-4610-849C-4D125D7B9072}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.ByteTree", "TechnitiumLibrary.ByteTree\TechnitiumLibrary.ByteTree.csproj", "{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -89,10 +89,10 @@ Global
 		{888D0328-D6F1-4CA8-88A6-F77D59F23CF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{888D0328-D6F1-4CA8-88A6-F77D59F23CF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{888D0328-D6F1-4CA8-88A6-F77D59F23CF2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{74CB1A17-B0A7-4610-849C-4D125D7B9072}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{74CB1A17-B0A7-4610-849C-4D125D7B9072}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{74CB1A17-B0A7-4610-849C-4D125D7B9072}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{74CB1A17-B0A7-4610-849C-4D125D7B9072}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
