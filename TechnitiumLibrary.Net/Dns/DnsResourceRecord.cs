@@ -124,7 +124,7 @@ namespace TechnitiumLibrary.Net.Dns
         ANY = 255
     }
 
-    public class DnsResourceRecord : IComparable<DnsResourceRecord>
+    public sealed class DnsResourceRecord : IComparable<DnsResourceRecord>
     {
         #region variables
 
@@ -202,6 +202,10 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsCAARecord(s);
                     break;
 
+                case DnsResourceRecordType.HINFO:
+                    _data = new DnsHINFORecord(s);
+                    break;
+
                 default:
                     _data = new DnsUnknownRecord(s);
                     break;
@@ -255,6 +259,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                 case DnsResourceRecordType.CAA:
                     _data = new DnsCAARecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.HINFO:
+                    _data = new DnsHINFORecord(jsonResourceRecord);
                     break;
 
                 default:
