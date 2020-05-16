@@ -60,7 +60,7 @@ namespace TechnitiumLibrary.Net.Dns
         BADCOOKIE = 23
     }
 
-    public class DnsDatagram
+    public sealed class DnsDatagram
     {
         #region variables
 
@@ -307,7 +307,7 @@ namespace TechnitiumLibrary.Net.Dns
             s.Write(b, 0, b.Length);
         }
 
-        internal static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries = null)
+        public static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries = null)
         {
             while (!string.IsNullOrEmpty(domain))
             {
@@ -358,7 +358,7 @@ namespace TechnitiumLibrary.Net.Dns
             s.WriteByte(Convert.ToByte(0));
         }
 
-        internal static string DeserializeDomainName(Stream s, int maxDepth = 10)
+        public static string DeserializeDomainName(Stream s, int maxDepth = 10)
         {
             if (maxDepth < 0)
                 throw new DnsClientException("Error while reading domain name: max depth for decompression reached");
