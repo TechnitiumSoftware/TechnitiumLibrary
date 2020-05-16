@@ -45,9 +45,9 @@ namespace TechnitiumLibrary.ByteTree
 
         #endregion
 
-        #region private
+        #region protected
 
-        private Node FindClosestNode(byte[] key)
+        protected Node FindClosestNode(byte[] key)
         {
             Node[] children;
             Node child;
@@ -69,7 +69,7 @@ namespace TechnitiumLibrary.ByteTree
             return current;
         }
 
-        private NodeValue FindValue(byte[] key, out Node closestNode)
+        protected NodeValue FindValue(byte[] key, out Node closestNode)
         {
             Node[] children;
             Node child;
