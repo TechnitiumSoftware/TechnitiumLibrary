@@ -25,7 +25,7 @@ using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
 {
-    public class DnsCache
+    public class DnsCache : IDnsCache
     {
         #region variables
 
