@@ -50,7 +50,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         const int MAX_HOPS = 16;
 
-        readonly NameServerAddress[] _servers;
+        readonly IReadOnlyList<NameServerAddress> _servers;
 
         NetProxy _proxy;
         bool _preferIPv6 = false;
@@ -109,22 +109,26 @@ namespace TechnitiumLibrary.Net.Dns
             if (dohEndPoints.Length == 0)
                 throw new DnsClientException("At least one name server must be available for DnsClient.");
 
-            _servers = new NameServerAddress[dohEndPoints.Length];
+            NameServerAddress[] servers = new NameServerAddress[dohEndPoints.Length];
 
             for (int i = 0; i < dohEndPoints.Length; i++)
-                _servers[i] = new NameServerAddress(dohEndPoints[i]);
+                servers[i] = new NameServerAddress(dohEndPoints[i]);
+
+            _servers = servers;
         }
 
         public DnsClient(bool preferIPv6 = false)
         {
             _preferIPv6 = preferIPv6;
 
-            IPAddressCollection servers = GetSystemDnsServers(_preferIPv6);
+            IPAddressCollection systemDnsServers = GetSystemDnsServers(_preferIPv6);
 
-            _servers = new NameServerAddress[servers.Count];
+            NameServerAddress[] servers = new NameServerAddress[systemDnsServers.Count];
 
-            for (int i = 0; i < servers.Count; i++)
-                _servers[i] = new NameServerAddress(servers[i]);
+            for (int i = 0; i < systemDnsServers.Count; i++)
+                servers[i] = new NameServerAddress(systemDnsServers[i]);
+
+            _servers = servers;
         }
 
         public DnsClient(IPAddress[] servers)
@@ -132,10 +136,12 @@ namespace TechnitiumLibrary.Net.Dns
             if (servers.Length == 0)
                 throw new DnsClientException("At least one name server must be available for DnsClient.");
 
-            _servers = new NameServerAddress[servers.Length];
+            NameServerAddress[] nameServers = new NameServerAddress[servers.Length];
 
             for (int i = 0; i < servers.Length; i++)
-                _servers[i] = new NameServerAddress(servers[i]);
+                nameServers[i] = new NameServerAddress(servers[i]);
+
+            _servers = nameServers;
         }
 
         public DnsClient(IPAddress server)
@@ -146,18 +152,29 @@ namespace TechnitiumLibrary.Net.Dns
             : this(new NameServerAddress(server))
         { }
 
-        public DnsClient(string address)
-            : this(new NameServerAddress(address))
-        { }
+        public DnsClient(string addresses)
+        {
+            string[] strServers = addresses.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (strServers.Length == 0)
+                throw new DnsClientException("At least one name server must be available for DnsClient.");
+
+            NameServerAddress[] servers = new NameServerAddress[strServers.Length];
+
+            for (int i = 0; i < strServers.Length; i++)
+                servers[i] = new NameServerAddress(strServers[i]);
+
+            _servers = servers;
+        }
 
         public DnsClient(NameServerAddress server)
         {
             _servers = new NameServerAddress[] { server };
         }
 
-        public DnsClient(NameServerAddress[] servers)
+        public DnsClient(IReadOnlyList<NameServerAddress> servers)
         {
-            if (servers.Length == 0)
+            if (servers.Count == 0)
                 throw new DnsClientException("At least one name server must be available for DnsClient.");
 
             _servers = servers;
@@ -1091,14 +1108,14 @@ namespace TechnitiumLibrary.Net.Dns
             Exception lastException = null;
 
             //init server selection parameters
-            if (_servers.Length > 1)
+            if (_servers.Count > 1)
             {
-                retries *= _servers.Length; //retries on per server basis
+                retries *= _servers.Count; //retries on per server basis
 
                 byte[] select = new byte[1];
                 _rnd.GetBytes(select);
 
-                nextServerIndex = select[0] % _servers.Length;
+                nextServerIndex = select[0] % _servers.Count;
             }
 
             int retry = 0;
@@ -1107,10 +1124,10 @@ namespace TechnitiumLibrary.Net.Dns
                 //select server
                 NameServerAddress server;
 
-                if (_servers.Length > 1)
+                if (_servers.Count > 1)
                 {
                     server = _servers[nextServerIndex];
-                    nextServerIndex = (nextServerIndex + 1) % _servers.Length;
+                    nextServerIndex = (nextServerIndex + 1) % _servers.Count;
                 }
                 else
                 {
@@ -1272,7 +1289,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region property
 
-        public NameServerAddress[] Servers
+        public IReadOnlyList<NameServerAddress> Servers
         { get { return _servers; } }
 
         public NetProxy Proxy
