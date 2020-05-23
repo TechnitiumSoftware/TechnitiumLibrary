@@ -23,6 +23,7 @@ using System.Net;
 using System.Net.Mail;
 using System.Net.NetworkInformation;
 using System.Security.Cryptography;
+using System.Threading;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.ClientConnection;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
@@ -57,6 +58,7 @@ namespace TechnitiumLibrary.Net.Dns
         DnsTransportProtocol _protocol = DnsTransportProtocol.Udp;
         int _retries = 2;
         int _timeout = 2000;
+        int _threads = 2;
 
         #endregion
 
@@ -1103,91 +1105,128 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsDatagram Resolve(DnsDatagram request)
         {
-            int nextServerIndex = 0;
-            int retries = _retries;
-            Exception lastException = null;
+            //get servers
+            IReadOnlyList<NameServerAddress> servers;
 
-            //init server selection parameters
             if (_servers.Count > 1)
             {
-                retries *= _servers.Count; //retries on per server basis
+                List<NameServerAddress> serversCopy = new List<NameServerAddress>(_servers);
+                serversCopy.Shuffle();
 
-                byte[] select = new byte[1];
-                _rnd.GetBytes(select);
+                if (_preferIPv6)
+                    serversCopy.Sort();
 
-                nextServerIndex = select[0] % _servers.Count;
+                servers = serversCopy;
             }
-
-            int retry = 0;
-            while (retry < retries)
+            else
             {
-                //select server
-                NameServerAddress server;
-
-                if (_servers.Count > 1)
-                {
-                    server = _servers[nextServerIndex];
-                    nextServerIndex = (nextServerIndex + 1) % _servers.Count;
-                }
-                else
-                {
-                    server = _servers[0];
-                }
-
-                if (server.IsIPEndPointStale && (_proxy == null))
-                {
-                    //recursive resolve name server via root servers when proxy is null else let proxy resolve it
-                    try
-                    {
-                        server.RecursiveResolveIPAddress(null, null, _preferIPv6, _retries, _timeout, false);
-                    }
-                    catch
-                    {
-                        retry++;
-                        continue;
-                    }
-                }
-
-                //query server
-                try
-                {
-                    retry++;
-
-                    request.SetRandomIdentifier(); //each retry must have differnt ID
-
-                    DnsTransportProtocol protocol = _protocol;
-
-                    //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
-                    if ((_proxy != null) && (protocol == DnsTransportProtocol.Udp) && !_proxy.IsUdpAvailable() && !_proxy.IsBypassed(server.EndPoint))
-                        protocol = DnsTransportProtocol.Tcp;
-
-                    DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy);
-                    connection.Timeout = _timeout;
-
-                    DnsDatagram response = connection.Query(request);
-                    if (response != null)
-                        return response;
-                }
-                catch (Exception ex)
-                {
-                    lastException = ex;
-                }
+                servers = _servers;
             }
 
-            throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.", lastException);
+            //init parameters
+            object nextServerLock = new object();
+            int nextServerIndex = 0;
+            DnsDatagram firstResponse = null;
+            Exception lastException = null;
+            IDnsCache dnsCache = new DnsCache();
+            EventWaitHandle waitHandle = new ManualResetEvent(false);
+
+            Func<NameServerAddress> getNextServer = delegate ()
+            {
+                lock (nextServerLock)
+                {
+                    if (firstResponse != null)
+                        return null; //got response; stop thread
+
+                    if (nextServerIndex < servers.Count)
+                        return servers[nextServerIndex++];
+
+                    return null; //no next server available; stop thread
+                }
+            };
+
+            request.SetRandomIdentifier();
+            int threads = servers.Count > _threads ? _threads : servers.Count;
+
+            //start worker threads
+            for (int i = 0; i < threads; i++)
+            {
+                ThreadPool.QueueUserWorkItem(delegate (object state)
+                {
+                    while (true) //next server loop
+                    {
+                        NameServerAddress server = getNextServer();
+                        if (server == null)
+                            return; //all servers done
+
+                        if (server.IsIPEndPointStale && (_proxy == null))
+                        {
+                            //recursive resolve name server via root servers when proxy is null else let proxy resolve it
+                            try
+                            {
+                                server.RecursiveResolveIPAddress(dnsCache, null, _preferIPv6, _retries, _timeout / _retries, false);
+                            }
+                            catch (Exception ex)
+                            {
+                                lastException = ex;
+                                continue; //failed to resolve; try next server
+                            }
+                        }
+
+                        DnsTransportProtocol protocol = _protocol;
+
+                        //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
+                        if ((_proxy != null) && (protocol == DnsTransportProtocol.Udp) && !_proxy.IsBypassed(server.EndPoint) && !_proxy.IsUdpAvailable())
+                            protocol = DnsTransportProtocol.Tcp;
+
+                        //query server
+                        int retry = 0;
+                        while (retry < _retries) //retry loop
+                        {
+                            retry++;
+
+                            try
+                            {
+                                DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy);
+                                connection.Timeout = _timeout / _retries;
+
+                                DnsDatagram response = connection.Query(request);
+                                if (response != null)
+                                {
+                                    firstResponse = response;
+                                    waitHandle.Set();
+                                    return;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                lastException = ex;
+                            }
+                        }
+                    }
+                });
+            }
+
+            //wait for first response
+            waitHandle.WaitOne(_timeout);
+
+            if (firstResponse == null)
+                throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.", lastException);
+
+            return firstResponse;
         }
 
-        public DnsDatagram Resolve(DnsQuestionRecord questionRecord)
+        public DnsDatagram Resolve(DnsQuestionRecord question)
         {
-            return Resolve(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { questionRecord }));
+            return Resolve(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }));
         }
 
-        public DnsDatagram Resolve(string domain, DnsResourceRecordType queryType)
+        public DnsDatagram Resolve(string domain, DnsResourceRecordType type)
         {
-            if ((queryType == DnsResourceRecordType.PTR) && IPAddress.TryParse(domain, out IPAddress address))
+            if ((type == DnsResourceRecordType.PTR) && IPAddress.TryParse(domain, out IPAddress address))
                 return Resolve(new DnsQuestionRecord(address, DnsClass.IN));
             else
-                return Resolve(new DnsQuestionRecord(domain, queryType, DnsClass.IN));
+                return Resolve(new DnsQuestionRecord(domain, type, DnsClass.IN));
         }
 
         public IReadOnlyList<string> ResolveMX(MailAddress emailAddress, bool resolveIP = false, bool preferIPv6 = false)
@@ -1320,6 +1359,12 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get { return _timeout; }
             set { _timeout = value; }
+        }
+
+        public int Threads
+        {
+            get { return _threads; }
+            set { _threads = value; }
         }
 
         #endregion
