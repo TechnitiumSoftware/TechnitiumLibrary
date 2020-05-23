@@ -52,6 +52,8 @@ namespace TechnitiumLibrary.Net
 
         TunnelProxy _tunnelProxy;
 
+        HttpWebResponse _response;
+
         #endregion
 
         #region constructor
@@ -308,22 +310,22 @@ namespace TechnitiumLibrary.Net
 
         protected override WebResponse GetWebResponse(WebRequest request)
         {
-            HttpWebResponse response = null;
+            _response = null;
             int redirectCount = -1;
 
             while (redirectCount < _maximumAutomaticRedirections)
             {
                 try
                 {
-                    response = request.GetResponse() as HttpWebResponse;
+                    _response = request.GetResponse() as HttpWebResponse;
                 }
                 catch (WebException ex)
                 {
-                    response = ex.Response as HttpWebResponse;
-                    if (response == null)
+                    _response = ex.Response as HttpWebResponse;
+                    if (_response == null)
                         throw;
 
-                    switch (response.StatusCode)
+                    switch (_response.StatusCode)
                     {
                         case HttpStatusCode.MovedPermanently:
                         case HttpStatusCode.Found:
@@ -336,28 +338,28 @@ namespace TechnitiumLibrary.Net
                     }
                 }
 
-                switch (response.StatusCode)
+                switch (_response.StatusCode)
                 {
                     case HttpStatusCode.MovedPermanently:
                     case HttpStatusCode.Found:
                     case HttpStatusCode.SeeOther:
-                        request = GetWebRequest(new Uri(response.Headers["location"]));
+                        request = GetWebRequest(new Uri(_response.Headers["location"]));
                         break;
 
                     case HttpStatusCode.RedirectKeepVerb:
                         string method = request.Method;
-                        request = GetWebRequest(new Uri(response.Headers["location"]));
+                        request = GetWebRequest(new Uri(_response.Headers["location"]));
                         request.Method = method;
                         break;
 
                     default:
-                        return response;
+                        return _response;
                 }
 
                 redirectCount++;
             }
 
-            throw new WebException("Too many automatic redirections were attempted.", null, WebExceptionStatus.ProtocolError, response);
+            throw new WebException("Too many automatic redirections were attempted.", null, WebExceptionStatus.ProtocolError, _response);
         }
 
         protected override WebResponse GetWebResponse(WebRequest request, IAsyncResult result)
@@ -380,6 +382,9 @@ namespace TechnitiumLibrary.Net
             get { return _ifModifiedSince; }
             set { _ifModifiedSince = value; }
         }
+
+        public HttpWebResponse Response
+        { get { return _response; } }
 
         public string UserAgent
         {
