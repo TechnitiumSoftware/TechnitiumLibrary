@@ -24,7 +24,19 @@ using System.Threading;
 
 namespace TechnitiumLibrary.ByteTree
 {
-    public class ByteTree<T> : IEnumerable<T>
+    public class ByteTree<TValue> : ByteTree<byte[], TValue> where TValue : class
+    {
+        public ByteTree()
+            : base(256)
+        { }
+
+        protected override byte[] ConvertToByteKey(byte[] key)
+        {
+            return key;
+        }
+    }
+
+    public abstract class ByteTree<TKey, TValue> : IEnumerable<TValue> where TValue : class
     {
         #region variables
 
@@ -35,7 +47,7 @@ namespace TechnitiumLibrary.ByteTree
 
         #region constructor
 
-        public ByteTree(int keySpace = 256)
+        protected ByteTree(int keySpace)
         {
             if ((keySpace < 0) || (keySpace > 256))
                 throw new ArgumentOutOfRangeException(nameof(keySpace));
@@ -47,19 +59,19 @@ namespace TechnitiumLibrary.ByteTree
 
         #region protected
 
+        protected abstract byte[] ConvertToByteKey(TKey key);
+
         protected Node FindClosestNode(byte[] key)
         {
-            Node[] children;
-            Node child;
             Node current = _root;
 
             for (int i = 0; i < key.Length; i++)
             {
-                children = current._children;
+                Node[] children = current.Children;
                 if (children == null)
                     break;
 
-                child = Volatile.Read(ref children[key[i]]);
+                Node child = Volatile.Read(ref children[key[i]]);
                 if (child == null)
                     break;
 
@@ -69,20 +81,17 @@ namespace TechnitiumLibrary.ByteTree
             return current;
         }
 
-        protected NodeValue FindValue(byte[] key, out Node closestNode)
+        protected NodeValue FindNodeValue(byte[] key, out Node closestNode)
         {
-            Node[] children;
-            Node child;
-
             closestNode = _root;
 
             for (int i = 0; i < key.Length; i++)
             {
-                children = closestNode._children;
+                Node[] children = closestNode.Children;
                 if (children == null)
                     break;
 
-                child = Volatile.Read(ref children[key[i]]);
+                Node child = Volatile.Read(ref children[key[i]]);
                 if (child == null)
                     return null; //no value available
 
@@ -101,141 +110,143 @@ namespace TechnitiumLibrary.ByteTree
             _root.Clear();
         }
 
-        public void Add(byte[] key, T value)
+        public void Add(TKey key, TValue value)
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            NodeValue foundValue = FindValue(key, out Node closestNode);
-            if (foundValue != null)
+            byte[] bKey = ConvertToByteKey(key);
+
+            Node closestNode = FindClosestNode(bKey);
+
+            if (!closestNode.AddValue(bKey, new NodeValue(bKey, value), _keySpace, out _))
                 throw new ArgumentException("Key already exists.");
-
-            closestNode.SetValue(key, value, _keySpace);
         }
 
-        public bool TryAdd(byte[] key, T value)
+        public bool TryAdd(TKey key, TValue value)
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            NodeValue foundValue = FindValue(key, out Node closestNode);
-            if (foundValue != null)
-                return false;
+            byte[] bKey = ConvertToByteKey(key);
 
-            closestNode.SetValue(key, value, _keySpace);
-            return true;
+            Node closestNode = FindClosestNode(bKey);
+
+            return closestNode.AddValue(bKey, new NodeValue(bKey, value), _keySpace, out _);
         }
 
-        public T AddOrUpdate(byte[] key, Func<byte[], T> addValueFactory, Func<byte[], T, T> updateValueFactory)
+        public TValue AddOrUpdate(TKey key, Func<TKey, TValue> addValueFactory, Func<TKey, TValue, TValue> updateValueFactory)
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            NodeValue foundValue = FindValue(key, out Node closestNode);
-            if (foundValue == null)
-            {
-                //key does not exists; add value
-                T addValue = addValueFactory(key);
-                closestNode.SetValue(key, addValue, _keySpace);
+            byte[] bKey = ConvertToByteKey(key);
+
+            Node closestNode = FindClosestNode(bKey);
+
+            TValue addValue = addValueFactory(key);
+
+            if (closestNode.AddValue(bKey, new NodeValue(bKey, addValue), _keySpace, out NodeValue existingValue))
                 return addValue;
-            }
-            else
-            {
-                //key already exists; update its value
-                T updateValue = updateValueFactory(key, foundValue._value);
-                closestNode.SetValue(key, updateValue, _keySpace);
-                return updateValue;
-            }
+
+            TValue updateValue = updateValueFactory(key, existingValue.Value);
+            existingValue.Value = updateValue;
+            return updateValue;
         }
 
-        public T AddOrUpdate(byte[] key, T addValue, Func<byte[], T, T> updateValueFactory)
+        public TValue AddOrUpdate(TKey key, TValue addValue, Func<TKey, TValue, TValue> updateValueFactory)
         {
-            return AddOrUpdate(key, delegate (byte[] k) { return addValue; }, updateValueFactory);
+            return AddOrUpdate(key, delegate (TKey k) { return addValue; }, updateValueFactory);
         }
 
-        public bool ContainsKey(byte[] key)
+        public bool ContainsKey(TKey key)
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            return FindValue(key, out _) != null;
+            byte[] bKey = ConvertToByteKey(key);
+
+            return FindNodeValue(bKey, out _) != null;
         }
 
-        public bool TryGet(byte[] key, out T value)
+        public bool TryGet(TKey key, out TValue value)
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            NodeValue foundValue = FindValue(key, out _);
-            if (foundValue == null)
+            byte[] bKey = ConvertToByteKey(key);
+
+            NodeValue nodeValue = FindNodeValue(bKey, out _);
+            if (nodeValue == null)
             {
                 value = default;
                 return false;
             }
 
-            value = foundValue._value;
+            value = nodeValue.Value;
             return true;
         }
 
-        public T GetOrAdd(byte[] key, Func<byte[], T> valueFactory)
+        public TValue GetOrAdd(TKey key, Func<TKey, TValue> valueFactory)
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            NodeValue foundValue = FindValue(key, out Node closestNode);
-            if (foundValue == null)
-            {
-                T value = valueFactory(key);
-                closestNode.SetValue(key, value, _keySpace);
+            byte[] bKey = ConvertToByteKey(key);
+
+            NodeValue nodeValue = FindNodeValue(bKey, out Node closestNode);
+            if (nodeValue != null)
+                return nodeValue.Value;
+
+            TValue value = valueFactory(key);
+            if (closestNode.AddValue(bKey, new NodeValue(bKey, value), _keySpace, out NodeValue existingValue))
                 return value;
-            }
 
-            return foundValue._value;
+            return existingValue.Value;
         }
 
-        public T GetOrAdd(byte[] key, T value)
+        public TValue GetOrAdd(TKey key, TValue value)
         {
-            return GetOrAdd(key, delegate (byte[] k) { return value; });
+            return GetOrAdd(key, delegate (TKey k) { return value; });
         }
 
-        public bool TryRemove(byte[] key, out T value)
+        public bool TryRemove(TKey key, out TValue value)
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            Node node = FindClosestNode(key);
-            NodeValue removedValue = node.RemoveValue(key);
+            byte[] bKey = ConvertToByteKey(key);
+
+            Node closestNode = FindClosestNode(bKey);
+            NodeValue removedValue = closestNode.RemoveValue(bKey);
             if (removedValue == null)
             {
                 value = default;
                 return false;
             }
 
-            node.CleanUp();
+            value = removedValue.Value;
 
-            value = removedValue._value;
+            closestNode.CleanUp();
+
             return true;
         }
 
-        public bool TryUpdate(byte[] key, T newValue, T comparisonValue)
+        public bool TryUpdate(TKey key, TValue newValue, TValue comparisonValue)
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            NodeValue foundValue = FindValue(key, out Node closestNode);
-            if (foundValue == null)
+            byte[] bKey = ConvertToByteKey(key);
+
+            NodeValue nodeValue = FindNodeValue(bKey, out _);
+            if (nodeValue == null)
                 return false;
 
-            if (Equals(foundValue._value, comparisonValue))
-            {
-                closestNode.SetValue(key, newValue, _keySpace);
-                return true;
-            }
-
-            return false;
+            return nodeValue.TryUpdateValue(newValue, comparisonValue);
         }
 
-        public IEnumerator<T> GetEnumerator()
+        public IEnumerator<TValue> GetEnumerator()
         {
             return new ByteTreeEnumerator(_root);
         }
@@ -252,22 +263,24 @@ namespace TechnitiumLibrary.ByteTree
         public bool IsEmpty
         { get { return _root.IsEmpty; } }
 
-        public T this[byte[] key]
+        public TValue this[TKey key]
         {
             get
             {
                 if (key == null)
                     throw new ArgumentNullException(nameof(key));
 
-                NodeValue foundValue = FindValue(key, out _);
-                if (foundValue == null)
+                byte[] bKey = ConvertToByteKey(key);
+
+                NodeValue nodeValue = FindNodeValue(bKey, out _);
+                if (nodeValue == null)
                     throw new KeyNotFoundException();
 
-                return foundValue._value;
+                return nodeValue.Value;
             }
             set
             {
-                FindClosestNode(key).SetValue(key, value, _keySpace);
+                AddOrUpdate(key, delegate (TKey k) { return value; }, delegate (TKey k, TValue v) { return value; });
             }
         }
 
@@ -277,12 +290,12 @@ namespace TechnitiumLibrary.ByteTree
         {
             #region variables
 
-            public readonly Node _parent;
-            public readonly int _depth;
-            public readonly byte _k;
+            readonly Node _parent;
+            readonly int _depth;
+            readonly byte _k;
 
-            public volatile Node[] _children;
-            public volatile NodeValue _value;
+            volatile Node[] _children;
+            volatile NodeValue _value;
 
             #endregion
 
@@ -331,7 +344,7 @@ namespace TechnitiumLibrary.ByteTree
 
             #region public
 
-            public void SetValue(byte[] key, T setValue, int keySpace)
+            public bool AddValue(byte[] key, NodeValue newValue, int keySpace, out NodeValue existingValue)
             {
                 Node current = this;
 
@@ -340,79 +353,137 @@ namespace TechnitiumLibrary.ByteTree
                     if (key.Length == current._depth)
                     {
                         //key belongs to current node
-                        NodeValue value = current._value;
-                        if (value == null)
+
+                        do
                         {
-                            //node has no value; so set value
-                            current._value = new NodeValue(key, setValue);
-                            return;
+                            NodeValue value = current._value;
+                            if (value == null)
+                            {
+                                //node has no value; so add value here
+                                NodeValue originalValue = Interlocked.CompareExchange(ref current._value, newValue, null);
+                                if (originalValue is null)
+                                {
+                                    existingValue = null;
+                                    return true;
+                                }
+
+                                continue; //seems another thread already set its value here so try again in next iteration
+                            }
+
+                            //current node has value
+                            if (value.Key.Length == current._depth)
+                            {
+                                //current node has value and it belongs here
+                                existingValue = value;
+                                return false; //failed to add new value as value already exists
+                            }
+
+                            //current node has value that does not belong here
+                            if (current._children == null)
+                            {
+                                //current node has no children so create new children array
+                                Node[] children = new Node[keySpace];
+
+                                //copy current value into a child node
+                                int k = value.Key[current._depth];
+                                children[k] = new Node(current, (byte)k, value);
+
+                                //set children array
+                                Node[] originalChildren = Interlocked.CompareExchange(ref current._children, children, null);
+                                if (originalChildren is null)
+                                {
+                                    //current thread successfully added children; wins rights to add value here
+                                    //add value here by overwriting current value that does not belong here and was moved to child node
+                                    current._value = newValue;
+                                    existingValue = null;
+                                    return true;
+                                }
+                            }
+
+                            //current node has children and current value does not belong here
+                            //this means another thread has already set children and will set current value to proper value or null
+                            //try again in next iteration with new value
                         }
-
-                        //current node has value
-                        if (value._key.Length == current._depth)
-                        {
-                            //current node value belongs here; so update new value
-                            value._value = setValue;
-                            return;
-                        }
-
-                        //current node value does not belong here
-                        if (current._children == null)
-                        {
-                            //current node has no children so create new children array
-                            Node[] children = new Node[keySpace];
-
-                            //copy current value into a child
-                            int k = value._key[current._depth];
-                            children[k] = new Node(current, (byte)k, value);
-
-                            //set children array
-                            current._children = children;
-                        }
-
-                        //set value here
-                        current._value = new NodeValue(key, setValue);
-                        return;
+                        while (true);
                     }
                     else
                     {
-                        //value does not belong to current node
-                        Node[] children = current._children;
-                        if (children == null)
+                        //key does not belong to current node
+                        Node[] children;
+
+                        do
                         {
+                            children = current._children;
+                            if (children != null)
+                                break;
+
                             //current node has no children
                             NodeValue value = current._value;
                             if (value == null)
                             {
-                                //current node has no children and no value so park value here for now
-                                current._value = new NodeValue(key, setValue);
-                                return;
+                                //current node has no children and no value so add value here
+                                NodeValue originalValue = Interlocked.CompareExchange(ref current._value, newValue, null);
+                                if (originalValue is null)
+                                {
+                                    existingValue = null;
+                                    return true;
+                                }
+
+                                continue; //seems another thread already set its value here so try again in next iteration
+                            }
+
+                            if (KeyEquals(current._depth, value.Key, key))
+                            {
+                                //current node has no children and current value key equals to add value key
+                                existingValue = value;
+                                return false; //failed to add new value as value already exists
                             }
 
                             //current node has value and no children so create new children array
                             children = new Node[keySpace];
 
-                            if (value._key.Length != current._depth)
+                            if (value.Key.Length != current._depth)
                             {
-                                //current value does not belong here; copy it into a child
-                                int k1 = value._key[current._depth];
+                                //current value does not belong here; copy it into a new child node
+                                int k1 = value.Key[current._depth];
                                 children[k1] = new Node(current, (byte)k1, value);
-                                current._value = null; //empty current value reference
                             }
 
                             //set children array
-                            current._children = children;
+                            Node[] originalChildren = Interlocked.CompareExchange(ref current._children, children, null);
+                            if (originalChildren is null)
+                            {
+                                //current thread successfully set children so it has right to update current value
+                                if (value.Key.Length != current._depth)
+                                {
+                                    //remove current value reference since it does not belong here and was successfully copied to child node
+                                    current._value = null;
+                                }
+
+                                break;
+                            }
                         }
+                        while (true);
 
                         //current node has children so set value if seat is vacant
                         int k2 = key[current._depth];
-                        Node child = Volatile.Read(ref children[k2]);
-                        if (child == null)
+                        Node child;
+
+                        do
                         {
+                            child = Volatile.Read(ref children[k2]);
+                            if (child != null)
+                                break;
+
                             //set value in vacant seat and return
-                            Volatile.Write(ref children[k2], new Node(current, (byte)k2, new NodeValue(key, setValue)));
-                            return;
+                            Node originalChild = Interlocked.CompareExchange(ref children[k2], new Node(current, (byte)k2, newValue), null);
+                            if (originalChild is null)
+                            {
+                                existingValue = null;
+                                return true;
+                            }
                         }
+                        while (true);
 
                         current = child; //make child as current and attempt to set value in next iteration
                     }
@@ -434,7 +505,7 @@ namespace TechnitiumLibrary.ByteTree
                             return null; //no value available
 
                         //current node has value
-                        if (value._key.Length == current._depth)
+                        if (value.Key.Length == current._depth)
                             return value; //current node value belongs here; return it
 
                         //current node value does not belong here
@@ -450,7 +521,7 @@ namespace TechnitiumLibrary.ByteTree
                             return null; //no value available
 
                         //check if key equals current value's key
-                        if (KeyEquals(current._depth, value._key, key))
+                        if (KeyEquals(current._depth, value.Key, key))
                             return value; //keys match; return it
 
                         return null; //keys dont match
@@ -480,7 +551,7 @@ namespace TechnitiumLibrary.ByteTree
                             return null; //no value available
 
                         //current node has value
-                        if (value._key.Length == current._depth)
+                        if (value.Key.Length == current._depth)
                         {
                             //current node value belongs here; remove and return value
                             current._value = null;
@@ -500,7 +571,7 @@ namespace TechnitiumLibrary.ByteTree
                             return null; //no value available
 
                         //check if key equals current value's key
-                        if (KeyEquals(current._depth, value._key, key))
+                        if (KeyEquals(current._depth, value.Key, key))
                         {
                             //keys match; remove and return value
                             current._value = null;
@@ -523,12 +594,10 @@ namespace TechnitiumLibrary.ByteTree
             public void CleanUp()
             {
                 Node current = this;
-                Node[] children;
-                Node[] siblings;
 
                 do
                 {
-                    children = current._children;
+                    Node[] children = current._children;
                     if (children != null)
                     {
                         for (int i = 0; i < children.Length; i++)
@@ -547,7 +616,7 @@ namespace TechnitiumLibrary.ByteTree
                     if (current._parent == null)
                         return; //is root
 
-                    siblings = current._parent._children;
+                    Node[] siblings = current._parent._children;
                     if (siblings == null)
                         return; //parent has had cleanup already; exit
 
@@ -565,20 +634,18 @@ namespace TechnitiumLibrary.ByteTree
                 _value = null;
             }
 
-            public Node GetNextValueNode(int baseDepth)
+            public Node GetNextNodeWithValue(int baseDepth)
             {
                 int k = 0;
                 Node current = this;
-                Node[] children;
-                Node child;
 
                 while ((current != null) && (current._depth >= baseDepth))
                 {
-                    children = current._children;
+                    Node[] children = current._children;
                     if (children != null)
                     {
                         //find child node
-                        child = null;
+                        Node child = null;
 
                         for (int i = k; i < children.Length; i++)
                         {
@@ -614,6 +681,21 @@ namespace TechnitiumLibrary.ByteTree
 
             #region properties
 
+            public Node Parent
+            { get { return _parent; } }
+
+            public int Depth
+            { get { return _depth; } }
+
+            public byte K
+            { get { return _k; } }
+
+            public Node[] Children
+            { get { return _children; } }
+
+            public NodeValue Value
+            { get { return _value; } }
+
             public bool IsEmpty
             { get { return (_children == null) && (_value == null); } }
 
@@ -624,14 +706,14 @@ namespace TechnitiumLibrary.ByteTree
         {
             #region variables
 
-            public readonly byte[] _key;
-            public T _value;
+            readonly byte[] _key;
+            TValue _value;
 
             #endregion
 
             #region constructor
 
-            public NodeValue(byte[] key, T value)
+            public NodeValue(byte[] key, TValue value)
             {
                 _key = key;
                 _value = value;
@@ -641,15 +723,34 @@ namespace TechnitiumLibrary.ByteTree
 
             #region public
 
+            public bool TryUpdateValue(TValue newValue, TValue comparisonValue)
+            {
+                TValue originalValue = Interlocked.CompareExchange(ref _value, newValue, comparisonValue);
+                return ReferenceEquals(originalValue, comparisonValue);
+            }
+
             public override string ToString()
             {
                 return BitConverter.ToString(_key).Replace("-", "").ToLower() + ": " + _value.ToString();
             }
 
             #endregion
+
+            #region properties
+
+            public byte[] Key
+            { get { return _key; } }
+
+            public TValue Value
+            {
+                get { return _value; }
+                set { _value = value; }
+            }
+
+            #endregion
         }
 
-        protected sealed class ByteTreeEnumerator : IEnumerator<T>
+        protected sealed class ByteTreeEnumerator : IEnumerator<TValue>
         {
             #region variables
 
@@ -677,14 +778,14 @@ namespace TechnitiumLibrary.ByteTree
                 //do nothing
             }
 
-            public T Current
+            public TValue Current
             {
                 get
                 {
                     if (_value == null)
                         return default;
 
-                    return _value._value;
+                    return _value.Value;
                 }
             }
 
@@ -695,7 +796,7 @@ namespace TechnitiumLibrary.ByteTree
                     if (_value == null)
                         return default;
 
-                    return _value._value;
+                    return _value.Value;
                 }
             }
 
@@ -711,13 +812,11 @@ namespace TechnitiumLibrary.ByteTree
                 if (_finished)
                     return false;
 
-                NodeValue value;
-
                 if (_current == null)
                 {
                     _current = _root;
 
-                    value = _current._value;
+                    NodeValue value = _current.Value;
                     if (value != null)
                     {
                         _value = value;
@@ -727,7 +826,7 @@ namespace TechnitiumLibrary.ByteTree
 
                 do
                 {
-                    _current = _current.GetNextValueNode(_root._depth);
+                    _current = _current.GetNextNodeWithValue(_root.Depth);
                     if (_current == null)
                     {
                         _value = null;
@@ -735,7 +834,7 @@ namespace TechnitiumLibrary.ByteTree
                         return false;
                     }
 
-                    value = _current._value;
+                    NodeValue value = _current.Value;
                     if (value != null)
                     {
                         _value = value;
