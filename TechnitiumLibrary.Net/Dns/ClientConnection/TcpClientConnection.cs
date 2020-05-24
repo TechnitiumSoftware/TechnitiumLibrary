@@ -18,7 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
@@ -36,7 +36,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         Stream _tcpStream;
         Thread _readThread;
 
-        readonly Dictionary<ushort, Transaction> _transactions = new Dictionary<ushort, Transaction>();
+        readonly ConcurrentDictionary<ushort, Transaction> _transactions = new ConcurrentDictionary<ushort, Transaction>();
 
         readonly byte[] _lengthBuffer = new byte[2];
         readonly MemoryStream _sendBuffer = new MemoryStream(32);
@@ -157,25 +157,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     _recvBuffer.Position = 0;
                     DnsDatagram response = new DnsDatagram(_recvBuffer);
 
-                    //notify waiting thread of response
-                    Transaction transaction = null;
-
-                    lock (_transactions)
-                    {
-                        if (_transactions.ContainsKey(response.Identifier))
-                            transaction = _transactions[response.Identifier];
-                    }
-
-                    if (transaction != null)
+                    //signal waiting thread of response
+                    if (_transactions.TryGetValue(response.Identifier, out Transaction transaction))
                     {
                         response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, length, (DateTime.UtcNow - transaction.SentAt).TotalMilliseconds));
 
-                        lock (transaction.Lock)
-                        {
-                            transaction.Response = response;
-
-                            Monitor.Pulse(transaction.Lock);
-                        }
+                        transaction.Response = response;
+                        transaction.WaitHandle.Set();
                     }
                 }
             }
@@ -209,47 +197,34 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             Transaction transaction = new Transaction();
 
-            lock (_transactions)
-            {
-                while (_transactions.ContainsKey(request.Identifier))
-                {
-                    request.SetRandomIdentifier();
-                }
-
-                _transactions.Add(request.Identifier, transaction);
-            }
+            while (!_transactions.TryAdd(request.Identifier, transaction))
+                request.SetRandomIdentifier();
 
             try
             {
-                lock (transaction.Lock)
+                Stream tcpStream = GetConnection();
+
+                //send request
+                lock (tcpStream)
                 {
-                    Stream tcpStream = GetConnection();
+                    //serialize request
+                    _sendBuffer.SetLength(0);
+                    request.WriteTo(_sendBuffer);
+
+                    byte[] lengthBuffer = BitConverter.GetBytes(Convert.ToUInt16(_sendBuffer.Length));
+                    Array.Reverse(lengthBuffer);
 
                     //send request
-                    lock (tcpStream)
-                    {
-                        //serialize request
-                        _sendBuffer.SetLength(0);
-                        request.WriteTo(_sendBuffer);
+                    tcpStream.Write(lengthBuffer);
+                    _sendBuffer.Position = 0;
+                    _sendBuffer.CopyTo(tcpStream, 32);
 
-                        byte[] lengthBuffer = BitConverter.GetBytes(Convert.ToUInt16(_sendBuffer.Length));
-                        Array.Reverse(lengthBuffer);
-
-                        //send request
-                        tcpStream.Write(lengthBuffer);
-                        _sendBuffer.Position = 0;
-                        _sendBuffer.CopyTo(tcpStream, 32);
-
-                        tcpStream.Flush();
-                    }
-
-                    //wait for response
-                    if (Monitor.Wait(transaction.Lock, _timeout))
-                        return transaction.Response;
-
-                    //timeout
-                    return null;
+                    tcpStream.Flush();
                 }
+
+                //wait for response
+                transaction.WaitHandle.WaitOne(_timeout);
+                return transaction.Response;
             }
             catch (ObjectDisposedException)
             {
@@ -258,10 +233,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
             finally
             {
-                lock (_transactions)
-                {
-                    _transactions.Remove(request.Identifier);
-                }
+                _transactions.TryRemove(request.Identifier, out _);
             }
         }
 
@@ -269,9 +241,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         class Transaction
         {
-            public readonly object Lock = new object();
+            public readonly EventWaitHandle WaitHandle = new ManualResetEvent(false);
             public readonly DateTime SentAt = DateTime.UtcNow;
-            public DnsDatagram Response;
+            public volatile DnsDatagram Response;
         }
     }
 }
