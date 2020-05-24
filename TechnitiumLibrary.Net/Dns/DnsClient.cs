@@ -1107,8 +1107,9 @@ namespace TechnitiumLibrary.Net.Dns
         {
             //get servers
             IReadOnlyList<NameServerAddress> servers;
+            int threads;
 
-            if (_servers.Count > 1)
+            if (_servers.Count > _threads)
             {
                 List<NameServerAddress> serversCopy = new List<NameServerAddress>(_servers);
                 serversCopy.Shuffle();
@@ -1117,45 +1118,45 @@ namespace TechnitiumLibrary.Net.Dns
                     serversCopy.Sort();
 
                 servers = serversCopy;
+                threads = _threads;
             }
             else
             {
                 servers = _servers;
+                threads = _servers.Count;
             }
 
             //init parameters
             object nextServerLock = new object();
             int nextServerIndex = 0;
-            DnsDatagram firstResponse = null;
-            Exception lastException = null;
-            IDnsCache dnsCache = new DnsCache();
-            EventWaitHandle waitHandle = new ManualResetEvent(false);
 
-            Func<NameServerAddress> getNextServer = delegate ()
+            NameServerAddress GetNextServer()
             {
                 lock (nextServerLock)
                 {
-                    if (firstResponse != null)
-                        return null; //got response; stop thread
-
                     if (nextServerIndex < servers.Count)
                         return servers[nextServerIndex++];
 
                     return null; //no next server available; stop thread
                 }
-            };
+            }
 
-            request.SetRandomIdentifier();
-            int threads = servers.Count > _threads ? _threads : servers.Count;
+            IDnsCache dnsCache = new DnsCache();
+            ResolverWaitHandle resolverHandle = new ResolverWaitHandle();
 
             //start worker threads
             for (int i = 0; i < threads; i++)
             {
                 ThreadPool.QueueUserWorkItem(delegate (object state)
                 {
+                    DnsDatagram threadRequest = request.Clone();
+
                     while (true) //next server loop
                     {
-                        NameServerAddress server = getNextServer();
+                        if (resolverHandle.WaitHandle.WaitOne(0))
+                            return; //already signalled
+
+                        NameServerAddress server = GetNextServer();
                         if (server == null)
                             return; //all servers done
 
@@ -1168,8 +1169,8 @@ namespace TechnitiumLibrary.Net.Dns
                             }
                             catch (Exception ex)
                             {
-                                lastException = ex;
-                                continue; //failed to resolve; try next server
+                                resolverHandle.LastException = ex;
+                                continue; //failed to resolve name server; try next server
                             }
                         }
 
@@ -1179,28 +1180,33 @@ namespace TechnitiumLibrary.Net.Dns
                         if ((_proxy != null) && (protocol == DnsTransportProtocol.Udp) && !_proxy.IsBypassed(server.EndPoint) && !_proxy.IsUdpAvailable())
                             protocol = DnsTransportProtocol.Tcp;
 
+                        threadRequest.SetRandomIdentifier();
+
                         //query server
                         int retry = 0;
                         while (retry < _retries) //retry loop
                         {
                             retry++;
 
+                            if (resolverHandle.WaitHandle.WaitOne(0))
+                                return; //already signalled
+
                             try
                             {
                                 DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy);
                                 connection.Timeout = _timeout / _retries;
 
-                                DnsDatagram response = connection.Query(request);
+                                DnsDatagram response = connection.Query(threadRequest);
                                 if (response != null)
                                 {
-                                    firstResponse = response;
-                                    waitHandle.Set();
+                                    resolverHandle.Response = response;
+                                    resolverHandle.WaitHandle.Set();
                                     return;
                                 }
                             }
                             catch (Exception ex)
                             {
-                                lastException = ex;
+                                resolverHandle.LastException = ex;
                             }
                         }
                     }
@@ -1208,12 +1214,12 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             //wait for first response
-            waitHandle.WaitOne(_timeout);
+            resolverHandle.WaitHandle.WaitOne(_timeout);
 
-            if (firstResponse == null)
-                throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.", lastException);
+            if (resolverHandle.Response == null)
+                throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.", resolverHandle.LastException);
 
-            return firstResponse;
+            return resolverHandle.Response;
         }
 
         public DnsDatagram Resolve(DnsQuestionRecord question)
@@ -1381,6 +1387,13 @@ namespace TechnitiumLibrary.Net.Dns
                 this.NameServers = nameServers;
                 this.NameServerIndex = nameServerIndex;
             }
+        }
+
+        class ResolverWaitHandle
+        {
+            public readonly EventWaitHandle WaitHandle = new ManualResetEvent(false);
+            public volatile DnsDatagram Response;
+            public volatile Exception LastException;
         }
     }
 }
