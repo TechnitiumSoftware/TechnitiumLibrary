@@ -417,6 +417,11 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
+        public DnsDatagram Clone()
+        {
+            return new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, _answer, _authority, _additional);
+        }
+
         public void SetMetadata(DnsDatagramMetadata metadata)
         {
             if (_metadata != null)
