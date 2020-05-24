@@ -392,7 +392,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void RecursiveResolveIPAddress(DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false)
+        public void RecursiveResolveIPAddress(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false)
         {
             lock (_ipEndPointResolverLock)
             {
@@ -462,7 +462,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void RecursiveResolveDomainName(DnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false)
+        public void RecursiveResolveDomainName(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false)
         {
             if (_ipEndPoint != null)
             {
@@ -544,7 +544,6 @@ namespace TechnitiumLibrary.Net.Dns
             hashCode = hashCode * -1521134295 + EqualityComparer<Uri>.Default.GetHashCode(_dohEndPoint);
             hashCode = hashCode * -1521134295 + EqualityComparer<DomainEndPoint>.Default.GetHashCode(_domainEndPoint);
             hashCode = hashCode * -1521134295 + EqualityComparer<IPEndPoint>.Default.GetHashCode(_ipEndPoint);
-            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(_originalAddress);
             return hashCode;
         }
 
