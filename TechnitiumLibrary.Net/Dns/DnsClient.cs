@@ -674,8 +674,8 @@ namespace TechnitiumLibrary.Net.Dns
 
             DnsDatagram response = RecursiveResolve(question, null, cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount);
 
-            IReadOnlyList<DnsResourceRecord> authority;
-            IReadOnlyList<DnsResourceRecord> additional;
+            IReadOnlyList<DnsResourceRecord> authority = null;
+            IReadOnlyList<DnsResourceRecord> additional = null;
 
             if (response.Answer.Count > 0)
             {
@@ -715,13 +715,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                     if ((lastResponse.Authority.Count > 0) && (lastResponse.Authority[0].Type == DnsResourceRecordType.SOA))
                         authority = lastResponse.Authority;
-                    else
-                        authority = Array.Empty<DnsResourceRecord>();
 
                     if ((response.Additional.Count > 0) && (question.Type == DnsResourceRecordType.MX))
                         additional = response.Additional;
-                    else
-                        additional = Array.Empty<DnsResourceRecord>();
 
                     DnsDatagram compositeResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, lastResponse.RCODE, new DnsQuestionRecord[] { question }, responseAnswer, authority, additional);
 
@@ -734,13 +730,9 @@ namespace TechnitiumLibrary.Net.Dns
 
             if ((response.Authority.Count > 0) && (response.Authority[0].Type == DnsResourceRecordType.SOA))
                 authority = response.Authority;
-            else
-                authority = Array.Empty<DnsResourceRecord>();
 
             if ((response.Additional.Count > 0) && (question.Type == DnsResourceRecordType.MX))
                 additional = response.Additional;
-            else
-                additional = Array.Empty<DnsResourceRecord>();
 
             DnsDatagram finalResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, response.RCODE, new DnsQuestionRecord[] { question }, response.Answer, authority, additional);
 
