@@ -328,11 +328,6 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            nameServers.Shuffle();
-
-            if (preferIPv6)
-                nameServers.Sort();
-
             return nameServers;
         }
 

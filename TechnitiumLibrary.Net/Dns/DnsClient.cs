@@ -297,7 +297,14 @@ namespace TechnitiumLibrary.Net.Dns
                                     //select only name servers with glue from cache to avoid getting stack overflow due to getting same set of NS records with no address every time from cache
                                     List<NameServerAddress> cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
                                     if (cacheNameServers.Count > 0)
+                                    {
+                                        cacheNameServers.Shuffle();
+
+                                        if (preferIPv6)
+                                            cacheNameServers.Sort();
+
                                         currentNameServers = cacheNameServers;
+                                    }
                                 }
                             }
                             else
@@ -538,7 +545,16 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
 
                                         //get next hop name servers
-                                        currentNameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
+                                        List<NameServerAddress> nextNameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, false);
+                                        if (nextNameServers.Count > 0)
+                                        {
+                                            nextNameServers.Shuffle();
+
+                                            if (preferIPv6)
+                                                nextNameServers.Sort();
+                                        }
+
+                                        currentNameServers = nextNameServers;
 
                                         if (currentNameServers.Count == 0)
                                         {
