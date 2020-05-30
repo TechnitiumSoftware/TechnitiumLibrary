@@ -26,8 +26,8 @@ namespace TechnitiumLibrary.ByteTree
 {
     public class ByteTree<TValue> : ByteTree<byte[], TValue> where TValue : class
     {
-        public ByteTree()
-            : base(256)
+        public ByteTree(int keySpace = 256)
+            : base(keySpace)
         { }
 
         protected override byte[] ConvertToByteKey(byte[] key)
@@ -41,7 +41,7 @@ namespace TechnitiumLibrary.ByteTree
         #region variables
 
         protected readonly int _keySpace;
-        protected readonly Node _root = new Node();
+        protected readonly Node _root;
 
         #endregion
 
@@ -53,6 +53,7 @@ namespace TechnitiumLibrary.ByteTree
                 throw new ArgumentOutOfRangeException(nameof(keySpace));
 
             _keySpace = keySpace;
+            _root = new Node(null, 0, _keySpace, null);
         }
 
         #endregion
@@ -67,7 +68,7 @@ namespace TechnitiumLibrary.ByteTree
 
         public void Clear()
         {
-            _root.Clear();
+            _root.ClearNode();
         }
 
         public void Add(TKey key, TValue value)
@@ -77,7 +78,7 @@ namespace TechnitiumLibrary.ByteTree
 
             byte[] bKey = ConvertToByteKey(key);
 
-            if (!_root.AddValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out _))
+            if (!_root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out _))
                 throw new ArgumentException("Key already exists.");
         }
 
@@ -88,7 +89,7 @@ namespace TechnitiumLibrary.ByteTree
 
             byte[] bKey = ConvertToByteKey(key);
 
-            return _root.AddValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out _);
+            return _root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out _);
         }
 
         public TValue AddOrUpdate(TKey key, Func<TKey, TValue> addValueFactory, Func<TKey, TValue, TValue> updateValueFactory)
@@ -100,7 +101,7 @@ namespace TechnitiumLibrary.ByteTree
 
             TValue addValue = addValueFactory(key);
 
-            if (_root.AddValue(bKey, delegate () { return new NodeValue(bKey, addValue); }, _keySpace, out NodeValue existingValue))
+            if (_root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, addValue); }, _keySpace, out NodeValue existingValue))
                 return addValue;
 
             TValue updateValue = updateValueFactory(key, existingValue.Value);
@@ -149,7 +150,7 @@ namespace TechnitiumLibrary.ByteTree
             byte[] bKey = ConvertToByteKey(key);
 
             TValue value = valueFactory(key);
-            if (_root.AddValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out NodeValue existingValue))
+            if (_root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out NodeValue existingValue))
                 return value;
 
             return existingValue.Value;
@@ -160,24 +161,24 @@ namespace TechnitiumLibrary.ByteTree
             return GetOrAdd(key, delegate (TKey k) { return value; });
         }
 
-        public bool TryRemove(TKey key, out TValue value)
+        public virtual bool TryRemove(TKey key, out TValue value)
         {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
 
-            NodeValue removedValue = _root.RemoveValue(bKey, out Node closestNode);
+            NodeValue removedValue = _root.RemoveNodeValue(bKey, out _);
             if (removedValue == null)
             {
                 value = default;
                 return false;
             }
 
+            //by default TryRemove wont call closestNode.CleanThisBranch() so that operations are atomic but will use up memory since stem nodes wont be cleaned up
+            //override this method if the implementation requires to save memory and take a chance of remove operation deleting an added NodeValue due to race condition
+
             value = removedValue.Value;
-
-            closestNode.CleanUp();
-
             return true;
         }
 
@@ -243,18 +244,14 @@ namespace TechnitiumLibrary.ByteTree
             readonly int _depth;
             readonly byte _k;
 
-            volatile Node[] _children;
+            readonly Node[] _children;
             volatile NodeValue _value;
 
             #endregion
 
             #region constructor
 
-            public Node()
-                : this(null, 0, null)
-            { }
-
-            private Node(Node parent, byte k, NodeValue value)
+            public Node(Node parent, byte k, int keySpace, NodeValue value)
             {
                 if (parent == null)
                 {
@@ -268,7 +265,13 @@ namespace TechnitiumLibrary.ByteTree
                     _k = k;
                 }
 
+                if (keySpace > 0)
+                    _children = new Node[keySpace];
+
                 _value = value;
+
+                if ((_children == null) && (_value == null))
+                    throw new InvalidOperationException();
             }
 
             #endregion
@@ -293,137 +296,102 @@ namespace TechnitiumLibrary.ByteTree
 
             #region public
 
-            public bool AddValue(byte[] key, Func<NodeValue> newValue, int keySpace, out NodeValue existingValue)
+            public bool AddNodeValue(byte[] key, Func<NodeValue> newValue, int keySpace, out NodeValue existingValue)
             {
                 Node current = this;
 
-                while (current._depth < key.Length)
+                do //try again loop
                 {
-                    Node[] children = current._children;
-                    if (children == null)
+                    while (current._depth < key.Length) //find loop
                     {
-                        //current node has no children
-                        NodeValue value = current._value;
-                        if (value == null)
+                        if (current._children == null)
+                            break;
+
+                        byte k = key[current._depth];
+                        Node child = Volatile.Read(ref current._children[k]);
+                        if (child == null)
                         {
-                            //current node has no children and no value so add value here
-                            NodeValue originalValue = Interlocked.CompareExchange(ref current._value, newValue(), null);
-                            if (originalValue is null)
+                            //try set new leaf node with add value in this empty spot
+                            Node originalChild = Interlocked.CompareExchange(ref current._children[k], new Node(current, k, 0, newValue()), null);
+                            if (originalChild is null)
                             {
+                                //value added as leaf node
                                 existingValue = null;
                                 return true;
                             }
 
-                            //seems another thread already set its value here; use that reference
-                            value = originalValue;
+                            //another thread already added a child; use that reference
+                            child = originalChild;
                         }
 
-                        if (KeyEquals(current._depth, value.Key, key))
-                        {
-                            //current value key equals to add value key
-                            existingValue = value;
-                            return false; //failed to add new value as value already exists
-                        }
+                        current = child;
+                    }
 
-                        //current node has value and no children so create new children array
-                        children = new Node[keySpace];
+                    //either current is leaf or key belongs to current
+                    NodeValue value = current._value;
 
-                        if (value.Key.Length != current._depth)
+                    if ((value != null) && KeyEquals(current._depth, value.Key, key))
+                    {
+                        //value found; cannot add
+                        existingValue = value;
+                        return false;
+                    }
+                    else
+                    {
+                        //value key does not match
+                        if (current._children == null)
                         {
-                            //current value does not belong here; copy it into a new child node
-                            int k1 = value.Key[current._depth];
-                            children[k1] = new Node(current, (byte)k1, value);
-                        }
+                            //current node is a leaf (has no children); convert it into stem node
+                            Node stemNode;
 
-                        //set children array
-                        Node[] originalChildren = Interlocked.CompareExchange(ref current._children, children, null);
-                        if (originalChildren is null)
-                        {
-                            //current thread successfully set children so it has right to update current value
-                            if (value.Key.Length != current._depth)
+                            if (value.Key.Length == current._depth)
                             {
-                                //remove current value reference since it does not belong here and was successfully copied to child node
-                                current._value = null;
+                                //current value belongs current leaf node
+                                //replace current leaf node with a stem node with current value
+                                stemNode = new Node(current._parent, current._k, keySpace, value);
+                            }
+                            else
+                            {
+                                //current value does not belong to current leaf node
+                                //replace current leaf node with a stem node with null value
+                                stemNode = new Node(current._parent, current._k, keySpace, null);
+
+                                //copy current value into a child leaf node
+                                byte k = value.Key[current._depth];
+                                stemNode._children[k] = new Node(stemNode, k, 0, value);
+                            }
+
+                            //replace stem node in parent
+                            Node originalNode = Interlocked.CompareExchange(ref current._parent._children[current._k], stemNode, current);
+                            if (ReferenceEquals(originalNode, current))
+                            {
+                                //successfully added stem node
+                                //use new stem node as current node and try again
+                                current = stemNode;
+                            }
+                            else
+                            {
+                                //another thread already placed new stem node
+                                //use new stem node reference as current and try again
+                                current = originalNode;
                             }
                         }
                         else
                         {
-                            //another thread already added children; use that reference
-                            children = originalChildren;
+                            //current node is stem with no/invalid value; add value here
+                            NodeValue originalValue = Interlocked.CompareExchange(ref current._value, newValue(), value);
+                            if (ReferenceEquals(originalValue, value))
+                            {
+                                //value added successfully
+                                existingValue = null;
+                                return true;
+                            }
+
+                            //another thread added value to stem node; return its reference
+                            existingValue = originalValue;
+                            return false;
                         }
                     }
-
-                    //current node has children so set value if seat is vacant
-                    int k2 = key[current._depth];
-                    Node child = Volatile.Read(ref children[k2]);
-                    if (child == null)
-                    {
-                        //set value in vacant seat and return
-                        Node originalChild = Interlocked.CompareExchange(ref children[k2], new Node(current, (byte)k2, newValue()), null);
-                        if (originalChild is null)
-                        {
-                            existingValue = null;
-                            return true;
-                        }
-
-                        //another thread already added child; use that reference
-                        child = originalChild;
-                    }
-
-                    current = child;
-                }
-
-                //key belongs to current
-                do
-                {
-                    NodeValue value = current._value;
-                    if (value == null)
-                    {
-                        //node has no value; so add value here
-                        NodeValue originalValue = Interlocked.CompareExchange(ref current._value, newValue(), null);
-                        if (originalValue is null)
-                        {
-                            existingValue = null;
-                            return true;
-                        }
-
-                        //seems another thread already set its value here; use that reference
-                        value = originalValue;
-                    }
-
-                    //current node has value
-                    if (value.Key.Length == current._depth)
-                    {
-                        //current node has value and it belongs here
-                        existingValue = value;
-                        return false; //failed to add new value as value already exists
-                    }
-
-                    //current node has value that does not belong here
-                    if (current._children == null)
-                    {
-                        //current node has no children so create new children array
-                        Node[] children = new Node[keySpace];
-
-                        //copy current value into a child node
-                        int k = value.Key[current._depth];
-                        children[k] = new Node(current, (byte)k, value);
-
-                        //set children array
-                        Node[] originalChildren = Interlocked.CompareExchange(ref current._children, children, null);
-                        if (originalChildren is null)
-                        {
-                            //current thread successfully added children; wins rights to add value here
-                            //add value here by overwriting current value that does not belong here and was moved to child node
-                            current._value = newValue();
-                            existingValue = null;
-                            return true;
-                        }
-                    }
-
-                    //current node has children and current value does not belong here
-                    //this means another thread has already set children and will set current value to proper value or null
-                    //wait in this loop till value is set by that another thread
                 }
                 while (true);
             }
@@ -432,13 +400,12 @@ namespace TechnitiumLibrary.ByteTree
             {
                 closestNode = this;
 
-                while (closestNode._depth < key.Length)
+                while (closestNode._depth < key.Length) //find loop
                 {
-                    Node[] children = closestNode._children;
-                    if (children == null)
+                    if (closestNode._children == null)
                         break;
 
-                    Node child = Volatile.Read(ref children[key[closestNode._depth]]);
+                    Node child = Volatile.Read(ref closestNode._children[key[closestNode._depth]]);
                     if (child == null)
                         return null; //value not found
 
@@ -454,78 +421,105 @@ namespace TechnitiumLibrary.ByteTree
                 return null; //value key does not match
             }
 
-            public NodeValue RemoveValue(byte[] key, out Node closestNode)
+            public NodeValue RemoveNodeValue(byte[] key, out Node closestNode)
             {
                 closestNode = this;
 
-                while (closestNode._depth < key.Length)
+                do //try again loop
                 {
-                    Node[] children = closestNode._children;
-                    if (children == null)
-                        break;
-
-                    Node child = Volatile.Read(ref children[key[closestNode._depth]]);
-                    if (child == null)
-                        return null; //value not found
-
-                    closestNode = child;
-                }
-
-                //either closestNode is leaf or key belongs to closestNode
-                NodeValue value = closestNode._value;
-
-                if ((value != null) && KeyEquals(closestNode._depth, value.Key, key))
-                {
-                    //value found; remove and return value
-                    closestNode._value = null;
-                    return value;
-                }
-
-                return null; //value key does not match
-            }
-
-            public void CleanUp()
-            {
-                Node current = this;
-
-                do
-                {
-                    Node[] children = current._children;
-                    if (children != null)
+                    while (closestNode._depth < key.Length) //find loop
                     {
-                        for (int i = 0; i < children.Length; i++)
-                        {
-                            if (Volatile.Read(ref children[i]) != null)
-                                return; //current node has children; exit
-                        }
+                        if (closestNode._children == null)
+                            break;
 
-                        current._children = null; //no children so cleanup
+                        Node child = Volatile.Read(ref closestNode._children[key[closestNode._depth]]);
+                        if (child == null)
+                            return null; //value not found
+
+                        closestNode = child;
                     }
 
-                    if (current._value != null)
-                        return; //current node has value; exit
+                    //either closestNode is leaf or key belongs to closestNode
+                    NodeValue value = closestNode._value;
 
-                    //current node has no children and no value
-                    if (current._parent == null)
-                        return; //is root
+                    if ((value != null) && KeyEquals(closestNode._depth, value.Key, key))
+                    {
+                        //value found; remove and return value
+                        if (closestNode._children == null)
+                        {
+                            //remove leaf node directly from parent
+                            Node originalNode = Interlocked.CompareExchange(ref closestNode._parent._children[closestNode._k], null, closestNode);
+                            if (ReferenceEquals(originalNode, closestNode))
+                                return value; //leaf node removed successfully
 
-                    Node[] siblings = current._parent._children;
-                    if (siblings == null)
-                        return; //parent has had cleanup already; exit
+                            if (originalNode is null)
+                            {
+                                //another thread removed leaf node
+                                return null;
+                            }
+                            else
+                            {
+                                //another thread replaced leaf node with stem node; use new reference and try again in next iteration
+                                closestNode = originalNode;
+                            }
+                        }
+                        else
+                        {
+                            //remove value from stem node
+                            NodeValue originalValue = Interlocked.CompareExchange(ref closestNode._value, null, value);
+                            if (ReferenceEquals(originalValue, value))
+                                return value; //successfully removed stem node value
 
-                    //remove current node from parent
-                    Volatile.Write(ref siblings[current._k], null);
-
-                    //make parent as current and proceed cleanup of parent node
-                    current = current._parent;
+                            //another thread removed stem node value
+                            return null;
+                        }
+                    }
+                    else
+                    {
+                        //value key does not match
+                        return null;
+                    }
                 }
                 while (true);
             }
 
-            public void Clear()
+            public void CleanThisBranch()
             {
-                _children = null;
+                Node current = this;
+
+                while (current._parent != null)
+                {
+                    if (current._children == null)
+                    {
+                        //current node is leaf
+                        //leaf node already was removed so move up to parent
+                    }
+                    else
+                    {
+                        //current node is stem
+                        if (!current.IsEmpty)
+                            return;
+
+                        //remove current node from parent
+                        Volatile.Write(ref current._parent._children[current._k], null);
+                    }
+
+                    //make parent as current and proceed cleanup of parent node
+                    current = current._parent;
+                }
+            }
+
+            public void ClearNode()
+            {
+                //remove value
                 _value = null;
+
+                if (_children != null)
+                {
+                    //remove all children
+                    for (int i = 0; i < _children.Length; i++)
+                        Volatile.Write(ref _children[i], null);
+                }
             }
 
             public Node GetNextNodeWithValue(int baseDepth)
@@ -535,15 +529,14 @@ namespace TechnitiumLibrary.ByteTree
 
                 while ((current != null) && (current._depth >= baseDepth))
                 {
-                    Node[] children = current._children;
-                    if (children != null)
+                    if (current._children != null)
                     {
                         //find child node
                         Node child = null;
 
-                        for (int i = k; i < children.Length; i++)
+                        for (int i = k; i < current._children.Length; i++)
                         {
-                            child = Volatile.Read(ref children[i]);
+                            child = Volatile.Read(ref current._children[i]);
                             if (child != null)
                             {
                                 if (child._value != null)
@@ -591,7 +584,41 @@ namespace TechnitiumLibrary.ByteTree
             { get { return _value; } }
 
             public bool IsEmpty
-            { get { return (_children == null) && (_value == null); } }
+            {
+                get
+                {
+                    if (_value != null)
+                        return false;
+
+                    if (_children != null)
+                    {
+                        for (int i = 0; i < _children.Length; i++)
+                        {
+                            if (Volatile.Read(ref _children[i]) != null)
+                                return false;
+                        }
+                    }
+
+                    return true;
+                }
+            }
+
+            public bool HasChildren
+            {
+                get
+                {
+                    if (_children == null)
+                        return false;
+
+                    for (int i = 0; i < _children.Length; i++)
+                    {
+                        if (Volatile.Read(ref _children[i]) != null)
+                            return true;
+                    }
+
+                    return false;
+                }
+            }
 
             #endregion
         }
