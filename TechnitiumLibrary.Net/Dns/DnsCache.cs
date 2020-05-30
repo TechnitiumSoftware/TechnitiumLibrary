@@ -29,10 +29,12 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
+        const uint FAILURE_RECORD_TTL = 30u;
         const uint NEGATIVE_RECORD_TTL = 300u;
         const uint MINIMUM_RECORD_TTL = 10u;
         const uint SERVE_STALE_TTL = 0u;
 
+        readonly uint _failureRecordTtl;
         readonly uint _negativeRecordTtl;
         readonly uint _minimumRecordTtl;
         readonly uint _serveStaleTtl;
@@ -44,11 +46,12 @@ namespace TechnitiumLibrary.Net.Dns
         #region constructor
 
         public DnsCache()
-            : this(NEGATIVE_RECORD_TTL, MINIMUM_RECORD_TTL, SERVE_STALE_TTL)
+            : this(FAILURE_RECORD_TTL, NEGATIVE_RECORD_TTL, MINIMUM_RECORD_TTL, SERVE_STALE_TTL)
         { }
 
-        protected DnsCache(uint negativeRecordTtl, uint minimumRecordTtl, uint serveStaleTtl)
+        protected DnsCache(uint failureRecordTtl, uint negativeRecordTtl, uint minimumRecordTtl, uint serveStaleTtl)
         {
+            _failureRecordTtl = failureRecordTtl;
             _negativeRecordTtl = negativeRecordTtl;
             _minimumRecordTtl = minimumRecordTtl;
             _serveStaleTtl = serveStaleTtl;
@@ -233,7 +236,7 @@ namespace TechnitiumLibrary.Net.Dns
                     //cache as failure record with RCODE
                     foreach (DnsQuestionRecord question in response.Question)
                     {
-                        DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsFailureRecord(response.RCODE));
+                        DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _failureRecordTtl, new DnsFailureRecord(response.RCODE));
                         record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
                         CacheRecords(new DnsResourceRecord[] { record });
