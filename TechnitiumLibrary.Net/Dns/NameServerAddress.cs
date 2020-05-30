@@ -286,14 +286,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             List<NameServerAddress> nameServers = new List<NameServerAddress>(response.Authority.Count);
 
-            IReadOnlyList<DnsResourceRecord> authorityRecords;
-
-            if ((response.Question.Count > 0) && (response.Question[0].Type == DnsResourceRecordType.NS) && (response.Answer.Count > 0))
-                authorityRecords = response.Answer;
-            else
-                authorityRecords = response.Authority;
-
-            foreach (DnsResourceRecord authorityRecord in authorityRecords)
+            foreach (DnsResourceRecord authorityRecord in response.Authority)
             {
                 if (authorityRecord.Type == DnsResourceRecordType.NS)
                 {
