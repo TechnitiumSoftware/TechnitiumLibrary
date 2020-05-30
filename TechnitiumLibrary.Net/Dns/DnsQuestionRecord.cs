@@ -22,9 +22,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns
 {
+    //DNS Query Name Minimisation to Improve Privacy
+    //https://tools.ietf.org/html/draft-ietf-dnsop-rfc7816bis-04
+
     public class DnsQuestionRecord
     {
         #region variables
@@ -32,6 +36,11 @@ namespace TechnitiumLibrary.Net.Dns
         readonly string _name;
         readonly DnsResourceRecordType _type;
         readonly DnsClass _class;
+
+        //QNAME Minimization
+        const int MAX_MINIMISE_COUNT = 10;
+        string _zoneCut;
+        string _minimizedName;
 
         #endregion
 
@@ -90,13 +99,57 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
+        #region private
+
+        private static string GetMinimizedName(string name, string zoneCut)
+        {
+            //www.example.com
+            //com
+
+            if ((zoneCut != null) && (zoneCut.Length < name.Length))
+            {
+                int i = name.LastIndexOf('.', name.Length - zoneCut.Length - 2);
+                if (i < 0)
+                    return name;
+
+                //return minimized QNAME
+                return name.Substring(i + 1);
+            }
+
+            return null;
+        }
+
+        #endregion
+
         #region public
 
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(_name, s, domainEntries);
-            DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
-            DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
+            if (_minimizedName == null)
+            {
+                DnsDatagram.SerializeDomainName(_name, s, domainEntries);
+                DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
+                DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
+            }
+            else
+            {
+                DnsResourceRecordType type;
+
+                switch (_type)
+                {
+                    case DnsResourceRecordType.AAAA:
+                        type = DnsResourceRecordType.AAAA;
+                        break;
+
+                    default:
+                        type = DnsResourceRecordType.A;
+                        break;
+                }
+
+                DnsDatagram.SerializeDomainName(_minimizedName, s, domainEntries);
+                DnsDatagram.WriteUInt16NetworkOrder((ushort)type, s);
+                DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
+            }
         }
 
         public override bool Equals(object obj)
@@ -140,6 +193,27 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsClass Class
         { get { return _class; } }
+
+        [IgnoreDataMember]
+        public string ZoneCut
+        {
+            get { return _zoneCut; }
+            set
+            {
+                _zoneCut = value;
+                _minimizedName = GetMinimizedName(_name, _zoneCut);
+                if ((_minimizedName == null) || (_minimizedName.Split('.').Length > MAX_MINIMISE_COUNT))
+                {
+                    //auto disable QNAME minimization
+                    _zoneCut = null;
+                    _minimizedName = null;
+                }
+            }
+        }
+
+        [IgnoreDataMember]
+        public string MinimizedName
+        { get { return _minimizedName; } }
 
         #endregion
     }
