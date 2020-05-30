@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
@@ -42,7 +43,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         readonly MemoryStream _sendBuffer = new MemoryStream(32);
         readonly MemoryStream _recvBuffer = new MemoryStream(64);
 
-        readonly object _getConnectionLock = new object();
+        readonly object _tcpStreamLock = new object();
+
+        DateTime _lastQueried;
 
         #endregion
 
@@ -50,9 +53,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         public TcpClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsTransportProtocol.Tcp, server, proxy)
-        {
-            _timeout = 2000;
-        }
+        { }
 
         protected TcpClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
             : base(protocol, server, proxy)
@@ -60,83 +61,47 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #endregion
 
-        #region IDisposable
-
-        bool _disposed = false;
-
-        protected override void Dispose(bool disposing)
-        {
-            if (_disposed)
-                return;
-
-            if (disposing)
-            {
-                Stream tcpStream = _tcpStream;
-                if (tcpStream != null)
-                {
-                    _tcpStream = null;
-                    tcpStream.Dispose();
-                }
-
-                if (_sendBuffer != null)
-                    _sendBuffer.Dispose();
-
-                if (_recvBuffer != null)
-                    _recvBuffer.Dispose();
-            }
-
-            _disposed = true;
-        }
-
-        #endregion
-
         #region private
 
-        private Stream GetConnection()
+        private Stream GetConnection(int timeout)
         {
-            lock (_getConnectionLock)
+            if (_tcpStream != null)
+                return _tcpStream;
+
+            Socket socket;
+
+            if (_proxy == null)
             {
-                Stream tcpStream = _tcpStream;
+                if (_server.IPEndPoint == null)
+                    _server.RecursiveResolveIPAddress();
 
-                if (tcpStream != null)
-                    return tcpStream;
+                socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-                Socket socket;
+                IAsyncResult result = socket.BeginConnect(_server.IPEndPoint, null, null);
+                if (!result.AsyncWaitHandle.WaitOne(timeout))
+                    throw new SocketException((int)SocketError.TimedOut);
 
-                if (_proxy == null)
-                {
-                    if (_server.IPEndPoint == null)
-                        _server.RecursiveResolveIPAddress();
-
-                    socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-
-                    IAsyncResult result = socket.BeginConnect(_server.IPEndPoint, null, null);
-                    if (!result.AsyncWaitHandle.WaitOne(_timeout))
-                        throw new SocketException((int)SocketError.TimedOut);
-
-                    if (!socket.Connected)
-                        throw new SocketException((int)SocketError.ConnectionRefused);
-                }
-                else
-                {
-                    socket = _proxy.Connect(_server.EndPoint, _timeout);
-                }
-
-                socket.SendTimeout = _timeout;
-                socket.ReceiveTimeout = SOCKET_RECEIVE_TIMEOUT;
-                socket.SendBufferSize = 512;
-                socket.ReceiveBufferSize = 2048;
-                socket.NoDelay = true;
-
-                tcpStream = new WriteBufferedStream(GetNetworkStream(socket), 2048);
-                _tcpStream = tcpStream;
-
-                _readThread = new Thread(ReadDnsDatagramAsync);
-                _readThread.IsBackground = true;
-                _readThread.Start();
-
-                return tcpStream;
+                if (!socket.Connected)
+                    throw new SocketException((int)SocketError.ConnectionRefused);
             }
+            else
+            {
+                socket = _proxy.Connect(_server.EndPoint, timeout);
+            }
+
+            socket.SendTimeout = timeout;
+            socket.ReceiveTimeout = SOCKET_RECEIVE_TIMEOUT;
+            socket.SendBufferSize = 512;
+            socket.ReceiveBufferSize = 2048;
+            socket.NoDelay = true;
+
+            _tcpStream = new WriteBufferedStream(GetNetworkStream(socket), 2048);
+
+            _readThread = new Thread(ReadDnsDatagramAsync);
+            _readThread.IsBackground = true;
+            _readThread.Start();
+
+            return _tcpStream;
         }
 
         private void ReadDnsDatagramAsync(object state)
@@ -160,7 +125,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     //signal waiting thread of response
                     if (_transactions.TryGetValue(response.Identifier, out Transaction transaction))
                     {
-                        response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, length, (DateTime.UtcNow - transaction.SentAt).TotalMilliseconds));
+                        transaction.Stopwatch.Stop();
+
+                        response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, length, transaction.Stopwatch.Elapsed.TotalMilliseconds));
 
                         transaction.Response = response;
                         transaction.WaitHandle.Set();
@@ -171,11 +138,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             { }
             finally
             {
-                Stream tcpStream = _tcpStream;
-                if (tcpStream != null)
+                lock (_tcpStreamLock)
                 {
-                    _tcpStream = null;
-                    tcpStream.Dispose();
+                    if (_tcpStream != null)
+                    {
+                        _tcpStream.Dispose();
+                        _tcpStream = null;
+                    }
                 }
             }
         }
@@ -193,7 +162,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region public
 
-        public override DnsDatagram Query(DnsDatagram request)
+        public override DnsDatagram Query(DnsDatagram request, int timeout)
         {
             Transaction transaction = new Transaction();
 
@@ -202,17 +171,19 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             try
             {
-                Stream tcpStream = GetConnection();
-
-                //send request
-                lock (tcpStream)
+                lock (_tcpStreamLock)
                 {
+                    //get connection
+                    Stream tcpStream = GetConnection(timeout);
+
                     //serialize request
                     _sendBuffer.SetLength(0);
                     request.WriteTo(_sendBuffer);
 
                     byte[] lengthBuffer = BitConverter.GetBytes(Convert.ToUInt16(_sendBuffer.Length));
                     Array.Reverse(lengthBuffer);
+
+                    transaction.Stopwatch.Start();
 
                     //send request
                     tcpStream.Write(lengthBuffer);
@@ -223,7 +194,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
 
                 //wait for response
-                transaction.WaitHandle.WaitOne(_timeout);
+                transaction.WaitHandle.WaitOne(timeout);
                 return transaction.Response;
             }
             catch (ObjectDisposedException)
@@ -234,15 +205,24 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             finally
             {
                 _transactions.TryRemove(request.Identifier, out _);
+
+                _lastQueried = DateTime.UtcNow;
             }
         }
+
+        #endregion
+
+        #region properties
+
+        public DateTime LastQueried
+        { get { return _lastQueried; } }
 
         #endregion
 
         class Transaction
         {
             public readonly EventWaitHandle WaitHandle = new ManualResetEvent(false);
-            public readonly DateTime SentAt = DateTime.UtcNow;
+            public readonly Stopwatch Stopwatch = new Stopwatch();
             public volatile DnsDatagram Response;
         }
     }
