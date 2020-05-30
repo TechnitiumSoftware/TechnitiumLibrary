@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -29,15 +30,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         public HttpsClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsTransportProtocol.Https, server, proxy)
-        {
-            _timeout = 5000;
-        }
+        { }
 
         #endregion
 
         #region public
 
-        public override DnsDatagram Query(DnsDatagram request)
+        public override DnsDatagram Query(DnsDatagram request, int timeout)
         {
             //serialize request
             byte[] requestBuffer;
@@ -49,7 +48,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
 
             //DoH wire format request
-            DateTime sentAt = DateTime.UtcNow;
+            Stopwatch stopwatch = new Stopwatch();
             byte[] responseBuffer;
 
             using (WebClientEx wC = new WebClientEx())
@@ -59,18 +58,26 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 wC.AddHeader("host", _server.DnsOverHttpEndPoint.Host + ":" + _server.DnsOverHttpEndPoint.Port);
                 wC.UserAgent = "DoH client";
                 wC.Proxy = _proxy;
-                wC.Timeout = _timeout;
+                wC.Timeout = timeout;
 
                 if (_proxy == null)
                 {
                     if (_server.IPEndPoint == null)
                         _server.RecursiveResolveIPAddress();
 
+                    stopwatch.Start();
+
                     responseBuffer = wC.UploadData(new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery), requestBuffer);
+
+                    stopwatch.Stop();
                 }
                 else
                 {
+                    stopwatch.Start();
+
                     responseBuffer = wC.UploadData(_server.DnsOverHttpEndPoint, requestBuffer);
+
+                    stopwatch.Stop();
                 }
             }
 
@@ -79,7 +86,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 DnsDatagram response = new DnsDatagram(mS);
 
-                response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, responseBuffer.Length, (DateTime.UtcNow - sentAt).TotalMilliseconds));
+                response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, responseBuffer.Length, stopwatch.Elapsed.TotalMilliseconds));
 
                 if (response.Identifier == request.Identifier)
                     return response;
