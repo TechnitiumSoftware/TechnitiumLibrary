@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -27,6 +28,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
     public class UdpClientConnection : DnsClientConnection
     {
+        #region variables
+
+        readonly Socket _socket;
+
+        #endregion
+
         #region constructor
 
         public UdpClientConnection(NameServerAddress server, NetProxy proxy)
@@ -35,14 +42,35 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             if ((proxy != null) && !proxy.IsUdpAvailable())
                 throw new NotSupportedException("Current configured proxy does not support UDP protocol.");
 
-            _timeout = 2000;
+            if (_proxy == null)
+                _socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+        }
+
+        #endregion
+
+        #region IDisposable
+
+        bool _disposed;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+
+            if (disposing)
+            {
+                if (_socket != null)
+                    _socket.Dispose();
+
+                _disposed = true;
+            }
         }
 
         #endregion
 
         #region public
 
-        public override DnsDatagram Query(DnsDatagram request)
+        public override DnsDatagram Query(DnsDatagram request, int timeout)
         {
             //serialize request
             byte[] buffer = new byte[512];
@@ -62,38 +90,43 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 bufferSize = (int)mS.Position;
             }
 
-            DateTime sentAt = DateTime.UtcNow;
+            Stopwatch stopwatch = new Stopwatch();
 
             if (_proxy == null)
             {
                 if (_server.IPEndPoint == null)
                     _server.RecursiveResolveIPAddress();
 
-                using (Socket socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
+                _socket.ReceiveTimeout = timeout;
+
+                stopwatch.Start();
+
+                //send request
+                _socket.SendTo(buffer, 0, bufferSize, SocketFlags.None, _server.IPEndPoint);
+
+                //receive request
+                EndPoint remoteEP;
+
+                if (_server.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
+                    remoteEP = new IPEndPoint(IPAddress.IPv6Any, 0);
+                else
+                    remoteEP = new IPEndPoint(IPAddress.Any, 0);
+
+                do
                 {
-                    socket.ReceiveTimeout = _timeout;
-
-                    //send request
-                    socket.SendTo(buffer, 0, bufferSize, SocketFlags.None, _server.IPEndPoint);
-
-                    //receive request
-                    EndPoint remoteEP;
-
-                    if (_server.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
-                        remoteEP = new IPEndPoint(IPAddress.IPv6Any, 0);
-                    else
-                        remoteEP = new IPEndPoint(IPAddress.Any, 0);
-
-                    do
-                    {
-                        bufferSize = socket.ReceiveFrom(buffer, ref remoteEP);
-                    }
-                    while (!_server.IPEndPoint.Equals(remoteEP));
+                    bufferSize = _socket.ReceiveFrom(buffer, ref remoteEP);
                 }
+                while (!_server.IPEndPoint.Equals(remoteEP));
+
+                stopwatch.Stop();
             }
             else
             {
-                bufferSize = _proxy.UdpReceiveFrom(_server.EndPoint, buffer, 0, bufferSize, buffer, 0, _timeout);
+                stopwatch.Start();
+
+                bufferSize = _proxy.UdpReceiveFrom(_server.EndPoint, buffer, 0, bufferSize, buffer, 0, timeout);
+
+                stopwatch.Stop();
             }
 
             //parse response
@@ -101,7 +134,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 DnsDatagram response = new DnsDatagram(mS);
 
-                response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, bufferSize, (DateTime.UtcNow - sentAt).TotalMilliseconds));
+                response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, bufferSize, stopwatch.Elapsed.TotalMilliseconds));
 
                 if (response.Identifier == request.Identifier)
                     return response;
