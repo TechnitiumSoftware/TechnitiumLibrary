@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,9 +30,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         public TlsClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsTransportProtocol.Tls, server, proxy)
-        {
-            _timeout = 5000;
-        }
+        { }
 
         #endregion
 
