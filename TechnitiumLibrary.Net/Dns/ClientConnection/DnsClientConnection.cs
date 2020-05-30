@@ -19,6 +19,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
+using System.Threading;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
@@ -27,19 +29,69 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
     {
         #region variables
 
+        readonly static Timer _maintenanceTimer;
+        const int MAINTENANCE_TIMER_INITIAL_INTERVAL = CONNECTION_EXPIRY + MAINTENANCE_TIMER_PERIODIC_INTERVAL;
+        const int MAINTENANCE_TIMER_PERIODIC_INTERVAL = 15 * 60 * 1000;
+        const int CONNECTION_EXPIRY = 1 * 60 * 60 * 1000;
+
         protected readonly DnsTransportProtocol _protocol;
         protected readonly NameServerAddress _server;
         protected readonly NetProxy _proxy;
 
-        protected int _timeout;
-
-        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, DnsClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, DnsClientConnection>>();
-        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, DnsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, DnsClientConnection>>();
+        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, TcpClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, TcpClientConnection>>();
+        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, TlsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, TlsClientConnection>>();
         const string NO_PROXY = "NO_PROXY";
 
         #endregion
 
         #region constructor
+
+        static DnsClientConnection()
+        {
+            _maintenanceTimer = new Timer(delegate (object state)
+            {
+                try
+                {
+                    DateTime expiryTime = DateTime.UtcNow.AddMilliseconds(CONNECTION_EXPIRY * -1);
+
+                    //cleanup unused tcp connections
+                    foreach (NameServerAddress nameServer in _existingTcpConnections.Keys.ToArray())
+                    {
+                        ConcurrentDictionary<object, TcpClientConnection> existingTcpConnection = _existingTcpConnections[nameServer];
+
+                        foreach (object proxy in existingTcpConnection.Keys.ToArray())
+                        {
+                            TcpClientConnection connection = existingTcpConnection[proxy];
+
+                            if (connection.LastQueried < expiryTime)
+                                existingTcpConnection.TryRemove(proxy, out _);
+                        }
+
+                        if (existingTcpConnection.IsEmpty)
+                            _existingTcpConnections.TryRemove(nameServer, out _);
+                    }
+
+                    //cleanup unused tls connections
+                    foreach (NameServerAddress nameServer in _existingTlsConnections.Keys.ToArray())
+                    {
+                        ConcurrentDictionary<object, TlsClientConnection> existingTlsConnection = _existingTlsConnections[nameServer];
+
+                        foreach (object proxy in existingTlsConnection.Keys.ToArray())
+                        {
+                            TlsClientConnection connection = existingTlsConnection[proxy];
+
+                            if (connection.LastQueried < expiryTime)
+                                existingTlsConnection.TryRemove(proxy, out _);
+                        }
+
+                        if (existingTlsConnection.IsEmpty)
+                            _existingTlsConnections.TryRemove(nameServer, out _);
+                    }
+                }
+                catch
+                { }
+            }, null, MAINTENANCE_TIMER_INITIAL_INTERVAL, MAINTENANCE_TIMER_PERIODIC_INTERVAL);
+        }
 
         protected DnsClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
         {
@@ -79,9 +131,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 case DnsTransportProtocol.Tcp:
                     {
-                        ConcurrentDictionary<object, DnsClientConnection> existingTcpConnection = _existingTcpConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        ConcurrentDictionary<object, TcpClientConnection> existingTcpConnection = _existingTcpConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
                         {
-                            return new ConcurrentDictionary<object, DnsClientConnection>();
+                            return new ConcurrentDictionary<object, TcpClientConnection>();
                         });
 
                         object proxyKey = proxy;
@@ -97,9 +149,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 case DnsTransportProtocol.Tls:
                     {
-                        ConcurrentDictionary<object, DnsClientConnection> existingTlsConnection = _existingTlsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        ConcurrentDictionary<object, TlsClientConnection> existingTlsConnection = _existingTlsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
                         {
-                            return new ConcurrentDictionary<object, DnsClientConnection>();
+                            return new ConcurrentDictionary<object, TlsClientConnection>();
                         });
 
                         object proxyKey = proxy;
@@ -122,7 +174,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region public
 
-        public abstract DnsDatagram Query(DnsDatagram request);
+        public abstract DnsDatagram Query(DnsDatagram request, int timeout);
 
         #endregion
 
@@ -136,12 +188,6 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         public NetProxy NetProxy
         { get { return _proxy; } }
-
-        public int Timeout
-        {
-            get { return _timeout; }
-            set { _timeout = value; }
-        }
 
         #endregion
     }
