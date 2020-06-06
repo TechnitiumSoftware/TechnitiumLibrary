@@ -32,11 +32,12 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
+        DnsTransportProtocol _protocol;
+        string _originalAddress;
+
         Uri _dohEndPoint;
         DomainEndPoint _domainEndPoint;
         IPEndPoint _ipEndPoint;
-
-        string _originalAddress;
 
         bool _ipEndPointExpires;
         DateTime _ipEndPointExpiresOn;
@@ -47,62 +48,103 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region constructors
 
-        public NameServerAddress(Uri dohEndPoint)
+        public NameServerAddress(NameServerAddress nameServer, DnsTransportProtocol protocol)
+        {
+            _protocol = protocol;
+            _originalAddress = nameServer._originalAddress;
+
+            _dohEndPoint = nameServer._dohEndPoint;
+            _domainEndPoint = nameServer._domainEndPoint;
+            _ipEndPoint = nameServer._ipEndPoint;
+
+            _ipEndPointExpires = nameServer._ipEndPointExpires;
+            _ipEndPointExpiresOn = nameServer._ipEndPointExpiresOn;
+
+            ValidateProtocol();
+        }
+
+        public NameServerAddress(Uri dohEndPoint, DnsTransportProtocol protocol = DnsTransportProtocol.Https)
         {
             _dohEndPoint = dohEndPoint;
 
             if (IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address))
                 _ipEndPoint = new IPEndPoint(address, _dohEndPoint.Port);
 
+            _protocol = protocol;
             _originalAddress = _dohEndPoint.AbsoluteUri;
+
+            ValidateProtocol();
         }
 
-        public NameServerAddress(Uri dohEndPoint, IPAddress address)
+        public NameServerAddress(Uri dohEndPoint, IPAddress address, DnsTransportProtocol protocol = DnsTransportProtocol.Https)
         {
             _dohEndPoint = dohEndPoint;
             _ipEndPoint = new IPEndPoint(address, _dohEndPoint.Port);
+
+            _protocol = protocol;
 
             if (address.AddressFamily == AddressFamily.InterNetworkV6)
                 _originalAddress = _dohEndPoint.AbsoluteUri + " ([" + address.ToString() + "])";
             else
                 _originalAddress = _dohEndPoint.AbsoluteUri + " (" + address.ToString() + ")";
+
+            ValidateProtocol();
+        }
+
+        public NameServerAddress(string address, DnsTransportProtocol protocol)
+        {
+            Parse(address.Trim());
+            _protocol = protocol;
+            ValidateProtocol();
         }
 
         public NameServerAddress(string address)
         {
             Parse(address.Trim());
+            GuessProtocol();
         }
 
-        public NameServerAddress(IPAddress address)
+        public NameServerAddress(IPAddress address, DnsTransportProtocol protocol = DnsTransportProtocol.Udp)
         {
             _ipEndPoint = new IPEndPoint(address, 53);
 
+            _protocol = protocol;
             _originalAddress = address.ToString();
+
+            ValidateProtocol();
         }
 
-        public NameServerAddress(string domain, IPAddress address)
+        public NameServerAddress(string domain, IPAddress address, DnsTransportProtocol protocol = DnsTransportProtocol.Udp)
         {
             _domainEndPoint = new DomainEndPoint(domain, 53);
             _ipEndPoint = new IPEndPoint(address, 53);
+
+            _protocol = protocol;
 
             if (address.AddressFamily == AddressFamily.InterNetworkV6)
                 _originalAddress = domain + " ([" + address.ToString() + "])";
             else
                 _originalAddress = domain + " (" + address.ToString() + ")";
+
+            ValidateProtocol();
         }
 
-        public NameServerAddress(string domain, IPEndPoint ipEndPoint)
+        public NameServerAddress(string domain, IPEndPoint ipEndPoint, DnsTransportProtocol protocol = DnsTransportProtocol.Udp)
         {
             _domainEndPoint = new DomainEndPoint(domain, ipEndPoint.Port);
             _ipEndPoint = ipEndPoint;
+
+            _protocol = protocol;
 
             if (ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
                 _originalAddress = domain + " ([" + ipEndPoint.Address.ToString() + "]:" + ipEndPoint.Port + ")";
             else
                 _originalAddress = domain + " (" + ipEndPoint.ToString() + ")";
+
+            ValidateProtocol();
         }
 
-        public NameServerAddress(EndPoint endPoint)
+        public NameServerAddress(EndPoint endPoint, DnsTransportProtocol protocol = DnsTransportProtocol.Udp)
         {
             switch (endPoint.AddressFamily)
             {
@@ -119,10 +161,14 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new NotSupportedException("AddressFamily not supported.");
             }
 
+            _protocol = protocol;
+
             if (endPoint.AddressFamily == AddressFamily.InterNetworkV6)
                 _originalAddress = "[" + (endPoint as IPEndPoint).Address.ToString() + "]:" + (endPoint as IPEndPoint).Port;
             else
                 _originalAddress = endPoint.ToString();
+
+            ValidateProtocol();
         }
 
         public NameServerAddress(BinaryReader bR)
@@ -146,9 +192,16 @@ namespace TechnitiumLibrary.Net.Dns
                     else if (_domainEndPoint != null)
                         _originalAddress = _domainEndPoint.ToString();
 
+                    GuessProtocol();
                     break;
 
                 case 2:
+                    Parse(bR.ReadShortString());
+                    GuessProtocol();
+                    break;
+
+                case 3:
+                    _protocol = (DnsTransportProtocol)bR.ReadByte();
                     Parse(bR.ReadShortString());
                     break;
 
@@ -160,6 +213,66 @@ namespace TechnitiumLibrary.Net.Dns
         #endregion
 
         #region private
+
+        private void ValidateProtocol()
+        {
+            switch (_protocol)
+            {
+                case DnsTransportProtocol.Udp:
+                case DnsTransportProtocol.Tcp:
+                    if (_dohEndPoint != null)
+                        throw new ArgumentException("Invalid DNS transport protocol was specified for current operation: " + _protocol.ToString());
+
+                    if (Port == 853)
+                        throw new ArgumentException("Invalid DNS transport protocol was specified for current operation: " + _protocol.ToString());
+
+                    break;
+
+                case DnsTransportProtocol.Tls:
+                    if (_dohEndPoint != null)
+                        throw new ArgumentException("Invalid DNS transport protocol was specified for current operation: " + _protocol.ToString());
+
+                    if (Port == 53)
+                        throw new ArgumentException("Invalid DNS transport protocol was specified for current operation: " + _protocol.ToString());
+
+                    break;
+
+                case DnsTransportProtocol.Https:
+                case DnsTransportProtocol.HttpsJson:
+                    if (_dohEndPoint == null)
+                        throw new ArgumentException("Invalid DNS transport protocol was specified for current operation: " + _protocol.ToString());
+
+                    switch (Port)
+                    {
+                        case 53:
+                        case 853:
+                            throw new ArgumentException("Invalid DNS transport protocol was specified for current operation: " + _protocol.ToString());
+                    }
+
+                    break;
+            }
+        }
+
+        private void GuessProtocol()
+        {
+            if (_dohEndPoint != null)
+            {
+                _protocol = DnsTransportProtocol.Https;
+            }
+            else
+            {
+                switch (Port)
+                {
+                    case 853:
+                        _protocol = DnsTransportProtocol.Tls;
+                        break;
+
+                    default:
+                        _protocol = DnsTransportProtocol.Udp;
+                        break;
+                }
+            }
+        }
 
         private void Parse(string address)
         {
@@ -328,7 +441,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public void ResolveIPAddress(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, DnsTransportProtocol protocol = DnsTransportProtocol.Udp)
+        public void ResolveIPAddress(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
         {
             lock (_ipEndPointResolverLock)
             {
@@ -365,7 +478,6 @@ namespace TechnitiumLibrary.Net.Dns
 
                 dnsClient.Proxy = proxy;
                 dnsClient.PreferIPv6 = preferIPv6;
-                dnsClient.Protocol = protocol;
                 dnsClient.Retries = retries;
                 dnsClient.Timeout = timeout;
 
@@ -380,7 +492,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void RecursiveResolveIPAddress(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false)
+        public void RecursiveResolveIPAddress(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
         {
             lock (_ipEndPointResolverLock)
             {
@@ -410,7 +522,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 IPEndPoint ipEndPoint = null;
 
-                IReadOnlyList<IPAddress> addresses = DnsClient.RecursiveResolveIP(domain, cache, proxy, preferIPv6, retries, timeout, useTcp);
+                IReadOnlyList<IPAddress> addresses = DnsClient.RecursiveResolveIP(domain, cache, proxy, preferIPv6, retries, timeout);
                 if (addresses.Count > 0)
                     ipEndPoint = new IPEndPoint(addresses[0], this.Port);
 
@@ -423,7 +535,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void ResolveDomainName(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, DnsTransportProtocol protocol = DnsTransportProtocol.Udp)
+        public void ResolveDomainName(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPoint != null)
             {
@@ -436,7 +548,6 @@ namespace TechnitiumLibrary.Net.Dns
 
                 dnsClient.Proxy = proxy;
                 dnsClient.PreferIPv6 = preferIPv6;
-                dnsClient.Protocol = protocol;
                 dnsClient.Retries = retries;
                 dnsClient.Timeout = timeout;
 
@@ -450,13 +561,13 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void RecursiveResolveDomainName(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false)
+        public void RecursiveResolveDomainName(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPoint != null)
             {
                 try
                 {
-                    string ptrDomain = DnsClient.ParseResponsePTR(DnsClient.RecursiveQuery(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, useTcp));
+                    string ptrDomain = DnsClient.ParseResponsePTR(DnsClient.RecursiveQuery(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout));
                     if (ptrDomain != null)
                         _domainEndPoint = new DomainEndPoint(ptrDomain, _ipEndPoint.Port);
                 }
@@ -467,7 +578,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         public void WriteTo(BinaryWriter bW)
         {
-            bW.Write((byte)2); //version
+            bW.Write((byte)3); //version
+            bW.Write((byte)_protocol);
             bW.WriteShortString(_originalAddress);
         }
 
@@ -514,6 +626,9 @@ namespace TechnitiumLibrary.Net.Dns
             if (other == null)
                 return false;
 
+            if (!EqualityComparer<DnsTransportProtocol>.Default.Equals(_protocol, other._protocol))
+                return false;
+
             if (!EqualityComparer<Uri>.Default.Equals(_dohEndPoint, other._dohEndPoint))
                 return false;
 
@@ -529,6 +644,7 @@ namespace TechnitiumLibrary.Net.Dns
         public override int GetHashCode()
         {
             var hashCode = 563096372;
+            hashCode = hashCode * -1521134295 + EqualityComparer<DnsTransportProtocol>.Default.GetHashCode(_protocol);
             hashCode = hashCode * -1521134295 + EqualityComparer<Uri>.Default.GetHashCode(_dohEndPoint);
             hashCode = hashCode * -1521134295 + EqualityComparer<DomainEndPoint>.Default.GetHashCode(_domainEndPoint);
             hashCode = hashCode * -1521134295 + EqualityComparer<IPEndPoint>.Default.GetHashCode(_ipEndPoint);
@@ -538,6 +654,9 @@ namespace TechnitiumLibrary.Net.Dns
         #endregion
 
         #region properties
+
+        public DnsTransportProtocol Protocol
+        { get { return _protocol; } }
 
         public string OriginalString
         { get { return _originalAddress; } }
