@@ -74,6 +74,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region static
+
+        public static bool IsZoneUpdateAvailable(uint currentSerial, uint newSerial)
+        {
+            //compare using sequence space arithmetic
+            //(i1 < i2 and i2 - i1 > 2^(SERIAL_BITS - 1)) or
+            //(i1 > i2 and i1 -i2 < 2^(SERIAL_BITS - 1))
+
+            return ((newSerial < currentSerial) && ((currentSerial - newSerial) > (uint.MaxValue >> 1))) || ((newSerial > currentSerial) && ((newSerial - currentSerial) < (uint.MaxValue >> 1)));
+        }
+
+        #endregion
+
         #region protected
 
         protected override void Parse(Stream s)
@@ -101,6 +114,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #endregion
 
         #region public
+
+        public bool IsZoneUpdateAvailable(DnsSOARecord newRecord)
+        {
+            return IsZoneUpdateAvailable(_serial, newRecord._serial);
+        }
 
         public override bool Equals(object obj)
         {
