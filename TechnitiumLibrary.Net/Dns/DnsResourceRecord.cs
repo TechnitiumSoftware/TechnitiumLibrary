@@ -110,7 +110,9 @@ namespace TechnitiumLibrary.Net.Dns
         CAA = 257,
         AVC = 258,
         TA = 32768,
-        DLV = 32769
+        DLV = 32769,
+        ANAME = 65280, //private use - draft-ietf-dnsop-aname-04
+        FWD = 65281, //private use - conditional forwarder
     }
 
     public enum DnsClass : ushort
@@ -206,6 +208,14 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsHINFORecord(s);
                     break;
 
+                case DnsResourceRecordType.ANAME:
+                    _data = new DnsANAMERecord(s);
+                    break;
+
+                case DnsResourceRecordType.FWD:
+                    _data = new DnsForwarderRecord(s);
+                    break;
+
                 default:
                     _data = new DnsUnknownRecord(s);
                     break;
@@ -263,6 +273,14 @@ namespace TechnitiumLibrary.Net.Dns
 
                 case DnsResourceRecordType.HINFO:
                     _data = new DnsHINFORecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.ANAME:
+                    _data = new DnsANAMERecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.FWD:
+                    _data = new DnsForwarderRecord(jsonResourceRecord);
                     break;
 
                 default:
