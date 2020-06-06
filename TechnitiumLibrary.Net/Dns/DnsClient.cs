@@ -54,7 +54,6 @@ namespace TechnitiumLibrary.Net.Dns
 
         NetProxy _proxy;
         bool _preferIPv6 = false;
-        DnsTransportProtocol _protocol = DnsTransportProtocol.Udp;
         int _retries = 2;
         int _timeout = 2000;
         int _threads = 2;
@@ -185,7 +184,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, IReadOnlyList<NameServerAddress> nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10)
+        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, IReadOnlyList<NameServerAddress> nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
                 cache = new DnsCache();
@@ -401,7 +400,6 @@ namespace TechnitiumLibrary.Net.Dns
 
                         DnsClient client = new DnsClient(currentNameServer);
                         client._proxy = proxy;
-                        client._protocol = useTcp ? DnsTransportProtocol.Tcp : DnsTransportProtocol.Udp;
                         client._retries = retries;
                         client._timeout = timeout;
 
@@ -415,27 +413,6 @@ namespace TechnitiumLibrary.Net.Dns
                         catch (DnsClientException ex)
                         {
                             lastException = ex;
-                            continue; //try next name server
-                        }
-
-                        if (response.Truncation && (client._protocol == DnsTransportProtocol.Udp))
-                        {
-                            client._protocol = DnsTransportProtocol.Tcp;
-
-                            try
-                            {
-                                response = client.Resolve(request);
-                            }
-                            catch (DnsClientException ex)
-                            {
-                                lastException = ex;
-                                continue; //try next name server
-                            }
-                        }
-
-                        if (response.Truncation)
-                        {
-                            lastException = new DnsClientException("DnsClient received a truncated response for " + client._protocol.ToString() + " protocol from name server: " + currentNameServer.ToString());
                             continue; //try next name server
                         }
 
@@ -779,12 +756,12 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static DnsDatagram RecursiveQuery(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10)
+        public static DnsDatagram RecursiveQuery(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
                 cache = new DnsCache();
 
-            DnsDatagram response = RecursiveResolve(question, null, cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount);
+            DnsDatagram response = RecursiveResolve(question, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
 
             IReadOnlyList<DnsResourceRecord> authority = null;
             IReadOnlyList<DnsResourceRecord> additional = null;
@@ -801,11 +778,11 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsDatagram lastResponse;
                     int queryCount = 0;
 
-                    while (true)
+                    do
                     {
                         DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecord).CNAMEDomainName, question.Type, question.Class);
 
-                        lastResponse = RecursiveResolve(cnameQuestion, null, cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount);
+                        lastResponse = RecursiveResolve(cnameQuestion, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
 
                         if (lastResponse.Answer.Count == 0)
                             break;
@@ -819,11 +796,8 @@ namespace TechnitiumLibrary.Net.Dns
 
                         if (lastRR.Type != DnsResourceRecordType.CNAME)
                             throw new DnsClientException("Invalid response received from DNS server.");
-
-                        queryCount++;
-                        if (queryCount > MAX_CNAME_HOPS)
-                            throw new DnsClientException("Recursive resolution exceeded max CNAME hops.");
                     }
+                    while (++queryCount < MAX_CNAME_HOPS);
 
                     if ((lastResponse.Authority.Count > 0) && (lastResponse.Authority[0].Type == DnsResourceRecordType.SOA))
                         authority = lastResponse.Authority;
@@ -854,19 +828,19 @@ namespace TechnitiumLibrary.Net.Dns
             return finalResponse;
         }
 
-        public static IReadOnlyList<IPAddress> RecursiveResolveIP(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, bool useTcp = false, int maxStackCount = 10)
+        public static IReadOnlyList<IPAddress> RecursiveResolveIP(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
                 cache = new DnsCache();
 
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, useTcp, maxStackCount));
+            return ParseResponseA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
         }
 
         public static IReadOnlyList<IPAddress> ParseResponseA(DnsDatagram response)
@@ -1274,7 +1248,7 @@ namespace TechnitiumLibrary.Net.Dns
                             //recursive resolve name server via root servers when proxy is null else let proxy resolve it
                             try
                             {
-                                server.RecursiveResolveIPAddress(dnsCache, null, _preferIPv6, _retries, _timeout, false);
+                                server.RecursiveResolveIPAddress(dnsCache, null, _preferIPv6, _retries, _timeout);
                             }
                             catch (Exception ex)
                             {
@@ -1283,7 +1257,7 @@ namespace TechnitiumLibrary.Net.Dns
                             }
                         }
 
-                        DnsTransportProtocol protocol = _protocol;
+                        DnsTransportProtocol protocol = server.Protocol;
 
                         //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
                         if ((_proxy != null) && (protocol == DnsTransportProtocol.Udp) && !_proxy.IsBypassed(server.EndPoint) && !_proxy.IsUdpAvailable())
@@ -1291,54 +1265,76 @@ namespace TechnitiumLibrary.Net.Dns
 
                         asyncRequest.SetRandomIdentifier();
 
-                        //get connection
-                        using (DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy))
+                        bool switchProtocol;
+                        do //switch protocol loop
                         {
-                            int timeout = _timeout / _retries;
+                            switchProtocol = false;
 
-                            //query server
-                            int retry = 0;
-                            while (retry < _retries) //retry loop
+                            //get connection
+                            using (DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy))
                             {
-                                retry++;
+                                int timeout = _timeout / _retries;
 
-                                if (resolverHandle.WaitHandle.WaitOne(0))
-                                    return; //already signalled
-
-                                try
+                                //query server
+                                int retry = 0;
+                                while (retry < _retries) //retry loop
                                 {
-                                    DnsDatagram response = connection.Query(asyncRequest, timeout);
-                                    if (response != null)
+                                    retry++;
+
+                                    if (resolverHandle.WaitHandle.WaitOne(0))
+                                        return; //already signalled
+
+                                    try
                                     {
-                                        //got response; signal waiting thread
-                                        resolverHandle.Response = response;
-                                        resolverHandle.WaitHandle.Set();
-                                        return;
-                                    }
-                                }
-                                catch (SocketException ex)
-                                {
-                                    resolverHandle.LastException = ex;
+                                        DnsDatagram response = connection.Query(asyncRequest, timeout);
+                                        if (response != null)
+                                        {
+                                            //got response
+                                            if (response.Truncation)
+                                            {
+                                                if (protocol == DnsTransportProtocol.Udp)
+                                                {
+                                                    protocol = DnsTransportProtocol.Tcp;
+                                                    switchProtocol = true;
+                                                    break;
+                                                }
 
-                                    switch (ex.SocketErrorCode)
-                                    {
-                                        case SocketError.ConnectionReset:
-                                        case SocketError.HostUnreachable:
-                                        case SocketError.MessageSize:
-                                        case SocketError.NetworkReset:
-                                        case SocketError.NetworkUnreachable:
-                                        case SocketError.ConnectionRefused:
-                                        case SocketError.TimedOut:
-                                            retry = _retries; //dont retry
-                                            break;
+                                                //ignore TC response
+                                            }
+                                            else
+                                            {
+                                                //signal waiting thread
+                                                resolverHandle.Response = response;
+                                                resolverHandle.WaitHandle.Set();
+                                                return;
+                                            }
+                                        }
                                     }
-                                }
-                                catch (Exception ex)
-                                {
-                                    resolverHandle.LastException = ex;
+                                    catch (SocketException ex)
+                                    {
+                                        resolverHandle.LastException = ex;
+
+                                        switch (ex.SocketErrorCode)
+                                        {
+                                            case SocketError.ConnectionReset:
+                                            case SocketError.HostUnreachable:
+                                            case SocketError.MessageSize:
+                                            case SocketError.NetworkReset:
+                                            case SocketError.NetworkUnreachable:
+                                            case SocketError.ConnectionRefused:
+                                            case SocketError.TimedOut:
+                                                retry = _retries; //dont retry
+                                                break;
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        resolverHandle.LastException = ex;
+                                    }
                                 }
                             }
                         }
+                        while (switchProtocol); //switch protocol loop
                     }
                 }
                 catch (Exception ex)
@@ -1493,12 +1489,6 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get { return _preferIPv6; }
             set { _preferIPv6 = value; }
-        }
-
-        public DnsTransportProtocol Protocol
-        {
-            get { return _protocol; }
-            set { _protocol = value; }
         }
 
         public int Retries
