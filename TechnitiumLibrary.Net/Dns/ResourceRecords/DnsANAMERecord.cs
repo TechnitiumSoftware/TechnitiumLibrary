@@ -27,17 +27,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _anameDomainName;
+        string _domain;
 
         #endregion
 
         #region constructor
 
-        public DnsANAMERecord(string anameDomainName)
+        public DnsANAMERecord(string domain)
         {
-            DnsClient.IsDomainNameValid(anameDomainName, true);
+            DnsClient.IsDomainNameValid(domain, true);
 
-            _anameDomainName = anameDomainName;
+            _domain = domain;
         }
 
         public DnsANAMERecord(Stream s)
@@ -48,7 +48,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _anameDomainName = (jsonResourceRecord.data.Value as string).TrimEnd('.');
+            _domain = (jsonResourceRecord.data.Value as string).TrimEnd('.');
         }
 
         #endregion
@@ -57,13 +57,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void Parse(Stream s)
         {
-            _anameDomainName = DnsDatagram.DeserializeDomainName(s);
+            _domain = DnsDatagram.DeserializeDomainName(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
             //do not compress domain name so that clients that do not understand ANAME can skip to parsing next record
-            DnsDatagram.SerializeDomainName(_anameDomainName, s, null);
+            DnsDatagram.SerializeDomainName(_domain, s, null);
         }
 
         #endregion
@@ -82,25 +82,25 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (other == null)
                 return false;
 
-            return this._anameDomainName.Equals(other._anameDomainName, StringComparison.OrdinalIgnoreCase);
+            return this._domain.Equals(other._domain, StringComparison.OrdinalIgnoreCase);
         }
 
         public override int GetHashCode()
         {
-            return _anameDomainName.GetHashCode();
+            return _domain.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _anameDomainName + ".";
+            return _domain + ".";
         }
 
         #endregion
 
         #region properties
 
-        public string ANAMEDomainName
-        { get { return _anameDomainName; } }
+        public string Domain
+        { get { return _domain; } }
 
         #endregion
     }

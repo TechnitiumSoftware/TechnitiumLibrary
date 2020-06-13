@@ -546,7 +546,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         //check if empty response was received from the authoritative name server
                                         foreach (DnsResourceRecord authorityRecord in response.Authority)
                                         {
-                                            if ((authorityRecord.Type == DnsResourceRecordType.NS) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
+                                            if ((authorityRecord.Type == DnsResourceRecordType.NS) && (authorityRecord.RDATA as DnsNSRecord).NameServer.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
                                             {
                                                 //empty response from authoritative name server
                                                 if (resolverStack.Count == 0)
@@ -780,7 +780,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     do
                     {
-                        DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecord).CNAMEDomainName, question.Type, question.Class);
+                        DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class);
 
                         lastResponse = RecursiveResolve(cnameQuestion, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
 
@@ -866,7 +866,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
-                                    domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
+                                    domain = ((DnsCNAMERecord)record.RDATA).Domain;
                                     break;
                             }
                         }
@@ -905,7 +905,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
-                                    domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
+                                    domain = ((DnsCNAMERecord)record.RDATA).Domain;
                                     break;
                             }
                         }
@@ -940,11 +940,11 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (record.Type)
                             {
                                 case DnsResourceRecordType.TXT:
-                                    txtRecords.Add(((DnsTXTRecord)record.RDATA).TXTData);
+                                    txtRecords.Add(((DnsTXTRecord)record.RDATA).Text);
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
-                                    domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
+                                    domain = ((DnsCNAMERecord)record.RDATA).Domain;
                                     break;
                             }
                         }
@@ -977,10 +977,10 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (record.Type)
                             {
                                 case DnsResourceRecordType.PTR:
-                                    return ((DnsPTRRecord)record.RDATA).PTRDomainName;
+                                    return ((DnsPTRRecord)record.RDATA).Domain;
 
                                 case DnsResourceRecordType.CNAME:
-                                    domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
+                                    domain = ((DnsCNAMERecord)record.RDATA).Domain;
                                     break;
                             }
                         }
@@ -1019,7 +1019,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
-                                    domain = ((DnsCNAMERecord)record.RDATA).CNAMEDomainName;
+                                    domain = ((DnsCNAMERecord)record.RDATA).Domain;
                                     break;
                             }
                         }

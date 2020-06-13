@@ -409,20 +409,20 @@ namespace TechnitiumLibrary.Net.Dns
                     //find ip address of authoritative name server from additional records
                     foreach (DnsResourceRecord rr in response.Additional)
                     {
-                        if (nsRecord.NSDomainName.Equals(rr.Name, StringComparison.OrdinalIgnoreCase))
+                        if (nsRecord.NameServer.Equals(rr.Name, StringComparison.OrdinalIgnoreCase))
                         {
                             switch (rr.Type)
                             {
                                 case DnsResourceRecordType.A:
                                     endPoint = new IPEndPoint(((DnsARecord)rr.RDATA).Address, 53);
-                                    nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, endPoint));
+                                    nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint));
                                     break;
 
                                 case DnsResourceRecordType.AAAA:
                                     endPoint = new IPEndPoint(((DnsAAAARecord)rr.RDATA).Address, 53);
 
                                     if (preferIPv6)
-                                        nameServers.Add(new NameServerAddress(nsRecord.NSDomainName, endPoint));
+                                        nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint));
 
                                     break;
                             }
@@ -430,7 +430,7 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     if ((endPoint == null) && !selectOnlyNameServersWithGlue)
-                        nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NSDomainName, 53)));
+                        nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NameServer, 53)));
                 }
             }
 
@@ -658,7 +658,7 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsTransportProtocol Protocol
         { get { return _protocol; } }
 
-        public string OriginalString
+        public string OriginalAddress
         { get { return _originalAddress; } }
 
         public string Host

@@ -27,17 +27,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _ptrDomainName;
+        string _domain;
 
         #endregion
 
         #region constructor
 
-        public DnsPTRRecord(string ptrDomainName)
+        public DnsPTRRecord(string domain)
         {
-            DnsClient.IsDomainNameValid(ptrDomainName, true);
+            DnsClient.IsDomainNameValid(domain, true);
 
-            _ptrDomainName = ptrDomainName;
+            _domain = domain;
         }
 
         public DnsPTRRecord(Stream s)
@@ -48,7 +48,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _ptrDomainName = (jsonResourceRecord.data.Value as string).TrimEnd('.');
+            _domain = (jsonResourceRecord.data.Value as string).TrimEnd('.');
         }
 
         #endregion
@@ -57,12 +57,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void Parse(Stream s)
         {
-            _ptrDomainName = DnsDatagram.DeserializeDomainName(s);
+            _domain = DnsDatagram.DeserializeDomainName(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(_ptrDomainName, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_domain, s, domainEntries);
         }
 
         #endregion
@@ -81,25 +81,25 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (other == null)
                 return false;
 
-            return this._ptrDomainName.Equals(other._ptrDomainName, StringComparison.OrdinalIgnoreCase);
+            return this._domain.Equals(other._domain, StringComparison.OrdinalIgnoreCase);
         }
 
         public override int GetHashCode()
         {
-            return _ptrDomainName.GetHashCode();
+            return _domain.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _ptrDomainName + ".";
+            return _domain + ".";
         }
 
         #endregion
 
         #region properties
 
-        public string PTRDomainName
-        { get { return _ptrDomainName; } }
+        public string Domain
+        { get { return _domain; } }
 
         #endregion
     }

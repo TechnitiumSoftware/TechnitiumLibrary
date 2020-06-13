@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization;
 using System.Text;
 using TechnitiumLibrary.IO;
 
@@ -126,6 +127,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Forwarder
         { get { return _forwarder; } }
 
+        [IgnoreDataMember]
         public NameServerAddress NameServer
         { get { return _nameServer; } }
 

@@ -27,17 +27,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _cnameDomainName;
+        string _domain;
 
         #endregion
 
         #region constructor
 
-        public DnsCNAMERecord(string cnameDomainName)
+        public DnsCNAMERecord(string domain)
         {
-            DnsClient.IsDomainNameValid(cnameDomainName, true);
+            DnsClient.IsDomainNameValid(domain, true);
 
-            _cnameDomainName = cnameDomainName;
+            _domain = domain;
         }
 
         public DnsCNAMERecord(Stream s)
@@ -48,7 +48,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _cnameDomainName = (jsonResourceRecord.data.Value as string).TrimEnd('.');
+            _domain = (jsonResourceRecord.data.Value as string).TrimEnd('.');
         }
 
         #endregion
@@ -57,12 +57,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void Parse(Stream s)
         {
-            _cnameDomainName = DnsDatagram.DeserializeDomainName(s);
+            _domain = DnsDatagram.DeserializeDomainName(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(_cnameDomainName, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_domain, s, domainEntries);
         }
 
         #endregion
@@ -81,25 +81,25 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (other == null)
                 return false;
 
-            return this._cnameDomainName.Equals(other._cnameDomainName, StringComparison.OrdinalIgnoreCase);
+            return this._domain.Equals(other._domain, StringComparison.OrdinalIgnoreCase);
         }
 
         public override int GetHashCode()
         {
-            return _cnameDomainName.GetHashCode();
+            return _domain.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _cnameDomainName + ".";
+            return _domain + ".";
         }
 
         #endregion
 
         #region properties
 
-        public string CNAMEDomainName
-        { get { return _cnameDomainName; } }
+        public string Domain
+        { get { return _domain; } }
 
         #endregion
     }

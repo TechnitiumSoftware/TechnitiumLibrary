@@ -29,15 +29,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _txtData;
+        string _text;
 
         #endregion
 
         #region constructor
 
-        public DnsTXTRecord(string txtData)
+        public DnsTXTRecord(string text)
         {
-            _txtData = txtData;
+            _text = text;
         }
 
         public DnsTXTRecord(Stream s)
@@ -48,7 +48,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _txtData = DnsDatagram.DecodeCharacterString(jsonResourceRecord.data.Value);
+            _text = DnsDatagram.DecodeCharacterString(jsonResourceRecord.data.Value);
         }
 
         #endregion
@@ -66,10 +66,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (length < 0)
                     throw new EndOfStreamException();
 
-                if (_txtData == null)
-                    _txtData = Encoding.ASCII.GetString(s.ReadBytes(length));
+                if (_text == null)
+                    _text = Encoding.ASCII.GetString(s.ReadBytes(length));
                 else
-                    _txtData += Encoding.ASCII.GetString(s.ReadBytes(length));
+                    _text += Encoding.ASCII.GetString(s.ReadBytes(length));
 
                 bytesRead += length + 1;
             }
@@ -77,7 +77,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            byte[] data = Encoding.ASCII.GetBytes(_txtData);
+            byte[] data = Encoding.ASCII.GetBytes(_text);
             int offset = 0;
             int length;
 
@@ -111,25 +111,25 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (other == null)
                 return false;
 
-            return this._txtData.Equals(other._txtData);
+            return this._text.Equals(other._text);
         }
 
         public override int GetHashCode()
         {
-            return _txtData.GetHashCode();
+            return _text.GetHashCode();
         }
 
         public override string ToString()
         {
-            return DnsDatagram.EncodeCharacterString(_txtData);
+            return DnsDatagram.EncodeCharacterString(_text);
         }
 
         #endregion
 
         #region properties
 
-        public string TXTData
-        { get { return _txtData; } }
+        public string Text
+        { get { return _text; } }
 
         #endregion
     }

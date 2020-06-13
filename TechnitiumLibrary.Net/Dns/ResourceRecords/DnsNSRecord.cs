@@ -27,17 +27,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _nsDomainName;
+        string _nameServer;
 
         #endregion
 
         #region constructor
 
-        public DnsNSRecord(string nsDomainName)
+        public DnsNSRecord(string nameServer)
         {
-            DnsClient.IsDomainNameValid(nsDomainName, true);
+            DnsClient.IsDomainNameValid(nameServer, true);
 
-            _nsDomainName = nsDomainName;
+            _nameServer = nameServer;
         }
 
         public DnsNSRecord(Stream s)
@@ -48,7 +48,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _nsDomainName = (jsonResourceRecord.data.Value as string).TrimEnd('.');
+            _nameServer = (jsonResourceRecord.data.Value as string).TrimEnd('.');
         }
 
         #endregion
@@ -57,12 +57,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void Parse(Stream s)
         {
-            _nsDomainName = DnsDatagram.DeserializeDomainName(s);
+            _nameServer = DnsDatagram.DeserializeDomainName(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(_nsDomainName, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_nameServer, s, domainEntries);
         }
 
         #endregion
@@ -81,25 +81,25 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (other == null)
                 return false;
 
-            return this._nsDomainName.Equals(other._nsDomainName, StringComparison.OrdinalIgnoreCase);
+            return this._nameServer.Equals(other._nameServer, StringComparison.OrdinalIgnoreCase);
         }
 
         public override int GetHashCode()
         {
-            return _nsDomainName.GetHashCode();
+            return _nameServer.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _nsDomainName + ".";
+            return _nameServer + ".";
         }
 
         #endregion
 
         #region properties
 
-        public string NSDomainName
-        { get { return _nsDomainName; } }
+        public string NameServer
+        { get { return _nameServer; } }
 
         #endregion
     }

@@ -200,7 +200,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 foreach (DnsResourceRecord nameServer in nameServers)
                 {
-                    string nsDomain = (nameServer.RDATA as DnsNSRecord).NSDomainName;
+                    string nsDomain = (nameServer.RDATA as DnsNSRecord).NameServer;
 
                     IReadOnlyList<DnsResourceRecord> glueAs = GetRecords(nsDomain, DnsResourceRecordType.A);
                     if ((glueAs != null) && (glueAs.Count > 0) && (glueAs[0].RDATA is DnsARecord))
@@ -264,11 +264,11 @@ namespace TechnitiumLibrary.Net.Dns
                         switch (answer.Type)
                         {
                             case DnsResourceRecordType.CNAME:
-                                qName = (answer.RDATA as DnsCNAMERecord).CNAMEDomainName;
+                                qName = (answer.RDATA as DnsCNAMERecord).Domain;
                                 break;
 
                             case DnsResourceRecordType.NS:
-                                string nsDomain = (answer.RDATA as DnsNSRecord).NSDomainName;
+                                string nsDomain = (answer.RDATA as DnsNSRecord).NameServer;
 
                                 if (!nsDomain.EndsWith(".root-servers.net", StringComparison.OrdinalIgnoreCase))
                                 {
@@ -348,11 +348,11 @@ namespace TechnitiumLibrary.Net.Dns
                                     switch (response.RCODE)
                                     {
                                         case DnsResponseCode.NameError:
-                                            record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).CNAMEDomainName, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(authority));
+                                            record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(authority));
                                             break;
 
                                         case DnsResponseCode.NoError:
-                                            record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).CNAMEDomainName, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(authority));
+                                            record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(authority));
                                             break;
                                     }
 
@@ -377,7 +377,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             foreach (DnsResourceRecord authorityRecord in response.Authority)
                             {
-                                if ((authorityRecord.Type == DnsResourceRecordType.NS) && (authorityRecord.RDATA as DnsNSRecord).NSDomainName.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
+                                if ((authorityRecord.Type == DnsResourceRecordType.NS) && (authorityRecord.RDATA as DnsNSRecord).NameServer.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
                                 {
                                     //empty response from authority name server that was queried
                                     DnsResourceRecord record = null;
@@ -417,7 +417,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     cachableRecords.Add(authorityRecords);
 
-                                    string nsDomain = (authorityRecords.RDATA as DnsNSRecord).NSDomainName;
+                                    string nsDomain = (authorityRecords.RDATA as DnsNSRecord).NameServer;
                                     if (!nsDomain.EndsWith(".root-servers.net", StringComparison.OrdinalIgnoreCase))
                                     {
                                         foreach (DnsResourceRecord record in response.Additional)
