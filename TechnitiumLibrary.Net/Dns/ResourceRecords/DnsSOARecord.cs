@@ -27,7 +27,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _masterNameServer;
+        string _primaryNameServer;
         string _responsiblePerson;
         uint _serial;
         uint _refresh;
@@ -39,12 +39,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsSOARecord(string masterNameServer, string responsiblePerson, uint serial, uint refresh, uint retry, uint expire, uint minimum)
+        public DnsSOARecord(string primaryNameServer, string responsiblePerson, uint serial, uint refresh, uint retry, uint expire, uint minimum)
         {
-            DnsClient.IsDomainNameValid(masterNameServer, true);
+            DnsClient.IsDomainNameValid(primaryNameServer, true);
             DnsClient.IsDomainNameValid(responsiblePerson, true);
 
-            _masterNameServer = masterNameServer;
+            _primaryNameServer = primaryNameServer;
             _responsiblePerson = responsiblePerson;
             _serial = serial;
             _refresh = refresh;
@@ -63,7 +63,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
 
-            _masterNameServer = parts[0].TrimEnd('.');
+            _primaryNameServer = parts[0].TrimEnd('.');
             _responsiblePerson = parts[1].TrimEnd('.');
             _serial = uint.Parse(parts[2]);
             _refresh = uint.Parse(parts[3]);
@@ -91,7 +91,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void Parse(Stream s)
         {
-            _masterNameServer = DnsDatagram.DeserializeDomainName(s);
+            _primaryNameServer = DnsDatagram.DeserializeDomainName(s);
             _responsiblePerson = DnsDatagram.DeserializeDomainName(s);
             _serial = DnsDatagram.ReadUInt32NetworkOrder(s);
             _refresh = DnsDatagram.ReadUInt32NetworkOrder(s);
@@ -102,7 +102,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(_masterNameServer, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_primaryNameServer, s, domainEntries);
             DnsDatagram.SerializeDomainName(_responsiblePerson, s, domainEntries);
             DnsDatagram.WriteUInt32NetworkOrder(_serial, s);
             DnsDatagram.WriteUInt32NetworkOrder(_refresh, s);
@@ -132,7 +132,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (other == null)
                 return false;
 
-            if (!this._masterNameServer.Equals(other._masterNameServer, StringComparison.OrdinalIgnoreCase))
+            if (!this._primaryNameServer.Equals(other._primaryNameServer, StringComparison.OrdinalIgnoreCase))
                 return false;
 
             if (!this._responsiblePerson.Equals(other._responsiblePerson, StringComparison.OrdinalIgnoreCase))
@@ -158,20 +158,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return _masterNameServer.GetHashCode();
+            return _primaryNameServer.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _masterNameServer + ". " + _responsiblePerson + ". " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
+            return _primaryNameServer + ". " + _responsiblePerson + ". " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
         }
 
         #endregion
 
         #region properties
 
-        public string MasterNameServer
-        { get { return _masterNameServer; } }
+        public string PrimaryNameServer
+        { get { return _primaryNameServer; } }
 
         public string ResponsiblePerson
         { get { return _responsiblePerson; } }
