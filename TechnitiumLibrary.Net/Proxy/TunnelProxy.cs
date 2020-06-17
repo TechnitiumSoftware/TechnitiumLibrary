@@ -89,7 +89,14 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 if (_socket != null)
                 {
-                    _socket.Shutdown(SocketShutdown.Both);
+                    try
+                    {
+                        if (_socket.Connected)
+                            _socket.Shutdown(SocketShutdown.Both);
+                    }
+                    catch
+                    { }
+
                     _socket.Dispose();
                 }
 
@@ -143,7 +150,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     }
                     while (tunnelSocket.Available > 0);
 
-                    
+
                     tunnelSocket.Send(_proxyOkResponse);
                 }
 
@@ -220,6 +227,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public IPEndPoint TunnelEndPoint
         { get { return _tunnelEP; } }
+
+        public bool IsBroken
+        { get { return _disposed; } }
 
         #endregion
     }
