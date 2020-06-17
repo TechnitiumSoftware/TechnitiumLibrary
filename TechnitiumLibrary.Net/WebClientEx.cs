@@ -242,7 +242,7 @@ namespace TechnitiumLibrary.Net
                         _tunnelProxy = null;
                     }
 
-                    if (_tunnelProxy == null)
+                    if ((_tunnelProxy == null) || _tunnelProxy.IsBroken)
                         _tunnelProxy = _proxy.CreateTunnelProxy(remoteEP, _timeout);
 
                     if (address.Scheme == "https")
