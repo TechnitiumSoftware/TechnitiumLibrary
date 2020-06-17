@@ -35,6 +35,7 @@ namespace TechnitiumLibrary.Net.Mail
         #region variables
 
         readonly static RandomNumberGenerator _rng = new RNGCryptoServiceProvider();
+        readonly static RemoteCertificateValidationCallback _existingServerCertificateValidationCallback;
 
         readonly FieldInfo _localHostName = GetLocalHostNameField();
         DnsClient _dnsClient;
@@ -49,6 +50,12 @@ namespace TechnitiumLibrary.Net.Mail
         #endregion
 
         #region constructors
+
+        static SmtpClientEx()
+        {
+            _existingServerCertificateValidationCallback = ServicePointManager.ServerCertificateValidationCallback;
+            ServicePointManager.ServerCertificateValidationCallback = ServerCertificateValidationCallback;
+        }
 
         public SmtpClientEx()
             : base()
@@ -88,12 +95,7 @@ namespace TechnitiumLibrary.Net.Mail
 
         #region static
 
-        public static void HandleServerCertificateValidation()
-        {
-            ServicePointManager.ServerCertificateValidationCallback = SmtpClientEx.ServerCertificateValidationCallback;
-        }
-
-        public static bool ServerCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        private static bool ServerCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             SmtpClientEx smtpClient = sender as SmtpClientEx;
             if (smtpClient != null)
@@ -120,9 +122,13 @@ namespace TechnitiumLibrary.Net.Mail
                         return false;
                 }
             }
+            else if (_existingServerCertificateValidationCallback != null)
+            {
+                return _existingServerCertificateValidationCallback(sender, certificate, chain, sslPolicyErrors);
+            }
             else
             {
-                return (sslPolicyErrors == SslPolicyErrors.None);
+                return sslPolicyErrors == SslPolicyErrors.None;
             }
         }
 
@@ -198,7 +204,7 @@ namespace TechnitiumLibrary.Net.Mail
                         _tunnelProxy = null;
                     }
 
-                    if (_tunnelProxy == null)
+                    if ((_tunnelProxy == null) || _tunnelProxy.IsBroken)
                         _tunnelProxy = _proxy.CreateTunnelProxy(remoteEP, base.Timeout);
 
                     base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
