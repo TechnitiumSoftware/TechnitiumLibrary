@@ -61,9 +61,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 if (_socket != null)
                     _socket.Dispose();
-
-                _disposed = true;
             }
+
+            _disposed = true;
         }
 
         #endregion
@@ -80,7 +80,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 try
                 {
-                    request.WriteTo(mS);
+                    request.WriteTo(mS, false);
                 }
                 catch (NotSupportedException)
                 {
@@ -132,7 +132,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             //parse response
             using (MemoryStream mS = new MemoryStream(buffer, 0, bufferSize, false))
             {
-                DnsDatagram response = new DnsDatagram(mS);
+                DnsDatagram response = new DnsDatagram(mS, false);
 
                 response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, bufferSize, stopwatch.Elapsed.TotalMilliseconds));
 
