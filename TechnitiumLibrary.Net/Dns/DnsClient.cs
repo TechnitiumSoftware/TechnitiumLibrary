@@ -1271,7 +1271,35 @@ namespace TechnitiumLibrary.Net.Dns
                             switchProtocol = false;
 
                             //get connection
-                            using (DnsClientConnection connection = DnsClientConnection.GetConnection(protocol, server, _proxy))
+                            DnsClientConnection connection;
+
+                            if ((request.Question.Count > 0) && (request.Question[0].Type == DnsResourceRecordType.AXFR))
+                            {
+                                //use separate connection for zone transfer
+                                if (protocol == DnsTransportProtocol.Udp)
+                                    protocol = DnsTransportProtocol.Tcp;
+
+                                switch (protocol)
+                                {
+                                    case DnsTransportProtocol.Tcp:
+                                        connection = new TcpClientConnection(server, _proxy);
+                                        break;
+
+                                    case DnsTransportProtocol.Tls:
+                                        connection = new TlsClientConnection(server, _proxy);
+                                        break;
+
+                                    default:
+                                        throw new NotSupportedException("DNS transport protocol not supported for zone transfer.");
+                                }
+                            }
+                            else
+                            {
+                                //use pooled connection
+                                connection = DnsClientConnection.GetConnection(protocol, server, _proxy);
+                            }
+
+                            using (connection)
                             {
                                 int timeout = _timeout / _retries;
 
