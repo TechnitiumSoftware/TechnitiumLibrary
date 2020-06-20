@@ -23,7 +23,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
-using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
@@ -34,12 +33,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         const int SOCKET_RECEIVE_TIMEOUT = 10000; //to keep connection alive for reuse
 
+        bool _pooled;
+
         Stream _tcpStream;
         Thread _readThread;
 
         readonly ConcurrentDictionary<ushort, Transaction> _transactions = new ConcurrentDictionary<ushort, Transaction>();
 
-        readonly byte[] _lengthBuffer = new byte[2];
         readonly MemoryStream _sendBuffer = new MemoryStream(32);
         readonly MemoryStream _recvBuffer = new MemoryStream(64);
 
@@ -58,6 +58,26 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         protected TcpClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
             : base(protocol, server, proxy)
         { }
+
+        #endregion
+
+        #region IDisposable
+
+        bool _disposed;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+
+            if (disposing && !_pooled)
+            {
+                if (_tcpStream != null)
+                    _tcpStream.Dispose();
+            }
+
+            _disposed = true;
+        }
 
         #endregion
 
@@ -95,7 +115,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             socket.ReceiveBufferSize = 2048;
             socket.NoDelay = true;
 
-            _tcpStream = new WriteBufferedStream(GetNetworkStream(socket), 2048);
+            _tcpStream = GetNetworkStream(socket);
 
             _readThread = new Thread(ReadDnsDatagramAsync);
             _readThread.IsBackground = true;
@@ -110,24 +130,15 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 while (true)
                 {
-                    //read response datagram length
-                    _tcpStream.ReadBytes(_lengthBuffer, 0, 2);
-                    Array.Reverse(_lengthBuffer, 0, 2);
-                    int length = BitConverter.ToUInt16(_lengthBuffer, 0);
-
                     //read response datagram
-                    _recvBuffer.SetLength(0);
-                    _tcpStream.CopyTo(_recvBuffer, 64, length);
-
-                    _recvBuffer.Position = 0;
-                    DnsDatagram response = new DnsDatagram(_recvBuffer);
+                    DnsDatagram response = new DnsDatagram(_tcpStream, true, _recvBuffer);
 
                     //signal waiting thread of response
                     if (_transactions.TryGetValue(response.Identifier, out Transaction transaction))
                     {
                         transaction.Stopwatch.Stop();
 
-                        response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, length, transaction.Stopwatch.Elapsed.TotalMilliseconds));
+                        response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, response.Size, transaction.Stopwatch.Elapsed.TotalMilliseconds));
 
                         transaction.Response = response;
                         transaction.WaitHandle.Set();
@@ -162,6 +173,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region public
 
+        internal void SetPooled()
+        {
+            _pooled = true;
+        }
+
         public override DnsDatagram Query(DnsDatagram request, int timeout)
         {
             Transaction transaction = new Transaction();
@@ -176,19 +192,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     //get connection
                     Stream tcpStream = GetConnection(timeout);
 
-                    //serialize request
-                    _sendBuffer.SetLength(0);
-                    request.WriteTo(_sendBuffer);
-
-                    byte[] lengthBuffer = BitConverter.GetBytes(Convert.ToUInt16(_sendBuffer.Length));
-                    Array.Reverse(lengthBuffer);
-
                     transaction.Stopwatch.Start();
 
                     //send request
-                    tcpStream.Write(lengthBuffer);
-                    _sendBuffer.Position = 0;
-                    _sendBuffer.CopyTo(tcpStream, 32);
+                    request.WriteTo(tcpStream, true, _sendBuffer);
 
                     tcpStream.Flush();
                 }
