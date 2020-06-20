@@ -143,7 +143,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                         return existingTcpConnection.GetOrAdd(proxyKey, delegate (object netProxyKey)
                         {
-                            return new TcpClientConnection(server, proxy);
+                            TcpClientConnection connection = new TcpClientConnection(server, proxy);
+                            connection.SetPooled();
+                            return connection;
                         });
                     }
 
@@ -161,7 +163,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                         return existingTlsConnection.GetOrAdd(proxyKey, delegate (object netProxyKey)
                         {
-                            return new TlsClientConnection(server, proxy);
+                            TlsClientConnection connection = new TlsClientConnection(server, proxy);
+                            connection.SetPooled();
+                            return connection;
                         });
                     }
 
