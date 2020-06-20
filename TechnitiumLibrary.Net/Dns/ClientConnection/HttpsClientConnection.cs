@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             using (MemoryStream mS = new MemoryStream(32))
             {
-                request.WriteTo(mS);
+                request.WriteTo(mS, false);
                 requestBuffer = mS.ToArray();
             }
 
@@ -84,7 +84,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             //parse response
             using (MemoryStream mS = new MemoryStream(responseBuffer, false))
             {
-                DnsDatagram response = new DnsDatagram(mS);
+                DnsDatagram response = new DnsDatagram(mS, false);
 
                 response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, responseBuffer.Length, stopwatch.Elapsed.TotalMilliseconds));
 
