@@ -67,6 +67,7 @@ namespace TechnitiumLibrary.Net.Dns
         readonly static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         DnsDatagramMetadata _metadata;
+        readonly int _size;
 
         ushort _ID;
 
@@ -136,11 +137,70 @@ namespace TechnitiumLibrary.Net.Dns
                 _additional = Array.Empty<DnsResourceRecord>();
         }
 
-        public DnsDatagram(Stream s)
+        public DnsDatagram(Stream stream, bool tcp, MemoryStream sharedBuffer = null)
         {
-            try
+            List<DnsQuestionRecord> question = null;
+            List<DnsResourceRecord> answer = null;
+            List<DnsResourceRecord> authority = null;
+            List<DnsResourceRecord> additional = null;
+
+            Stream s = null;
+
+            do
             {
-                _ID = ReadUInt16NetworkOrder(s);
+                if (tcp)
+                {
+                    if (question != null)
+                    {
+                        if (question.Count == 0)
+                            break;
+
+                        if (question[0].Type != DnsResourceRecordType.AXFR)
+                            break;
+
+                        if (answer.Count == 0)
+                            break;
+
+                        DnsResourceRecord lastAnswer = answer[answer.Count - 1];
+                        if ((lastAnswer.Type == DnsResourceRecordType.SOA) && lastAnswer.Name.Equals(question[0].Name, StringComparison.OrdinalIgnoreCase))
+                            break; //zone transfer complete
+                    }
+
+                    ushort length = ReadUInt16NetworkOrder(stream);
+
+                    if (s == null)
+                    {
+                        if (sharedBuffer == null)
+                            s = new MemoryStream(Convert.ToInt32(length * 1.25));
+                        else
+                            s = sharedBuffer;
+                    }
+
+                    s.SetLength(0);
+                    stream.CopyTo(s, 512, length);
+                    _size += length;
+                    s.Position = 0;
+
+                    if (question == null)
+                    {
+                        _ID = ReadUInt16NetworkOrder(s);
+                    }
+                    else
+                    {
+                        ushort ID = ReadUInt16NetworkOrder(s);
+                        if (ID != _ID)
+                            throw new DnsClientException("Error while parsing TCP response: response ID does not match with previous response ID.");
+                    }
+                }
+                else
+                {
+                    if (!stream.CanSeek)
+                        throw new NotSupportedException("Stream must support seeking.");
+
+                    s = stream;
+
+                    _ID = ReadUInt16NetworkOrder(s);
+                }
 
                 int lB = s.ReadByte();
                 _QR = Convert.ToByte((lB & 0x80) >> 7);
@@ -161,34 +221,50 @@ namespace TechnitiumLibrary.Net.Dns
                 ushort NSCOUNT = ReadUInt16NetworkOrder(s);
                 ushort ARCOUNT = ReadUInt16NetworkOrder(s);
 
-                DnsQuestionRecord[] question = new DnsQuestionRecord[QDCOUNT];
-                for (int i = 0; i < question.Length; i++)
-                    question[i] = new DnsQuestionRecord(s);
+                if (question == null)
+                    question = new List<DnsQuestionRecord>(QDCOUNT);
 
-                _question = question;
+                if (answer == null)
+                    answer = new List<DnsResourceRecord>(ANCOUNT);
 
-                DnsResourceRecord[] answer = new DnsResourceRecord[ANCOUNT];
-                for (int i = 0; i < answer.Length; i++)
-                    answer[i] = new DnsResourceRecord(s);
+                if (authority == null)
+                    authority = new List<DnsResourceRecord>(NSCOUNT);
 
-                _answer = answer;
+                if (additional == null)
+                    additional = new List<DnsResourceRecord>(ARCOUNT);
 
-                DnsResourceRecord[] authority = new DnsResourceRecord[NSCOUNT];
-                for (int i = 0; i < authority.Length; i++)
-                    authority[i] = new DnsResourceRecord(s);
+                try
+                {
+                    for (int i = 0; i < QDCOUNT; i++)
+                        question.Add(new DnsQuestionRecord(s));
 
-                _authority = authority;
+                    for (int i = 0; i < ANCOUNT; i++)
+                        answer.Add(new DnsResourceRecord(s));
 
-                DnsResourceRecord[] additional = new DnsResourceRecord[ARCOUNT];
-                for (int i = 0; i < additional.Length; i++)
-                    additional[i] = new DnsResourceRecord(s);
+                    for (int i = 0; i < NSCOUNT; i++)
+                        authority.Add(new DnsResourceRecord(s));
 
-                _additional = additional;
+                    for (int i = 0; i < ARCOUNT; i++)
+                        additional.Add(new DnsResourceRecord(s));
+                }
+                catch (Exception ex)
+                {
+                    _parsingException = ex;
+                    break;
+                }
             }
-            catch (Exception ex)
-            {
-                _parsingException = ex;
-            }
+            while (tcp);
+
+            if (tcp && (sharedBuffer == null))
+                s.Dispose();
+
+            if (!tcp)
+                _size = (int)stream.Length;
+
+            _question = question;
+            _answer = answer;
+            _authority = authority;
+            _additional = additional;
 
             if (_question == null)
                 _question = Array.Empty<DnsQuestionRecord>();
@@ -290,7 +366,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             byte[] b = BitConverter.GetBytes(value);
             Array.Reverse(b);
-            s.Write(b, 0, b.Length);
+            s.Write(b, 0, 2);
         }
 
         internal static uint ReadUInt32NetworkOrder(Stream s)
@@ -304,7 +380,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             byte[] b = BitConverter.GetBytes(value);
             Array.Reverse(b);
-            s.Write(b, 0, b.Length);
+            s.Write(b, 0, 4);
         }
 
         public static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries = null)
@@ -443,29 +519,81 @@ namespace TechnitiumLibrary.Net.Dns
             _ID = BitConverter.ToUInt16(buffer, 0);
         }
 
-        public void WriteTo(Stream s)
+        public void WriteTo(Stream s, bool tcp)
         {
-            WriteUInt16NetworkOrder(_ID, s);
-            s.WriteByte(Convert.ToByte((_QR << 7) | ((byte)_OPCODE << 3) | (_AA << 2) | (_TC << 1) | _RD));
-            s.WriteByte(Convert.ToByte((_RA << 7) | (_Z << 6) | (_AD << 5) | (_CD << 4) | (byte)_RCODE));
-            WriteUInt16NetworkOrder(Convert.ToUInt16(_question.Count), s);
-            WriteUInt16NetworkOrder(Convert.ToUInt16(_answer.Count), s);
-            WriteUInt16NetworkOrder(Convert.ToUInt16(_authority.Count), s);
-            WriteUInt16NetworkOrder(Convert.ToUInt16(_additional.Count), s);
+            if (tcp)
+            {
+                using (MemoryStream mS = new MemoryStream())
+                {
+                    WriteTo(s, true, mS);
+                }
+            }
+            else
+            {
+                WriteTo(s, false, null);
+            }
+        }
 
-            List<DnsDomainOffset> domainEntries = new List<DnsDomainOffset>(1);
+        public void WriteTo(Stream s, bool tcp, MemoryStream sharedBuffer)
+        {
+            if (tcp)
+            {
+                OffsetStream datagramStream = new OffsetStream(sharedBuffer);
 
-            for (int i = 0; i < _question.Count; i++)
-                _question[i].WriteTo(s, domainEntries);
+                if ((_question.Count > 0) && (_question[0].Type == DnsResourceRecordType.AXFR))
+                {
+                    int iQD = 0;
+                    int iAN = 0;
+                    int QDCOUNT;
+                    int ANCOUNT;
+                    List<DnsDomainOffset> domainEntries = new List<DnsDomainOffset>(1);
 
-            for (int i = 0; i < _answer.Count; i++)
-                _answer[i].WriteTo(s, domainEntries);
+                    do
+                    {
+                        sharedBuffer.SetLength(0);
+                        datagramStream.Reset(2, 12, 12);
 
-            for (int i = 0; i < _authority.Count; i++)
-                _authority[i].WriteTo(s, domainEntries);
+                        QDCOUNT = 0;
+                        ANCOUNT = 0;
+                        domainEntries.Clear();
 
-            for (int i = 0; i < _additional.Count; i++)
-                _additional[i].WriteTo(s, domainEntries);
+                        for (; iQD < _question.Count; iQD++, QDCOUNT++)
+                            _question[iQD].WriteTo(datagramStream, domainEntries);
+
+                        for (; iAN < _answer.Count; iAN++, ANCOUNT++)
+                        {
+                            _answer[iAN].WriteTo(datagramStream, domainEntries);
+
+                            if (sharedBuffer.Length >= 16384)
+                                break;
+                        }
+
+                        sharedBuffer.Position = 0;
+                        WriteUInt16NetworkOrder(Convert.ToUInt16(sharedBuffer.Length - 2), sharedBuffer);
+                        WriteHeaders(sharedBuffer, QDCOUNT, ANCOUNT, 0, 0);
+
+                        sharedBuffer.Position = 0;
+                        sharedBuffer.CopyTo(s, 512);
+                    }
+                    while (iAN < _answer.Count);
+                }
+                else
+                {
+                    sharedBuffer.SetLength(0);
+                    datagramStream.Reset(2, 0, 0);
+                    WriteDatagram(datagramStream);
+
+                    sharedBuffer.Position = 0;
+                    WriteUInt16NetworkOrder(Convert.ToUInt16(sharedBuffer.Length - 2), sharedBuffer);
+
+                    sharedBuffer.Position = 0;
+                    sharedBuffer.CopyTo(s, 512);
+                }
+            }
+            else
+            {
+                WriteDatagram(s);
+            }
         }
 
         public void WriteTo(JsonTextWriter jsonWriter)
@@ -520,6 +648,10 @@ namespace TechnitiumLibrary.Net.Dns
             jsonWriter.WriteEndObject();
         }
 
+        #endregion
+
+        #region private
+
         private void WriteSection(JsonTextWriter jsonWriter, IReadOnlyList<DnsResourceRecord> section, string sectionName)
         {
             jsonWriter.WritePropertyName(sectionName);
@@ -547,12 +679,46 @@ namespace TechnitiumLibrary.Net.Dns
             jsonWriter.WriteEndArray();
         }
 
+        private void WriteDatagram(Stream s)
+        {
+            WriteHeaders(s, _question.Count, _answer.Count, _authority.Count, _additional.Count);
+
+            List<DnsDomainOffset> domainEntries = new List<DnsDomainOffset>(1);
+
+            for (int i = 0; i < _question.Count; i++)
+                _question[i].WriteTo(s, domainEntries);
+
+            for (int i = 0; i < _answer.Count; i++)
+                _answer[i].WriteTo(s, domainEntries);
+
+            for (int i = 0; i < _authority.Count; i++)
+                _authority[i].WriteTo(s, domainEntries);
+
+            for (int i = 0; i < _additional.Count; i++)
+                _additional[i].WriteTo(s, domainEntries);
+        }
+
+        private void WriteHeaders(Stream s, int QDCOUNT, int ANCOUNT, int NSCOUNT, int ARCOUNT)
+        {
+            WriteUInt16NetworkOrder(_ID, s);
+            s.WriteByte(Convert.ToByte((_QR << 7) | ((byte)_OPCODE << 3) | (_AA << 2) | (_TC << 1) | _RD));
+            s.WriteByte(Convert.ToByte((_RA << 7) | (_Z << 6) | (_AD << 5) | (_CD << 4) | (byte)_RCODE));
+            WriteUInt16NetworkOrder(Convert.ToUInt16(QDCOUNT), s);
+            WriteUInt16NetworkOrder(Convert.ToUInt16(ANCOUNT), s);
+            WriteUInt16NetworkOrder(Convert.ToUInt16(NSCOUNT), s);
+            WriteUInt16NetworkOrder(Convert.ToUInt16(ARCOUNT), s);
+        }
+
         #endregion
 
         #region properties
 
         public DnsDatagramMetadata Metadata
         { get { return _metadata; } }
+
+        [IgnoreDataMember]
+        public int Size
+        { get { return _size; } }
 
         public ushort Identifier
         { get { return _ID; } }
