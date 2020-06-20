@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,12 +26,12 @@ namespace TechnitiumLibrary.IO
     {
         #region variables
 
-        Stream _stream;
+        readonly Stream _stream;
         long _offset;
         long _length;
         long _position;
-        bool _readOnly;
-        bool _ownStream;
+        readonly bool _readOnly;
+        readonly bool _ownStream;
 
         #endregion
 
@@ -97,7 +97,7 @@ namespace TechnitiumLibrary.IO
         { get { return _stream.CanSeek; } }
 
         public override bool CanWrite
-        { get { return (_stream.CanWrite && !_readOnly); } }
+        { get { return _stream.CanWrite && !_readOnly; } }
 
         public override long Length
         { get { return _length; } }
@@ -110,20 +110,23 @@ namespace TechnitiumLibrary.IO
             }
             set
             {
-                if (value > _length)
+                if (_readOnly && (value > _length))
                     throw new EndOfStreamException();
 
                 if (!_stream.CanSeek)
-                    throw new NotSupportedException("Cannot seek stream.");
+                    throw new InvalidOperationException("Cannot seek stream.");
 
                 _position = value;
+
+                if (_position > _length)
+                    _length = _position;
             }
         }
 
         public override void Flush()
         {
             if (_readOnly)
-                throw new IOException("OffsetStream is read only.");
+                throw new InvalidOperationException("OffsetStream is read only.");
 
             _stream.Flush();
         }
@@ -151,7 +154,7 @@ namespace TechnitiumLibrary.IO
         public override long Seek(long offset, SeekOrigin origin)
         {
             if (!_stream.CanSeek)
-                throw new IOException("Stream is not seekable.");
+                throw new InvalidOperationException("Stream is not seekable.");
 
             long pos;
 
@@ -185,7 +188,7 @@ namespace TechnitiumLibrary.IO
         public override void SetLength(long value)
         {
             if (_readOnly)
-                throw new IOException("OffsetStream is read only.");
+                throw new InvalidOperationException("OffsetStream is read only.");
 
             _stream.SetLength(_offset + value);
             _length = value;
@@ -194,21 +197,19 @@ namespace TechnitiumLibrary.IO
         public override void Write(byte[] buffer, int offset, int count)
         {
             if (_readOnly)
-                throw new IOException("OffsetStream is read only.");
+                throw new InvalidOperationException("OffsetStream is read only.");
 
             if (count < 1)
                 return;
-
-            long pos = _position + count;
-
-            if (pos > _length)
-                throw new EndOfStreamException("OffsetStream reached end of stream.");
 
             if (_stream.CanSeek)
                 _stream.Position = _offset + _position;
 
             _stream.Write(buffer, offset, count);
-            _position = pos;
+            _position += count;
+
+            if (_position > _length)
+                _length = _position;
         }
 
         #endregion
@@ -236,7 +237,7 @@ namespace TechnitiumLibrary.IO
         public void WriteTo(Stream stream, int bufferSize)
         {
             if (!_stream.CanSeek)
-                throw new IOException("Stream is not seekable.");
+                throw new InvalidOperationException("Stream is not seekable.");
 
             if (_length < bufferSize)
                 bufferSize = Convert.ToInt32(_length);
