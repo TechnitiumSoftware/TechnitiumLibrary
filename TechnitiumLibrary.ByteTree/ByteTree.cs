@@ -371,9 +371,17 @@ namespace TechnitiumLibrary.ByteTree
                             }
                             else
                             {
-                                //another thread already placed new stem node
-                                //use new stem node reference as current and try again
-                                current = originalNode;
+                                //another thread already placed new stem node or removed it
+                                if (originalNode is null)
+                                {
+                                    //stem node was removed by another thread; start over again
+                                    current = this;
+                                }
+                                else
+                                {
+                                    //use new stem node reference as current and try again
+                                    current = originalNode;
+                                }
                             }
                         }
                         else
@@ -387,9 +395,14 @@ namespace TechnitiumLibrary.ByteTree
                                 return true;
                             }
 
-                            //another thread added value to stem node; return its reference
-                            existingValue = originalValue;
-                            return false;
+                            if (originalValue != null)
+                            {
+                                //another thread added value to stem node; return its reference
+                                existingValue = originalValue;
+                                return false;
+                            }
+
+                            //another thread removed value; try again
                         }
                     }
                 }
