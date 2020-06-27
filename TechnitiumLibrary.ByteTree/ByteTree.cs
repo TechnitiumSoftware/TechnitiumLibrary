@@ -62,6 +62,27 @@ namespace TechnitiumLibrary.ByteTree
 
         protected abstract byte[] ConvertToByteKey(TKey key);
 
+        protected bool TryRemove(TKey key, out TValue value, out Node closestNode)
+        {
+            if (key == null)
+                throw new ArgumentNullException(nameof(key));
+
+            byte[] bKey = ConvertToByteKey(key);
+
+            NodeValue removedValue = _root.RemoveNodeValue(bKey, out closestNode);
+            if (removedValue == null)
+            {
+                value = default;
+                return false;
+            }
+
+            //by default TryRemove wont call closestNode.CleanThisBranch() so that operations are atomic but will use up memory since stem nodes wont be cleaned up
+            //override the public method if the implementation requires to save memory and take a chance of remove operation deleting an added NodeValue due to race condition
+
+            value = removedValue.Value;
+            return true;
+        }
+
         #endregion
 
         #region public
@@ -163,23 +184,7 @@ namespace TechnitiumLibrary.ByteTree
 
         public virtual bool TryRemove(TKey key, out TValue value)
         {
-            if (key == null)
-                throw new ArgumentNullException(nameof(key));
-
-            byte[] bKey = ConvertToByteKey(key);
-
-            NodeValue removedValue = _root.RemoveNodeValue(bKey, out _);
-            if (removedValue == null)
-            {
-                value = default;
-                return false;
-            }
-
-            //by default TryRemove wont call closestNode.CleanThisBranch() so that operations are atomic but will use up memory since stem nodes wont be cleaned up
-            //override this method if the implementation requires to save memory and take a chance of remove operation deleting an added NodeValue due to race condition
-
-            value = removedValue.Value;
-            return true;
+            return TryRemove(key, out value, out _);
         }
 
         public bool TryUpdate(TKey key, TValue newValue, TValue comparisonValue)
