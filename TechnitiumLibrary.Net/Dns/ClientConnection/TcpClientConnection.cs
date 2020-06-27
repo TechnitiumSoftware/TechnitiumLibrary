@@ -31,7 +31,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
     {
         #region variables
 
-        const int SOCKET_RECEIVE_TIMEOUT = 10000; //to keep connection alive for reuse
+        const int SOCKET_TIMEOUT = 30000; //to keep connection alive for reuse
 
         bool _pooled;
 
@@ -90,6 +90,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             Socket socket;
 
+            int socketTimeout = timeout > SOCKET_TIMEOUT ? timeout : SOCKET_TIMEOUT;
+
             if (_proxy == null)
             {
                 if (_server.IPEndPoint == null)
@@ -98,7 +100,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
                 IAsyncResult result = socket.BeginConnect(_server.IPEndPoint, null, null);
-                if (!result.AsyncWaitHandle.WaitOne(timeout))
+                if (!result.AsyncWaitHandle.WaitOne(socketTimeout))
                     throw new SocketException((int)SocketError.TimedOut);
 
                 if (!socket.Connected)
@@ -106,11 +108,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
             else
             {
-                socket = _proxy.Connect(_server.EndPoint, timeout);
+                socket = _proxy.Connect(_server.EndPoint, socketTimeout);
             }
 
-            socket.SendTimeout = timeout;
-            socket.ReceiveTimeout = SOCKET_RECEIVE_TIMEOUT;
+            socket.SendTimeout = socketTimeout;
+            socket.ReceiveTimeout = socketTimeout;
             socket.SendBufferSize = 512;
             socket.ReceiveBufferSize = 2048;
             socket.NoDelay = true;
@@ -156,6 +158,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         _tcpStream.Dispose();
                         _tcpStream = null;
                     }
+
+                    foreach (Transaction transaction in _transactions.Values)
+                    {
+                        transaction.Stopwatch.Stop();
+                        transaction.WaitHandle.Set();
+                    }
+
+                    _transactions.Clear();
                 }
             }
         }
