@@ -31,7 +31,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
     {
         #region variables
 
-        const int SOCKET_TIMEOUT = 30000; //to keep connection alive for reuse
+        const int SOCKET_CONNECT_TIMEOUT = 30000;
+        const int SOCKET_SEND_TIMEOUT = 30000;
+        const int SOCKET_RECEIVE_TIMEOUT = 60000; //to keep connection alive for reuse
 
         bool _pooled;
 
@@ -90,8 +92,6 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             Socket socket;
 
-            int socketTimeout = timeout > SOCKET_TIMEOUT ? timeout : SOCKET_TIMEOUT;
-
             if (_proxy == null)
             {
                 if (_server.IPEndPoint == null)
@@ -100,7 +100,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
                 IAsyncResult result = socket.BeginConnect(_server.IPEndPoint, null, null);
-                if (!result.AsyncWaitHandle.WaitOne(socketTimeout))
+                if (!result.AsyncWaitHandle.WaitOne(SOCKET_CONNECT_TIMEOUT))
                     throw new SocketException((int)SocketError.TimedOut);
 
                 if (!socket.Connected)
@@ -108,11 +108,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
             else
             {
-                socket = _proxy.Connect(_server.EndPoint, socketTimeout);
+                socket = _proxy.Connect(_server.EndPoint, SOCKET_CONNECT_TIMEOUT);
             }
 
-            socket.SendTimeout = socketTimeout;
-            socket.ReceiveTimeout = socketTimeout;
+            socket.SendTimeout = SOCKET_SEND_TIMEOUT;
+            socket.ReceiveTimeout = timeout > SOCKET_RECEIVE_TIMEOUT ? timeout : SOCKET_RECEIVE_TIMEOUT;
             socket.SendBufferSize = 512;
             socket.ReceiveBufferSize = 2048;
             socket.NoDelay = true;
@@ -190,15 +190,15 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         public override DnsDatagram Query(DnsDatagram request, int timeout)
         {
-            Transaction transaction = new Transaction();
-
-            while (!_transactions.TryAdd(request.Identifier, transaction))
-                request.SetRandomIdentifier();
-
             try
             {
+                Transaction transaction = new Transaction();
+
                 lock (_tcpStreamLock)
                 {
+                    while (!_transactions.TryAdd(request.Identifier, transaction))
+                        request.SetRandomIdentifier();
+
                     //get connection
                     Stream tcpStream = GetConnection(timeout);
 
@@ -206,13 +206,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     //send request
                     request.WriteTo(tcpStream, true, _sendBuffer);
-
                     tcpStream.Flush();
                 }
 
                 //wait for response
                 transaction.WaitHandle.WaitOne(timeout);
                 return transaction.Response;
+            }
+            catch (IOException)
+            {
+                //connection is closed, return null. retry attempt will reconnect back.
+                return null;
             }
             catch (ObjectDisposedException)
             {
