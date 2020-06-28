@@ -1301,8 +1301,6 @@ namespace TechnitiumLibrary.Net.Dns
 
                             using (connection)
                             {
-                                int timeout = _timeout / _retries;
-
                                 //query server
                                 int retry = 0;
                                 while (retry < _retries) //retry loop
@@ -1314,7 +1312,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                     try
                                     {
-                                        DnsDatagram response = connection.Query(asyncRequest, timeout);
+                                        DnsDatagram response = connection.Query(asyncRequest, _timeout);
                                         if (response != null)
                                         {
                                             //got response
@@ -1378,7 +1376,7 @@ namespace TechnitiumLibrary.Net.Dns
                     ThreadPool.QueueUserWorkItem(ResolveAsync);
 
                 //wait for first response
-                resolverHandle.WaitHandle.WaitOne(_timeout);
+                resolverHandle.WaitHandle.WaitOne(_timeout * _retries);
             }
             else
             {
