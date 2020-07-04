@@ -18,9 +18,9 @@
     <RepositoryType></RepositoryType>
     <Description>.NET Standard 2.0</Description>
     <PackageId>TechnitiumLibrary.IO</PackageId>
-    <AssemblyVersion>2.5.4.0</AssemblyVersion>
-    <FileVersion>2.5.4.0</FileVersion>
-    <Version>2.5.4</Version>
+    <AssemblyVersion>2.6.0.0</AssemblyVersion>
+    <FileVersion>2.6.0.0</FileVersion>
+    <Version>2.6</Version>
   </PropertyGroup>
 
 </Project>
