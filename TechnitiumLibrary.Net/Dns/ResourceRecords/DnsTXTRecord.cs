@@ -92,7 +92,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 offset += length;
             }
-            while (offset < length);
+            while (offset < data.Length);
         }
 
         #endregion
