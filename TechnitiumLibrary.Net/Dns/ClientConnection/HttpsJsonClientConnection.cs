@@ -58,26 +58,22 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (_server.IPEndPoint == null)
                         _server.RecursiveResolveIPAddress();
 
-                    stopwatch.Start();
-
                     queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
-
-                    stopwatch.Stop();
                 }
                 else
                 {
-                    stopwatch.Start();
-
                     queryUri = _server.DnsOverHttpEndPoint;
-
-                    stopwatch.Stop();
                 }
 
                 wC.QueryString.Clear();
                 wC.QueryString.Add("name", request.Question[0].Name);
                 wC.QueryString.Add("type", Convert.ToString((int)request.Question[0].Type));
 
+                stopwatch.Start();
+
                 responseBuffer = wC.DownloadData(queryUri);
+
+                stopwatch.Stop();
             }
 
             //parse response
