@@ -604,19 +604,19 @@ namespace TechnitiumLibrary.Net.Dns
             jsonWriter.WriteValue((int)_RCODE);
 
             jsonWriter.WritePropertyName("TC");
-            jsonWriter.WriteValue(_TC);
+            jsonWriter.WriteValue(_TC == 1);
 
             jsonWriter.WritePropertyName("RD");
-            jsonWriter.WriteValue(_RD);
+            jsonWriter.WriteValue(_RD == 1);
 
             jsonWriter.WritePropertyName("RA");
-            jsonWriter.WriteValue(_RA);
+            jsonWriter.WriteValue(_RA == 1);
 
             jsonWriter.WritePropertyName("AD");
-            jsonWriter.WriteValue(_AD);
+            jsonWriter.WriteValue(_AD == 1);
 
             jsonWriter.WritePropertyName("CD");
-            jsonWriter.WriteValue(_CD);
+            jsonWriter.WriteValue(_CD == 1);
 
             jsonWriter.WritePropertyName("Question");
             jsonWriter.WriteStartArray();
