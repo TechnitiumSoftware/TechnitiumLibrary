@@ -67,7 +67,7 @@ namespace TechnitiumLibrary.Net.Dns
             ROOT_NAME_SERVERS_IPv4 = new NameServerAddress[]
             {
                 new NameServerAddress("a.root-servers.net", IPAddress.Parse("198.41.0.4")), //VeriSign, Inc.
-                new NameServerAddress("b.root-servers.net", IPAddress.Parse("192.228.79.201")), //University of Southern California (ISI)
+                new NameServerAddress("b.root-servers.net", IPAddress.Parse("199.9.14.201")), //University of Southern California (ISI)
                 new NameServerAddress("c.root-servers.net", IPAddress.Parse("192.33.4.12")), //Cogent Communications
                 new NameServerAddress("d.root-servers.net", IPAddress.Parse("199.7.91.13")), //University of Maryland
                 new NameServerAddress("e.root-servers.net", IPAddress.Parse("192.203.230.10")), //NASA (Ames Research Center)
@@ -84,7 +84,7 @@ namespace TechnitiumLibrary.Net.Dns
             ROOT_NAME_SERVERS_IPv6 = new NameServerAddress[]
             {
                 new NameServerAddress("a.root-servers.net", IPAddress.Parse("2001:503:ba3e::2:30")), //VeriSign, Inc.
-                new NameServerAddress("b.root-servers.net", IPAddress.Parse("2001:500:84::b")), //University of Southern California (ISI)
+                new NameServerAddress("b.root-servers.net", IPAddress.Parse("2001:500:200::b")), //University of Southern California (ISI)
                 new NameServerAddress("c.root-servers.net", IPAddress.Parse("2001:500:2::c")), //Cogent Communications
                 new NameServerAddress("d.root-servers.net", IPAddress.Parse("2001:500:2d::d")), //University of Maryland
                 new NameServerAddress("e.root-servers.net", IPAddress.Parse("2001:500:a8::e")), //NASA (Ames Research Center)
