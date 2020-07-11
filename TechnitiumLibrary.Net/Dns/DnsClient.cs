@@ -19,10 +19,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Mail;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Threading;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.ClientConnection;
@@ -44,8 +46,8 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        static readonly IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv4;
-        static readonly IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv6;
+        readonly static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv4;
+        readonly static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv6;
 
         const int MAX_DELEGATION_HOPS = 16;
         const int MAX_CNAME_HOPS = 16;
@@ -64,39 +66,124 @@ namespace TechnitiumLibrary.Net.Dns
 
         static DnsClient()
         {
-            ROOT_NAME_SERVERS_IPv4 = new NameServerAddress[]
+            try
             {
-                new NameServerAddress("a.root-servers.net", IPAddress.Parse("198.41.0.4")), //VeriSign, Inc.
-                new NameServerAddress("b.root-servers.net", IPAddress.Parse("199.9.14.201")), //University of Southern California (ISI)
-                new NameServerAddress("c.root-servers.net", IPAddress.Parse("192.33.4.12")), //Cogent Communications
-                new NameServerAddress("d.root-servers.net", IPAddress.Parse("199.7.91.13")), //University of Maryland
-                new NameServerAddress("e.root-servers.net", IPAddress.Parse("192.203.230.10")), //NASA (Ames Research Center)
-                new NameServerAddress("f.root-servers.net", IPAddress.Parse("192.5.5.241")), //Internet Systems Consortium, Inc.
-                new NameServerAddress("g.root-servers.net", IPAddress.Parse("192.112.36.4")), //US Department of Defense (NIC)
-                new NameServerAddress("h.root-servers.net", IPAddress.Parse("198.97.190.53")), //US Army (Research Lab)
-                new NameServerAddress("i.root-servers.net", IPAddress.Parse("192.36.148.17")), //Netnod
-                new NameServerAddress("j.root-servers.net", IPAddress.Parse("192.58.128.30")), //VeriSign, Inc.
-                new NameServerAddress("k.root-servers.net", IPAddress.Parse("193.0.14.129")), //RIPE NCC
-                new NameServerAddress("l.root-servers.net", IPAddress.Parse("199.7.83.42")), //ICANN
-                new NameServerAddress("m.root-servers.net", IPAddress.Parse("202.12.27.33")) //WIDE Project
-            };
+                string rootHintsFile = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "named.root");
 
-            ROOT_NAME_SERVERS_IPv6 = new NameServerAddress[]
+                if (File.Exists(rootHintsFile))
+                {
+                    using (StreamReader sR = new StreamReader(rootHintsFile))
+                    {
+                        List<string> rootServers = new List<string>();
+                        List<NameServerAddress> ipv4RootNameServers = new List<NameServerAddress>(13);
+                        List<NameServerAddress> ipv6RootNameServers = new List<NameServerAddress>(13);
+
+                        while (true)
+                        {
+                            string line = sR.ReadLine();
+                            if (line == null)
+                                break;
+
+                            if (line.Length == 0)
+                                continue;
+
+                            if (line.StartsWith(";"))
+                                continue;
+
+                            string name = PopWord(ref line);
+                            if (name.Equals("."))
+                            {
+                                _ = PopWord(ref line); //TTL
+                                string type = PopWord(ref line);
+
+                                if (type.Equals("NS", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    string rootServer = PopWord(ref line);
+                                    rootServers.Add(rootServer.ToLower());
+                                }
+                            }
+                            else
+                            {
+                                name = name.ToLower();
+                                _ = PopWord(ref line); //TTL
+                                string type = PopWord(ref line);
+
+                                switch (type.ToUpper())
+                                {
+                                    case "A":
+                                        if (rootServers.Contains(name))
+                                        {
+                                            if (name.EndsWith("."))
+                                                name = name.Substring(0, name.Length - 1);
+
+                                            string strAddress = PopWord(ref line);
+                                            if (IPAddress.TryParse(strAddress, out IPAddress address) && address.AddressFamily == AddressFamily.InterNetwork)
+                                                ipv4RootNameServers.Add(new NameServerAddress(name, address));
+                                        }
+                                        break;
+
+                                    case "AAAA":
+                                        if (rootServers.Contains(name))
+                                        {
+                                            if (name.EndsWith("."))
+                                                name = name.Substring(0, name.Length - 1);
+
+                                            string strAddress = PopWord(ref line);
+                                            if (IPAddress.TryParse(strAddress, out IPAddress address) && address.AddressFamily == AddressFamily.InterNetworkV6)
+                                                ipv6RootNameServers.Add(new NameServerAddress(name, address));
+                                        }
+                                        break;
+                                }
+                            }
+                        }
+
+                        ROOT_NAME_SERVERS_IPv4 = ipv4RootNameServers;
+                        ROOT_NAME_SERVERS_IPv6 = ipv6RootNameServers;
+                    }
+                }
+            }
+            catch
+            { }
+
+            if (ROOT_NAME_SERVERS_IPv4 == null)
             {
-                new NameServerAddress("a.root-servers.net", IPAddress.Parse("2001:503:ba3e::2:30")), //VeriSign, Inc.
-                new NameServerAddress("b.root-servers.net", IPAddress.Parse("2001:500:200::b")), //University of Southern California (ISI)
-                new NameServerAddress("c.root-servers.net", IPAddress.Parse("2001:500:2::c")), //Cogent Communications
-                new NameServerAddress("d.root-servers.net", IPAddress.Parse("2001:500:2d::d")), //University of Maryland
-                new NameServerAddress("e.root-servers.net", IPAddress.Parse("2001:500:a8::e")), //NASA (Ames Research Center)
-                new NameServerAddress("f.root-servers.net", IPAddress.Parse("2001:500:2f::f")), //Internet Systems Consortium, Inc.
-                new NameServerAddress("g.root-servers.net", IPAddress.Parse("2001:500:12::d0d")), //US Department of Defense (NIC)
-                new NameServerAddress("h.root-servers.net", IPAddress.Parse("2001:500:1::53")), //US Army (Research Lab)
-                new NameServerAddress("i.root-servers.net", IPAddress.Parse("2001:7fe::53")), //Netnod
-                new NameServerAddress("j.root-servers.net", IPAddress.Parse("2001:503:c27::2:30")), //VeriSign, Inc.
-                new NameServerAddress("k.root-servers.net", IPAddress.Parse("2001:7fd::1")), //RIPE NCC
-                new NameServerAddress("l.root-servers.net", IPAddress.Parse("2001:500:9f::42")), //ICANN
-                new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")) //WIDE Project
-            };
+                ROOT_NAME_SERVERS_IPv4 = new NameServerAddress[]
+                {
+                    new NameServerAddress("a.root-servers.net", IPAddress.Parse("198.41.0.4")), //VeriSign, Inc.
+                    new NameServerAddress("b.root-servers.net", IPAddress.Parse("199.9.14.201")), //University of Southern California (ISI)
+                    new NameServerAddress("c.root-servers.net", IPAddress.Parse("192.33.4.12")), //Cogent Communications
+                    new NameServerAddress("d.root-servers.net", IPAddress.Parse("199.7.91.13")), //University of Maryland
+                    new NameServerAddress("e.root-servers.net", IPAddress.Parse("192.203.230.10")), //NASA (Ames Research Center)
+                    new NameServerAddress("f.root-servers.net", IPAddress.Parse("192.5.5.241")), //Internet Systems Consortium, Inc.
+                    new NameServerAddress("g.root-servers.net", IPAddress.Parse("192.112.36.4")), //US Department of Defense (NIC)
+                    new NameServerAddress("h.root-servers.net", IPAddress.Parse("198.97.190.53")), //US Army (Research Lab)
+                    new NameServerAddress("i.root-servers.net", IPAddress.Parse("192.36.148.17")), //Netnod
+                    new NameServerAddress("j.root-servers.net", IPAddress.Parse("192.58.128.30")), //VeriSign, Inc.
+                    new NameServerAddress("k.root-servers.net", IPAddress.Parse("193.0.14.129")), //RIPE NCC
+                    new NameServerAddress("l.root-servers.net", IPAddress.Parse("199.7.83.42")), //ICANN
+                    new NameServerAddress("m.root-servers.net", IPAddress.Parse("202.12.27.33")) //WIDE Project
+                };
+            }
+
+            if (ROOT_NAME_SERVERS_IPv6 == null)
+            {
+                ROOT_NAME_SERVERS_IPv6 = new NameServerAddress[]
+                {
+                    new NameServerAddress("a.root-servers.net", IPAddress.Parse("2001:503:ba3e::2:30")), //VeriSign, Inc.
+                    new NameServerAddress("b.root-servers.net", IPAddress.Parse("2001:500:200::b")), //University of Southern California (ISI)
+                    new NameServerAddress("c.root-servers.net", IPAddress.Parse("2001:500:2::c")), //Cogent Communications
+                    new NameServerAddress("d.root-servers.net", IPAddress.Parse("2001:500:2d::d")), //University of Maryland
+                    new NameServerAddress("e.root-servers.net", IPAddress.Parse("2001:500:a8::e")), //NASA (Ames Research Center)
+                    new NameServerAddress("f.root-servers.net", IPAddress.Parse("2001:500:2f::f")), //Internet Systems Consortium, Inc.
+                    new NameServerAddress("g.root-servers.net", IPAddress.Parse("2001:500:12::d0d")), //US Department of Defense (NIC)
+                    new NameServerAddress("h.root-servers.net", IPAddress.Parse("2001:500:1::53")), //US Army (Research Lab)
+                    new NameServerAddress("i.root-servers.net", IPAddress.Parse("2001:7fe::53")), //Netnod
+                    new NameServerAddress("j.root-servers.net", IPAddress.Parse("2001:503:c27::2:30")), //VeriSign, Inc.
+                    new NameServerAddress("k.root-servers.net", IPAddress.Parse("2001:7fd::1")), //RIPE NCC
+                    new NameServerAddress("l.root-servers.net", IPAddress.Parse("2001:500:9f::42")), //ICANN
+                    new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")) //WIDE Project
+                };
+            }
         }
 
         public DnsClient(Uri dohEndPoint)
@@ -1175,6 +1262,34 @@ namespace TechnitiumLibrary.Net.Dns
             while (labelEnd < domain.Length);
 
             return true;
+        }
+
+        #endregion
+
+        #region private
+
+        private static string PopWord(ref string line)
+        {
+            if (line.Length == 0)
+                return line;
+
+            line = line.TrimStart(' ', '\t');
+
+            int i = line.IndexOfAny(new char[] { ' ', '\t' });
+            string word;
+
+            if (i < 0)
+            {
+                word = line;
+                line = "";
+            }
+            else
+            {
+                word = line.Substring(0, i);
+                line = line.Substring(i + 1);
+            }
+
+            return word;
         }
 
         #endregion
