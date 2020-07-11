@@ -1230,6 +1230,8 @@ namespace TechnitiumLibrary.Net.Dns
 
             void ResolveAsync(object state)
             {
+                CountdownEvent countdown = state as CountdownEvent;
+
                 try
                 {
                     DnsDatagram asyncRequest = request.Clone();
@@ -1367,16 +1369,23 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     resolverHandle.LastException = ex;
                 }
+                finally
+                {
+                    if (countdown != null)
+                        countdown.Signal();
+                }
             }
 
             if (threads > 1)
             {
+                CountdownEvent countdown = new CountdownEvent(threads);
+
                 //start worker threads
                 for (int i = 0; i < threads; i++)
-                    ThreadPool.QueueUserWorkItem(ResolveAsync);
+                    ThreadPool.QueueUserWorkItem(ResolveAsync, countdown);
 
-                //wait for first response
-                resolverHandle.WaitHandle.WaitOne(_timeout * _retries);
+                //wait for first response or for all threads to exit
+                WaitHandle.WaitAny(new WaitHandle[] { resolverHandle.WaitHandle, countdown.WaitHandle }, _timeout * _retries);
             }
             else
             {
