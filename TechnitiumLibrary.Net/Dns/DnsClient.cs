@@ -471,18 +471,26 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         NameServerAddress currentNameServer = currentNameServers[i];
 
-                        if ((currentNameServer.IPEndPoint == null) && (proxy == null))
+                        if (currentNameServer.IPEndPoint == null)
                         {
-                            resolverStack.Push(new ResolverData(question, currentNameServers, i, hopCount));
+                            if (proxy == null)
+                            {
+                                resolverStack.Push(new ResolverData(question, currentNameServers, i, hopCount));
 
-                            if (preferIPv6)
-                                question = new DnsQuestionRecord(currentNameServer.Host, DnsResourceRecordType.AAAA, question.Class);
-                            else
-                                question = new DnsQuestionRecord(currentNameServer.Host, DnsResourceRecordType.A, question.Class);
+                                if (preferIPv6)
+                                    question = new DnsQuestionRecord(currentNameServer.Host, DnsResourceRecordType.AAAA, question.Class);
+                                else
+                                    question = new DnsQuestionRecord(currentNameServer.Host, DnsResourceRecordType.A, question.Class);
 
-                            question.ZoneCut = ""; //enable QNAME minimization by setting zone cut to <root>
-                            currentNameServers = null;
-                            goto stackLoop;
+                                question.ZoneCut = ""; //enable QNAME minimization by setting zone cut to <root>
+                                currentNameServers = null;
+                                goto stackLoop;
+                            }
+                        }
+                        else if (IPAddress.IsLoopback(currentNameServer.IPEndPoint.Address))
+                        {
+                            //skip this name server since it will cause resolution loops
+                            continue; //try next name server
                         }
 
                         DnsClient client = new DnsClient(currentNameServer);
