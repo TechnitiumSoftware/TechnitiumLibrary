@@ -21,6 +21,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
@@ -90,7 +91,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
                 catch
                 { }
-            }, null, MAINTENANCE_TIMER_INITIAL_INTERVAL, MAINTENANCE_TIMER_PERIODIC_INTERVAL);
+            });
+
+            _maintenanceTimer.Change(MAINTENANCE_TIMER_INITIAL_INTERVAL, MAINTENANCE_TIMER_PERIODIC_INTERVAL);
         }
 
         protected DnsClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
@@ -178,7 +181,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region public
 
-        public abstract DnsDatagram Query(DnsDatagram request, int timeout);
+        public DnsDatagram Query(DnsDatagram request, int timeout)
+        {
+            return Task.Run(delegate () { return QueryAsync(request, timeout); }).Result;
+        }
+
+        public abstract Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout);
 
         #endregion
 
