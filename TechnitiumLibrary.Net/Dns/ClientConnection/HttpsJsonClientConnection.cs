@@ -21,6 +21,7 @@ using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
 using System.Text;
+using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
@@ -37,7 +38,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region public
 
-        public override DnsDatagram Query(DnsDatagram request, int timeout)
+        public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout)
         {
             //DoH JSON format request 
             Stopwatch stopwatch = new Stopwatch();
@@ -62,7 +63,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
                 else
                 {
-                    queryUri = _server.DnsOverHttpEndPoint;
+                    if (_server.IPEndPoint == null)
+                        queryUri = _server.DnsOverHttpEndPoint;
+                    else
+                        queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }
 
                 wC.QueryString.Clear();
@@ -71,7 +75,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 stopwatch.Start();
 
-                responseBuffer = wC.DownloadData(queryUri);
+                responseBuffer = await wC.DownloadDataTaskAsync(queryUri);
 
                 stopwatch.Stop();
             }
