@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
@@ -36,14 +37,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region public
 
-        public override DnsDatagram Query(DnsDatagram request, int timeout)
+        public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout)
         {
             //serialize request
             byte[] requestBuffer;
 
             using (MemoryStream mS = new MemoryStream(32))
             {
-                request.WriteTo(mS, false);
+                request.WriteToUdp(mS);
                 requestBuffer = mS.ToArray();
             }
 
@@ -60,25 +61,28 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 wC.Proxy = _proxy;
                 wC.Timeout = timeout;
 
+                Uri queryUri;
+
                 if (_proxy == null)
                 {
                     if (_server.IPEndPoint == null)
                         _server.RecursiveResolveIPAddress();
 
-                    stopwatch.Start();
-
-                    responseBuffer = wC.UploadData(new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery), requestBuffer);
-
-                    stopwatch.Stop();
+                    queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }
                 else
                 {
-                    stopwatch.Start();
-
-                    responseBuffer = wC.UploadData(_server.DnsOverHttpEndPoint, requestBuffer);
-
-                    stopwatch.Stop();
+                    if (_server.IPEndPoint == null)
+                        queryUri = _server.DnsOverHttpEndPoint;
+                    else
+                        queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }
+
+                stopwatch.Start();
+
+                responseBuffer = await wC.UploadDataTaskAsync(queryUri, requestBuffer);
+
+                stopwatch.Stop();
             }
 
             //parse response
