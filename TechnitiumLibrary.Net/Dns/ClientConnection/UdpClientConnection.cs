@@ -20,8 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Net;
 using System.Net.Sockets;
+using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
@@ -70,7 +70,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region public
 
-        public override DnsDatagram Query(DnsDatagram request, int timeout)
+        public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout)
         {
             //serialize request
             byte[] buffer = new byte[512];
@@ -80,7 +80,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 try
                 {
-                    request.WriteTo(mS, false);
+                    request.WriteToUdp(mS);
                 }
                 catch (NotSupportedException)
                 {
@@ -102,21 +102,19 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 stopwatch.Start();
 
                 //send request
-                _socket.SendTo(buffer, 0, bufferSize, SocketFlags.None, _server.IPEndPoint);
+                await _socket.SendToAsync(buffer, 0, bufferSize, SocketFlags.None, _server.IPEndPoint);
 
                 //receive request
-                EndPoint remoteEP;
-
-                if (_server.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
-                    remoteEP = new IPEndPoint(IPAddress.IPv6Any, 0);
-                else
-                    remoteEP = new IPEndPoint(IPAddress.Any, 0);
-
-                do
+                while (true)
                 {
-                    bufferSize = _socket.ReceiveFrom(buffer, ref remoteEP);
+                    ReceiveFromResult result = await _socket.ReceiveFromAsync(buffer, 0, buffer.Length, SocketFlags.None);
+
+                    if (_server.IPEndPoint.Equals(result.RemoteEndPoint))
+                    {
+                        bufferSize = result.BytesReceived;
+                        break;
+                    }
                 }
-                while (!_server.IPEndPoint.Equals(remoteEP));
 
                 stopwatch.Stop();
             }
