@@ -519,80 +519,71 @@ namespace TechnitiumLibrary.Net.Dns
             _ID = BitConverter.ToUInt16(buffer, 0);
         }
 
-        public void WriteTo(Stream s, bool tcp)
+        public void WriteToUdp(Stream s)
         {
-            if (tcp)
+            WriteDatagram(s);
+        }
+
+        public void WriteToTcpAsync(Stream s)
+        {
+            using (MemoryStream mS = new MemoryStream())
             {
-                using (MemoryStream mS = new MemoryStream())
-                {
-                    WriteTo(s, true, mS);
-                }
-            }
-            else
-            {
-                WriteTo(s, false, null);
+                WriteToTcpAsync(s, mS);
             }
         }
 
-        public void WriteTo(Stream s, bool tcp, MemoryStream sharedBuffer)
+        public async void WriteToTcpAsync(Stream s, MemoryStream sharedBuffer)
         {
-            if (tcp)
+            OffsetStream sharedBufferOffset = new OffsetStream(sharedBuffer);
+
+            if ((_question.Count > 0) && (_question[0].Type == DnsResourceRecordType.AXFR))
             {
-                OffsetStream datagramStream = new OffsetStream(sharedBuffer);
+                int iQD = 0;
+                int iAN = 0;
+                int QDCOUNT;
+                int ANCOUNT;
+                List<DnsDomainOffset> domainEntries = new List<DnsDomainOffset>(1);
 
-                if ((_question.Count > 0) && (_question[0].Type == DnsResourceRecordType.AXFR))
-                {
-                    int iQD = 0;
-                    int iAN = 0;
-                    int QDCOUNT;
-                    int ANCOUNT;
-                    List<DnsDomainOffset> domainEntries = new List<DnsDomainOffset>(1);
-
-                    do
-                    {
-                        sharedBuffer.SetLength(0);
-                        datagramStream.Reset(2, 12, 12);
-
-                        QDCOUNT = 0;
-                        ANCOUNT = 0;
-                        domainEntries.Clear();
-
-                        for (; iQD < _question.Count; iQD++, QDCOUNT++)
-                            _question[iQD].WriteTo(datagramStream, domainEntries);
-
-                        for (; iAN < _answer.Count; iAN++, ANCOUNT++)
-                        {
-                            _answer[iAN].WriteTo(datagramStream, domainEntries);
-
-                            if (sharedBuffer.Length >= 16384)
-                                break;
-                        }
-
-                        sharedBuffer.Position = 0;
-                        WriteUInt16NetworkOrder(Convert.ToUInt16(sharedBuffer.Length - 2), sharedBuffer);
-                        WriteHeaders(sharedBuffer, QDCOUNT, ANCOUNT, 0, 0);
-
-                        sharedBuffer.Position = 0;
-                        sharedBuffer.CopyTo(s, 512);
-                    }
-                    while (iAN < _answer.Count);
-                }
-                else
+                do
                 {
                     sharedBuffer.SetLength(0);
-                    datagramStream.Reset(2, 0, 0);
-                    WriteDatagram(datagramStream);
+                    sharedBufferOffset.Reset(2, 12, 12);
+
+                    QDCOUNT = 0;
+                    ANCOUNT = 0;
+                    domainEntries.Clear();
+
+                    for (; iQD < _question.Count; iQD++, QDCOUNT++)
+                        _question[iQD].WriteTo(sharedBufferOffset, domainEntries);
+
+                    for (; iAN < _answer.Count; iAN++, ANCOUNT++)
+                    {
+                        _answer[iAN].WriteTo(sharedBufferOffset, domainEntries);
+
+                        if (sharedBuffer.Length >= 16384)
+                            break;
+                    }
 
                     sharedBuffer.Position = 0;
                     WriteUInt16NetworkOrder(Convert.ToUInt16(sharedBuffer.Length - 2), sharedBuffer);
+                    WriteHeaders(sharedBuffer, QDCOUNT, ANCOUNT, 0, 0);
 
                     sharedBuffer.Position = 0;
-                    sharedBuffer.CopyTo(s, 512);
+                    await sharedBuffer.CopyToAsync(s, 512);
                 }
+                while (iAN < _answer.Count);
             }
             else
             {
-                WriteDatagram(s);
+                sharedBuffer.SetLength(0);
+                sharedBufferOffset.Reset(2, 0, 0);
+                WriteDatagram(sharedBufferOffset);
+
+                sharedBuffer.Position = 0;
+                WriteUInt16NetworkOrder(Convert.ToUInt16(sharedBuffer.Length - 2), sharedBuffer);
+
+                sharedBuffer.Position = 0;
+                await sharedBuffer.CopyToAsync(s, 512);
             }
         }
 
