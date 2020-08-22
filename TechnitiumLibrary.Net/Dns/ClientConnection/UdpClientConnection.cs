@@ -21,6 +21,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -28,49 +29,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
     public class UdpClientConnection : DnsClientConnection
     {
-        #region variables
-
-        readonly Socket _socket;
-
-        #endregion
-
         #region constructor
 
         public UdpClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsTransportProtocol.Udp, server, proxy)
-        {
-            if ((proxy != null) && !proxy.IsUdpAvailable())
-                throw new NotSupportedException("Current configured proxy does not support UDP protocol.");
-
-            if (_proxy == null)
-                _socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-        }
-
-        #endregion
-
-        #region IDisposable
-
-        bool _disposed;
-
-        protected override void Dispose(bool disposing)
-        {
-            if (_disposed)
-                return;
-
-            if (disposing)
-            {
-                if (_socket != null)
-                    _socket.Dispose();
-            }
-
-            _disposed = true;
-        }
+        { }
 
         #endregion
 
         #region public
 
-        public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout)
+        public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout, int retries, CancellationToken cancellationToken)
         {
             //serialize request
             byte[] buffer = new byte[512];
@@ -94,35 +63,23 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             if (_proxy == null)
             {
-                if (_server.IPEndPoint == null)
-                    _server.RecursiveResolveIPAddress();
+                if (_server.IsIPEndPointStale)
+                    await _server.RecursiveResolveIPAddressAsync();
 
-                _socket.ReceiveTimeout = timeout;
-
-                stopwatch.Start();
-
-                //send request
-                await _socket.SendToAsync(buffer, 0, bufferSize, SocketFlags.None, _server.IPEndPoint);
-
-                //receive request
-                while (true)
+                using (Socket socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
                 {
-                    ReceiveFromResult result = await _socket.ReceiveFromAsync(buffer, 0, buffer.Length, SocketFlags.None);
+                    stopwatch.Start();
 
-                    if (_server.IPEndPoint.Equals(result.RemoteEndPoint))
-                    {
-                        bufferSize = result.BytesReceived;
-                        break;
-                    }
+                    bufferSize = await socket.UdpQueryAsync(buffer, 0, bufferSize, buffer, 0, buffer.Length, _server.EndPoint, timeout, retries, false, cancellationToken);
+
+                    stopwatch.Stop();
                 }
-
-                stopwatch.Stop();
             }
             else
             {
                 stopwatch.Start();
 
-                bufferSize = _proxy.UdpReceiveFrom(_server.EndPoint, buffer, 0, bufferSize, buffer, 0, timeout);
+                bufferSize = await _proxy.UdpQueryAsync(buffer, 0, bufferSize, buffer, 0, buffer.Length, _server.EndPoint, timeout, retries, false, cancellationToken);
 
                 stopwatch.Stop();
             }
@@ -130,7 +87,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             //parse response
             using (MemoryStream mS = new MemoryStream(buffer, 0, bufferSize, false))
             {
-                DnsDatagram response = new DnsDatagram(mS, false);
+                DnsDatagram response = DnsDatagram.ReadFromUdp(mS);
 
                 response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, bufferSize, stopwatch.Elapsed.TotalMilliseconds));
 
