@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.BitTorrent
@@ -92,7 +94,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             if (disposing)
             {
                 if (_lastClientEP != null)
-                    Update(TrackerClientEvent.Stopped, _lastClientEP);
+                    _ = UpdateAsync(TrackerClientEvent.Stopped, _lastClientEP);
             }
 
             _disposed = true;
@@ -155,7 +157,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             return _lastUpdated.AddSeconds(GetUpdateInterval()) - DateTime.UtcNow;
         }
 
-        public void Update(TrackerClientEvent @event, IPEndPoint clientEP)
+        public async Task UpdateAsync(TrackerClientEvent @event, IPEndPoint clientEP)
         {
             lock (_isUpdatingLock)
             {
@@ -167,7 +169,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
             try
             {
-                UpdateTracker(@event, clientEP);
+                await UpdateTrackerAsync(@event, clientEP);
 
                 _lastException = null;
                 _retriesDone = 0;
@@ -196,7 +198,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             }
         }
 
-        protected abstract void UpdateTracker(TrackerClientEvent @event, IPEndPoint clientEP);
+        protected abstract Task UpdateTrackerAsync(TrackerClientEvent @event, IPEndPoint clientEP);
 
         public override bool Equals(object obj)
         {
