@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ using System.Text;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
-    public class PEMFormat
+    public static class PEMFormat
     {
         public static RSAParameters ReadRSAPrivateKey(Stream s)
         {

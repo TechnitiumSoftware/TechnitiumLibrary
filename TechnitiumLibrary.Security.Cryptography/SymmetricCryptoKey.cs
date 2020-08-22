@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -38,8 +38,8 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
-        SymmetricAlgorithm _symAlgo;
-        SymmetricEncryptionAlgorithm _cryptoAlgo;
+        readonly SymmetricAlgorithm _symAlgo;
+        readonly SymmetricEncryptionAlgorithm _cryptoAlgo;
 
         #endregion
 

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,11 +26,11 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
-        uint[] _crc32Table = new uint[256];
+        readonly uint[] _crc32Table = new uint[256];
 
         uint _crc32;
-        uint _polynomial;
-        uint _preCondition;
+        readonly uint _polynomial;
+        readonly uint _preCondition;
 
         #endregion
 

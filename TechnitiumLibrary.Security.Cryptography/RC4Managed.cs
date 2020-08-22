@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -95,7 +95,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         {
             #region variables
 
-            byte[] s = new byte[256];
+            readonly byte[] s = new byte[256];
             int xi = 0;
             int xj = 0;
 
@@ -164,7 +164,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
             public byte[] TransformFinalBlock(byte[] inputBuffer, int inputOffset, int inputCount)
             {
-                return new byte[] { };
+                return Array.Empty<byte>();
             }
 
             #endregion

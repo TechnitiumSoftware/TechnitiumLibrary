@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,19 +31,17 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         static readonly RandomNumberGenerator _rng = new RNGCryptoServiceProvider();
 
-        HMAC _PRF;
-        byte[] _password;
-        byte[] _salt;
-        int _iterationCount;
+        readonly HMAC _PRF;
+        readonly byte[] _salt;
+        readonly int _iterationCount;
 
         #endregion
 
         #region constructor
 
-        public PBKDF2(HMAC PRF, byte[] password, byte[] salt, int iterationCount)
+        public PBKDF2(HMAC PRF, byte[] salt, int iterationCount)
         {
             _PRF = PRF;
-            _password = password;
             _salt = salt;
             _iterationCount = iterationCount;
         }
@@ -59,7 +57,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public static PBKDF2 CreateHMACSHA1(byte[] password, byte[] salt, int iterationCount)
         {
-            return new PBKDF2(new HMACSHA256(password), password, salt, iterationCount);
+            return new PBKDF2(new HMACSHA256(password), salt, iterationCount);
         }
 
         public static PBKDF2 CreateHMACSHA1(string password, int saltLength, int iterationCount)
@@ -74,7 +72,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             byte[] salt = new byte[saltLength];
             _rng.GetBytes(salt);
 
-            return new PBKDF2(PRF, password, salt, iterationCount);
+            return new PBKDF2(PRF, salt, iterationCount);
         }
 
         public static PBKDF2 CreateHMACSHA256(string password, byte[] salt, int iterationCount)
@@ -84,7 +82,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public static PBKDF2 CreateHMACSHA256(byte[] password, byte[] salt, int iterationCount)
         {
-            return new PBKDF2(new HMACSHA256(password), password, salt, iterationCount);
+            return new PBKDF2(new HMACSHA256(password), salt, iterationCount);
         }
 
         public static PBKDF2 CreateHMACSHA256(string password, int saltLength, int iterationCount)
@@ -99,7 +97,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             byte[] salt = new byte[saltLength];
             _rng.GetBytes(salt);
 
-            return new PBKDF2(PRF, password, salt, iterationCount);
+            return new PBKDF2(PRF, salt, iterationCount);
         }
 
         #endregion

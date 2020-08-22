@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -38,15 +38,15 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region constructor
 
-        public CryptoContainer()
+        protected CryptoContainer()
         { }
 
-        public CryptoContainer(SymmetricEncryptionAlgorithm cryptoAlgo, int keySize, string password)
+        protected CryptoContainer(SymmetricEncryptionAlgorithm cryptoAlgo, int keySize, string password)
         {
             SetPassword(cryptoAlgo, keySize, password);
         }
 
-        public CryptoContainer(string file, string password = null)
+        protected CryptoContainer(string file, string password = null)
         {
             using (FileStream fS = new FileStream(file, FileMode.Open, FileAccess.Read))
             {
@@ -54,7 +54,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
         }
 
-        public CryptoContainer(Stream s, string password = null)
+        protected CryptoContainer(Stream s, string password = null)
         {
             ReadFrom(s, password);
         }

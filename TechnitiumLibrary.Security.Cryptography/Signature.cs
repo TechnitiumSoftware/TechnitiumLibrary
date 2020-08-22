@@ -27,10 +27,10 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
-        byte[] _signedHash;
-        string _hashAlgo;
-        AsymmetricEncryptionAlgorithm _signAlgo;
-        Certificate _signingCert;
+        readonly byte[] _signedHash;
+        readonly string _hashAlgo;
+        readonly AsymmetricEncryptionAlgorithm _signAlgo;
+        readonly Certificate _signingCert;
 
         #endregion
 

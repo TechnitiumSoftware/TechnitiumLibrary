@@ -48,18 +48,18 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         static readonly DateTime _epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        byte _version;
-        CertificateType _type;
+        readonly byte _version;
+        readonly CertificateType _type;
 
-        string _serialNumber;
-        CertificateProfile _issuedTo;
-        CertificateCapability _capability;
+        readonly string _serialNumber;
+        readonly CertificateProfile _issuedTo;
+        readonly CertificateCapability _capability;
 
-        ulong _issuedOnUTC;
-        ulong _expiresOnUTC;
+        readonly ulong _issuedOnUTC;
+        readonly ulong _expiresOnUTC;
 
-        AsymmetricEncryptionAlgorithm _publicKeyEncryptionAlgorithm;
-        string _publicKeyXML;
+        readonly AsymmetricEncryptionAlgorithm _publicKeyEncryptionAlgorithm;
+        readonly string _publicKeyXML;
 
         Uri _revocationUri;
 

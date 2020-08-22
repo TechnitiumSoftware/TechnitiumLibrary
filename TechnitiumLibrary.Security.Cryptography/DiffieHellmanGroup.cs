@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region rfc3526 MODP groups
 
-        static byte[] p2048 = new byte[] {
+        static readonly byte[] p2048 = new byte[] {
                                     0xFF, 0xFF, 0xFF, 0xFF,
                                     0xFF, 0xFF, 0xFF, 0xFF,
                                     0xC9, 0x0F, 0xDA, 0xA2,
@@ -101,7 +101,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                                     0x00 //to keep BigInteger positive
                                 };
 
-        static byte[] p3072 = new byte[] {
+        static readonly byte[] p3072 = new byte[] {
                                     0xFF, 0xFF, 0xFF, 0xFF,
                                     0xFF, 0xFF, 0xFF, 0xFF,
                                     0xC9, 0x0F, 0xDA, 0xA2,
@@ -201,7 +201,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                                     0x00 //to keep BigInteger positive
                                 };
 
-        static byte[] p4096 = new byte[] {
+        static readonly byte[] p4096 = new byte[] {
                                     0xFF, 0xFF, 0xFF, 0xFF,
                                     0xFF, 0xFF, 0xFF, 0xFF,
                                     0xC9, 0x0F, 0xDA, 0xA2,

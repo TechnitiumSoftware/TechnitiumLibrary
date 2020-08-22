@@ -51,25 +51,25 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         #region variables
 
-        byte _version;
+        readonly byte _version;
 
-        CertificateProfileFlags _flags = CertificateProfileFlags.None;
-        CertificateProfileFlags _verified = CertificateProfileFlags.None;
+        readonly CertificateProfileFlags _flags = CertificateProfileFlags.None;
+        readonly CertificateProfileFlags _verified = CertificateProfileFlags.None;
 
         //optional fields below
 
-        string _name = null;
-        CertificateProfileType _type = CertificateProfileType.Unknown;
+        readonly string _name = null;
+        readonly CertificateProfileType _type = CertificateProfileType.Unknown;
 
-        MailAddress _emailAddress = null;
-        Uri _website = null;
-        string _phoneNumber = null;
+        readonly MailAddress _emailAddress = null;
+        readonly Uri _website = null;
+        readonly string _phoneNumber = null;
 
-        string _streetAddress = null;
-        string _city = null;
-        string _state = null;
-        string _country = null;
-        string _postalCode = null;
+        readonly string _streetAddress = null;
+        readonly string _city = null;
+        readonly string _state = null;
+        readonly string _country = null;
+        readonly string _postalCode = null;
 
         #endregion
 
@@ -346,7 +346,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public void WriteTo(Stream s)
         {
-            byte[] buffer = null;
+            byte[] buffer;
 
             BinaryWriter bW = new BinaryWriter(s);
 
