@@ -21,14 +21,16 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    public class HttpProxy : NetProxy, IWebProxy
+    public class HttpProxy : NetProxy
     {
         #region constructors
 
-        public HttpProxy(EndPoint proxyEP, NetworkCredential credential)
+        public HttpProxy(EndPoint proxyEP, NetworkCredential credential = null)
             : base(NetProxyType.Http, proxyEP, credential)
         { }
 
@@ -36,10 +38,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public Uri GetProxy(Uri destination)
+        public override Uri GetProxy(Uri destination)
         {
             if (_viaProxy != null)
-                throw new NotSupportedException("Http proxying with proxy chaining is not supported.");
+                return base.GetProxy(destination);
 
             if (IsBypassed(destination))
                 return destination;
@@ -47,38 +49,12 @@ namespace TechnitiumLibrary.Net.Proxy
             return new Uri("http://" + _proxyEP.ToString());
         }
 
-        public bool IsBypassed(Uri host)
+        public override Task<bool> IsUdpAvailableAsync()
         {
-            return IsBypassed(EndPointExtension.GetEndPoint(host.Host, host.Port));
+            return Task.FromResult(false);
         }
 
-        public override bool IsProxyAvailable()
-        {
-            try
-            {
-                using (Socket socket = GetTcpConnection(_proxyEP, 5000))
-                { }
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public override void CheckProxyAccess()
-        {
-            using (Socket socket = GetTcpConnection(_proxyEP, 5000))
-            { }
-        }
-
-        public override bool IsUdpAvailable()
-        {
-            return false;
-        }
-
-        public override int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestSize, byte[] response, int responseOffset, int timeout = 10000)
+        public override Task<int> UdpQueryAsync(byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException("Http proxy does not support udp protocol.");
         }
@@ -87,7 +63,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region protected
 
-        protected override Socket Connect(EndPoint remoteEP, Socket viaSocket)
+        protected override async Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket)
         {
             try
             {
@@ -98,10 +74,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 httpConnectRequest += "\r\n";
 
-                viaSocket.Send(Encoding.ASCII.GetBytes(httpConnectRequest));
+                await viaSocket.SendAsync(Encoding.ASCII.GetBytes(httpConnectRequest));
 
                 byte[] buffer = new byte[128];
-                int bytesRecv = viaSocket.Receive(buffer);
+                int bytesRecv = await viaSocket.ReceiveAsync(buffer);
 
                 if (bytesRecv < 1)
                     throw new HttpProxyException("No response was received from http proxy server.");
@@ -129,16 +105,6 @@ namespace TechnitiumLibrary.Net.Proxy
                 viaSocket.Dispose();
                 throw;
             }
-        }
-
-        #endregion
-
-        #region properties
-
-        public ICredentials Credentials
-        {
-            get { return _credential; }
-            set { throw new NotImplementedException(); }
         }
 
         #endregion
