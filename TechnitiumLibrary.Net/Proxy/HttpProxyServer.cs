@@ -200,31 +200,6 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region private
 
-            private async Task CopyToAsync(Socket src, Socket dst)
-            {
-                try
-                {
-                    byte[] buffer = new byte[8 * 1024];
-                    int bytesRead;
-
-                    while (true)
-                    {
-                        bytesRead = await src.ReceiveAsync(buffer, 0, buffer.Length);
-                        if (bytesRead < 1)
-                            break;
-
-                        await dst.SendAsync(buffer, 0, bytesRead);
-                    }
-
-                    if (dst.Connected)
-                        dst.Shutdown(SocketShutdown.Both);
-                }
-                finally
-                {
-                    Dispose();
-                }
-            }
-
             private async Task DoConnectAsync(NetworkStream localStream, HttpRequest httpRequest)
             {
                 string host;
@@ -247,8 +222,8 @@ namespace TechnitiumLibrary.Net.Proxy
                 await localStream.WriteAsync(Encoding.ASCII.GetBytes(httpRequest.Protocol + " 200 OK\r\nConnection: close\r\n\r\n"));
 
                 //pipe sockets
-                _ = CopyToAsync(_localSocket, _remoteSocket);
-                _ = CopyToAsync(_remoteSocket, _localSocket);
+                _ = _localSocket.CopyToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
+                _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
             }
 
             private Task SendResponseAsync(Exception ex)
@@ -428,7 +403,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                 lastPort = port;
 
                                 //pipe response stream
-                                _ = CopyToAsync(_remoteSocket, _localSocket);
+                                _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
                             }
 
                             #endregion

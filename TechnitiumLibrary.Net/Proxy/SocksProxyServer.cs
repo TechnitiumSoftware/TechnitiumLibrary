@@ -314,31 +314,6 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region private
 
-            private async Task CopyToAsync(Socket src, Socket dst)
-            {
-                try
-                {
-                    byte[] buffer = new byte[8 * 1024];
-                    int bytesRead;
-
-                    while (true)
-                    {
-                        bytesRead = await src.ReceiveAsync(buffer, 0, buffer.Length);
-                        if (bytesRead < 1)
-                            break;
-
-                        await dst.SendAsync(buffer, 0, bytesRead);
-                    }
-
-                    if (dst.Connected)
-                        dst.Shutdown(SocketShutdown.Both);
-                }
-                finally
-                {
-                    Dispose();
-                }
-            }
-
             private async Task CopyToAsync(Socket src, SocksProxyUdpAssociateHandler dst)
             {
                 try
@@ -586,8 +561,8 @@ namespace TechnitiumLibrary.Net.Proxy
                         case SocksProxyRequestCommand.Connect:
                             {
                                 //pipe sockets
-                                _ = CopyToAsync(_localSocket, _remoteSocket);
-                                _ = CopyToAsync(_remoteSocket, _localSocket);
+                                _ = _localSocket.CopyToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
+                                _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
                                 dontDispose = true;
                             }
                             break;
@@ -617,8 +592,8 @@ namespace TechnitiumLibrary.Net.Proxy
                                     await localStream.FlushAsync();
 
                                     //pipe sockets
-                                    _ = CopyToAsync(_localSocket, _remoteSocket);
-                                    _ = CopyToAsync(_remoteSocket, _localSocket);
+                                    _ = _localSocket.CopyToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
+                                    _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
                                     dontDispose = true;
                                 }
                             }

@@ -214,6 +214,24 @@ namespace TechnitiumLibrary.Net
                 null);
         }
 
+        public static async Task CopyToAsync(this Socket src, Socket dst)
+        {
+            byte[] buffer = new byte[8 * 1024];
+            int bytesRead;
+
+            while (true)
+            {
+                bytesRead = await src.ReceiveAsync(buffer, 0, buffer.Length);
+                if (bytesRead < 1)
+                    break;
+
+                await dst.SendAsync(buffer, 0, bytesRead);
+            }
+
+            if (dst.Connected)
+                dst.Shutdown(SocketShutdown.Both);
+        }
+
         #endregion
     }
 
