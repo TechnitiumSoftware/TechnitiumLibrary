@@ -27,7 +27,7 @@ namespace TechnitiumLibrary.IO
     {
         #region events
 
-        public event EventHandler Disposed;
+        public event EventHandler Disposing;
 
         #endregion
 
@@ -65,17 +65,18 @@ namespace TechnitiumLibrary.IO
                 if (_disposed)
                     return;
 
+                _disposed = true; //set true before event call to prevent loop
+
                 if (disposing)
                 {
+                    Disposing?.Invoke(this, EventArgs.Empty);
+
                     if (_stream1 != null)
                         _stream1.Dispose();
 
                     if (_stream2 != null)
                         _stream2.Dispose();
                 }
-
-                _disposed = true;
-                Disposed?.Invoke(this, EventArgs.Empty);
             }
         }
 
