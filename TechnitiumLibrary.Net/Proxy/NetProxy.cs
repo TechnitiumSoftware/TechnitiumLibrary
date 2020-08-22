@@ -223,7 +223,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public async Task<TunnelProxy> CreateTunnelProxyAsync(EndPoint remoteEP, bool enableSsl = false, bool ignoreCertificateErrors = false)
         {
-            return new TunnelProxy(await ConnectAsync(remoteEP), enableSsl, ignoreCertificateErrors);
+            return new TunnelProxy(await ConnectAsync(remoteEP), remoteEP, enableSsl, ignoreCertificateErrors);
         }
 
         public Task<int> UdpQueryAsync(byte[] request, byte[] response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
