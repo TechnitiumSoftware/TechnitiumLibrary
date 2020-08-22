@@ -23,8 +23,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Proxy
@@ -35,38 +34,41 @@ namespace TechnitiumLibrary.Net.Proxy
 
         const int TUNNEL_WAIT_TIMEOUT = 10000;
 
-        static readonly byte[] _proxyOkResponse = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n");
-
-        Socket _socket;
+        readonly Socket _remoteSocket;
         readonly EndPoint _remoteEP;
         readonly bool _enableSsl;
         readonly bool _ignoreCertificateErrors;
 
-        bool _emulateHttpProxy;
-        Socket _tunnelSocketListener;
+        readonly Socket _tunnelListener;
         readonly IPEndPoint _tunnelEP;
-        Timer _tunnelWaitTimeoutTimer;
+        Socket _tunnelSocket;
         Joint _tunnelJoint;
 
         #endregion
 
         #region constructor
 
-        internal TunnelProxy(Socket socket, EndPoint remoteEP, bool enableSsl, bool ignoreCertificateErrors)
+        internal TunnelProxy(Socket remoteSocket, EndPoint remoteEP, bool enableSsl, bool ignoreCertificateErrors)
         {
-            _socket = socket;
+            _remoteSocket = remoteSocket;
             _remoteEP = remoteEP;
             _enableSsl = enableSsl;
             _ignoreCertificateErrors = ignoreCertificateErrors;
 
             //start local tunnel
-            _tunnelSocketListener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            _tunnelSocketListener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-            _tunnelSocketListener.Listen(1);
+            _tunnelListener = new Socket(_remoteEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-            _tunnelEP = _tunnelSocketListener.LocalEndPoint as IPEndPoint;
+            if (_remoteEP.AddressFamily == AddressFamily.InterNetworkV6)
+                _tunnelListener.Bind(new IPEndPoint(IPAddress.IPv6Loopback, 0));
+            else
+                _tunnelListener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
 
-            ThreadPool.QueueUserWorkItem(AcceptTunnelConnectionAsync);
+            _tunnelListener.Listen(1);
+
+            _tunnelEP = _tunnelListener.LocalEndPoint as IPEndPoint;
+
+            //accept tunnel connection async
+            _ = AcceptTunnelConnectionAsync();
         }
 
         #endregion
@@ -87,24 +89,34 @@ namespace TechnitiumLibrary.Net.Proxy
 
             if (disposing)
             {
-                if (_socket != null)
+                if (_remoteSocket != null)
                 {
                     try
                     {
-                        if (_socket.Connected)
-                            _socket.Shutdown(SocketShutdown.Both);
+                        if (_remoteSocket.Connected)
+                            _remoteSocket.Shutdown(SocketShutdown.Both);
                     }
                     catch
                     { }
 
-                    _socket.Dispose();
+                    _remoteSocket.Dispose();
                 }
 
-                if (_tunnelSocketListener != null)
-                    _tunnelSocketListener.Dispose();
+                if (_tunnelListener != null)
+                    _tunnelListener.Dispose();
 
-                if (_tunnelWaitTimeoutTimer != null)
-                    _tunnelWaitTimeoutTimer.Dispose();
+                if (_tunnelSocket != null)
+                {
+                    try
+                    {
+                        if (_tunnelSocket.Connected)
+                            _tunnelSocket.Shutdown(SocketShutdown.Both);
+                    }
+                    catch
+                    { }
+
+                    _tunnelSocket.Dispose();
+                }
 
                 if (_tunnelJoint != null)
                     _tunnelJoint.Dispose();
@@ -117,44 +129,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region private
 
-        private void AcceptTunnelConnectionAsync(object state)
+        private async Task AcceptTunnelConnectionAsync()
         {
             try
             {
-                _tunnelWaitTimeoutTimer = new Timer(delegate (object state2)
-                {
-                    try
-                    {
-                        if (_tunnelSocketListener != null)
-                            Dispose();
-                    }
-                    catch
-                    { }
-                }, null, TUNNEL_WAIT_TIMEOUT, Timeout.Infinite);
+                _tunnelSocket = await _tunnelListener.AcceptAsync().WithTimeout(TUNNEL_WAIT_TIMEOUT);
+                _tunnelListener.Dispose();
 
-                Socket tunnelSocket = _tunnelSocketListener.Accept();
-
-                _tunnelWaitTimeoutTimer.Dispose();
-                _tunnelWaitTimeoutTimer = null;
-
-                _tunnelSocketListener.Dispose();
-                _tunnelSocketListener = null;
-
-                if (_emulateHttpProxy)
-                {
-                    byte[] proxyRequest = new byte[128];
-
-                    do
-                    {
-                        tunnelSocket.Receive(proxyRequest);
-                    }
-                    while (tunnelSocket.Available > 0);
-
-
-                    tunnelSocket.Send(_proxyOkResponse);
-                }
-
-                Stream stream = new NetworkStream(_socket, true);
+                Stream remoteStream = new NetworkStream(_remoteSocket, true);
 
                 if (_enableSsl)
                 {
@@ -162,14 +144,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     if (_ignoreCertificateErrors)
                     {
-                        sslStream = new SslStream(stream, false, delegate (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+                        sslStream = new SslStream(remoteStream, false, delegate (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
                         {
                             return true; //ignore cert errors
                         });
                     }
                     else
                     {
-                        sslStream = new SslStream(stream, false);
+                        sslStream = new SslStream(remoteStream, false);
                     }
 
                     string targetHost;
@@ -189,33 +171,24 @@ namespace TechnitiumLibrary.Net.Proxy
                             throw new NotSupportedException("AddressFamily not supported.");
                     }
 
-                    sslStream.AuthenticateAsClient(targetHost);
+                    await sslStream.AuthenticateAsClientAsync(targetHost).WithTimeout(TUNNEL_WAIT_TIMEOUT);
 
-                    stream = sslStream;
+                    remoteStream = sslStream;
                 }
 
-                _tunnelJoint = new Joint(stream, new NetworkStream(tunnelSocket, true), delegate (object state2)
-                {
-                    this.Dispose();
-                });
-                _tunnelJoint.Start();
+                _tunnelJoint = new Joint(remoteStream, new NetworkStream(_tunnelSocket, true));
 
-                _socket = null;
+                _tunnelJoint.Disposing += delegate (object sender, EventArgs e)
+                {
+                    Dispose();
+                };
+
+                _tunnelJoint.Start();
             }
             catch
             {
-                this.Dispose();
+                Dispose();
             }
-        }
-
-        #endregion
-
-        #region public
-
-        public WebProxy EmulateHttpProxy()
-        {
-            _emulateHttpProxy = true;
-            return new WebProxy(_tunnelEP.Address.ToString(), _tunnelEP.Port);
         }
 
         #endregion
