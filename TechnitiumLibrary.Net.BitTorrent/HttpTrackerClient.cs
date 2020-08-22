@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,7 +21,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.BitTorrent
 {
@@ -91,7 +93,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         #region protected
 
-        protected override void UpdateTracker(TrackerClientEvent @event, IPEndPoint clientEP)
+        protected override async Task UpdateTrackerAsync(TrackerClientEvent @event, IPEndPoint clientEP)
         {
             string queryString;
 
@@ -143,16 +145,18 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
             if (_clientID.NoPeerID)
                 queryString += "&no_peer_id=1";
-            
-            using (WebClientEx webClient = new WebClientEx())
-            {
-                webClient.Proxy = _proxy;
-                webClient.Timeout = 30000; //30 sec timeout
-                webClient.UserAgent = _clientID.HttpUserAgent;
-                webClient.AddHeader("Accept-Encoding", _clientID.HttpAcceptEncoding);
-                webClient.KeepAlive = false;
 
-                using (Stream responseStream = webClient.OpenRead(_trackerURI.AbsoluteUri + queryString))
+            HttpClientHandler handler = new HttpClientHandler();
+            handler.Proxy = _proxy;
+
+            using (HttpClient httpClient = new HttpClient(handler))
+            {
+                httpClient.Timeout = TimeSpan.FromMilliseconds(30000); //30 sec timeout
+
+                httpClient.DefaultRequestHeaders.Add("user-agent", _clientID.HttpUserAgent);
+                httpClient.DefaultRequestHeaders.Add("Accept-Encoding", _clientID.HttpAcceptEncoding);
+
+                using (Stream responseStream = new MemoryStream(await httpClient.GetByteArrayAsync(_trackerURI.AbsoluteUri + queryString), false))
                 {
                     switch (@event)
                     {
