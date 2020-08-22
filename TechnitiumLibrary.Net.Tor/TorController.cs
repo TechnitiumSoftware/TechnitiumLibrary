@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -201,17 +201,9 @@ namespace TechnitiumLibrary.Net.Tor
                     try
                     {
                         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-                        _socket.ReceiveTimeout = connectionTimeout + 5000;
+                        _socket.ReceiveTimeout = 5000;
                         _socket.SendTimeout = 5000;
-
-                        IAsyncResult result = _socket.BeginConnect(IPAddress.Loopback, _controlPort, null, null);
-
-                        if (!result.AsyncWaitHandle.WaitOne(connectionTimeout))
-                            throw new SocketException((int)SocketError.TimedOut);
-
-                        if (!_socket.Connected)
-                            throw new SocketException((int)SocketError.ConnectionRefused);
+                        _socket.Connect(IPAddress.Loopback, _controlPort, connectionTimeout);
 
                         NetworkStream stream = new NetworkStream(_socket);
 
@@ -272,7 +264,9 @@ namespace TechnitiumLibrary.Net.Tor
                     try
                     {
                         Shutdown();
-                        _socket.Shutdown(SocketShutdown.Both);
+
+                        if (_socket.Connected)
+                            _socket.Shutdown(SocketShutdown.Both);
                     }
                     catch
                     { }
@@ -287,6 +281,9 @@ namespace TechnitiumLibrary.Net.Tor
                     catch
                     { }
 
+                    _sW.Dispose();
+                    _sR.Dispose();
+                    _process.Dispose();
                     _process = null;
                 }
             }

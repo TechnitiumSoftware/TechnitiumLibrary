@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,10 +26,10 @@ namespace TechnitiumLibrary.Net.Tor
     {
         #region variables
 
-        string _serviceId;
-        string _privateKey;
-        string _clientBasicAuthUser;
-        string _clientBasicAuthCookie;
+        readonly string _serviceId;
+        readonly string _privateKey;
+        readonly string _clientBasicAuthUser;
+        readonly string _clientBasicAuthCookie;
 
         #endregion
 

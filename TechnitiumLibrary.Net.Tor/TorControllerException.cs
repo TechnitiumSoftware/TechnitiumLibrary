@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Runtime.Serialization;
 
 namespace TechnitiumLibrary.Net.Tor
 {
@@ -34,6 +35,10 @@ namespace TechnitiumLibrary.Net.Tor
 
         public TorControllerException(string message, Exception innerException)
             : base(message, innerException)
+        { }
+
+        protected TorControllerException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
         { }
     }
 }
