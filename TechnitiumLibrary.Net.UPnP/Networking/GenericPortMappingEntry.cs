@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,8 +26,8 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
     {
         #region variables
 
-        private IPEndPoint _externalEP;
-        private ProtocolType _protocol;
+        readonly IPEndPoint _externalEP;
+        readonly ProtocolType _protocol;
 
         #endregion
 

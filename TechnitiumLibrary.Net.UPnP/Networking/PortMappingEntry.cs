@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,10 +25,10 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
     {
         #region variables
 
-        private IPEndPoint _internalEP;
-        private bool _enabled;
-        private string _description;
-        private int _leaseDuration;
+        readonly IPEndPoint _internalEP;
+        readonly bool _enabled;
+        readonly string _description;
+        readonly int _leaseDuration;
 
         #endregion
 

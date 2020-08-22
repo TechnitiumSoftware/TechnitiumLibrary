@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -38,10 +38,10 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                                                 "MAN:\"ssdp:discover\"\r\n" +
                                                                 "MX:3\r\n\r\n");
 
-        private IPAddress _deviceIP;
-        private IPAddress _localIP;
-        private Uri _controlUrlWanIP;
-        private Uri _controlUrlWanPPP;
+        readonly IPAddress _deviceIP;
+        readonly IPAddress _localIP;
+        readonly Uri _controlUrlWanIP;
+        readonly Uri _controlUrlWanPPP;
 
         #endregion
 
@@ -61,20 +61,20 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
 
         public static InternetGatewayDevice[] Discover(IPAddress localIP, IPAddress expectedDeviceIP = null, int timeout = 2000, int maxTries = 3)
         {
-            Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-
-            socket.Bind(new IPEndPoint(localIP, 0));
-            socket.ReceiveTimeout = timeout;
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(uPnPMulticastEP.Address, localIP));
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
-
             Dictionary<IPAddress, InternetGatewayDevice> devices = new Dictionary<IPAddress, InternetGatewayDevice>();
-            EndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
-            byte[] buffer = new byte[8 * 1024];
-            int bytesRecv;
+            Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
             try
             {
+                socket.Bind(new IPEndPoint(localIP, 0));
+                socket.ReceiveTimeout = timeout;
+                socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(uPnPMulticastEP.Address, localIP));
+                socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+
+                EndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
+                byte[] buffer = new byte[8 * 1024];
+                int bytesRecv;
+
                 for (int i = 0; i < maxTries; i++)
                 {
                     //send request
@@ -183,7 +183,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                 return igDevices;
             }
 
-            return new InternetGatewayDevice[] { };
+            return Array.Empty<InternetGatewayDevice>();
         }
 
         #endregion
@@ -515,7 +515,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                     XmlNamespaceManager nsMgr = new XmlNamespaceManager(xResp.NameTable);
                     XmlNode node1 = xResp.SelectSingleNode("//NewRemoteHost/text()", nsMgr);
 
-                    IPAddress RemoteHost = null;
+                    IPAddress RemoteHost;
                     if (node1 == null)
                         RemoteHost = IPAddress.Any;
                     else

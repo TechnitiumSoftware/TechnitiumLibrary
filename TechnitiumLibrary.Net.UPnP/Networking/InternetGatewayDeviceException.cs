@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,12 +21,12 @@ using System;
 
 namespace TechnitiumLibrary.Net.UPnP.Networking
 {
-    [System.Serializable()]
+    [Serializable()]
     public class InternetGatewayDeviceException : UPnPException
     {
         #region variables
 
-        int _errorCode;
+        readonly int _errorCode;
 
         #endregion
 
