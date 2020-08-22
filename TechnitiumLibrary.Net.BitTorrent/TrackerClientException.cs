@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             : base(message, innerException)
         { }
 
-        public TrackerClientException(SerializationInfo info, StreamingContext context)
+        protected TrackerClientException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         { }
     }
