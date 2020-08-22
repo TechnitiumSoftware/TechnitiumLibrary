@@ -24,6 +24,8 @@ using System.IO;
 using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -67,31 +69,34 @@ namespace TechnitiumLibrary.Net.Dns
         readonly static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         DnsDatagramMetadata _metadata;
-        readonly int _size;
+        int _size;
 
         ushort _ID;
 
-        readonly byte _QR;
-        readonly DnsOpcode _OPCODE;
-        readonly byte _AA;
-        readonly byte _TC;
-        readonly byte _RD;
-        readonly byte _RA;
-        readonly byte _Z;
-        readonly byte _AD;
-        readonly byte _CD;
-        readonly DnsResponseCode _RCODE;
+        byte _QR;
+        DnsOpcode _OPCODE;
+        byte _AA;
+        byte _TC;
+        byte _RD;
+        byte _RA;
+        byte _Z;
+        byte _AD;
+        byte _CD;
+        DnsResponseCode _RCODE;
 
-        readonly IReadOnlyList<DnsQuestionRecord> _question;
-        readonly IReadOnlyList<DnsResourceRecord> _answer;
-        readonly IReadOnlyList<DnsResourceRecord> _authority;
-        readonly IReadOnlyList<DnsResourceRecord> _additional;
+        IReadOnlyList<DnsQuestionRecord> _question;
+        IReadOnlyList<DnsResourceRecord> _answer;
+        IReadOnlyList<DnsResourceRecord> _authority;
+        IReadOnlyList<DnsResourceRecord> _additional;
 
-        readonly Exception _parsingException;
+        Exception _parsingException;
 
         #endregion
 
         #region constructor
+
+        private DnsDatagram()
+        { }
 
         public DnsDatagram(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, IReadOnlyList<DnsQuestionRecord> question, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
         {
@@ -137,89 +142,138 @@ namespace TechnitiumLibrary.Net.Dns
                 _additional = Array.Empty<DnsResourceRecord>();
         }
 
-        public DnsDatagram(Stream stream, bool tcp, MemoryStream sharedBuffer = null)
+        #endregion
+
+        #region static
+
+        public static DnsDatagram ReadFromUdp(Stream s)
         {
+            DnsDatagram datagram = new DnsDatagram();
+
+            datagram._ID = ReadUInt16NetworkOrder(s);
+
+            int lB = s.ReadByte();
+            datagram._QR = Convert.ToByte((lB & 0x80) >> 7);
+            datagram._OPCODE = (DnsOpcode)Convert.ToByte((lB & 0x78) >> 3);
+            datagram._AA = Convert.ToByte((lB & 0x4) >> 2);
+            datagram._TC = Convert.ToByte((lB & 0x2) >> 1);
+            datagram._RD = Convert.ToByte(lB & 0x1);
+
+            int rB = s.ReadByte();
+            datagram._RA = Convert.ToByte((rB & 0x80) >> 7);
+            datagram._Z = Convert.ToByte((rB & 0x40) >> 6);
+            datagram._AD = Convert.ToByte((rB & 0x20) >> 5);
+            datagram._CD = Convert.ToByte((rB & 0x10) >> 4);
+            datagram._RCODE = (DnsResponseCode)(rB & 0xf);
+
+            ushort QDCOUNT = ReadUInt16NetworkOrder(s);
+            ushort ANCOUNT = ReadUInt16NetworkOrder(s);
+            ushort NSCOUNT = ReadUInt16NetworkOrder(s);
+            ushort ARCOUNT = ReadUInt16NetworkOrder(s);
+
+            List<DnsQuestionRecord> question = new List<DnsQuestionRecord>(QDCOUNT);
+            List<DnsResourceRecord> answer = new List<DnsResourceRecord>(ANCOUNT);
+            List<DnsResourceRecord> authority = new List<DnsResourceRecord>(NSCOUNT);
+            List<DnsResourceRecord> additional = new List<DnsResourceRecord>(ARCOUNT);
+
+            try
+            {
+                for (int i = 0; i < QDCOUNT; i++)
+                    question.Add(new DnsQuestionRecord(s));
+
+                for (int i = 0; i < ANCOUNT; i++)
+                    answer.Add(new DnsResourceRecord(s));
+
+                for (int i = 0; i < NSCOUNT; i++)
+                    authority.Add(new DnsResourceRecord(s));
+
+                for (int i = 0; i < ARCOUNT; i++)
+                    additional.Add(new DnsResourceRecord(s));
+            }
+            catch (Exception ex)
+            {
+                datagram._parsingException = ex;
+            }
+
+            datagram._question = question;
+            datagram._answer = answer;
+            datagram._authority = authority;
+            datagram._additional = additional;
+
+            return datagram;
+        }
+
+        public static async Task<DnsDatagram> ReadFromTcpAsync(Stream stream, CancellationToken cancellationToken = default)
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                return await ReadFromTcpAsync(stream, mS, cancellationToken);
+            }
+        }
+
+        public static async Task<DnsDatagram> ReadFromTcpAsync(Stream stream, MemoryStream sharedBuffer, CancellationToken cancellationToken = default)
+        {
+            DnsDatagram datagram = new DnsDatagram();
+
             List<DnsQuestionRecord> question = null;
             List<DnsResourceRecord> answer = null;
             List<DnsResourceRecord> authority = null;
             List<DnsResourceRecord> additional = null;
 
-            Stream s = null;
-
-            do
+            while (true)
             {
-                if (tcp)
+                if (question != null)
                 {
-                    if (question != null)
-                    {
-                        if (question.Count == 0)
-                            break;
+                    if (question.Count == 0)
+                        break;
 
-                        if (question[0].Type != DnsResourceRecordType.AXFR)
-                            break;
+                    if (question[0].Type != DnsResourceRecordType.AXFR)
+                        break;
 
-                        if (answer.Count == 0)
-                            break;
+                    if (answer.Count == 0)
+                        break;
 
-                        DnsResourceRecord lastAnswer = answer[answer.Count - 1];
-                        if ((lastAnswer.Type == DnsResourceRecordType.SOA) && lastAnswer.Name.Equals(question[0].Name, StringComparison.OrdinalIgnoreCase))
-                            break; //zone transfer complete
-                    }
+                    DnsResourceRecord lastAnswer = answer[answer.Count - 1];
+                    if ((lastAnswer.Type == DnsResourceRecordType.SOA) && lastAnswer.Name.Equals(question[0].Name, StringComparison.OrdinalIgnoreCase))
+                        break; //zone transfer complete
+                }
 
-                    ushort length = ReadUInt16NetworkOrder(stream);
+                ushort length = await ReadUInt16NetworkOrderAsync(stream, cancellationToken);
 
-                    if (s == null)
-                    {
-                        if (sharedBuffer == null)
-                            s = new MemoryStream(Convert.ToInt32(length * 1.25));
-                        else
-                            s = sharedBuffer;
-                    }
+                sharedBuffer.SetLength(0);
+                await stream.CopyToAsync(sharedBuffer, 512, length, cancellationToken);
+                datagram._size += length;
+                sharedBuffer.Position = 0;
 
-                    s.SetLength(0);
-                    stream.CopyTo(s, 512, length);
-                    _size += length;
-                    s.Position = 0;
-
-                    if (question == null)
-                    {
-                        _ID = ReadUInt16NetworkOrder(s);
-                    }
-                    else
-                    {
-                        ushort ID = ReadUInt16NetworkOrder(s);
-                        if (ID != _ID)
-                            throw new DnsClientException("Error while parsing TCP response: response ID does not match with previous response ID.");
-                    }
+                if (question == null)
+                {
+                    datagram._ID = ReadUInt16NetworkOrder(sharedBuffer);
                 }
                 else
                 {
-                    if (!stream.CanSeek)
-                        throw new NotSupportedException("Stream must support seeking.");
-
-                    s = stream;
-
-                    _ID = ReadUInt16NetworkOrder(s);
+                    ushort ID = ReadUInt16NetworkOrder(sharedBuffer);
+                    if (ID != datagram._ID)
+                        throw new DnsClientException("Error while parsing TCP response: response ID does not match with previous response ID.");
                 }
 
-                int lB = s.ReadByte();
-                _QR = Convert.ToByte((lB & 0x80) >> 7);
-                _OPCODE = (DnsOpcode)Convert.ToByte((lB & 0x78) >> 3);
-                _AA = Convert.ToByte((lB & 0x4) >> 2);
-                _TC = Convert.ToByte((lB & 0x2) >> 1);
-                _RD = Convert.ToByte(lB & 0x1);
+                int lB = sharedBuffer.ReadByte();
+                datagram._QR = Convert.ToByte((lB & 0x80) >> 7);
+                datagram._OPCODE = (DnsOpcode)Convert.ToByte((lB & 0x78) >> 3);
+                datagram._AA = Convert.ToByte((lB & 0x4) >> 2);
+                datagram._TC = Convert.ToByte((lB & 0x2) >> 1);
+                datagram._RD = Convert.ToByte(lB & 0x1);
 
-                int rB = s.ReadByte();
-                _RA = Convert.ToByte((rB & 0x80) >> 7);
-                _Z = Convert.ToByte((rB & 0x40) >> 6);
-                _AD = Convert.ToByte((rB & 0x20) >> 5);
-                _CD = Convert.ToByte((rB & 0x10) >> 4);
-                _RCODE = (DnsResponseCode)(rB & 0xf);
+                int rB = sharedBuffer.ReadByte();
+                datagram._RA = Convert.ToByte((rB & 0x80) >> 7);
+                datagram._Z = Convert.ToByte((rB & 0x40) >> 6);
+                datagram._AD = Convert.ToByte((rB & 0x20) >> 5);
+                datagram._CD = Convert.ToByte((rB & 0x10) >> 4);
+                datagram._RCODE = (DnsResponseCode)(rB & 0xf);
 
-                ushort QDCOUNT = ReadUInt16NetworkOrder(s);
-                ushort ANCOUNT = ReadUInt16NetworkOrder(s);
-                ushort NSCOUNT = ReadUInt16NetworkOrder(s);
-                ushort ARCOUNT = ReadUInt16NetworkOrder(s);
+                ushort QDCOUNT = ReadUInt16NetworkOrder(sharedBuffer);
+                ushort ANCOUNT = ReadUInt16NetworkOrder(sharedBuffer);
+                ushort NSCOUNT = ReadUInt16NetworkOrder(sharedBuffer);
+                ushort ARCOUNT = ReadUInt16NetworkOrder(sharedBuffer);
 
                 if (question == null)
                     question = new List<DnsQuestionRecord>(QDCOUNT);
@@ -236,124 +290,115 @@ namespace TechnitiumLibrary.Net.Dns
                 try
                 {
                     for (int i = 0; i < QDCOUNT; i++)
-                        question.Add(new DnsQuestionRecord(s));
+                        question.Add(new DnsQuestionRecord(sharedBuffer));
 
                     for (int i = 0; i < ANCOUNT; i++)
-                        answer.Add(new DnsResourceRecord(s));
+                        answer.Add(new DnsResourceRecord(sharedBuffer));
 
                     for (int i = 0; i < NSCOUNT; i++)
-                        authority.Add(new DnsResourceRecord(s));
+                        authority.Add(new DnsResourceRecord(sharedBuffer));
 
                     for (int i = 0; i < ARCOUNT; i++)
-                        additional.Add(new DnsResourceRecord(s));
+                        additional.Add(new DnsResourceRecord(sharedBuffer));
                 }
                 catch (Exception ex)
                 {
-                    _parsingException = ex;
+                    datagram._parsingException = ex;
                     break;
                 }
             }
-            while (tcp);
 
-            if (tcp && (sharedBuffer == null))
-                s.Dispose();
+            datagram._question = question;
+            datagram._answer = answer;
+            datagram._authority = authority;
+            datagram._additional = additional;
 
-            if (!tcp)
-                _size = (int)stream.Length;
-
-            _question = question;
-            _answer = answer;
-            _authority = authority;
-            _additional = additional;
-
-            if (_question == null)
-                _question = Array.Empty<DnsQuestionRecord>();
-
-            if (_answer == null)
-                _answer = Array.Empty<DnsResourceRecord>();
-
-            if (_authority == null)
-                _authority = Array.Empty<DnsResourceRecord>();
-
-            if (_additional == null)
-                _additional = Array.Empty<DnsResourceRecord>();
+            return datagram;
         }
 
-        public DnsDatagram(dynamic jsonResponse)
+        public static DnsDatagram ReadFromJson(dynamic jsonResponse)
         {
-            _QR = 1; //is response
-            _OPCODE = DnsOpcode.StandardQuery;
+            DnsDatagram datagram = new DnsDatagram();
 
-            _TC = (byte)(jsonResponse.TC.Value ? 1 : 0);
-            _RD = (byte)(jsonResponse.RD.Value ? 1 : 0);
-            _RA = (byte)(jsonResponse.RA.Value ? 1 : 0);
-            _AD = (byte)(jsonResponse.AD.Value ? 1 : 0);
-            _CD = (byte)(jsonResponse.CD.Value ? 1 : 0);
-            _RCODE = (DnsResponseCode)jsonResponse.Status;
+            datagram._QR = 1; //is response
+            datagram._OPCODE = DnsOpcode.StandardQuery;
+
+            datagram._TC = (byte)(jsonResponse.TC.Value ? 1 : 0);
+            datagram._RD = (byte)(jsonResponse.RD.Value ? 1 : 0);
+            datagram._RA = (byte)(jsonResponse.RA.Value ? 1 : 0);
+            datagram._AD = (byte)(jsonResponse.AD.Value ? 1 : 0);
+            datagram._CD = (byte)(jsonResponse.CD.Value ? 1 : 0);
+            datagram._RCODE = (DnsResponseCode)jsonResponse.Status;
 
             //question
+            if (jsonResponse.Question == null)
+            {
+                datagram._question = Array.Empty<DnsQuestionRecord>();
+            }
+            else
             {
                 ushort QDCOUNT = Convert.ToUInt16(jsonResponse.Question.Count);
-                DnsQuestionRecord[] question = new DnsQuestionRecord[QDCOUNT];
-                _question = question;
-                int i = 0;
+                List<DnsQuestionRecord> question = new List<DnsQuestionRecord>(QDCOUNT);
+                datagram._question = question;
 
                 foreach (dynamic jsonQuestionRecord in jsonResponse.Question)
-                    question[i++] = new DnsQuestionRecord(jsonQuestionRecord);
+                    question.Add(new DnsQuestionRecord(jsonQuestionRecord));
             }
 
             //answer
             if (jsonResponse.Answer == null)
             {
-                _answer = Array.Empty<DnsResourceRecord>();
+                datagram._answer = Array.Empty<DnsResourceRecord>();
             }
             else
             {
                 ushort ANCOUNT = Convert.ToUInt16(jsonResponse.Answer.Count);
-                DnsResourceRecord[] answer = new DnsResourceRecord[ANCOUNT];
-                _answer = answer;
-                int i = 0;
+                List<DnsResourceRecord> answer = new List<DnsResourceRecord>(ANCOUNT);
+                datagram._answer = answer;
 
                 foreach (dynamic jsonAnswerRecord in jsonResponse.Answer)
-                    answer[i++] = new DnsResourceRecord(jsonAnswerRecord);
+                    answer.Add(new DnsResourceRecord(jsonAnswerRecord));
             }
 
             //authority
             if (jsonResponse.Authority == null)
             {
-                _authority = Array.Empty<DnsResourceRecord>();
+                datagram._authority = Array.Empty<DnsResourceRecord>();
             }
             else
             {
                 ushort NSCOUNT = Convert.ToUInt16(jsonResponse.Authority.Count);
-                DnsResourceRecord[] authority = new DnsResourceRecord[NSCOUNT];
-                _authority = authority;
-                int i = 0;
+                List<DnsResourceRecord> authority = new List<DnsResourceRecord>(NSCOUNT);
+                datagram._authority = authority;
 
                 foreach (dynamic jsonAuthorityRecord in jsonResponse.Authority)
-                    authority[i++] = new DnsResourceRecord(jsonAuthorityRecord);
+                    authority.Add(new DnsResourceRecord(jsonAuthorityRecord));
             }
 
             //additional
             if (jsonResponse.Additional == null)
             {
-                _additional = Array.Empty<DnsResourceRecord>();
+                datagram._additional = Array.Empty<DnsResourceRecord>();
             }
             else
             {
                 ushort ARCOUNT = Convert.ToUInt16(jsonResponse.Additional.Count);
-                DnsResourceRecord[] additional = new DnsResourceRecord[ARCOUNT];
-                _additional = additional;
-                int i = 0;
+                List<DnsResourceRecord> additional = new List<DnsResourceRecord>(ARCOUNT);
+                datagram._additional = additional;
 
                 foreach (dynamic jsonAdditionalRecord in jsonResponse.Additional)
-                    additional[i++] = new DnsResourceRecord(jsonAdditionalRecord);
+                    additional.Add(new DnsResourceRecord(jsonAdditionalRecord));
             }
+
+            return datagram;
         }
 
-        #endregion
-
-        #region static
+        internal static async Task<ushort> ReadUInt16NetworkOrderAsync(Stream s, CancellationToken cancellationToken = default)
+        {
+            byte[] b = await s.ReadBytesAsync(2, cancellationToken);
+            Array.Reverse(b);
+            return BitConverter.ToUInt16(b, 0);
+        }
 
         internal static ushort ReadUInt16NetworkOrder(Stream s)
         {
@@ -524,15 +569,15 @@ namespace TechnitiumLibrary.Net.Dns
             WriteDatagram(s);
         }
 
-        public void WriteToTcpAsync(Stream s)
+        public async Task WriteToTcpAsync(Stream s)
         {
             using (MemoryStream mS = new MemoryStream())
             {
-                WriteToTcpAsync(s, mS);
+                await WriteToTcpAsync(s, mS);
             }
         }
 
-        public async void WriteToTcpAsync(Stream s, MemoryStream sharedBuffer)
+        public async Task WriteToTcpAsync(Stream s, MemoryStream sharedBuffer)
         {
             OffsetStream sharedBufferOffset = new OffsetStream(sharedBuffer);
 
@@ -587,7 +632,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void WriteTo(JsonTextWriter jsonWriter)
+        public void WriteToJson(JsonTextWriter jsonWriter)
         {
             jsonWriter.WriteStartObject();
 
@@ -643,7 +688,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region private
 
-        private void WriteSection(JsonTextWriter jsonWriter, IReadOnlyList<DnsResourceRecord> section, string sectionName)
+        private static void WriteSection(JsonTextWriter jsonWriter, IReadOnlyList<DnsResourceRecord> section, string sectionName)
         {
             jsonWriter.WritePropertyName(sectionName);
             jsonWriter.WriteStartArray();
@@ -656,7 +701,7 @@ namespace TechnitiumLibrary.Net.Dns
                 jsonWriter.WriteValue(record.Name + ".");
 
                 jsonWriter.WritePropertyName("type");
-                jsonWriter.WriteValue((int)record.Type);
+                jsonWriter.WriteValue((ushort)record.Type);
 
                 jsonWriter.WritePropertyName("TTL");
                 jsonWriter.WriteValue(record.TtlValue);
