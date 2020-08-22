@@ -19,32 +19,31 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.IO
 {
     public class Joint : IDisposable
     {
-        #region variables
+        #region events
 
-        const int BUFFER_SIZE = 4096;
+        public event EventHandler Disposed;
+
+        #endregion
+
+        #region variables
 
         readonly Stream _stream1;
         readonly Stream _stream2;
-        readonly WaitCallback _onDisposed;
-
-        Thread _worker1;
-        Thread _worker2;
 
         #endregion
 
         #region constructor
 
-        public Joint(Stream stream1, Stream stream2, WaitCallback onDisposed = null)
+        public Joint(Stream stream1, Stream stream2)
         {
             _stream1 = stream1;
             _stream2 = stream2;
-            _onDisposed = onDisposed;
         }
 
         #endregion
@@ -76,7 +75,23 @@ namespace TechnitiumLibrary.IO
                 }
 
                 _disposed = true;
-                _onDisposed?.Invoke(this);
+                Disposed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        #endregion
+
+        #region private
+
+        private async Task CopyToAsync(Stream src, Stream dst)
+        {
+            try
+            {
+                await src.CopyToAsync(dst);
+            }
+            finally
+            {
+                Dispose();
             }
         }
 
@@ -86,46 +101,8 @@ namespace TechnitiumLibrary.IO
 
         public void Start()
         {
-            _worker1 = new Thread(ForwardData1To2);
-            _worker1.IsBackground = true;
-
-            _worker2 = new Thread(ForwardData2To1);
-            _worker2.IsBackground = true;
-
-            _worker1.Start();
-            _worker2.Start();
-        }
-
-        #endregion
-
-        #region private
-
-        private void ForwardData1To2()
-        {
-            try
-            {
-                _stream1.CopyTo(_stream2, BUFFER_SIZE);
-            }
-            catch
-            { }
-            finally
-            {
-                Dispose();
-            }
-        }
-
-        private void ForwardData2To1()
-        {
-            try
-            {
-                _stream2.CopyTo(_stream1, BUFFER_SIZE);
-            }
-            catch
-            { }
-            finally
-            {
-                Dispose();
-            }
+            _ = CopyToAsync(_stream1, _stream2);
+            _ = CopyToAsync(_stream2, _stream1);
         }
 
         #endregion
