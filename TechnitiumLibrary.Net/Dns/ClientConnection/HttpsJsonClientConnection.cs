@@ -20,7 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
-using System.Text;
+using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -28,36 +29,73 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
     public class HttpsJsonClientConnection : DnsClientConnection
     {
+        #region variables
+
+        readonly HttpClient _httpClient;
+
+        bool _pooled;
+        DateTime _lastQueried;
+
+        #endregion
+
         #region constructor
 
         public HttpsJsonClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsTransportProtocol.HttpsJson, server, proxy)
-        { }
+        {
+            if (proxy == null)
+            {
+                _httpClient = new HttpClient();
+            }
+            else
+            {
+                HttpClientHandler handler = new HttpClientHandler();
+                handler.Proxy = proxy;
+
+                _httpClient = new HttpClient(handler);
+            }
+
+            _httpClient.DefaultRequestHeaders.Add("accept", "application/dns-json");
+            _httpClient.DefaultRequestHeaders.Add("host", _server.DnsOverHttpEndPoint.Host + ":" + _server.DnsOverHttpEndPoint.Port);
+            _httpClient.DefaultRequestHeaders.Add("user-agent", "DoH client");
+        }
+
+        #endregion
+
+        #region IDisposable
+
+        bool _disposed;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+
+            if (disposing && !_pooled)
+            {
+                if (_httpClient != null)
+                    _httpClient.Dispose();
+            }
+
+            _disposed = true;
+        }
 
         #endregion
 
         #region public
 
-        public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout)
+        public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout, int retries, CancellationToken cancellationToken)
         {
-            //DoH JSON format request 
-            Stopwatch stopwatch = new Stopwatch();
-            byte[] responseBuffer;
+            _lastQueried = DateTime.UtcNow;
 
-            using (WebClientEx wC = new WebClientEx())
+            HttpRequestMessage httpRequest;
             {
-                wC.AddHeader("accept", "application/dns-json");
-                wC.AddHeader("host", _server.DnsOverHttpEndPoint.Host + ":" + _server.DnsOverHttpEndPoint.Port);
-                wC.UserAgent = "DoH client";
-                wC.Proxy = _proxy;
-                wC.Timeout = timeout;
-
                 Uri queryUri;
 
                 if (_proxy == null)
                 {
-                    if (_server.IPEndPoint == null)
-                        _server.RecursiveResolveIPAddress();
+                    if (_server.IsIPEndPointStale)
+                        await _server.RecursiveResolveIPAddressAsync();
 
                     queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }
@@ -69,24 +107,59 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }
 
-                wC.QueryString.Clear();
-                wC.QueryString.Add("name", request.Question[0].Name);
-                wC.QueryString.Add("type", Convert.ToString((int)request.Question[0].Type));
+                httpRequest = new HttpRequestMessage(HttpMethod.Get, queryUri.AbsoluteUri + "?name=" + request.Question[0].Name + "&type=" + Convert.ToString((int)request.Question[0].Type));
+            }
+
+            //DoH JSON format request 
+            Stopwatch stopwatch = new Stopwatch();
+            int retry = 0;
+            while (retry < retries) //retry loop
+            {
+                retry++;
+
+                if (cancellationToken.IsCancellationRequested)
+                    return await Task.FromCanceled<DnsDatagram>(cancellationToken); //task cancelled
 
                 stopwatch.Start();
 
-                responseBuffer = await wC.DownloadDataTaskAsync(queryUri);
+                Task<HttpResponseMessage> task = _httpClient.SendAsync(httpRequest, cancellationToken);
+
+                using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
+                {
+                    using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { timeoutCancellationTokenSource.Cancel(); }))
+                    {
+                        if (await Task.WhenAny(task, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != task)
+                            continue; //request timed out; retry
+                    }
+
+                    timeoutCancellationTokenSource.Cancel(); //to stop delay task
+                }
+
+                string responseJson = await (await task).Content.ReadAsStringAsync();
 
                 stopwatch.Stop();
+
+                //parse response
+                DnsDatagram response = DnsDatagram.ReadFromJson(JsonConvert.DeserializeObject(responseJson));
+                response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, responseJson.Length, stopwatch.Elapsed.TotalMilliseconds));
+
+                return response;
             }
 
-            //parse response
-            dynamic jsonResponse = JsonConvert.DeserializeObject(Encoding.ASCII.GetString(responseBuffer));
+            return null;
+        }
 
-            DnsDatagram response = new DnsDatagram(jsonResponse);
-            response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, responseBuffer.Length, stopwatch.Elapsed.TotalMilliseconds));
+        #endregion
 
-            return response;
+        #region properties
+
+        public DateTime LastQueried
+        { get { return _lastQueried; } }
+
+        internal bool Pooled
+        {
+            get { return _pooled; }
+            set { _pooled = value; }
         }
 
         #endregion
