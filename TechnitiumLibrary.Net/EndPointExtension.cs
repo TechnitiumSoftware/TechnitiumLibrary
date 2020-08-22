@@ -21,6 +21,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net
@@ -106,7 +107,7 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        public static IPEndPoint GetIPEndPoint(this EndPoint ep)
+        public static async Task<IPEndPoint> GetIPEndPointAsync(this EndPoint ep)
         {
             switch (ep.AddressFamily)
             {
@@ -116,8 +117,10 @@ namespace TechnitiumLibrary.Net
 
                 case AddressFamily.Unspecified:
                     DomainEndPoint dep = ep as DomainEndPoint;
+                    if (dep == null)
+                        throw new NotSupportedException("AddressFamily not supported.");
 
-                    IPAddress[] ipAddresses = System.Net.Dns.GetHostAddresses(dep.Address);
+                    IPAddress[] ipAddresses = await System.Net.Dns.GetHostAddressesAsync(dep.Address);
                     if (ipAddresses.Length == 0)
                         throw new SocketException((int)SocketError.HostNotFound);
 
