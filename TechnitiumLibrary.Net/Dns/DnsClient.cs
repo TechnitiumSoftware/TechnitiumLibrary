@@ -21,11 +21,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using System.Net.Mail;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.ClientConnection;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
@@ -58,7 +58,7 @@ namespace TechnitiumLibrary.Net.Dns
         bool _preferIPv6 = false;
         int _retries = 2;
         int _timeout = 2000;
-        int _threads = 2;
+        int _concurrency = 2;
 
         #endregion
 
@@ -259,6 +259,14 @@ namespace TechnitiumLibrary.Net.Dns
             _servers = new NameServerAddress[] { server };
         }
 
+        public DnsClient(params NameServerAddress[] servers)
+        {
+            if (servers.Length == 0)
+                throw new DnsClientException("At least one name server must be available for DnsClient.");
+
+            _servers = servers;
+        }
+
         public DnsClient(IReadOnlyList<NameServerAddress> servers)
         {
             if (servers.Count == 0)
@@ -271,7 +279,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static DnsDatagram RecursiveResolve(DnsQuestionRecord question, IReadOnlyList<NameServerAddress> nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IReadOnlyList<NameServerAddress> nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
                 cache = new DnsCache();
@@ -503,7 +511,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         try
                         {
-                            response = client.Resolve(request);
+                            response = await client.ResolveAsync(request);
                         }
                         catch (DnsClientException ex)
                         {
@@ -851,12 +859,12 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static DnsDatagram RecursiveQuery(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        public static async Task<DnsDatagram> RecursiveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
                 cache = new DnsCache();
 
-            DnsDatagram response = RecursiveResolve(question, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
+            DnsDatagram response = await RecursiveResolveAsync(question, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
 
             IReadOnlyList<DnsResourceRecord> authority = null;
             IReadOnlyList<DnsResourceRecord> additional = null;
@@ -877,7 +885,7 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class);
 
-                        lastResponse = RecursiveResolve(cnameQuestion, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
+                        lastResponse = await RecursiveResolveAsync(cnameQuestion, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
 
                         if (lastResponse.Answer.Count == 0)
                             break;
@@ -923,19 +931,19 @@ namespace TechnitiumLibrary.Net.Dns
             return finalResponse;
         }
 
-        public static IReadOnlyList<IPAddress> RecursiveResolveIP(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
                 cache = new DnsCache();
 
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(RecursiveQuery(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
+            return ParseResponseA(await RecursiveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
         }
 
         public static IReadOnlyList<IPAddress> ParseResponseA(DnsDatagram response)
@@ -1304,13 +1312,13 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public DnsDatagram Resolve(DnsDatagram request)
+        public async Task<DnsDatagram> ResolveAsync(DnsDatagram request)
         {
             //get servers
             IReadOnlyList<NameServerAddress> servers;
-            int threads;
+            int concurrency;
 
-            if (_servers.Count > _threads)
+            if (_servers.Count > _concurrency)
             {
                 List<NameServerAddress> serversCopy = new List<NameServerAddress>(_servers);
                 serversCopy.Shuffle();
@@ -1319,19 +1327,18 @@ namespace TechnitiumLibrary.Net.Dns
                     serversCopy.Sort();
 
                 servers = serversCopy;
-                threads = _threads;
+                concurrency = _concurrency;
             }
             else
             {
                 servers = _servers;
-                threads = _servers.Count;
+                concurrency = _servers.Count;
             }
 
             //init parameters
             object nextServerLock = new object();
             int nextServerIndex = 0;
             IDnsCache dnsCache = null;
-            ResolverWaitHandle resolverHandle = new ResolverWaitHandle();
 
             NameServerAddress GetNextServer()
             {
@@ -1351,45 +1358,47 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            void ResolveAsync(object state)
+            async Task<DnsDatagram> ResolveAsync(CancellationToken cancellationToken = default)
             {
-                CountdownEvent countdown = state as CountdownEvent;
+                DnsDatagram asyncRequest = request.Clone();
+                Exception lastException = null;
 
-                try
+                while (true) //next server loop
                 {
-                    DnsDatagram asyncRequest = request.Clone();
+                    if (cancellationToken.IsCancellationRequested)
+                        return await Task.FromCanceled<DnsDatagram>(cancellationToken); //task cancelled
 
-                    while (true) //next server loop
+                    NameServerAddress server = GetNextServer();
+                    if (server == null)
                     {
-                        if (resolverHandle.WaitHandle.WaitOne(0))
-                            return; //already signalled
+                        if (lastException != null)
+                            throw lastException;
 
-                        NameServerAddress server = GetNextServer();
-                        if (server == null)
-                            return; //all servers done
+                        throw new DnsClientException("DnsClient failed to resolve the request: request timed out.");
+                    }
 
-                        if (server.IsIPEndPointStale && (_proxy == null))
+                    if (server.IsIPEndPointStale && (_proxy == null))
+                    {
+                        //recursive resolve name server via root servers when proxy is null else let proxy resolve it
+                        try
                         {
-                            //recursive resolve name server via root servers when proxy is null else let proxy resolve it
-                            try
-                            {
-                                server.RecursiveResolveIPAddress(dnsCache, null, _preferIPv6, _retries, _timeout);
-                            }
-                            catch (Exception ex)
-                            {
-                                resolverHandle.LastException = ex;
-                                continue; //failed to resolve name server; try next server
-                            }
+                            await server.RecursiveResolveIPAddressAsync(dnsCache, null, _preferIPv6, _retries, _timeout);
                         }
+                        catch (Exception ex)
+                        {
+                            lastException = ex;
+                            continue; //failed to resolve name server; try next server
+                        }
+                    }
 
-                        DnsTransportProtocol protocol = server.Protocol;
+                    //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
+                    if ((_proxy != null) && (server.Protocol == DnsTransportProtocol.Udp) && !_proxy.IsBypassed(server.EndPoint) && !await _proxy.IsUdpAvailableAsync())
+                        server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
 
-                        //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
-                        if ((_proxy != null) && (protocol == DnsTransportProtocol.Udp) && !_proxy.IsBypassed(server.EndPoint) && !_proxy.IsUdpAvailable())
-                            protocol = DnsTransportProtocol.Tcp;
+                    asyncRequest.SetRandomIdentifier();
 
-                        asyncRequest.SetRandomIdentifier();
-
+                    try
+                    {
                         bool switchProtocol;
                         do //switch protocol loop
                         {
@@ -1401,10 +1410,10 @@ namespace TechnitiumLibrary.Net.Dns
                             if ((request.Question.Count > 0) && (request.Question[0].Type == DnsResourceRecordType.AXFR))
                             {
                                 //use separate connection for zone transfer
-                                if (protocol == DnsTransportProtocol.Udp)
-                                    protocol = DnsTransportProtocol.Tcp;
+                                if (server.Protocol == DnsTransportProtocol.Udp)
+                                    server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
 
-                                switch (protocol)
+                                switch (server.Protocol)
                                 {
                                     case DnsTransportProtocol.Tcp:
                                         connection = new TcpClientConnection(server, _proxy);
@@ -1420,127 +1429,101 @@ namespace TechnitiumLibrary.Net.Dns
                             }
                             else
                             {
-                                //use pooled connection
-                                connection = DnsClientConnection.GetConnection(protocol, server, _proxy);
+                                //use pooled connection if possible
+                                connection = DnsClientConnection.GetConnection(server, _proxy);
                             }
 
                             using (connection)
                             {
-                                //query server
-                                int retry = 0;
-                                while (retry < _retries) //retry loop
+                                DnsDatagram response = await connection.QueryAsync(asyncRequest, _timeout, _retries, cancellationToken);
+                                if (response != null)
                                 {
-                                    retry++;
-
-                                    if (resolverHandle.WaitHandle.WaitOne(0))
-                                        return; //already signalled
-
-                                    try
+                                    //got response
+                                    if (response.Truncation)
                                     {
-                                        DnsDatagram response = connection.Query(asyncRequest, _timeout);
-                                        if (response != null)
+                                        if (server.Protocol == DnsTransportProtocol.Udp)
                                         {
-                                            //got response
-                                            if (response.Truncation)
-                                            {
-                                                if (protocol == DnsTransportProtocol.Udp)
-                                                {
-                                                    protocol = DnsTransportProtocol.Tcp;
-                                                    switchProtocol = true;
-                                                    break;
-                                                }
-
-                                                //ignore TC response
-                                            }
-                                            else
-                                            {
-                                                //signal waiting thread
-                                                resolverHandle.Response = response;
-                                                resolverHandle.WaitHandle.Set();
-                                                return;
-                                            }
+                                            server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
+                                            switchProtocol = true;
+                                        }
+                                        else
+                                        {
+                                            //ignore TC response; try next server
+                                            break;
                                         }
                                     }
-                                    catch (SocketException ex)
+                                    else
                                     {
-                                        resolverHandle.LastException = ex;
-
-                                        switch (ex.SocketErrorCode)
-                                        {
-                                            case SocketError.ConnectionReset:
-                                            case SocketError.HostUnreachable:
-                                            case SocketError.MessageSize:
-                                            case SocketError.NetworkReset:
-                                            case SocketError.NetworkUnreachable:
-                                            case SocketError.ConnectionRefused:
-                                            case SocketError.TimedOut:
-                                                retry = _retries; //dont retry
-                                                break;
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        resolverHandle.LastException = ex;
+                                        return response;
                                     }
                                 }
                             }
                         }
                         while (switchProtocol); //switch protocol loop
                     }
-                }
-                catch (Exception ex)
-                {
-                    resolverHandle.LastException = ex;
-                }
-                finally
-                {
-                    if (countdown != null)
-                        countdown.Signal();
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+                    }
                 }
             }
 
-            if (threads > 1)
+            if (concurrency > 1)
             {
-                CountdownEvent countdown = new CountdownEvent(threads);
+                using (var cancellationTokenSource = new CancellationTokenSource())
+                {
+                    List<Task> tasks = new List<Task>(concurrency);
 
-                //start worker threads
-                for (int i = 0; i < threads; i++)
-                    ThreadPool.QueueUserWorkItem(ResolveAsync, countdown);
+                    //start worker tasks
+                    for (int i = 0; i < concurrency; i++)
+                        tasks.Add(ResolveAsync(cancellationTokenSource.Token));
 
-                //wait for first response or for all threads to exit
-                WaitHandle.WaitAny(new WaitHandle[] { resolverHandle.WaitHandle, countdown.WaitHandle }, _timeout * _retries);
+                    //add delay task
+                    Task delayTask = Task.Delay(_timeout * _retries * (int)Math.Ceiling((double)servers.Count / concurrency), cancellationTokenSource.Token);
+                    tasks.Add(delayTask);
+
+                    //wait for first response, or for all tasks to fault, or timeout
+                    while (true)
+                    {
+                        Task completedTask = await Task.WhenAny(tasks);
+
+                        if (completedTask == delayTask)
+                        {
+                            cancellationTokenSource.Cancel(); //to stop resolver tasks
+                            throw new DnsClientException("DnsClient failed to resolve the request: request timed out.");
+                        }
+
+                        if ((completedTask.Status == TaskStatus.RanToCompletion) || (tasks.Count == 2))
+                        {
+                            //resolver task complete or this is the last resolver task
+                            cancellationTokenSource.Cancel(); //to stop delay and other resolver tasks
+                            return await (completedTask as Task<DnsDatagram>); //await to return or throw error
+                        }
+
+                        tasks.Remove(completedTask);
+                    }
+                }
             }
             else
             {
-                //resolve in current thread
-                ResolveAsync(null);
+                return await ResolveAsync();
             }
-
-            if (resolverHandle.Response == null)
-                throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.", resolverHandle.LastException);
-
-            return resolverHandle.Response;
         }
 
-        public DnsDatagram Resolve(DnsQuestionRecord question)
+        public async Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question)
         {
-            return Resolve(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }));
+            return await ResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }));
         }
 
-        public DnsDatagram Resolve(string domain, DnsResourceRecordType type)
+        public async Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type)
         {
             if ((type == DnsResourceRecordType.PTR) && IPAddress.TryParse(domain, out IPAddress address))
-                return Resolve(new DnsQuestionRecord(address, DnsClass.IN));
+                return await ResolveAsync(new DnsQuestionRecord(address, DnsClass.IN));
             else
-                return Resolve(new DnsQuestionRecord(domain, type, DnsClass.IN));
+                return await ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN));
         }
 
-        public IReadOnlyList<string> ResolveMX(MailAddress emailAddress, bool resolveIP = false, bool preferIPv6 = false)
-        {
-            return ResolveMX(emailAddress.Host, resolveIP, preferIPv6);
-        }
-
-        public IReadOnlyList<string> ResolveMX(string domain, bool resolveIP = false, bool preferIPv6 = false)
+        public async Task<IReadOnlyList<string>> ResolveMXAsync(string domain, bool resolveIP = false, bool preferIPv6 = false)
         {
             if (IPAddress.TryParse(domain, out _))
             {
@@ -1548,7 +1531,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return new string[] { domain };
             }
 
-            DnsDatagram response = Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.MX, DnsClass.IN));
+            DnsDatagram response = await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.MX, DnsClass.IN));
             IReadOnlyList<string> mxEntries = ParseResponseMX(response);
 
             if (!resolveIP)
@@ -1591,7 +1574,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     try
                     {
-                        IReadOnlyList<IPAddress> ipList = ResolveIP(mxEntry, preferIPv6);
+                        IReadOnlyList<IPAddress> ipList = await ResolveIPAsync(mxEntry, preferIPv6);
 
                         foreach (IPAddress ip in ipList)
                             mxAddresses.Add(ip.ToString());
@@ -1608,26 +1591,26 @@ namespace TechnitiumLibrary.Net.Dns
             return mxAddresses;
         }
 
-        public string ResolvePTR(IPAddress ip)
+        public async Task<string> ResolvePTRAsync(IPAddress ip)
         {
-            return ParseResponsePTR(Resolve(new DnsQuestionRecord(ip, DnsClass.IN)));
+            return ParseResponsePTR(await ResolveAsync(new DnsQuestionRecord(ip, DnsClass.IN)));
         }
 
-        public IReadOnlyList<string> ResolveTXT(string domain)
+        public async Task<IReadOnlyList<string>> ResolveTXTAsync(string domain)
         {
-            return ParseResponseTXT(Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.TXT, DnsClass.IN)));
+            return ParseResponseTXT(await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.TXT, DnsClass.IN)));
         }
 
-        public IReadOnlyList<IPAddress> ResolveIP(string domain, bool preferIPv6 = false)
+        public async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(string domain, bool preferIPv6 = false)
         {
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN)));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN)));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(Resolve(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN)));
+            return ParseResponseA(await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN)));
         }
 
         #endregion
@@ -1661,10 +1644,10 @@ namespace TechnitiumLibrary.Net.Dns
             set { _timeout = value; }
         }
 
-        public int Threads
+        public int Concurrency
         {
-            get { return _threads; }
-            set { _threads = value; }
+            get { return _concurrency; }
+            set { _concurrency = value; }
         }
 
         #endregion
@@ -1683,13 +1666,6 @@ namespace TechnitiumLibrary.Net.Dns
                 NameServerIndex = nameServerIndex;
                 HopCount = hopCount;
             }
-        }
-
-        class ResolverWaitHandle
-        {
-            public readonly EventWaitHandle WaitHandle = new ManualResetEvent(false);
-            public volatile DnsDatagram Response;
-            public volatile Exception LastException;
         }
     }
 }
