@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -34,13 +35,13 @@ namespace TechnitiumLibrary.Net.Mail
 
         TcpClient _sock;
 
-        string _hostname;
-        int _port;
-        string _username;
-        string _password;
-        bool _ssl = false;
-        bool _ignoreCertificateErrors = false;
-        bool _preferSecureAuth = true;
+        readonly string _hostname;
+        readonly int _port;
+        readonly string _username;
+        readonly string _password;
+        readonly bool _ssl = false;
+        readonly bool _ignoreCertificateErrors = false;
+        readonly bool _preferSecureAuth = true;
 
         StreamWriter _sW;
         StreamReader _sR;
@@ -71,7 +72,7 @@ namespace TechnitiumLibrary.Net.Mail
 
         bool _disposed = false;
 
-        private void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (_disposed)
                 return;
@@ -344,6 +345,10 @@ namespace TechnitiumLibrary.Net.Mail
         public Pop3Exception(string message, Exception innerException)
             : base(message, innerException)
         { }
+
+        protected Pop3Exception(SerializationInfo info, StreamingContext context)
+            : base(info, context)
+        { }
     }
 
     [System.Serializable()]
@@ -359,6 +364,10 @@ namespace TechnitiumLibrary.Net.Mail
 
         public Pop3InvalidUsernamePasswordException(string message, Exception innerException)
             : base(message, innerException)
+        { }
+
+        protected Pop3InvalidUsernamePasswordException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
         { }
     }
 }
