@@ -25,7 +25,7 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        readonly SocksReplyCode _replyCode;
+        readonly SocksProxyReplyCode _replyCode;
 
         #endregion
 
@@ -39,7 +39,7 @@ namespace TechnitiumLibrary.Net.Proxy
             : base(message)
         { }
 
-        public SocksProxyException(string message, SocksReplyCode replyCode)
+        public SocksProxyException(string message, SocksProxyReplyCode replyCode)
             : base(message)
         {
             _replyCode = replyCode;
@@ -57,7 +57,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region properties
 
-        public SocksReplyCode ReplyCode
+        public SocksProxyReplyCode ReplyCode
         { get { return _replyCode; } }
 
         #endregion

@@ -18,55 +18,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    enum SocksMethod : byte
-    {
-        NoAuthenticationRequired = 0x0,
-        GSSAPI = 0x01,
-        UsernamePassword = 0x2,
-        NoAcceptableMethods = 0xff
-    }
-
-    enum SocksRequestCommand : byte
-    {
-        Connect = 0x01,
-        Bind = 0x02,
-        UdpAssociate = 0x03
-    }
-
-    public enum SocksReplyCode : byte
-    {
-        Succeeded = 0x00,
-        GeneralSocksServerFailure = 0x01,
-        ConnectionNotAllowedByRuleset = 0x02,
-        NetworkUnreachable = 0x03,
-        HostUnreachable = 0x04,
-        ConnectionRefused = 0x05,
-        TtlExpired = 0x06,
-        CommandNotSupported = 0x07,
-        AddressTypeNotSupported = 0x08
-    }
-
-    public enum SocksAddressType : byte
-    {
-        IPv4Address = 0x01,
-        DomainName = 0x03,
-        IPv6Address = 0x04
-    }
-
     public class SocksProxy : NetProxy
     {
         #region variables
 
-        public const byte SOCKS_VERSION = 5;
-
-        byte[] _negotiationRequest;
-        byte[] _authRequest;
+        SocksProxyNegotiationRequest _negotiationRequest;
+        SocksProxyAuthenticationRequest _authRequest;
 
         bool _isUdpAvailableChecked;
         bool _isUdpAvailable;
@@ -75,7 +41,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region constructor
 
-        public SocksProxy(EndPoint proxyEP, NetworkCredential credential)
+        public SocksProxy(EndPoint proxyEP, NetworkCredential credential = null)
             : base(NetProxyType.Socks5, proxyEP, credential)
         {
             InitCredential();
@@ -89,64 +55,46 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             if (_credential == null)
             {
-                _negotiationRequest = new byte[3];
-
-                _negotiationRequest[0] = SOCKS_VERSION;
-                _negotiationRequest[1] = 1; //total methods
-                _negotiationRequest[2] = (byte)SocksMethod.NoAuthenticationRequired;
+                _negotiationRequest = new SocksProxyNegotiationRequest(new SocksProxyAuthenticationMethod[] { SocksProxyAuthenticationMethod.NoAuthenticationRequired });
             }
             else
             {
-                _negotiationRequest = new byte[4];
-
-                _negotiationRequest[0] = SOCKS_VERSION;
-                _negotiationRequest[1] = 2; //total methods
-                _negotiationRequest[2] = (byte)SocksMethod.NoAuthenticationRequired;
-                _negotiationRequest[3] = (byte)SocksMethod.UsernamePassword;
-
-                _authRequest = new byte[1 + 1 + _credential.UserName.Length + 1 + _credential.Password.Length];
-
-                _authRequest[0] = 0x01;
-                _authRequest[1] = Convert.ToByte(_credential.UserName.Length);
-                Buffer.BlockCopy(Encoding.ASCII.GetBytes(_credential.UserName), 0, _authRequest, 2, _credential.UserName.Length);
-                _authRequest[2 + _credential.UserName.Length] = Convert.ToByte(_credential.Password.Length);
-                Buffer.BlockCopy(Encoding.ASCII.GetBytes(_credential.Password), 0, _authRequest, 2 + _credential.UserName.Length + 1, _credential.Password.Length);
+                _negotiationRequest = new SocksProxyNegotiationRequest(new SocksProxyAuthenticationMethod[] { SocksProxyAuthenticationMethod.NoAuthenticationRequired, SocksProxyAuthenticationMethod.UsernamePassword });
+                _authRequest = new SocksProxyAuthenticationRequest(_credential.UserName, _credential.Password);
             }
         }
 
-        private void Negotiate(Socket socket)
+        private async Task AuthenticateAsync(Stream s)
         {
-            byte[] response = new byte[2];
+            await _negotiationRequest.WriteToAsync(s);
+            await s.FlushAsync();
 
-            socket.Send(_negotiationRequest);
-            if (socket.Receive(response) != 2)
-                throw new SocksProxyException("The connection was reset by the remote peer.");
-
-            if (response[0] != SOCKS_VERSION)
+            SocksProxyNegotiationReply negotiationReply = await SocksProxyNegotiationReply.ReadRequestAsync(s);
+            if (!negotiationReply.IsVersionSupported)
                 throw new SocksProxyException("Socks version 5 is not supported by the proxy server.");
 
-            switch ((SocksMethod)response[1])
+            switch (negotiationReply.Method)
             {
-                case SocksMethod.UsernamePassword:
+                case SocksProxyAuthenticationMethod.UsernamePassword:
                     if (_authRequest == null)
                         throw new SocksProxyAuthenticationFailedException("Socks proxy server requires authentication.");
 
-                    socket.Send(_authRequest);
-                    if (socket.Receive(response) != 2)
-                        throw new SocksProxyException("The connection was reset by the remote peer.");
+                    await _authRequest.WriteToAsync(s);
+                    await s.FlushAsync();
 
-                    if (response[0] != 0x01)
+                    SocksProxyAuthenticationReply authenticationReply = await SocksProxyAuthenticationReply.ReadRequestAsync(s);
+                    if (!authenticationReply.IsVersionSupported)
                         throw new SocksProxyAuthenticationFailedException("Socks proxy server does not support username/password method version 1.");
 
-                    if (response[1] != 0x00)
+                    if (authenticationReply.Status != SocksProxyAuthenticationStatus.Success)
                         throw new SocksProxyAuthenticationFailedException("Socks proxy server authentication failed: invalid username or password.");
 
                     break;
 
-                case SocksMethod.NoAuthenticationRequired:
+                case SocksProxyAuthenticationMethod.NoAuthenticationRequired:
                     break;
 
-                case SocksMethod.NoAcceptableMethods:
+                case SocksProxyAuthenticationMethod.NoAcceptableMethods:
                     if (_authRequest == null)
                         throw new SocksProxyAuthenticationFailedException("Socks proxy server requires authentication.");
                     else
@@ -157,142 +105,33 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        private static EndPoint Request(Socket socket, SocksRequestCommand command, EndPoint dstAddr)
+        private static async Task<EndPoint> RequestAsync(Stream s, SocksProxyRequest request)
         {
-            socket.Send(CreateRequest(command, dstAddr));
+            await request.WriteToAsync(s);
+            await s.FlushAsync();
 
-            byte[] response = new byte[262];
-
-            if (socket.Receive(response) < 10)
-                throw new SocksProxyException("The connection was reset by the remote peer.");
-
-            if (response[0] != SOCKS_VERSION)
+            SocksProxyReply reply = await SocksProxyReply.ReadReplyAsync(s);
+            if (!reply.IsVersionSupported)
                 throw new SocksProxyException("Socks version 5 is not supported by the proxy server.");
 
-            SocksReplyCode replyCode = (SocksReplyCode)response[1];
+            if (reply.ReplyCode != SocksProxyReplyCode.Succeeded)
+                throw new SocksProxyException("Socks proxy server request failed: " + reply.ReplyCode.ToString(), reply.ReplyCode);
 
-            if (replyCode != SocksReplyCode.Succeeded)
-                throw new SocksProxyException("Socks proxy server request failed: " + replyCode.ToString(), replyCode);
-
-            return ParseEndpoint(response, 3);
-        }
-
-        internal static EndPoint ParseEndpoint(byte[] buffer, int offset)
-        {
-            switch ((SocksAddressType)buffer[offset])
-            {
-                case SocksAddressType.IPv4Address:
-                    {
-                        byte[] address = new byte[4];
-                        Buffer.BlockCopy(buffer, offset + 1, address, 0, 4);
-
-                        byte[] port = new byte[2];
-                        Buffer.BlockCopy(buffer, offset + 1 + 4, port, 0, 2);
-                        Array.Reverse(port);
-
-                        return new IPEndPoint(new IPAddress(address), BitConverter.ToUInt16(port, 0));
-                    }
-
-                case SocksAddressType.IPv6Address:
-                    {
-                        byte[] address = new byte[16];
-                        Buffer.BlockCopy(buffer, offset + 1, address, 0, 16);
-
-                        byte[] port = new byte[2];
-                        Buffer.BlockCopy(buffer, offset + 1 + 16, port, 0, 2);
-                        Array.Reverse(port);
-
-                        return new IPEndPoint(new IPAddress(address), BitConverter.ToUInt16(port, 0));
-                    }
-
-                case SocksAddressType.DomainName:
-                    {
-                        int length = buffer[offset + 1];
-
-                        byte[] address = new byte[length];
-                        Buffer.BlockCopy(buffer, offset + 1 + 1, address, 0, length);
-
-                        byte[] port = new byte[2];
-                        Buffer.BlockCopy(buffer, offset + 1 + 1 + length, port, 0, 2);
-                        Array.Reverse(port);
-
-                        return new DomainEndPoint(Encoding.ASCII.GetString(address), BitConverter.ToUInt16(port, 0));
-                    }
-
-                default:
-                    throw new NotSupportedException("SocksAddressType not supported.");
-            }
-        }
-
-        private static byte[] CreateRequest(SocksRequestCommand command, EndPoint dstAddr)
-        {
-            //get type, address bytes & port bytes
-            SocksAddressType type;
-            byte[] address;
-            ushort port;
-
-            switch (dstAddr.AddressFamily)
-            {
-                case AddressFamily.InterNetwork:
-                    {
-                        type = SocksAddressType.IPv4Address;
-
-                        IPEndPoint ep = dstAddr as IPEndPoint;
-                        address = ep.Address.GetAddressBytes();
-                        port = Convert.ToUInt16(ep.Port);
-                    }
-                    break;
-
-                case AddressFamily.InterNetworkV6:
-                    {
-                        type = SocksAddressType.IPv6Address;
-
-                        IPEndPoint ep = dstAddr as IPEndPoint;
-                        address = ep.Address.GetAddressBytes();
-                        port = Convert.ToUInt16(ep.Port);
-                    }
-                    break;
-
-                case AddressFamily.Unspecified:
-                    {
-                        type = SocksAddressType.DomainName;
-
-                        DomainEndPoint ep = dstAddr as DomainEndPoint;
-                        address = ep.GetAddressBytes();
-                        port = Convert.ToUInt16(ep.Port);
-                    }
-                    break;
-
-                default:
-                    throw new NotSupportedException("AddressFamily not supported.");
-            }
-
-            //create request
-            byte[] request = new byte[address.Length + 6];
-
-            request[0] = SOCKS_VERSION;
-            request[1] = (byte)command;
-            request[3] = (byte)type;
-
-            Buffer.BlockCopy(address, 0, request, 4, address.Length);
-
-            byte[] portBytes = BitConverter.GetBytes(port);
-            Array.Reverse(portBytes);
-            Buffer.BlockCopy(portBytes, 0, request, 4 + address.Length, 2);
-
-            return request;
+            return reply.BindEndPoint;
         }
 
         #endregion
 
         #region protected
 
-        protected override Socket Connect(EndPoint remoteEP, Socket viaSocket)
+        protected override async Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket)
         {
             try
             {
-                Negotiate(viaSocket);
-                Request(viaSocket, SocksRequestCommand.Connect, remoteEP);
+                Stream stream = new WriteBufferedStream(new NetworkStream(viaSocket));
+
+                await AuthenticateAsync(stream);
+                await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.Connect, remoteEP));
 
                 return viaSocket;
             }
@@ -307,55 +146,22 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public override bool IsProxyAvailable()
-        {
-            try
-            {
-                //connect to proxy server
-                using (Socket socket = GetTcpConnection(_proxyEP, 5000))
-                {
-                    socket.SendTimeout = 5000;
-                    socket.ReceiveTimeout = 5000;
-
-                    Negotiate(socket);
-                }
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public override void CheckProxyAccess()
-        {
-            //connect to proxy server
-            using (Socket socket = GetTcpConnection(_proxyEP, 5000))
-            {
-                socket.SendTimeout = 5000;
-                socket.ReceiveTimeout = 5000;
-
-                Negotiate(socket);
-            }
-        }
-
-        public override bool IsUdpAvailable()
+        public override async Task<bool> IsUdpAvailableAsync()
         {
             if (_isUdpAvailableChecked)
                 return _isUdpAvailable;
 
-            SocksUdpAssociateRequestHandler udpHandler = null;
+            SocksProxyUdpAssociateHandler udpHandler = null;
 
             try
             {
-                udpHandler = UdpAssociate();
+                udpHandler = await UdpAssociateAsync();
 
                 _isUdpAvailable = true;
             }
             catch (SocksProxyException ex)
             {
-                if (ex.ReplyCode == SocksReplyCode.CommandNotSupported)
+                if (ex.ReplyCode == SocksProxyReplyCode.CommandNotSupported)
                     _isUdpAvailable = false;
                 else
                     throw;
@@ -371,65 +177,56 @@ namespace TechnitiumLibrary.Net.Proxy
             return _isUdpAvailable;
         }
 
-        public override int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestSize, byte[] response, int responseOffset, int timeout = 10000)
+        public override async Task<int> UdpQueryAsync(byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
             if (IsBypassed(remoteEP))
             {
-                IPEndPoint hostEP = remoteEP.GetIPEndPoint();
+                IPEndPoint hostEP = await remoteEP.GetIPEndPointAsync();
 
                 using (Socket socket = new Socket(hostEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
                 {
-                    socket.ReceiveTimeout = timeout;
-
-                    //send request
-                    socket.SendTo(request, requestOffset, requestSize, SocketFlags.None, hostEP);
-
-                    //receive request
-                    EndPoint ep;
-
-                    if (hostEP.AddressFamily == AddressFamily.InterNetworkV6)
-                        ep = new IPEndPoint(IPAddress.IPv6Any, 0);
-                    else
-                        ep = new IPEndPoint(IPAddress.Any, 0);
-
-                    int bytesReceived;
-
-                    do
-                    {
-                        bytesReceived = socket.ReceiveFrom(response, responseOffset, response.Length, SocketFlags.None, ref ep);
-                    }
-                    while (!hostEP.Equals(ep));
-
-                    return bytesReceived;
+                    return await socket.UdpQueryAsync(request, requestOffset, requestCount, response, responseOffset, responseCount, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
                 }
             }
 
             if (_viaProxy != null)
                 throw new NotSupportedException("Cannot chain proxies for Udp protocol.");
 
-            using (SocksUdpAssociateRequestHandler proxyUdpRequestHandler = UdpAssociate(timeout))
+            using (SocksProxyUdpAssociateHandler proxyUdpRequestHandler = await UdpAssociateAsync())
             {
-                proxyUdpRequestHandler.ReceiveTimeout = timeout;
-
-                //send request
-                proxyUdpRequestHandler.SendTo(request, requestOffset, requestSize, remoteEP);
-
-                //receive request
-                return proxyUdpRequestHandler.ReceiveFrom(response, responseOffset, response.Length - responseOffset, out EndPoint ep);
+                return await proxyUdpRequestHandler.UdpQueryAsync(request, requestOffset, requestCount, response, responseOffset, responseCount, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
             }
         }
 
-        public SocksBindRequestHandler Bind(EndPoint endpoint, int timeout = 30000)
+        public async Task<SocksProxyBindHandler> BindAsync(AddressFamily family = AddressFamily.InterNetwork)
         {
+            EndPoint endPoint;
+
+            switch (family)
+            {
+                case AddressFamily.InterNetwork:
+                    endPoint = new IPEndPoint(IPAddress.Any, 0);
+                    break;
+
+                case AddressFamily.InterNetworkV6:
+                    endPoint = new IPEndPoint(IPAddress.Any, 0);
+                    break;
+
+                default:
+                    throw new NotSupportedException("Address family not supported.");
+            }
+
             //connect to proxy server
-            Socket socket = GetTcpConnection(_proxyEP, timeout);
+            Socket socket = await GetTcpConnectionAsync(_proxyEP);
 
             try
             {
-                Negotiate(socket);
-                EndPoint bindEP = Request(socket, SocksRequestCommand.Bind, endpoint);
+                Stream stream = new WriteBufferedStream(new NetworkStream(socket));
 
-                return new SocksBindRequestHandler(socket, bindEP);
+                await AuthenticateAsync(stream);
+                EndPoint bindEP = await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.Bind, endPoint));
+
+                return new SocksProxyBindHandler(socket, bindEP);
             }
             catch
             {
@@ -438,35 +235,33 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public SocksUdpAssociateRequestHandler UdpAssociate(int timeout = 10000)
+        public Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync()
         {
-            return UdpAssociate(new IPEndPoint(IPAddress.Any, 0), timeout);
+            return UdpAssociateAsync(new IPEndPoint(IPAddress.Any, 0));
         }
 
-        public SocksUdpAssociateRequestHandler UdpAssociate(int localPort, int timeout = 10000)
+        public Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync(int localPort)
         {
-            return UdpAssociate(new IPEndPoint(IPAddress.Any, localPort), timeout);
+            return UdpAssociateAsync(new IPEndPoint(IPAddress.Any, localPort));
         }
 
-        public SocksUdpAssociateRequestHandler UdpAssociate(IPEndPoint localEP, int timeout = 10000)
+        public async Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync(IPEndPoint localEP)
         {
             //bind local ep
             Socket udpSocket = new Socket(localEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
             udpSocket.Bind(localEP);
 
             //connect to proxy server
-            Socket socket = GetTcpConnection(_proxyEP, timeout);
-
-            socket.SendTimeout = 30000;
-            socket.ReceiveTimeout = 30000;
+            Socket socket = await GetTcpConnectionAsync(_proxyEP);
 
             try
             {
-                Negotiate(socket);
+                Stream stream = new WriteBufferedStream(new NetworkStream(socket));
 
-                EndPoint relayEP = Request(socket, SocksRequestCommand.UdpAssociate, udpSocket.LocalEndPoint);
+                await AuthenticateAsync(stream);
+                EndPoint relayEP = await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.UdpAssociate, udpSocket.LocalEndPoint));
 
-                return new SocksUdpAssociateRequestHandler(socket, udpSocket, relayEP);
+                return new SocksProxyUdpAssociateHandler(socket, udpSocket, relayEP);
             }
             catch
             {
