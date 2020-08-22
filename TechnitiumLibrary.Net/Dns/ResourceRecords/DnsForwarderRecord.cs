@@ -53,7 +53,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsForwarderRecord(dynamic jsonResourceRecord)
         {
-            throw new NotSupportedException();
+            _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+
+            string[] parts = (jsonResourceRecord.data.Value as string).Split(new char[] { ' ' }, 2);
+
+            _protocol = (DnsTransportProtocol)Enum.Parse(typeof(DnsTransportProtocol), parts[0], true);
+            _forwarder = parts[1];
         }
 
         #endregion
