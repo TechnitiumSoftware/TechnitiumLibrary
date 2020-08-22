@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 using TechnitiumLibrary.Net.Proxy;
@@ -41,7 +42,6 @@ namespace TechnitiumLibrary.Net.Dns
 
         bool _ipEndPointExpires;
         DateTime _ipEndPointExpiresOn;
-        readonly object _ipEndPointResolverLock = new object();
         const int IP_ENDPOINT_DEFAULT_TTL = 900;
 
         #endregion
@@ -441,101 +441,95 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public void ResolveIPAddress(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
+        public async Task ResolveIPAddressAsync(IReadOnlyList<NameServerAddress> nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
         {
-            lock (_ipEndPointResolverLock)
+            if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
+                return;
+
+            string domain;
+
+            if (_dohEndPoint != null)
+                domain = _dohEndPoint.Host;
+            else if (_domainEndPoint != null)
+                domain = _domainEndPoint.Address;
+            else
+                return;
+
+            if (domain == "localhost")
             {
-                if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
-                    return;
-
-                string domain;
-
-                if (_dohEndPoint != null)
-                    domain = _dohEndPoint.Host;
-                else if (_domainEndPoint != null)
-                    domain = _domainEndPoint.Address;
-                else
-                    return;
-
-                if (domain == "localhost")
-                {
-                    _ipEndPoint = new IPEndPoint((preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback), this.Port);
-                    return;
-                }
-
-                if (IPAddress.TryParse(domain, out IPAddress address))
-                {
-                    _ipEndPoint = new IPEndPoint(address, this.Port);
-                    return;
-                }
-
-                DnsClient dnsClient;
-
-                if (nameServers == null)
-                    dnsClient = new DnsClient();
-                else
-                    dnsClient = new DnsClient(nameServers);
-
-                dnsClient.Proxy = proxy;
-                dnsClient.PreferIPv6 = preferIPv6;
-                dnsClient.Retries = retries;
-                dnsClient.Timeout = timeout;
-
-                IReadOnlyList<IPAddress> serverIPs = dnsClient.ResolveIP(domain, preferIPv6);
-
-                if (serverIPs.Count == 0)
-                    throw new DnsClientException("No IP address was found for name server: " + domain);
-
-                _ipEndPoint = new IPEndPoint(serverIPs[0], this.Port);
-                _ipEndPointExpires = true;
-                _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
+                _ipEndPoint = new IPEndPoint(preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback, Port);
+                return;
             }
+
+            if (IPAddress.TryParse(domain, out IPAddress address))
+            {
+                _ipEndPoint = new IPEndPoint(address, Port);
+                return;
+            }
+
+            DnsClient dnsClient;
+
+            if (nameServers == null)
+                dnsClient = new DnsClient();
+            else
+                dnsClient = new DnsClient(nameServers);
+
+            dnsClient.Proxy = proxy;
+            dnsClient.PreferIPv6 = preferIPv6;
+            dnsClient.Retries = retries;
+            dnsClient.Timeout = timeout;
+
+            IReadOnlyList<IPAddress> serverIPs = await dnsClient.ResolveIPAsync(domain, preferIPv6);
+
+            if (serverIPs.Count == 0)
+                throw new DnsClientException("No IP address was found for name server: " + domain);
+
+            _ipEndPoint = new IPEndPoint(serverIPs[0], this.Port);
+            _ipEndPointExpires = true;
+            _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
         }
 
-        public void RecursiveResolveIPAddress(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
+        public async Task RecursiveResolveIPAddressAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
         {
-            lock (_ipEndPointResolverLock)
+            if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
+                return;
+
+            string domain;
+
+            if (_dohEndPoint != null)
+                domain = _dohEndPoint.Host;
+            else if (_domainEndPoint != null)
+                domain = _domainEndPoint.Address;
+            else
+                return;
+
+            if (domain == "localhost")
             {
-                if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
-                    return;
-
-                string domain;
-
-                if (_dohEndPoint != null)
-                    domain = _dohEndPoint.Host;
-                else if (_domainEndPoint != null)
-                    domain = _domainEndPoint.Address;
-                else
-                    return;
-
-                if (domain == "localhost")
-                {
-                    _ipEndPoint = new IPEndPoint((preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback), this.Port);
-                    return;
-                }
-
-                if (IPAddress.TryParse(domain, out IPAddress address))
-                {
-                    _ipEndPoint = new IPEndPoint(address, this.Port);
-                    return;
-                }
-
-                IPEndPoint ipEndPoint = null;
-
-                IReadOnlyList<IPAddress> addresses = DnsClient.RecursiveResolveIP(domain, cache, proxy, preferIPv6, retries, timeout);
-                if (addresses.Count > 0)
-                    ipEndPoint = new IPEndPoint(addresses[0], this.Port);
-
-                if (ipEndPoint == null)
-                    throw new DnsClientException("No IP address was found for name server: " + domain);
-
-                _ipEndPoint = ipEndPoint;
-                _ipEndPointExpires = true;
-                _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
+                _ipEndPoint = new IPEndPoint((preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback), this.Port);
+                return;
             }
+
+            if (IPAddress.TryParse(domain, out IPAddress address))
+            {
+                _ipEndPoint = new IPEndPoint(address, this.Port);
+                return;
+            }
+
+            IPEndPoint ipEndPoint = null;
+
+            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, retries, timeout);
+            if (addresses.Count > 0)
+                ipEndPoint = new IPEndPoint(addresses[0], this.Port);
+
+            if (ipEndPoint == null)
+                throw new DnsClientException("No IP address was found for name server: " + domain);
+
+            _ipEndPoint = ipEndPoint;
+            _ipEndPointExpires = true;
+            _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
         }
 
-        public void ResolveDomainName(NameServerAddress[] nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
+        public async Task ResolveDomainNameAsync(IReadOnlyList<NameServerAddress> nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPoint != null)
             {
@@ -553,7 +547,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 try
                 {
-                    string domain = dnsClient.ResolvePTR(_ipEndPoint.Address);
+                    string domain = await dnsClient.ResolvePTRAsync(_ipEndPoint.Address);
                     _domainEndPoint = new DomainEndPoint(domain, _ipEndPoint.Port);
                 }
                 catch
@@ -561,13 +555,13 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public void RecursiveResolveDomainName(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
+        public async Task RecursiveResolveDomainNameAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPoint != null)
             {
                 try
                 {
-                    string ptrDomain = DnsClient.ParseResponsePTR(DnsClient.RecursiveQuery(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout));
+                    string ptrDomain = DnsClient.ParseResponsePTR(await DnsClient.RecursiveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout));
                     if (ptrDomain != null)
                         _domainEndPoint = new DomainEndPoint(ptrDomain, _ipEndPoint.Port);
                 }
