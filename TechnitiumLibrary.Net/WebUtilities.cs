@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,9 +20,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Net.Mime;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading.Tasks;
+using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net
@@ -137,7 +140,7 @@ namespace TechnitiumLibrary.Net
 
         public static ContentType GetContentType(string fileName)
         {
-            string mimeType = null;
+            string mimeType;
 
             switch (Path.GetExtension(fileName).ToLower())
             {
@@ -342,32 +345,37 @@ namespace TechnitiumLibrary.Net
             return new ContentType(mimeType);
         }
 
-        public static Uri GetUriRedirectLocation(Uri sourceUri, WebProxy proxy = null, int timeout = 30000)
+        public static async Task<Uri> GetUriRedirectLocationAsync(Uri sourceUri, NetProxy proxy = null, int timeout = 30000)
         {
-            using (TcpClient sock = new TcpClient())
+            EndPoint ep;
+
+            if (proxy == null)
+                ep = EndPointExtension.GetEndPoint(sourceUri.Host, sourceUri.Port);
+            else
+                ep = proxy.ProxyEndPoint;
+
+            if (ep.AddressFamily == AddressFamily.Unspecified)
+                ep = await ep.GetIPEndPointAsync();
+
+            using (Socket socket = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp))
             {
-                if (proxy == null)
-                    sock.Connect(sourceUri.Host, sourceUri.Port);
-                else
-                    sock.Connect(proxy.Address.Host, proxy.Address.Port);
+                await socket.ConnectAsync(ep).WithTimeout(timeout);
 
-                StreamWriter sW = new StreamWriter(sock.GetStream());
-                if (sW.BaseStream.CanTimeout)
-                    sW.BaseStream.WriteTimeout = timeout;
+                NetworkStream networkStream = new NetworkStream(socket);
 
-                sW.WriteLine("GET " + sourceUri.PathAndQuery + " HTTP/1.1\r\nHost: " + sourceUri.Host + "\r\nAccept: */*\r\nConection: close\r\n");
-                sW.Flush();
+                await networkStream.WriteAsync(Encoding.ASCII.GetBytes("GET " + sourceUri.PathAndQuery + " HTTP/1.1\r\nHost: " + sourceUri.Host + "\r\nAccept: */*\r\nConection: close\r\n\r\n"));
 
-                StreamReader sR = new StreamReader(sock.GetStream());
-                if (sR.BaseStream.CanTimeout)
-                    sR.BaseStream.ReadTimeout = timeout;
+                StreamReader sR = new StreamReader(networkStream);
 
-                string TMP = sR.ReadLine();
+                string TMP = await sR.ReadLineAsync().WithTimeout(timeout);
                 string[] RetVal = TMP.Split(' ');
 
                 switch (RetVal[1])
                 {
+                    case "301":
                     case "302":
+                    case "303":
+                    case "307":
                         while (true)
                         {
                             TMP = sR.ReadLine();
@@ -382,27 +390,31 @@ namespace TechnitiumLibrary.Net
                             }
                         }
 
-                        throw new WebException("Server did not provide redirect location in response header for HTTP location: " + sourceUri.AbsolutePath);
+                        throw new HttpRequestException("Server did not provide redirect location in response header for HTTP location: " + sourceUri.AbsolutePath);
 
                     case "200":
                         return sourceUri;
 
                     default:
-                        throw new WebException("Error while opening location: " + sourceUri.AbsoluteUri + ", HTTP response: " + TMP);
+                        throw new HttpRequestException("Error while opening location: " + sourceUri.AbsoluteUri + ", HTTP response: " + TMP);
                 }
             }
         }
 
-        public static bool IsWebAccessible(Uri[] uriCheckList = null, NetProxy proxy = null, WebClientExNetworkType networkType = WebClientExNetworkType.Default, int timeout = 10000, bool throwException = false)
+        public static async Task<bool> IsWebAccessibleAsync(Uri[] uriCheckList = null, IWebProxy proxy = null, HttpClientNetworkType networkType = HttpClientNetworkType.Default, int timeout = 10000, bool throwException = false)
         {
             if (uriCheckList == null)
                 uriCheckList = new Uri[] { new Uri("https://www.google.com/"), new Uri("https://www.microsoft.com/") };
 
-            using (WebClientEx client = new WebClientEx())
+            HttpClientHandler handler = new HttpClientHandler();
+            handler.Proxy = proxy;
+
+            HttpClientNetworkHandler networkHandler = new HttpClientNetworkHandler(handler);
+            networkHandler.NetworkType = networkType;
+
+            using (HttpClient http = new HttpClient(networkHandler))
             {
-                client.Proxy = proxy;
-                client.NetworkType = networkType;
-                client.Timeout = timeout;
+                http.Timeout = TimeSpan.FromMilliseconds(timeout);
 
                 Exception lastException = null;
 
@@ -410,10 +422,10 @@ namespace TechnitiumLibrary.Net
                 {
                     try
                     {
-                        client.OpenRead(uri).Dispose();
+                        (await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead)).EnsureSuccessStatusCode();
                         return true;
                     }
-                    catch (WebException ex)
+                    catch (HttpRequestException ex)
                     {
                         lastException = ex;
                     }
