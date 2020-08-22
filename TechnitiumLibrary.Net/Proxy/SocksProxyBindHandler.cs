@@ -20,23 +20,24 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    public class SocksBindRequestHandler : IDisposable
+    public class SocksProxyBindHandler : IDisposable
     {
         #region variables
 
         readonly Socket _socket;
         readonly EndPoint _bindEP;
 
-        EndPoint _dstEP;
+        EndPoint _remoteEP;
 
         #endregion
 
         #region constructor
 
-        internal SocksBindRequestHandler(Socket socket, EndPoint bindEP)
+        internal SocksProxyBindHandler(Socket socket, EndPoint bindEP)
         {
             _socket = socket;
             _bindEP = bindEP;
@@ -62,7 +63,14 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 if (_socket != null)
                 {
-                    _socket.Shutdown(SocketShutdown.Both);
+                    try
+                    {
+                        if (_socket.Connected)
+                            _socket.Shutdown(SocketShutdown.Both);
+                    }
+                    catch
+                    { }
+
                     _socket.Dispose();
                 }
             }
@@ -74,22 +82,16 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public Socket Accept()
+        public async Task<Socket> AcceptAsync()
         {
-            byte[] response = new byte[262];
-
-            if (_socket.Receive(response) < 10)
-                throw new SocksProxyException("The connection was reset by the remote peer.");
-
-            if (response[0] != SocksProxy.SOCKS_VERSION)
+            SocksProxyReply reply = await SocksProxyReply.ReadReplyAsync(new NetworkStream(_socket));
+            if (!reply.IsVersionSupported)
                 throw new SocksProxyException("Socks version 5 is not supported by the proxy server.");
 
-            SocksReplyCode reply = (SocksReplyCode)response[1];
+            if (reply.ReplyCode != SocksProxyReplyCode.Succeeded)
+                throw new SocksProxyException("Socks proxy server request failed: " + reply.ReplyCode.ToString(), reply.ReplyCode);
 
-            if (reply != SocksReplyCode.Succeeded)
-                throw new SocksProxyException("Socks proxy server request failed: " + reply.ToString());
-
-            _dstEP = SocksProxy.ParseEndpoint(response, 3);
+            _remoteEP = reply.BindEndPoint;
 
             return _socket;
         }
@@ -99,7 +101,7 @@ namespace TechnitiumLibrary.Net.Proxy
         #region properties
 
         public EndPoint ProxyRemoteEndPoint
-        { get { return _dstEP; } }
+        { get { return _remoteEP; } }
 
         public EndPoint ProxyLocalEndPoint
         { get { return _bindEP; } }
