@@ -308,7 +308,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region properties
 
-        public DateTime LastQueried
+        internal DateTime LastQueried
         { get { return _lastQueried; } }
 
         internal bool Pooled
