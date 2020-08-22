@@ -25,7 +25,7 @@ using System.Net.Sockets;
 
 namespace TechnitiumLibrary.Net
 {
-    public class NetUtilities
+    public static class NetUtilities
     {
         #region static
 
@@ -451,10 +451,10 @@ namespace TechnitiumLibrary.Net
     {
         #region variables
 
-        NetworkInterface _nic;
-        IPAddress _localIP;
-        IPAddress _subnetMask;
-        IPAddress _broadcastIP;
+        readonly NetworkInterface _nic;
+        readonly IPAddress _localIP;
+        readonly IPAddress _subnetMask;
+        readonly IPAddress _broadcastIP;
 
         #endregion
 
