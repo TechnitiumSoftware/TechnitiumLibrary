@@ -56,9 +56,6 @@ namespace TechnitiumLibrary.Net
 
         public static void Connect(this Socket socket, EndPoint ep, int timeout)
         {
-            if (ep.AddressFamily == AddressFamily.Unspecified)
-                ep = ep.GetIPEndPoint();
-
             IAsyncResult result = socket.BeginConnect(ep, null, null);
 
             if (!result.AsyncWaitHandle.WaitOne(timeout))
@@ -70,7 +67,12 @@ namespace TechnitiumLibrary.Net
             socket.EndConnect(result);
         }
 
-        public static Task SendToAsync(this Socket socket, byte[] buffer, int offset, int size, SocketFlags socketFlags, EndPoint remoteEP)
+        public static Task<int> SendToAsync(this Socket socket, byte[] buffer, EndPoint remoteEP)
+        {
+            return SendToAsync(socket, buffer, 0, buffer.Length, remoteEP);
+        }
+
+        public static Task<int> SendToAsync(this Socket socket, byte[] buffer, int offset, int size, EndPoint remoteEP, SocketFlags socketFlags = SocketFlags.None)
         {
             return Task.Factory.FromAsync(
                 delegate (AsyncCallback callback, object state)
@@ -84,7 +86,12 @@ namespace TechnitiumLibrary.Net
                 null);
         }
 
-        public static Task<ReceiveFromResult> ReceiveFromAsync(this Socket socket, byte[] buffer, int offset, int size, SocketFlags socketFlags)
+        public static Task<UdpReceiveFromResult> ReceiveFromAsync(this Socket socket, byte[] buffer)
+        {
+            return ReceiveFromAsync(socket, buffer, 0, buffer.Length);
+        }
+
+        public static Task<UdpReceiveFromResult> ReceiveFromAsync(this Socket socket, byte[] buffer, int offset, int size, SocketFlags socketFlags = SocketFlags.None)
         {
             return Task.Factory.FromAsync(
                 delegate (AsyncCallback callback, object state)
@@ -108,71 +115,109 @@ namespace TechnitiumLibrary.Net
                         ep = IPEndPointAny;
 
                     int bytesReceived = socket.EndReceiveFrom(result, ref ep);
-                    return new ReceiveFromResult(bytesReceived, ep);
+                    return new UdpReceiveFromResult(bytesReceived, ep);
                 },
                 null);
         }
 
-        public static Task ConnectAsync(this Socket socket, string host, int port)
+        public static Task<int> UdpQueryAsync(this Socket socket, byte[] request, byte[] response, EndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
-            return Task.Factory.FromAsync(socket.BeginConnect, socket.EndConnect, host, port, null);
+            return UdpQueryAsync(socket, request, 0, request.Length, response, 0, response.Length, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
         }
 
-        public static Task ConnectAsync(this Socket socket, IPAddress address, int port)
+        public static async Task<int> UdpQueryAsync(this Socket socket, byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
-            return Task.Factory.FromAsync(socket.BeginConnect, socket.EndConnect, address, port, null);
-        }
+            Task<UdpReceiveFromResult> recvTask = null;
 
-        public static Task ConnectAsync(this Socket socket, EndPoint ep)
-        {
-            return Task.Factory.FromAsync(socket.BeginConnect, socket.EndConnect, ep, null);
-        }
-
-        public static async void ConnectAsync(this Socket socket, string host, int port, int timeout)
-        {
-            Task task = Task.Factory.FromAsync(socket.BeginConnect, socket.EndConnect, host, port, null);
-
-            using (var cancellationTokenSource = new CancellationTokenSource())
+            int timeoutValue = timeout;
+            int retry = 0;
+            while (retry < retries) //retry loop
             {
-                if (await Task.WhenAny(new Task[] { task, Task.Delay(timeout, cancellationTokenSource.Token) }) != task)
-                {
-                    socket.Dispose();
-                    throw new SocketException((int)SocketError.TimedOut);
-                }
+                if (expBackoffTimeout)
+                    timeoutValue = timeout * (2 ^ retry);
 
-                cancellationTokenSource.Cancel(); //to stop delay task
+                retry++;
+
+                if (cancellationToken.IsCancellationRequested)
+                    return await Task.FromCanceled<int>(cancellationToken); //task cancelled
+
+                //send request
+                await socket.SendToAsync(request, requestOffset, requestCount, remoteEP);
+
+                //receive request
+                if (recvTask == null)
+                    recvTask = socket.ReceiveFromAsync(response, responseOffset, responseCount);
+
+                while (true)
+                {
+                    //receive with timeout
+                    using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
+                    {
+                        using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { timeoutCancellationTokenSource.Cancel(); }))
+                        {
+                            if (await Task.WhenAny(recvTask, Task.Delay(timeoutValue, timeoutCancellationTokenSource.Token)) != recvTask)
+                                break; //recv timed out
+                        }
+
+                        timeoutCancellationTokenSource.Cancel(); //to stop delay task
+                    }
+
+                    var result = await recvTask;
+
+                    if (remoteEP.Equals(result.RemoteEndPoint))
+                    {
+                        //got response
+                        return result.BytesReceived;
+                    }
+                }
             }
 
-            await task; //await again for any exception to be rethrown
+            socket.Dispose();
+            throw new SocketException((int)SocketError.TimedOut);
         }
 
-        public static void ConnectAsync(this Socket socket, IPAddress address, int port, int timeout)
+        public static Task<int> SendAsync(this Socket socket, byte[] buffer)
         {
-            ConnectAsync(socket, new IPEndPoint(address, port), timeout);
+            return SendAsync(socket, buffer, 0, buffer.Length);
         }
 
-        public static async void ConnectAsync(this Socket socket, EndPoint ep, int timeout)
+        public static Task<int> SendAsync(this Socket socket, byte[] buffer, int offset, int size, SocketFlags socketFlags = SocketFlags.None)
         {
-            Task task = Task.Factory.FromAsync(socket.BeginConnect, socket.EndConnect, ep, null);
-
-            using (var cancellationTokenSource = new CancellationTokenSource())
-            {
-                if (await Task.WhenAny(new Task[] { task, Task.Delay(timeout, cancellationTokenSource.Token) }) != task)
+            return Task.Factory.FromAsync(
+                delegate (AsyncCallback callback, object state)
                 {
-                    socket.Dispose();
-                    throw new SocketException((int)SocketError.TimedOut);
-                }
+                    return socket.BeginSend(buffer, offset, size, socketFlags, callback, state);
+                },
+                delegate (IAsyncResult result)
+                {
+                    return socket.EndSend(result);
+                },
+                null);
+        }
 
-                cancellationTokenSource.Cancel(); //to stop delay task
-            }
+        public static Task<int> ReceiveAsync(this Socket socket, byte[] buffer)
+        {
+            return ReceiveAsync(socket, buffer, 0, buffer.Length);
+        }
 
-            await task; //await again for any exception to be rethrown
+        public static Task<int> ReceiveAsync(this Socket socket, byte[] buffer, int offset, int size, SocketFlags socketFlags = SocketFlags.None)
+        {
+            return Task.Factory.FromAsync(
+                delegate (AsyncCallback callback, object state)
+                {
+                    return socket.BeginReceive(buffer, offset, size, socketFlags, callback, state);
+                },
+                delegate (IAsyncResult result)
+                {
+                    return socket.EndReceive(result);
+                },
+                null);
         }
 
         #endregion
     }
 
-    public class ReceiveFromResult
+    public class UdpReceiveFromResult
     {
         #region variables
 
@@ -183,7 +228,7 @@ namespace TechnitiumLibrary.Net
 
         #region constructor
 
-        public ReceiveFromResult(int bytesReceived, EndPoint remoteEP)
+        public UdpReceiveFromResult(int bytesReceived, EndPoint remoteEP)
         {
             _bytesReceived = bytesReceived;
             _remoteEP = remoteEP;
