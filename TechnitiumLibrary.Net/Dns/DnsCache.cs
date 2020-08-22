@@ -21,6 +21,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -94,7 +95,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region private
 
-        private string GetParentZone(string domain)
+        private static string GetParentZone(string domain)
         {
             int i = domain.IndexOf('.');
             if (i > -1)
@@ -275,7 +276,24 @@ namespace TechnitiumLibrary.Net.Dns
                                     foreach (DnsResourceRecord record in response.Additional)
                                     {
                                         if (nsDomain.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            switch (record.Type)
+                                            {
+                                                case DnsResourceRecordType.A:
+                                                    if (IPAddress.IsLoopback((record.RDATA as DnsARecord).Address))
+                                                        continue;
+
+                                                    break;
+
+                                                case DnsResourceRecordType.AAAA:
+                                                    if (IPAddress.IsLoopback((record.RDATA as DnsAAAARecord).Address))
+                                                        continue;
+
+                                                    break;
+                                            }
+
                                             cachableRecords.Add(record);
+                                        }
                                     }
                                 }
 
@@ -423,7 +441,24 @@ namespace TechnitiumLibrary.Net.Dns
                                         foreach (DnsResourceRecord record in response.Additional)
                                         {
                                             if (nsDomain.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                switch (record.Type)
+                                                {
+                                                    case DnsResourceRecordType.A:
+                                                        if (IPAddress.IsLoopback((record.RDATA as DnsARecord).Address))
+                                                            continue;
+
+                                                        break;
+
+                                                    case DnsResourceRecordType.AAAA:
+                                                        if (IPAddress.IsLoopback((record.RDATA as DnsAAAARecord).Address))
+                                                            continue;
+
+                                                        break;
+                                                }
+
                                                 cachableRecords.Add(record);
+                                            }
                                         }
                                     }
                                 }
