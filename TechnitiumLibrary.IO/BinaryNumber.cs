@@ -27,7 +27,7 @@ namespace TechnitiumLibrary.IO
     {
         #region variables
 
-        byte[] _value;
+        readonly byte[] _value;
 
         #endregion
 
@@ -52,7 +52,7 @@ namespace TechnitiumLibrary.IO
 
         #region static
 
-        static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+        static readonly RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         public static BinaryNumber GenerateRandomNumber160()
         {

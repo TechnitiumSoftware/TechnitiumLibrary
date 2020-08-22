@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@ namespace TechnitiumLibrary.IO
         string _extractToCustomLocation;
 
         Stream _data;
-        bool _ownStream;
+        readonly bool _ownStream;
 
         #endregion
 
@@ -105,7 +105,7 @@ namespace TechnitiumLibrary.IO
 
         bool _disposed = false;
 
-        private void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (_disposed)
                 return;
@@ -287,8 +287,8 @@ namespace TechnitiumLibrary.IO
     {
         #region variables
 
-        string _filepath;
-        string _originalFilePath;
+        readonly string _filepath;
+        readonly string _originalFilePath;
 
         #endregion
 

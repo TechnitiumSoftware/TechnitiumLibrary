@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ namespace TechnitiumLibrary.IO
     {
         #region variables
 
-        PipeStream[] _streamCouple;
+        readonly PipeStream[] _streamCouple;
 
         #endregion
 
@@ -57,7 +57,7 @@ namespace TechnitiumLibrary.IO
             const int MAX_BUFFER_SIZE = 64 * 1024;
 
             readonly object _bufferLock = new object();
-            byte[] _buffer = new byte[MAX_BUFFER_SIZE];
+            readonly byte[] _buffer = new byte[MAX_BUFFER_SIZE];
             int _position;
             int _length;
 

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -58,12 +58,12 @@ namespace TechnitiumLibrary.IO
     {
         #region variables
 
-        Stream _s;
-        PackageMode _mode;
+        readonly Stream _s;
+        readonly PackageMode _mode;
 
-        List<PackageItem> _items = new List<PackageItem>();
+        readonly List<PackageItem> _items = new List<PackageItem>();
 
-        readonly bool _ownStream;
+        readonly bool _ownsStream;
         bool _closed = false;
 
         #endregion
@@ -73,7 +73,7 @@ namespace TechnitiumLibrary.IO
         public Package(string filepath, PackageMode mode)
         {
             _mode = mode;
-            _ownStream = true;
+            _ownsStream = true;
 
             if (_mode == PackageMode.Create)
             {
@@ -87,11 +87,11 @@ namespace TechnitiumLibrary.IO
             }
         }
 
-        public Package(Stream s, PackageMode mode, bool ownStream = false)
+        public Package(Stream s, PackageMode mode, bool ownsStream = false)
         {
             _s = s;
             _mode = mode;
-            _ownStream = ownStream;
+            _ownsStream = ownsStream;
 
             if (mode == PackageMode.Create)
                 WriteHeader();
@@ -110,7 +110,7 @@ namespace TechnitiumLibrary.IO
 
         bool _disposed = false;
 
-        private void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (_disposed)
                 return;
@@ -253,7 +253,7 @@ namespace TechnitiumLibrary.IO
                 _closed = true;
             }
 
-            if (_ownStream)
+            if (_ownsStream)
                 _s.Dispose();
         }
 

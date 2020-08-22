@@ -31,13 +31,13 @@ namespace TechnitiumLibrary.IO
         long _length;
         long _position;
         readonly bool _readOnly;
-        readonly bool _ownStream;
+        readonly bool _ownsStream;
 
         #endregion
 
         #region constructor
 
-        public OffsetStream(Stream stream, long offset = 0, long length = 0, bool readOnly = false, bool ownStream = false)
+        public OffsetStream(Stream stream, long offset = 0, long length = 0, bool readOnly = false, bool ownsStream = false)
         {
             if (stream.CanSeek)
             {
@@ -61,7 +61,7 @@ namespace TechnitiumLibrary.IO
 
             _stream = stream;
             _readOnly = readOnly;
-            _ownStream = ownStream;
+            _ownsStream = ownsStream;
         }
 
         #endregion
@@ -77,7 +77,7 @@ namespace TechnitiumLibrary.IO
 
             if (disposing)
             {
-                if (_ownStream & (_stream != null))
+                if (_ownsStream & (_stream != null))
                     _stream.Dispose();
             }
 
