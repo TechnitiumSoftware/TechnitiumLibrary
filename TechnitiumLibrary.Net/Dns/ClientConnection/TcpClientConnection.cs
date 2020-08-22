@@ -24,6 +24,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
@@ -32,22 +33,19 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
     {
         #region variables
 
-        const int SOCKET_CONNECT_TIMEOUT = 10000;
-        const int SOCKET_SEND_TIMEOUT = 15000;
-        const int SOCKET_RECEIVE_TIMEOUT = 60000; //to keep connection alive for reuse
+        const int ASYNC_RECEIVE_TIMEOUT = 60000;
 
-        bool _pooled;
-
+        Socket _socket;
         Stream _tcpStream;
-        Thread _readThread;
 
         readonly ConcurrentDictionary<ushort, Transaction> _transactions = new ConcurrentDictionary<ushort, Transaction>();
 
         readonly MemoryStream _sendBuffer = new MemoryStream(32);
         readonly MemoryStream _recvBuffer = new MemoryStream(64);
 
-        readonly object _tcpStreamLock = new object();
+        readonly SemaphoreSlim _tcpStreamSemaphore = new SemaphoreSlim(1, 1);
 
+        bool _pooled;
         DateTime _lastQueried;
 
         #endregion
@@ -75,8 +73,30 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             if (disposing && !_pooled)
             {
+                if (_socket != null)
+                {
+                    try
+                    {
+                        if (_socket.Connected)
+                            _socket.Shutdown(SocketShutdown.Both);
+                    }
+                    catch
+                    { }
+
+                    _socket.Dispose();
+                }
+
                 if (_tcpStream != null)
                     _tcpStream.Dispose();
+
+                if (_sendBuffer != null)
+                    _sendBuffer.Dispose();
+
+                if (_recvBuffer != null)
+                    _recvBuffer.Dispose();
+
+                if (_tcpStreamSemaphore != null)
+                    _tcpStreamSemaphore.Dispose();
             }
 
             _disposed = true;
@@ -86,7 +106,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region private
 
-        private Stream GetConnection()
+        private async Task<Stream> GetConnectionAsync()
         {
             if (_tcpStream != null)
                 return _tcpStream;
@@ -95,40 +115,37 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             if (_proxy == null)
             {
-                if (_server.IPEndPoint == null)
-                    _server.RecursiveResolveIPAddress();
+                if (_server.IsIPEndPointStale)
+                    await _server.RecursiveResolveIPAddressAsync();
 
                 socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                socket.ConnectAsync(_server.IPEndPoint, SOCKET_CONNECT_TIMEOUT);
+                await socket.ConnectAsync(_server.IPEndPoint);
             }
             else
             {
-                socket = _proxy.Connect(_server.EndPoint, SOCKET_CONNECT_TIMEOUT);
+                socket = await _proxy.ConnectAsync(_server.EndPoint);
             }
 
-            socket.SendTimeout = SOCKET_SEND_TIMEOUT;
-            socket.ReceiveTimeout = SOCKET_RECEIVE_TIMEOUT;
             socket.SendBufferSize = 512;
             socket.ReceiveBufferSize = 2048;
             socket.NoDelay = true;
 
-            _tcpStream = GetNetworkStream(socket);
+            _socket = socket;
+            _tcpStream = await GetNetworkStreamAsync(socket);
 
-            _readThread = new Thread(ReadDnsDatagramAsync);
-            _readThread.IsBackground = true;
-            _readThread.Start();
+            _ = Task.Factory.StartNew(ReadDnsDatagramAsync, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
 
             return _tcpStream;
         }
 
-        private void ReadDnsDatagramAsync(object state)
+        private async Task ReadDnsDatagramAsync()
         {
             try
             {
                 while (true)
                 {
                     //read response datagram
-                    DnsDatagram response = new DnsDatagram(_tcpStream, true, _recvBuffer);
+                    DnsDatagram response = await DnsDatagram.ReadFromTcpAsync(_tcpStream, _recvBuffer).WithTimeout(ASYNC_RECEIVE_TIMEOUT);
 
                     //signal waiting thread of response
                     if (_transactions.TryGetValue(response.Identifier, out Transaction transaction))
@@ -142,25 +159,67 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
             }
             catch
-            { }
+            {
+                //ignore errors
+            }
             finally
             {
-                lock (_tcpStreamLock)
+                try
                 {
-                    if (_tcpStream != null)
+                    await _tcpStreamSemaphore.WaitAsync();
+                    try
                     {
-                        _tcpStream.Dispose();
-                        _tcpStream = null;
-                    }
+                        if (_tcpStream != null)
+                        {
+                            _tcpStream.Dispose();
+                            _tcpStream = null;
+                        }
 
-                    foreach (Transaction transaction in _transactions.Values)
+                        foreach (Transaction transaction in _transactions.Values)
+                        {
+                            transaction.Stopwatch.Stop();
+                            transaction.ResponseTask.SetException(new DnsClientException("Connection was closed."));
+                        }
+
+                        _transactions.Clear();
+                    }
+                    finally
                     {
-                        transaction.Stopwatch.Stop();
-                        transaction.ResponseTask.SetException(new DnsClientException("Connection was closed."));
+                        _tcpStreamSemaphore.Release();
                     }
-
-                    _transactions.Clear();
                 }
+                catch
+                {
+                    //ignore errors
+                }
+            }
+        }
+
+        private async Task<bool> SendDnsDatagramAsync(DnsDatagram request, int timeout, Transaction transaction)
+        {
+            if (!await _tcpStreamSemaphore.WaitAsync(timeout))
+                return false; //timed out
+
+            try
+            {
+                //add transaction in lock
+                while (!_transactions.TryAdd(request.Identifier, transaction))
+                    request.SetRandomIdentifier();
+
+                //get connection
+                Stream tcpStream = await GetConnectionAsync();
+
+                transaction.Stopwatch.Start();
+
+                //send request
+                await request.WriteToTcpAsync(tcpStream, _sendBuffer);
+                tcpStream.Flush();
+
+                return true;
+            }
+            finally
+            {
+                _tcpStreamSemaphore.Release();
             }
         }
 
@@ -168,93 +227,81 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region protected
 
-        protected virtual Stream GetNetworkStream(Socket socket)
+        protected virtual Task<Stream> GetNetworkStreamAsync(Socket socket)
         {
-            return new NetworkStream(socket, true);
+            return Task.FromResult<Stream>(new NetworkStream(socket, true));
         }
 
         #endregion
 
         #region public
 
-        internal void SetPooled()
+        public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout, int retries, CancellationToken cancellationToken)
         {
-            _pooled = true;
-        }
+            _lastQueried = DateTime.UtcNow;
 
-        public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout)
-        {
-            try
+            int retry = 0;
+            while (retry < retries) //retry loop
             {
-                Transaction transaction = new Transaction();
+                retry++;
 
-                while (!_transactions.TryAdd(request.Identifier, transaction))
-                    request.SetRandomIdentifier();
+                if (cancellationToken.IsCancellationRequested)
+                    return await Task.FromCanceled<DnsDatagram>(cancellationToken); //task cancelled
 
-                Task<bool> sendAsyncTask = Task.Run(delegate ()
+                try
                 {
-                    if (!Monitor.TryEnter(_tcpStreamLock, timeout))
-                        return false; //timed out
+                    Transaction transaction = new Transaction();
 
-                    try
+                    Task<bool> sendAsyncTask = SendDnsDatagramAsync(request, timeout, transaction);
+
+                    //wait for request with timeout
+                    using (var timeoutCancellationTokenSource = new CancellationTokenSource())
                     {
-                        //get connection
-                        Stream tcpStream = GetConnection();
+                        using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { timeoutCancellationTokenSource.Cancel(); }))
+                        {
+                            if (await Task.WhenAny(new Task[] { sendAsyncTask, Task.Delay(timeout, timeoutCancellationTokenSource.Token) }) != sendAsyncTask)
+                                continue; //send timed out; retry
+                        }
 
-                        transaction.Stopwatch.Start();
-
-                        //send request
-                        request.WriteToTcpAsync(tcpStream, _sendBuffer);
-                        tcpStream.Flush();
-
-                        return true;
+                        timeoutCancellationTokenSource.Cancel(); //to stop delay task
                     }
-                    finally
+
+                    if (!await sendAsyncTask)
+                        continue; //semaphone wait timed out; retry
+
+                    //wait for response with timeout
+                    using (var timeoutCancellationTokenSource = new CancellationTokenSource())
                     {
-                        Monitor.Exit(_tcpStreamLock);
+                        using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { timeoutCancellationTokenSource.Cancel(); }))
+                        {
+                            if (await Task.WhenAny(new Task[] { transaction.ResponseTask.Task, Task.Delay(timeout, timeoutCancellationTokenSource.Token) }) != transaction.ResponseTask.Task)
+                                continue; //timed out; retry
+                        }
+
+                        timeoutCancellationTokenSource.Cancel(); //to stop delay task
                     }
-                });
 
-                //wait for request with timeout
-                using (var cancellationTokenSource = new CancellationTokenSource())
-                {
-                    if (await Task.WhenAny(new Task[] { sendAsyncTask, Task.Delay(timeout, cancellationTokenSource.Token) }) != transaction.ResponseTask.Task)
-                        return null; //send timed out
-
-                    cancellationTokenSource.Cancel(); //to stop delay task
+                    return await transaction.ResponseTask.Task; //await again for any exception to be rethrown
                 }
-
-                if (!await sendAsyncTask)
-                    return null; //monitor wait timed out
-
-                //wait for response with timeout
-                using (var cancellationTokenSource = new CancellationTokenSource())
+                catch (IOException)
                 {
-                    if (await Task.WhenAny(new Task[] { transaction.ResponseTask.Task, Task.Delay(timeout, cancellationTokenSource.Token) }) != transaction.ResponseTask.Task)
-                        return null; //timed out
+                    if (retry == retries)
+                        throw;
 
-                    cancellationTokenSource.Cancel(); //to stop delay task
+                    //retry
                 }
+                catch (ObjectDisposedException)
+                {
+                    //connection is closed; retry
+                }
+                finally
+                {
+                    if (_transactions.TryRemove(request.Identifier, out Transaction transaction))
+                        transaction.ResponseTask.TrySetCanceled();
+                }
+            }
 
-                return await transaction.ResponseTask.Task; //await again for any exception to be rethrown
-            }
-            catch (IOException)
-            {
-                //connection is closed, return null. retry attempt will reconnect back.
-                return null;
-            }
-            catch (ObjectDisposedException)
-            {
-                //connection is closed, return null. retry attempt will reconnect back.
-                return null;
-            }
-            finally
-            {
-                if (_transactions.TryRemove(request.Identifier, out Transaction transaction))
-                    transaction.ResponseTask.TrySetCanceled();
-
-                _lastQueried = DateTime.UtcNow;
-            }
+            return null;
         }
 
         #endregion
@@ -263,6 +310,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         public DateTime LastQueried
         { get { return _lastQueried; } }
+
+        internal bool Pooled
+        {
+            get { return _pooled; }
+            set { _pooled = value; }
+        }
 
         #endregion
 
