@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System.IO;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
@@ -36,10 +37,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region protected
 
-        protected override Stream GetNetworkStream(Socket socket)
+        protected override async Task<Stream> GetNetworkStreamAsync(Socket socket)
         {
             SslStream tlsStream = new SslStream(new NetworkStream(socket, true));
-            tlsStream.AuthenticateAsClient(_server.Host);
+            await tlsStream.AuthenticateAsClientAsync(_server.Host);
 
             return tlsStream;
         }
