@@ -25,6 +25,8 @@ using System.Net.Security;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.Tasks;
+using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -170,6 +172,21 @@ namespace TechnitiumLibrary.Net.Mail
 
         public new void Send(MailMessage message)
         {
+            SendMailAsync(message).Sync();
+        }
+
+        public new void SendAsync(string from, string recipients, string subject, string body, object userToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public new void SendAsync(MailMessage message, object userToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public new async Task SendMailAsync(MailMessage message)
+        {
             if (_disposed)
                 throw new ObjectDisposedException("SmtpClientEx");
 
@@ -180,7 +197,7 @@ namespace TechnitiumLibrary.Net.Mail
                     if (_dnsClient == null)
                         _dnsClient = new DnsClient();
 
-                    IReadOnlyList<string> mxServers = _dnsClient.ResolveMX(message.To[0]);
+                    IReadOnlyList<string> mxServers = await _dnsClient.ResolveMXAsync(message.To[0].Host);
                     if (mxServers.Count > 0)
                         this.Host = mxServers[0];
                     else
@@ -192,7 +209,7 @@ namespace TechnitiumLibrary.Net.Mail
 
                 if (_proxy == null)
                 {
-                    base.Send(message);
+                    await base.SendMailAsync(message);
                 }
                 else
                 {
@@ -205,18 +222,23 @@ namespace TechnitiumLibrary.Net.Mail
                     }
 
                     if ((_tunnelProxy == null) || _tunnelProxy.IsBroken)
-                        _tunnelProxy = _proxy.CreateTunnelProxy(remoteEP, base.Timeout);
+                        _tunnelProxy = await _proxy.CreateTunnelProxyAsync(remoteEP);
 
                     base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
                     base.Port = _tunnelProxy.TunnelEndPoint.Port;
 
-                    base.Send(message);
+                    await base.SendMailAsync(message);
                 }
             }
             else
             {
-                base.Send(message);
+                await base.SendMailAsync(message);
             }
+        }
+
+        public new Task SendMailAsync(string from, string recipients, string subject, string body)
+        {
+            return SendMailAsync(new MailMessage(from, recipients, subject, body));
         }
 
         #endregion
