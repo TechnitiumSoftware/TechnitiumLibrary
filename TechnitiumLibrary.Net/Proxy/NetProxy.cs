@@ -21,6 +21,9 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
+using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
@@ -31,23 +34,25 @@ namespace TechnitiumLibrary.Net.Proxy
         Socks5 = 2
     }
 
-    public abstract class NetProxy
+    public abstract class NetProxy : IWebProxy, IProxyServerConnectionManager
     {
         #region variables
 
         readonly NetProxyType _type;
 
-        protected EndPoint _proxyEP;
-        protected NetworkCredential _credential;
+        protected readonly EndPoint _proxyEP;
+        protected readonly NetworkCredential _credential;
 
         protected NetProxy _viaProxy;
         ICollection<NetProxyBypassItem> _bypassList = new List<NetProxyBypassItem> { new NetProxyBypassItem("127.0.0.0/8"), new NetProxyBypassItem("169.254.0.0/16"), new NetProxyBypassItem("fe80::/10"), new NetProxyBypassItem("::1"), new NetProxyBypassItem("localhost") };
+
+        HttpProxyServer _httpProxyServer;
 
         #endregion
 
         #region constructor
 
-        protected NetProxy(NetProxyType type, EndPoint proxyEP, NetworkCredential credential)
+        protected NetProxy(NetProxyType type, EndPoint proxyEP, NetworkCredential credential = null)
         {
             _type = type;
             _proxyEP = proxyEP;
@@ -96,7 +101,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return new SocksProxy(proxyEP, credential);
         }
 
-        public static NetProxy CreateProxy(NetProxyType type, string address, int port, NetworkCredential credential)
+        public static NetProxy CreateProxy(NetProxyType type, string address, int port, NetworkCredential credential = null)
         {
             switch (type)
             {
@@ -111,33 +116,58 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
+        public static NetProxy CreateProxy(NetProxyType type, EndPoint proxyEP, NetworkCredential credential = null)
+        {
+            switch (type)
+            {
+                case NetProxyType.Http:
+                    return new HttpProxy(proxyEP, credential);
+
+                case NetProxyType.Socks5:
+                    return new SocksProxy(proxyEP, credential);
+
+                default:
+                    throw new NotSupportedException("Proxy type not supported.");
+            }
+        }
+
         #endregion
 
         #region protected
 
-        protected static Socket GetTcpConnection(EndPoint ep, int timeout)
+        protected static async Task<Socket> GetTcpConnectionAsync(EndPoint ep)
         {
-            IPEndPoint hostEP = ep.GetIPEndPoint();
-            Socket socket = new Socket(hostEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            if (ep.AddressFamily == AddressFamily.Unspecified)
+                ep = await ep.GetIPEndPointAsync();
 
-            IAsyncResult result = socket.BeginConnect(hostEP, null, null);
-            if (!result.AsyncWaitHandle.WaitOne(timeout))
-                throw new SocketException((int)SocketError.TimedOut);
+            Socket socket = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-            if (!socket.Connected)
-                throw new SocketException((int)SocketError.ConnectionRefused);
-
-            socket.SendTimeout = timeout;
-            socket.ReceiveTimeout = timeout;
+            await socket.ConnectAsync(ep);
 
             return socket;
         }
 
-        protected abstract Socket Connect(EndPoint remoteEP, Socket viaSocket);
+        protected abstract Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket);
 
         #endregion
 
         #region public
+
+        public virtual Uri GetProxy(Uri destination)
+        {
+            if (IsBypassed(destination))
+                return destination;
+
+            if (_httpProxyServer == null)
+                _httpProxyServer = new HttpProxyServer(this);
+
+            return new Uri("http://" + _httpProxyServer.LocalEndPoint.ToString());
+        }
+
+        public bool IsBypassed(Uri host)
+        {
+            return IsBypassed(EndPointExtension.GetEndPoint(host.Host, host.Port));
+        }
 
         public bool IsBypassed(EndPoint ep)
         {
@@ -150,44 +180,58 @@ namespace TechnitiumLibrary.Net.Proxy
             return false;
         }
 
-        public abstract bool IsProxyAvailable();
-
-        public abstract void CheckProxyAccess();
-
-        public abstract bool IsUdpAvailable();
-
-        public Socket Connect(string address, int port, int timeout = 10000)
+        public async Task<bool> IsProxyAccessibleAsync(bool throwException = false, int timeout = 10000)
         {
-            return Connect(EndPointExtension.GetEndPoint(address, port), timeout);
+            try
+            {
+                using (Socket socket = await GetTcpConnectionAsync(_proxyEP).WithTimeout(timeout))
+                { }
+
+                return true;
+            }
+            catch
+            {
+                if (throwException)
+                    throw;
+
+                return false;
+            }
         }
 
-        public Socket Connect(EndPoint remoteEP, int timeout = 10000)
+        public abstract Task<bool> IsUdpAvailableAsync();
+
+        public async Task<Socket> ConnectAsync(string address, int port)
+        {
+            return await ConnectAsync(EndPointExtension.GetEndPoint(address, port));
+        }
+
+        public async Task<Socket> ConnectAsync(EndPoint remoteEP)
         {
             if (IsBypassed(remoteEP))
-                return GetTcpConnection(remoteEP, timeout);
+                return await GetTcpConnectionAsync(remoteEP);
 
             if (_viaProxy == null)
-                return Connect(remoteEP, GetTcpConnection(_proxyEP, timeout));
+                return await ConnectAsync(remoteEP, await GetTcpConnectionAsync(_proxyEP));
             else
-                return Connect(remoteEP, _viaProxy.Connect(_proxyEP, timeout));
+                return await ConnectAsync(remoteEP, await _viaProxy.ConnectAsync(_proxyEP));
         }
 
-        public TunnelProxy CreateTunnelProxy(string address, int port, int timeout = 10000, bool enableSsl = false, bool ignoreCertificateErrors = false)
+        public Task<TunnelProxy> CreateTunnelProxyAsync(string address, int port, bool enableSsl = false, bool ignoreCertificateErrors = false)
         {
-            return CreateTunnelProxy(EndPointExtension.GetEndPoint(address, port), timeout, enableSsl, ignoreCertificateErrors);
+            return CreateTunnelProxyAsync(EndPointExtension.GetEndPoint(address, port), enableSsl, ignoreCertificateErrors);
         }
 
-        public TunnelProxy CreateTunnelProxy(EndPoint remoteEP, int timeout = 10000, bool enableSsl = false, bool ignoreCertificateErrors = false)
+        public async Task<TunnelProxy> CreateTunnelProxyAsync(EndPoint remoteEP, bool enableSsl = false, bool ignoreCertificateErrors = false)
         {
-            return new TunnelProxy(Connect(remoteEP, timeout), remoteEP, enableSsl, ignoreCertificateErrors);
+            return new TunnelProxy(await ConnectAsync(remoteEP), enableSsl, ignoreCertificateErrors);
         }
 
-        public int UdpReceiveFrom(EndPoint remoteEP, byte[] request, byte[] response, int timeout = 10000)
+        public Task<int> UdpQueryAsync(byte[] request, byte[] response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
-            return UdpReceiveFrom(remoteEP, request, 0, request.Length, response, 0, timeout);
+            return UdpQueryAsync(request, 0, request.Length, response, 0, response.Length, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
         }
 
-        public abstract int UdpReceiveFrom(EndPoint remoteEP, byte[] request, int requestOffset, int requestSize, byte[] response, int responseOffset, int timeout = 10000);
+        public abstract Task<int> UdpQueryAsync(byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default);
 
         #endregion
 
@@ -207,6 +251,12 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public NetworkCredential Credential
         { get { return _credential; } }
+
+        ICredentials IWebProxy.Credentials
+        {
+            get { return _credential; }
+            set { throw new NotImplementedException(); }
+        }
 
         public NetProxy ViaProxy
         {
