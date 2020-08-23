@@ -133,7 +133,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             _socket = socket;
             _tcpStream = await GetNetworkStreamAsync(socket);
 
-            _ = Task.Factory.StartNew(ReadDnsDatagramAsync, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+            _ = ReadDnsDatagramAsync();
 
             return _tcpStream;
         }
