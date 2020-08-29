@@ -34,6 +34,8 @@ namespace TechnitiumLibrary.Net.Proxy
 
             await socket.ConnectAsync(remoteEP);
 
+            socket.NoDelay = true;
+
             return socket;
         }
     }

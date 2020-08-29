@@ -144,6 +144,8 @@ namespace TechnitiumLibrary.Net.Proxy
 
             await socket.ConnectAsync(ep);
 
+            socket.NoDelay = true;
+
             return socket;
         }
 

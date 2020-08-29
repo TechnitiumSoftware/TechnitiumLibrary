@@ -57,6 +57,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             //start local tunnel
             _tunnelListener = new Socket(_remoteEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            _tunnelListener.NoDelay = true;
 
             if (_remoteEP.AddressFamily == AddressFamily.InterNetworkV6)
                 _tunnelListener.Bind(new IPEndPoint(IPAddress.IPv6Loopback, 0));

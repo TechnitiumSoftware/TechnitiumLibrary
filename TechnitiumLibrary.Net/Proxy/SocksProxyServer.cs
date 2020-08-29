@@ -62,6 +62,7 @@ namespace TechnitiumLibrary.Net.Proxy
             _listener = new Socket(localEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             _listener.Bind(localEP);
             _listener.Listen(backlog);
+            _listener.NoDelay = true;
 
             _localEP = (IPEndPoint)_listener.LocalEndPoint;
             _connectionManager = connectionManager;
@@ -500,6 +501,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                         _remoteSocket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
                                         _remoteSocket.Bind(endPoint);
                                         _remoteSocket.Listen(1);
+                                        _remoteSocket.NoDelay = true;
 
                                         reply = SocksProxyReplyCode.Succeeded;
                                         bindEP = new IPEndPoint(networkInfo.LocalIP, (_remoteSocket.LocalEndPoint as IPEndPoint).Port);

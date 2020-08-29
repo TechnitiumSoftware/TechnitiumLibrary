@@ -57,6 +57,7 @@ namespace TechnitiumLibrary.Net.Proxy
             _listener = new Socket(localEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             _listener.Bind(localEP);
             _listener.Listen(backlog);
+            _listener.NoDelay = true;
 
             _localEP = (IPEndPoint)_listener.LocalEndPoint;
             _connectionManager = connectionManager;
