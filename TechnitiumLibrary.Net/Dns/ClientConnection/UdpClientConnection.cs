@@ -91,11 +91,26 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, bufferSize, stopwatch.Elapsed.TotalMilliseconds));
 
-                if (response.Identifier == request.Identifier)
-                    return response;
-            }
+                if (response.Identifier != request.Identifier)
+                    throw new DnsClientException("Invalid response was received: query ID mismatch.");
 
-            return null;
+                if (response.Question.Count != request.Question.Count)
+                    throw new DnsClientException("Invalid response was received: question count mismatch.");
+
+                for (int i = 0; i < response.Question.Count; i++)
+                {
+                    if (!response.Question[i].Name.Equals(request.Question[i].Name, StringComparison.Ordinal))
+                        throw new DnsClientException("Invalid response was received: QNAME mismatch.");
+
+                    if (response.Question[i].Type != request.Question[i].Type)
+                        throw new DnsClientException("Invalid response was received: QTYPE mismatch.");
+
+                    if (response.Question[i].Class != request.Question[i].Class)
+                        throw new DnsClientException("Invalid response was received: QCLASS mismatch.");
+                }
+
+                return response;
+            }
         }
 
         #endregion
