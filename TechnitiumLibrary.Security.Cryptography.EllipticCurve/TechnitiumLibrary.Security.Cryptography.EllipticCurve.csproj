@@ -41,6 +41,7 @@
     <ProjectReference Include="..\TechnitiumLibrary.Security.Cryptography\TechnitiumLibrary.Security.Cryptography.csproj">
       <Project>{acb43a30-c026-4e03-ba6e-cb3316f28cf3}</Project>
       <Name>TechnitiumLibrary.Security.Cryptography</Name>
+      <Private>True</Private>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
