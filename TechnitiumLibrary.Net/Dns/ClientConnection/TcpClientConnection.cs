@@ -33,7 +33,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
     {
         #region variables
 
-        const int ASYNC_RECEIVE_TIMEOUT = 60000;
+        const int ASYNC_RECEIVE_TIMEOUT = 120000;
 
         Socket _socket;
         Stream _tcpStream;
@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         readonly MemoryStream _sendBuffer = new MemoryStream(32);
         readonly MemoryStream _recvBuffer = new MemoryStream(64);
 
-        readonly SemaphoreSlim _tcpStreamSemaphore = new SemaphoreSlim(1, 1);
+        readonly SemaphoreSlim _sendRequestSemaphore = new SemaphoreSlim(1, 1);
 
         bool _pooled;
         DateTime _lastQueried;
@@ -95,8 +95,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if (_recvBuffer != null)
                     _recvBuffer.Dispose();
 
-                if (_tcpStreamSemaphore != null)
-                    _tcpStreamSemaphore.Dispose();
+                if (_sendRequestSemaphore != null)
+                    _sendRequestSemaphore.Dispose();
             }
 
             _disposed = true;
@@ -126,8 +126,6 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 socket = await _proxy.ConnectAsync(_server.EndPoint);
             }
 
-            socket.SendBufferSize = 512;
-            socket.ReceiveBufferSize = 2048;
             socket.NoDelay = true;
 
             _socket = socket;
@@ -158,46 +156,35 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                //ignore errors
-            }
-            finally
-            {
+                await _sendRequestSemaphore.WaitAsync();
                 try
                 {
-                    await _tcpStreamSemaphore.WaitAsync();
-                    try
+                    if (_tcpStream != null)
                     {
-                        if (_tcpStream != null)
-                        {
-                            _tcpStream.Dispose();
-                            _tcpStream = null;
-                        }
-
-                        foreach (Transaction transaction in _transactions.Values)
-                        {
-                            transaction.Stopwatch.Stop();
-                            transaction.ResponseTask.SetException(new DnsClientException("Connection was closed."));
-                        }
-
-                        _transactions.Clear();
+                        _tcpStream.Dispose();
+                        _tcpStream = null;
                     }
-                    finally
+
+                    foreach (Transaction transaction in _transactions.Values)
                     {
-                        _tcpStreamSemaphore.Release();
+                        transaction.Stopwatch.Stop();
+                        transaction.ResponseTask.SetException(ex);
                     }
+
+                    _transactions.Clear();
                 }
-                catch
+                finally
                 {
-                    //ignore errors
+                    _sendRequestSemaphore.Release();
                 }
             }
         }
 
         private async Task<bool> SendDnsDatagramAsync(DnsDatagram request, int timeout, Transaction transaction)
         {
-            if (!await _tcpStreamSemaphore.WaitAsync(timeout))
+            if (!await _sendRequestSemaphore.WaitAsync(timeout))
                 return false; //timed out
 
             try
@@ -219,7 +206,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
             finally
             {
-                _tcpStreamSemaphore.Release();
+                _sendRequestSemaphore.Release();
             }
         }
 
