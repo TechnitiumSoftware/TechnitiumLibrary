@@ -513,7 +513,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             response = await client.ResolveAsync(request);
                         }
-                        catch (DnsClientException ex)
+                        catch (Exception ex)
                         {
                             lastException = ex;
                             continue; //try next name server
@@ -1358,9 +1358,10 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            async Task<DnsDatagram> ResolveAsync(CancellationToken cancellationToken = default)
+            async Task<DnsDatagram> DoResolveAsync(CancellationToken cancellationToken = default)
             {
                 DnsDatagram asyncRequest = request.Clone();
+                DnsDatagram lastResponse = null;
                 Exception lastException = null;
 
                 while (true) //next server loop
@@ -1371,10 +1372,13 @@ namespace TechnitiumLibrary.Net.Dns
                     NameServerAddress server = GetNextServer();
                     if (server == null)
                     {
+                        if (lastResponse != null)
+                            return lastResponse;
+
                         if (lastException != null)
                             throw lastException;
 
-                        throw new DnsClientException("DnsClient failed to resolve the request: request timed out.");
+                        throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.");
                     }
 
                     if (server.IsIPEndPointStale && (_proxy == null))
@@ -1446,15 +1450,13 @@ namespace TechnitiumLibrary.Net.Dns
                                             server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
                                             switchProtocol = true;
                                         }
-                                        else
-                                        {
-                                            //ignore TC response; try next server
-                                            break;
-                                        }
                                     }
                                     else
                                     {
-                                        return response;
+                                        if (response.RCODE == DnsResponseCode.NoError)
+                                            return response;
+
+                                        lastResponse = response;
                                     }
                                 }
                             }
@@ -1476,13 +1478,16 @@ namespace TechnitiumLibrary.Net.Dns
 
                     //start worker tasks
                     for (int i = 0; i < concurrency; i++)
-                        tasks.Add(ResolveAsync(cancellationTokenSource.Token));
+                        tasks.Add(DoResolveAsync(cancellationTokenSource.Token));
 
                     //add delay task
                     Task delayTask = Task.Delay(_timeout * _retries * (int)Math.Ceiling((double)servers.Count / concurrency), cancellationTokenSource.Token);
                     tasks.Add(delayTask);
 
-                    //wait for first response, or for all tasks to fault, or timeout
+                    //wait for first positive response, or for all tasks to fault, or timeout
+                    DnsDatagram lastResponse = null;
+                    Exception lastException = null;
+
                     while (true)
                     {
                         Task completedTask = await Task.WhenAny(tasks);
@@ -1490,23 +1495,52 @@ namespace TechnitiumLibrary.Net.Dns
                         if (completedTask == delayTask)
                         {
                             cancellationTokenSource.Cancel(); //to stop resolver tasks
+
+                            if (lastResponse != null)
+                                return lastResponse; //return last response since it was returned by a task that ran to completion
+
+                            if (lastException != null)
+                                throw lastException;
+
                             throw new DnsClientException("DnsClient failed to resolve the request: request timed out.");
                         }
 
-                        if ((completedTask.Status == TaskStatus.RanToCompletion) || (tasks.Count == 2))
+                        if (completedTask.Status == TaskStatus.RanToCompletion)
                         {
-                            //resolver task complete or this is the last resolver task
+                            //resolver task complete
+                            DnsDatagram response = await (completedTask as Task<DnsDatagram>); //await to get response
+                            if (response.RCODE == DnsResponseCode.NoError)
+                            {
+                                cancellationTokenSource.Cancel(); //to stop delay and other resolver tasks
+                                return response;
+                            }
+
+                            //keep response
+                            lastResponse = response;
+                        }
+
+                        if (tasks.Count == 2)
+                        {
+                            //this is the last resolver task
                             cancellationTokenSource.Cancel(); //to stop delay and other resolver tasks
-                            return await (completedTask as Task<DnsDatagram>); //await to return or throw error
+
+                            if (lastResponse != null)
+                                return lastResponse; //return last response since it was returned by a task that ran to completion
+
+                            return await (completedTask as Task<DnsDatagram>); //await throw error
                         }
 
                         tasks.Remove(completedTask);
+                        lastException = completedTask.Exception;
+
+                        if (lastException is AggregateException)
+                            lastException = lastException.InnerException;
                     }
                 }
             }
             else
             {
-                return await ResolveAsync();
+                return await DoResolveAsync();
             }
         }
 
