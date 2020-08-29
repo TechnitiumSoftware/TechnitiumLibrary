@@ -166,8 +166,16 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     for (int i = 0; i < response.Question.Count; i++)
                     {
-                        if (!response.Question[i].Name.Equals(request.Question[i].Name, StringComparison.Ordinal))
-                            throw new DnsClientException("Invalid response was received: QNAME mismatch.");
+                        if (request.Question[i].ZoneCut == null)
+                        {
+                            if (!response.Question[i].Name.Equals(request.Question[i].Name, StringComparison.Ordinal))
+                                throw new DnsClientException("Invalid response was received: QNAME mismatch.");
+                        }
+                        else
+                        {
+                            if (!response.Question[i].Name.Equals(request.Question[i].MinimizedName, StringComparison.Ordinal))
+                                throw new DnsClientException("Invalid response was received: QNAME mismatch.");
+                        }
 
                         if (response.Question[i].Type != request.Question[i].Type)
                             throw new DnsClientException("Invalid response was received: QTYPE mismatch.");
