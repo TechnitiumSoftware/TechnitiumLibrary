@@ -141,6 +141,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 //parse response
                 DnsDatagram response = DnsDatagram.ReadFromJson(JsonConvert.DeserializeObject(responseJson));
+
+                response.SetIdentifier(request.Identifier);
                 response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, responseJson.Length, stopwatch.Elapsed.TotalMilliseconds));
 
                 if (response.Question.Count != request.Question.Count)
