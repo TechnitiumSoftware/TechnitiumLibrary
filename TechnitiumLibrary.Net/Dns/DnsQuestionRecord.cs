@@ -133,21 +133,8 @@ namespace TechnitiumLibrary.Net.Dns
             }
             else
             {
-                DnsResourceRecordType type;
-
-                switch (_type)
-                {
-                    case DnsResourceRecordType.AAAA:
-                        type = DnsResourceRecordType.AAAA;
-                        break;
-
-                    default:
-                        type = DnsResourceRecordType.A;
-                        break;
-                }
-
                 DnsDatagram.SerializeDomainName(_minimizedName, s, domainEntries);
-                DnsDatagram.WriteUInt16NetworkOrder((ushort)type, s);
+                DnsDatagram.WriteUInt16NetworkOrder((ushort)MinimizedType, s);
                 DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
             }
         }
@@ -214,6 +201,18 @@ namespace TechnitiumLibrary.Net.Dns
         [IgnoreDataMember]
         public string MinimizedName
         { get { return _minimizedName; } }
+
+        [IgnoreDataMember]
+        public DnsResourceRecordType MinimizedType
+        {
+            get
+            {
+                if (_type == DnsResourceRecordType.AAAA)
+                    return DnsResourceRecordType.AAAA;
+
+                return DnsResourceRecordType.A;
+            }
+        }
 
         #endregion
     }

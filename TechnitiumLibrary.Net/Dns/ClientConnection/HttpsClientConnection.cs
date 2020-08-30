@@ -170,15 +170,18 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         {
                             if (!response.Question[i].Name.Equals(request.Question[i].Name, StringComparison.Ordinal))
                                 throw new DnsClientException("Invalid response was received: QNAME mismatch.");
+
+                            if (response.Question[i].Type != request.Question[i].Type)
+                                throw new DnsClientException("Invalid response was received: QTYPE mismatch.");
                         }
                         else
                         {
                             if (!response.Question[i].Name.Equals(request.Question[i].MinimizedName, StringComparison.Ordinal))
                                 throw new DnsClientException("Invalid response was received: QNAME mismatch.");
-                        }
 
-                        if (response.Question[i].Type != request.Question[i].Type)
-                            throw new DnsClientException("Invalid response was received: QTYPE mismatch.");
+                            if (response.Question[i].Type != request.Question[i].MinimizedType)
+                                throw new DnsClientException("Invalid response was received: QTYPE mismatch.");
+                        }
 
                         if (response.Question[i].Class != request.Question[i].Class)
                             throw new DnsClientException("Invalid response was received: QCLASS mismatch.");
