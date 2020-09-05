@@ -42,7 +42,6 @@ namespace TechnitiumLibrary.Net.Proxy
         readonly Socket _tunnelListener;
         readonly IPEndPoint _tunnelEP;
         Socket _tunnelSocket;
-        Joint _tunnelJoint;
 
         #endregion
 
@@ -118,9 +117,6 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     _tunnelSocket.Dispose();
                 }
-
-                if (_tunnelJoint != null)
-                    _tunnelJoint.Dispose();
             }
 
             _disposed = true;
@@ -137,7 +133,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 _tunnelSocket = await _tunnelListener.AcceptAsync().WithTimeout(TUNNEL_WAIT_TIMEOUT);
                 _tunnelListener.Dispose();
 
-                Stream remoteStream = new NetworkStream(_remoteSocket, true);
+                Stream remoteStream = new NetworkStream(_remoteSocket);
 
                 if (_enableSsl)
                 {
@@ -152,7 +148,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     }
                     else
                     {
-                        sslStream = new SslStream(remoteStream, false);
+                        sslStream = new SslStream(remoteStream);
                     }
 
                     string targetHost;
@@ -177,14 +173,10 @@ namespace TechnitiumLibrary.Net.Proxy
                     remoteStream = sslStream;
                 }
 
-                _tunnelJoint = new Joint(remoteStream, new NetworkStream(_tunnelSocket, true));
+                Stream tunnelStream = new NetworkStream(_tunnelSocket);
 
-                _tunnelJoint.Disposing += delegate (object sender, EventArgs e)
-                {
-                    Dispose();
-                };
-
-                _tunnelJoint.Start();
+                _ = remoteStream.CopyToAsync(tunnelStream).ContinueWith(delegate (Task prevTask) { Dispose(); });
+                _ = tunnelStream.CopyToAsync(remoteStream).ContinueWith(delegate (Task prevTask) { Dispose(); });
             }
             catch
             {
