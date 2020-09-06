@@ -147,9 +147,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     timeoutCancellationTokenSource.Cancel(); //to stop delay task
                 }
 
-                byte[] responseBuffer = await (await task).Content.ReadAsByteArrayAsync();
+                HttpResponseMessage httpResponse = await task;
 
                 stopwatch.Stop();
+                httpResponse.EnsureSuccessStatusCode();
+
+                byte[] responseBuffer = await httpResponse.Content.ReadAsByteArrayAsync();
 
                 //parse response
                 using (MemoryStream mS = new MemoryStream(responseBuffer, false))

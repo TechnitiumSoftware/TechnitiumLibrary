@@ -135,9 +135,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     timeoutCancellationTokenSource.Cancel(); //to stop delay task
                 }
 
-                string responseJson = await (await task).Content.ReadAsStringAsync();
+                HttpResponseMessage httpResponse = await task;
 
                 stopwatch.Stop();
+                httpResponse.EnsureSuccessStatusCode();
+
+                string responseJson = await httpResponse.Content.ReadAsStringAsync();
 
                 //parse response
                 DnsDatagram response = DnsDatagram.ReadFromJson(JsonConvert.DeserializeObject(responseJson));
