@@ -89,7 +89,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             _lastQueried = DateTime.UtcNow;
 
-            HttpRequestMessage httpRequest;
+            async Task<HttpRequestMessage> GetHttpRequest()
             {
                 //serialize request
                 byte[] requestBuffer;
@@ -117,9 +117,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }
 
-                httpRequest = new HttpRequestMessage(HttpMethod.Post, queryUri);
+                HttpRequestMessage httpRequest = new HttpRequestMessage(HttpMethod.Post, queryUri);
                 httpRequest.Content = new ByteArrayContent(requestBuffer);
                 httpRequest.Content.Headers.ContentType = new MediaTypeHeaderValue("application/dns-message");
+
+                return httpRequest;
             }
 
             //DoH wire format request
@@ -134,7 +136,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 stopwatch.Start();
 
-                Task<HttpResponseMessage> task = _httpClient.SendAsync(httpRequest, cancellationToken);
+                Task<HttpResponseMessage> task = _httpClient.SendAsync(await GetHttpRequest(), cancellationToken);
 
                 using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                 {

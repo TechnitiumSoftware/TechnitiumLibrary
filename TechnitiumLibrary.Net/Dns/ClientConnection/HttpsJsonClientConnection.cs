@@ -88,7 +88,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             _lastQueried = DateTime.UtcNow;
 
-            HttpRequestMessage httpRequest;
+            async Task<HttpRequestMessage> GetHttpRequest()
             {
                 Uri queryUri;
 
@@ -107,7 +107,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }
 
-                httpRequest = new HttpRequestMessage(HttpMethod.Get, queryUri.AbsoluteUri + "?name=" + request.Question[0].Name + "&type=" + Convert.ToString((int)request.Question[0].Type));
+                return new HttpRequestMessage(HttpMethod.Get, queryUri.AbsoluteUri + "?name=" + request.Question[0].Name + "&type=" + Convert.ToString((int)request.Question[0].Type));
             }
 
             //DoH JSON format request 
@@ -122,7 +122,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 stopwatch.Start();
 
-                Task<HttpResponseMessage> task = _httpClient.SendAsync(httpRequest, cancellationToken);
+                Task<HttpResponseMessage> task = _httpClient.SendAsync(await GetHttpRequest(), cancellationToken);
 
                 using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                 {
