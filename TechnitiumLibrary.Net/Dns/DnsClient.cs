@@ -254,6 +254,10 @@ namespace TechnitiumLibrary.Net.Dns
             _servers = servers;
         }
 
+        public DnsClient(string address, DnsTransportProtocol protocol)
+            : this(new NameServerAddress(address, protocol))
+        { }
+
         public DnsClient(NameServerAddress server)
         {
             _servers = new NameServerAddress[] { server };
