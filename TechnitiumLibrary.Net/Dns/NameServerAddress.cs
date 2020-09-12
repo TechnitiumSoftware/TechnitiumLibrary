@@ -547,8 +547,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                 try
                 {
-                    string domain = await dnsClient.ResolvePTRAsync(_ipEndPoint.Address);
-                    _domainEndPoint = new DomainEndPoint(domain, _ipEndPoint.Port);
+                    IReadOnlyList<string> ptrDomains = await dnsClient.ResolvePTRAsync(_ipEndPoint.Address);
+                    if (ptrDomains != null)
+                        _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
                 catch
                 { }
@@ -561,9 +562,9 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 try
                 {
-                    string ptrDomain = DnsClient.ParseResponsePTR(await DnsClient.RecursiveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout));
-                    if (ptrDomain != null)
-                        _domainEndPoint = new DomainEndPoint(ptrDomain, _ipEndPoint.Port);
+                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout));
+                    if (ptrDomains != null)
+                        _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
                 catch
                 { }
