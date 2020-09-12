@@ -1067,7 +1067,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static string ParseResponsePTR(DnsDatagram response)
+        public static IReadOnlyList<string> ParseResponsePTR(DnsDatagram response)
         {
             string domain = response.Question[0].Name;
 
@@ -1077,6 +1077,8 @@ namespace TechnitiumLibrary.Net.Dns
                     if (response.Answer.Count == 0)
                         return null;
 
+                    List<string> values = new List<string>();
+
                     foreach (DnsResourceRecord record in response.Answer)
                     {
                         if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
@@ -1084,7 +1086,8 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (record.Type)
                             {
                                 case DnsResourceRecordType.PTR:
-                                    return ((DnsPTRRecord)record.RDATA).Domain;
+                                    values.Add(((DnsPTRRecord)record.RDATA).Domain);
+                                    break;
 
                                 case DnsResourceRecordType.CNAME:
                                     domain = ((DnsCNAMERecord)record.RDATA).Domain;
@@ -1092,6 +1095,9 @@ namespace TechnitiumLibrary.Net.Dns
                             }
                         }
                     }
+
+                    if (values.Count > 0)
+                        return values;
 
                     return null;
 
@@ -1629,7 +1635,7 @@ namespace TechnitiumLibrary.Net.Dns
             return mxAddresses;
         }
 
-        public async Task<string> ResolvePTRAsync(IPAddress ip)
+        public async Task<IReadOnlyList<string>> ResolvePTRAsync(IPAddress ip)
         {
             return ParseResponsePTR(await ResolveAsync(new DnsQuestionRecord(ip, DnsClass.IN)));
         }
