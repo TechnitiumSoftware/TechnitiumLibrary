@@ -144,7 +144,7 @@ namespace TechnitiumLibrary.Net.Dns
         public virtual DnsDatagram Query(DnsDatagram request, bool serveStale = false)
         {
             if (serveStale)
-                throw new NotImplementedException("SimpleDnsCache does not implement serve stale.");
+                throw new NotImplementedException("DnsCache does not implement serve stale.");
 
             DnsQuestionRecord question = request.Question[0];
 
