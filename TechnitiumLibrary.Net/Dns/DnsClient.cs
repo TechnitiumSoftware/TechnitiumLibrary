@@ -54,6 +54,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         readonly IReadOnlyList<NameServerAddress> _servers;
 
+        IDnsCache _cache;
         NetProxy _proxy;
         bool _preferIPv6 = false;
         int _retries = 2;
@@ -208,7 +209,9 @@ namespace TechnitiumLibrary.Net.Dns
         {
             _preferIPv6 = preferIPv6;
 
-            IPAddressCollection systemDnsServers = GetSystemDnsServers(_preferIPv6);
+            IReadOnlyList<IPAddress> systemDnsServers = GetSystemDnsServers(_preferIPv6);
+            if (systemDnsServers.Count == 0)
+                throw new DnsClientException("No DNS servers were found configured on this system.");
 
             NameServerAddress[] servers = new NameServerAddress[systemDnsServers.Count];
 
@@ -515,7 +518,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         try
                         {
-                            response = await client.ResolveAsync(request);
+                            response = await client.InternalResolveAsync(request);
                         }
                         catch (Exception ex)
                         {
@@ -863,12 +866,9 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static async Task<DnsDatagram> RecursiveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        public static async Task<DnsDatagram> ResolveQueryAsync(DnsQuestionRecord question, Func<DnsQuestionRecord, Task<DnsDatagram>> resolveAsync)
         {
-            if (cache == null)
-                cache = new DnsCache();
-
-            DnsDatagram response = await RecursiveResolveAsync(question, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
+            DnsDatagram response = await resolveAsync(question);
 
             IReadOnlyList<DnsResourceRecord> authority = null;
             IReadOnlyList<DnsResourceRecord> additional = null;
@@ -889,7 +889,7 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class);
 
-                        lastResponse = await RecursiveResolveAsync(cnameQuestion, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
+                        lastResponse = await resolveAsync(cnameQuestion);
 
                         if (lastResponse.Answer.Count == 0)
                             break;
@@ -935,6 +935,17 @@ namespace TechnitiumLibrary.Net.Dns
             return finalResponse;
         }
 
+        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        {
+            if (cache == null)
+                cache = new DnsCache();
+
+            return ResolveQueryAsync(question, delegate (DnsQuestionRecord q)
+            {
+                return RecursiveResolveAsync(q, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
+            });
+        }
+
         public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
@@ -942,12 +953,12 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(await RecursiveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
+            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
         }
 
         public static IReadOnlyList<IPAddress> ParseResponseA(DnsDatagram response)
@@ -1161,31 +1172,29 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static IPAddressCollection GetSystemDnsServers(bool preferIPv6 = false)
+        public static IReadOnlyList<IPAddress> GetSystemDnsServers(bool preferIPv6 = false)
         {
-            NetworkInfo defaultNetworkInfo;
+            List<IPAddress> dnsAddresses = new List<IPAddress>();
 
-            if (preferIPv6)
+            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
-                defaultNetworkInfo = NetUtilities.GetDefaultIPv6NetworkInfo();
+                if (nic.OperationalStatus != OperationalStatus.Up)
+                    continue;
 
-                if ((defaultNetworkInfo == null) || (defaultNetworkInfo.Interface.GetIPProperties().DnsAddresses.Count == 0))
-                    defaultNetworkInfo = NetUtilities.GetDefaultIPv4NetworkInfo();
+                foreach (IPAddress dnsAddress in nic.GetIPProperties().DnsAddresses)
+                {
+                    if (!preferIPv6 && (dnsAddress.AddressFamily == AddressFamily.InterNetworkV6))
+                        continue;
+
+                    if ((dnsAddress.AddressFamily == AddressFamily.InterNetworkV6) && dnsAddress.IsIPv6SiteLocal)
+                        continue;
+
+                    if (!dnsAddresses.Contains(dnsAddress))
+                        dnsAddresses.Add(dnsAddress);
+                }
             }
-            else
-            {
-                defaultNetworkInfo = NetUtilities.GetDefaultIPv4NetworkInfo();
-            }
 
-            if (defaultNetworkInfo == null)
-                throw new DnsClientException("No default network connection was found on this computer.");
-
-            IPAddressCollection servers = defaultNetworkInfo.Interface.GetIPProperties().DnsAddresses;
-
-            if (servers.Count == 0)
-                throw new DnsClientException("Default network does not have any DNS server configured.");
-
-            return servers;
+            return dnsAddresses;
         }
 
         public static bool IsDomainNameValid(string domain, bool throwException = false)
@@ -1318,11 +1327,7 @@ namespace TechnitiumLibrary.Net.Dns
             return word;
         }
 
-        #endregion
-
-        #region public
-
-        public async Task<DnsDatagram> ResolveAsync(DnsDatagram request)
+        private async Task<DnsDatagram> InternalResolveAsync(DnsDatagram request)
         {
             //get servers
             IReadOnlyList<NameServerAddress> servers;
@@ -1554,9 +1559,42 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public async Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question)
+        private async Task<DnsDatagram> InternalCachedResolveQueryAsync(DnsQuestionRecord question)
         {
-            return await ResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }));
+            return await ResolveQueryAsync(question, async delegate (DnsQuestionRecord q)
+            {
+                DnsDatagram newRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { q });
+
+                DnsDatagram newResponse = _cache.Query(newRequest);
+                if (newResponse.RCODE == DnsResponseCode.Refused)
+                {
+                    newResponse = await InternalResolveAsync(newRequest);
+
+                    _cache.CacheResponse(newResponse);
+                }
+
+                return newResponse;
+            });
+        }
+
+        #endregion
+
+        #region public
+
+        public Task<DnsDatagram> ResolveAsync(DnsDatagram request)
+        {
+            if ((_cache == null) || (request.Question.Count != 1))
+                return InternalResolveAsync(request);
+            else
+                return InternalCachedResolveQueryAsync(request.Question[0]);
+        }
+
+        public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question)
+        {
+            if (_cache == null)
+                return InternalResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }));
+            else
+                return InternalCachedResolveQueryAsync(question);
         }
 
         public async Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type)
@@ -1663,6 +1701,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         public IReadOnlyList<NameServerAddress> Servers
         { get { return _servers; } }
+
+        public IDnsCache Cache
+        {
+            get { return _cache; }
+            set { _cache = value; }
+        }
 
         public NetProxy Proxy
         {
