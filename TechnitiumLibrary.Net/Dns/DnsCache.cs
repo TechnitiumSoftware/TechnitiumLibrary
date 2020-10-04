@@ -541,6 +541,11 @@ namespace TechnitiumLibrary.Net.Dns
             CacheRecords(cachableRecords);
         }
 
+        public virtual void Flush()
+        {
+            _cache.Clear();
+        }
+
         #endregion
 
         public class DnsNXRecord : DnsResourceRecordData
