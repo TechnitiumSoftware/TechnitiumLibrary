@@ -57,6 +57,7 @@ namespace TechnitiumLibrary.Net.Dns
         IDnsCache _cache;
         NetProxy _proxy;
         bool _preferIPv6 = false;
+        bool _randomizeName;
         int _retries = 2;
         int _timeout = 2000;
         int _concurrency = 2;
@@ -286,7 +287,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IReadOnlyList<NameServerAddress> nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IReadOnlyList<NameServerAddress> nameServers = null, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
                 cache = new DnsCache();
@@ -510,6 +511,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         DnsClient client = new DnsClient(currentNameServer);
                         client._proxy = proxy;
+                        client._randomizeName = randomizeName;
                         client._retries = retries;
                         client._timeout = timeout;
 
@@ -866,7 +868,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static async Task<DnsDatagram> ResolveQueryAsync(DnsQuestionRecord question, Func<DnsQuestionRecord, Task<DnsDatagram>> resolveAsync)
+        private static async Task<DnsDatagram> ResolveQueryAsync(DnsQuestionRecord question, Func<DnsQuestionRecord, Task<DnsDatagram>> resolveAsync)
         {
             DnsDatagram response = await resolveAsync(question);
 
@@ -935,30 +937,30 @@ namespace TechnitiumLibrary.Net.Dns
             return finalResponse;
         }
 
-        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
                 cache = new DnsCache();
 
             return ResolveQueryAsync(question, delegate (DnsQuestionRecord q)
             {
-                return RecursiveResolveAsync(q, null, cache, proxy, preferIPv6, retries, timeout, maxStackCount);
+                return RecursiveResolveAsync(q, null, cache, proxy, preferIPv6, randomizeName, retries, timeout, maxStackCount);
             });
         }
 
-        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
                 cache = new DnsCache();
 
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, retries, timeout, maxStackCount));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout, maxStackCount));
+            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, retries, timeout, maxStackCount));
         }
 
         public static IReadOnlyList<IPAddress> ParseResponseA(DnsDatagram response)
@@ -1401,7 +1403,7 @@ namespace TechnitiumLibrary.Net.Dns
                         //recursive resolve name server via root servers when proxy is null else let proxy resolve it
                         try
                         {
-                            await server.RecursiveResolveIPAddressAsync(dnsCache, null, _preferIPv6, _retries, _timeout);
+                            await server.RecursiveResolveIPAddressAsync(dnsCache, null, _preferIPv6, _randomizeName, _retries, _timeout);
                         }
                         catch (Exception ex)
                         {
@@ -1450,28 +1452,64 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 //use pooled connection if possible
                                 connection = DnsClientConnection.GetConnection(server, _proxy);
+
+                                if (_randomizeName && (server.Protocol == DnsTransportProtocol.Udp))
+                                {
+                                    foreach (DnsQuestionRecord question in asyncRequest.Question)
+                                        question.RandomizeName();
+                                }
                             }
 
                             using (connection)
                             {
-                                DnsDatagram response = await connection.QueryAsync(asyncRequest, _timeout, _retries, cancellationToken);
-                                if (response != null)
+                                try
                                 {
-                                    //got response
-                                    if (response.Truncation)
+                                    DnsDatagram response = await connection.QueryAsync(asyncRequest, _timeout, _retries, cancellationToken);
+                                    if (response != null)
                                     {
-                                        if (server.Protocol == DnsTransportProtocol.Udp)
+                                        //got response
+                                        if (response.Truncation)
                                         {
-                                            server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
-                                            switchProtocol = true;
+                                            if (server.Protocol == DnsTransportProtocol.Udp)
+                                            {
+                                                server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
+
+                                                if (_randomizeName)
+                                                {
+                                                    foreach (DnsQuestionRecord question in asyncRequest.Question)
+                                                        question.NormalizeName();
+                                                }
+
+                                                switchProtocol = true;
+                                            }
                                         }
+                                        else
+                                        {
+                                            if (response.RCODE == DnsResponseCode.NoError)
+                                                return response;
+
+                                            lastResponse = response;
+                                        }
+                                    }
+                                }
+                                catch (DnsClientResponseValidationException)
+                                {
+                                    if (server.Protocol == DnsTransportProtocol.Udp)
+                                    {
+                                        //TCP fallback mechanism to use for any response validation failures
+                                        server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
+
+                                        if (_randomizeName)
+                                        {
+                                            foreach (DnsQuestionRecord question in asyncRequest.Question)
+                                                question.NormalizeName();
+                                        }
+
+                                        switchProtocol = true;
                                     }
                                     else
                                     {
-                                        if (response.RCODE == DnsResponseCode.NoError)
-                                            return response;
-
-                                        lastResponse = response;
+                                        throw;
                                     }
                                 }
                             }
@@ -1487,7 +1525,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (concurrency > 1)
             {
-                using (var cancellationTokenSource = new CancellationTokenSource())
+                using (CancellationTokenSource cancellationTokenSource = new CancellationTokenSource())
                 {
                     List<Task> tasks = new List<Task>(concurrency);
 
@@ -1718,6 +1756,12 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get { return _preferIPv6; }
             set { _preferIPv6 = value; }
+        }
+
+        public bool RandomizeName
+        {
+            get { return _randomizeName; }
+            set { _randomizeName = value; }
         }
 
         public int Retries
