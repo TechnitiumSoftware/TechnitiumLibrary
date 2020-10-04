@@ -23,17 +23,24 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.Serialization;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace TechnitiumLibrary.Net.Dns
 {
     //DNS Query Name Minimisation to Improve Privacy
     //https://tools.ietf.org/html/draft-ietf-dnsop-rfc7816bis-04
 
+    //Use of Bit 0x20 in DNS Labels to Improve Transaction Identity
+    //https://tools.ietf.org/html/draft-vixie-dnsext-dns0x20-00
+
     public class DnsQuestionRecord
     {
         #region variables
 
-        readonly string _name;
+        readonly static RandomNumberGenerator _rng = RandomNumberGenerator.Create();
+
+        string _name;
         readonly DnsResourceRecordType _type;
         readonly DnsClass _class;
 
@@ -101,6 +108,30 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region private
 
+        private static string RandomizeName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return name;
+
+            byte[] r = new byte[1];
+            byte[] asciiName = Encoding.ASCII.GetBytes(name);
+
+            for (int i = 0; i < asciiName.Length; i++)
+            {
+                if (((asciiName[i] >= 97) && (asciiName[i] <= 122)) || ((asciiName[i] >= 65) && (asciiName[i] <= 90)))
+                {
+                    _rng.GetBytes(r);
+
+                    if ((r[0] & 0x1) > 0)
+                        asciiName[i] |= 0x20;
+                    else
+                        asciiName[i] &= 0xDF;
+                }
+            }
+
+            return Encoding.ASCII.GetString(asciiName);
+        }
+
         private static string GetMinimizedName(string name, string zoneCut)
         {
             //www.example.com
@@ -122,6 +153,22 @@ namespace TechnitiumLibrary.Net.Dns
         #endregion
 
         #region public
+
+        public void RandomizeName()
+        {
+            if (_minimizedName == null)
+                _name = RandomizeName(_name);
+            else
+                _minimizedName = RandomizeName(_minimizedName);
+        }
+
+        public void NormalizeName()
+        {
+            if (_minimizedName == null)
+                _name = _name.ToLower();
+            else
+                _minimizedName = _minimizedName.ToLower();
+        }
 
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
