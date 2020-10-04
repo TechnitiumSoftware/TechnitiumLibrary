@@ -291,12 +291,12 @@ namespace TechnitiumLibrary.Net.Proxy
                 //send request
                 await SendToAsync(request, requestOffset, requestCount, remoteEP);
 
-                //receive request
-                if (recvTask == null)
-                    recvTask = ReceiveFromAsync(response, responseOffset, responseCount);
-
                 while (true)
                 {
+                    //receive request
+                    if (recvTask == null)
+                        recvTask = ReceiveFromAsync(response, responseOffset, responseCount);
+
                     //receive with timeout
                     using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                     {
@@ -309,10 +309,16 @@ namespace TechnitiumLibrary.Net.Proxy
                         timeoutCancellationTokenSource.Cancel(); //to stop delay task
                     }
 
-                    var result = await recvTask;
+                    UdpReceiveFromResult result = await recvTask;
 
-                    //got response
-                    return result.BytesReceived;
+                    if ((remoteEP is DomainEndPoint) || remoteEP.Equals(result.RemoteEndPoint)) //in case remoteEP is domain end point then returned response will contain the resolved IP address so cant compare it together
+                    {
+                        //got response
+                        return result.BytesReceived;
+                    }
+
+                    //recv task is complete; set recvTask to null so that another task is used to read next response packet
+                    recvTask = null;
                 }
             }
 
