@@ -95,6 +95,14 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region private
 
+        private void InternalCacheRecords(IReadOnlyList<DnsResourceRecord> resourceRecords)
+        {
+            foreach (DnsResourceRecord resourceRecord in resourceRecords)
+                resourceRecord.NormalizeName();
+
+            CacheRecords(resourceRecords);
+        }
+
         private static string GetParentZone(string domain)
         {
             int i = domain.IndexOf('.');
@@ -240,7 +248,7 @@ namespace TechnitiumLibrary.Net.Dns
                         DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _failureRecordTtl, new DnsFailureRecord(response.RCODE));
                         record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
-                        CacheRecords(new DnsResourceRecord[] { record });
+                        InternalCacheRecords(new DnsResourceRecord[] { record });
                     }
 
                     return;
@@ -346,7 +354,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
-                                    CacheRecords(new DnsResourceRecord[] { record });
+                                    InternalCacheRecords(new DnsResourceRecord[] { record });
                                 }
                             }
                         }
@@ -378,7 +386,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
-                                        CacheRecords(new DnsResourceRecord[] { record });
+                                        InternalCacheRecords(new DnsResourceRecord[] { record });
                                     }
 
                                     break;
@@ -415,7 +423,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
-                                        CacheRecords(new DnsResourceRecord[] { record });
+                                        InternalCacheRecords(new DnsResourceRecord[] { record });
                                     }
 
                                     break;
@@ -492,7 +500,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
-                            CacheRecords(new DnsResourceRecord[] { record });
+                            InternalCacheRecords(new DnsResourceRecord[] { record });
                         }
                     }
                 }
@@ -506,7 +514,7 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsResourceRecord record = new DnsResourceRecord(response.Question[0].Name, DnsResourceRecordType.ANY, response.Question[0].Class, _negativeRecordTtl, new DnsANYRecord(response.Answer));
                     record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
-                    CacheRecords(new DnsResourceRecord[] { record });
+                    InternalCacheRecords(new DnsResourceRecord[] { record });
                 }
                 else
                 {
@@ -525,7 +533,7 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsResourceRecord record = new DnsResourceRecord(question.Name, DnsResourceRecordType.ANY, question.Class, _negativeRecordTtl, new DnsANYRecord(answerRecords));
                             record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
-                            CacheRecords(new DnsResourceRecord[] { record });
+                            InternalCacheRecords(new DnsResourceRecord[] { record });
                         }
                     }
                 }
@@ -538,7 +546,7 @@ namespace TechnitiumLibrary.Net.Dns
             foreach (DnsResourceRecord record in cachableRecords)
                 record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
-            CacheRecords(cachableRecords);
+            InternalCacheRecords(cachableRecords);
         }
 
         public virtual void Flush()

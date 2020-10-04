@@ -113,6 +113,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal override void NormalizeName()
+        {
+            _primaryNameServer = _primaryNameServer.ToLower();
+            _responsiblePerson = _responsiblePerson.ToLower();
+        }
+
+        #endregion
+
         #region public
 
         public bool IsZoneUpdateAvailable(DnsSOARecord newRecord)

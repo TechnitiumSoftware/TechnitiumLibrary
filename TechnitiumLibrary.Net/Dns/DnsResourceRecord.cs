@@ -130,7 +130,7 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        readonly string _name;
+        string _name;
         readonly DnsResourceRecordType _type;
         readonly DnsClass _class;
         uint _ttl;
@@ -328,6 +328,16 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             return groupedByDomainRecords;
+        }
+
+        #endregion
+
+        #region internal
+
+        internal void NormalizeName()
+        {
+            _name = _name.ToLower();
+            _data.NormalizeName();
         }
 
         #endregion

@@ -68,6 +68,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal override void NormalizeName()
+        {
+            _domain = _domain.ToLower();
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)

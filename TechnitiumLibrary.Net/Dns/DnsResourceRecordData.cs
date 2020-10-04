@@ -56,6 +56,13 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
+        #region internal
+
+        internal virtual void NormalizeName()
+        { }
+
+        #endregion
+
         #region public
 
         public void WriteTo(Stream s)

@@ -74,6 +74,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal override void NormalizeName()
+        {
+            _exchange = _exchange.ToLower();
+        }
+
+        #endregion
+
         #region public
 
         public int CompareTo(DnsMXRecord other)
