@@ -614,7 +614,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                     while (true)
                                     {
                                         UdpReceiveFromResult result = await udpHandler.ReceiveFromAsync(buffer, 0, buffer.Length);
-                                        await _remoteSocket.SendToAsync(buffer, 0, result.BytesReceived, result.RemoteEndPoint);
+                                        await _remoteSocket.SendToAsync(buffer, 0, result.BytesReceived, await result.RemoteEndPoint.GetIPEndPointAsync());
                                     }
                                 }
                             }
