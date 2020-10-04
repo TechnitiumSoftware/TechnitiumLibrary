@@ -144,12 +144,12 @@ namespace TechnitiumLibrary.Net
                 //send request
                 await socket.SendToAsync(request, requestOffset, requestCount, remoteEP);
 
-                //receive request
-                if (recvTask == null)
-                    recvTask = socket.ReceiveFromAsync(response, responseOffset, responseCount);
-
                 while (true)
                 {
+                    //receive request
+                    if (recvTask == null)
+                        recvTask = socket.ReceiveFromAsync(response, responseOffset, responseCount);
+
                     //receive with timeout
                     using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                     {
@@ -162,13 +162,16 @@ namespace TechnitiumLibrary.Net
                         timeoutCancellationTokenSource.Cancel(); //to stop delay task
                     }
 
-                    var result = await recvTask;
+                    UdpReceiveFromResult result = await recvTask;
 
                     if (remoteEP.Equals(result.RemoteEndPoint))
                     {
                         //got response
                         return result.BytesReceived;
                     }
+
+                    //recv task is complete; set recvTask to null so that another task is used to read next response packet
+                    recvTask = null;
                 }
             }
 
