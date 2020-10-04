@@ -242,7 +242,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     Task<bool> sendAsyncTask = SendDnsDatagramAsync(request, timeout, transaction);
 
                     //wait for request with timeout
-                    using (var timeoutCancellationTokenSource = new CancellationTokenSource())
+                    using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                     {
                         using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { timeoutCancellationTokenSource.Cancel(); }))
                         {
@@ -257,7 +257,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         continue; //semaphone wait timed out; retry
 
                     //wait for response with timeout
-                    using (var timeoutCancellationTokenSource = new CancellationTokenSource())
+                    using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                     {
                         using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { timeoutCancellationTokenSource.Cancel(); }))
                         {
@@ -271,32 +271,32 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     DnsDatagram response = await transaction.ResponseTask.Task; //await again for any exception to be rethrown
 
                     if (response.Identifier != request.Identifier)
-                        throw new DnsClientException("Invalid response was received: query ID mismatch.");
+                        throw new DnsClientResponseValidationException("Invalid response was received: query ID mismatch.");
 
                     if (response.Question.Count != request.Question.Count)
-                        throw new DnsClientException("Invalid response was received: question count mismatch.");
+                        throw new DnsClientResponseValidationException("Invalid response was received: question count mismatch.");
 
                     for (int i = 0; i < response.Question.Count; i++)
                     {
                         if (request.Question[i].ZoneCut == null)
                         {
                             if (!response.Question[i].Name.Equals(request.Question[i].Name, StringComparison.Ordinal))
-                                throw new DnsClientException("Invalid response was received: QNAME mismatch.");
+                                throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
 
                             if (response.Question[i].Type != request.Question[i].Type)
-                                throw new DnsClientException("Invalid response was received: QTYPE mismatch.");
+                                throw new DnsClientResponseValidationException("Invalid response was received: QTYPE mismatch.");
                         }
                         else
                         {
                             if (!response.Question[i].Name.Equals(request.Question[i].MinimizedName, StringComparison.Ordinal))
-                                throw new DnsClientException("Invalid response was received: QNAME mismatch.");
+                                throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
 
                             if (response.Question[i].Type != request.Question[i].MinimizedType)
-                                throw new DnsClientException("Invalid response was received: QTYPE mismatch.");
+                                throw new DnsClientResponseValidationException("Invalid response was received: QTYPE mismatch.");
                         }
 
                         if (response.Question[i].Class != request.Question[i].Class)
-                            throw new DnsClientException("Invalid response was received: QCLASS mismatch.");
+                            throw new DnsClientResponseValidationException("Invalid response was received: QCLASS mismatch.");
                     }
 
                     return response;
