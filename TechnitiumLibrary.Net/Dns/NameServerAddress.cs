@@ -441,7 +441,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public async Task ResolveIPAddressAsync(IReadOnlyList<NameServerAddress> nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
+        public async Task ResolveIPAddressAsync(IReadOnlyList<NameServerAddress> nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
                 return;
@@ -476,6 +476,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             dnsClient.Proxy = proxy;
             dnsClient.PreferIPv6 = preferIPv6;
+            dnsClient.RandomizeName = randomizeName;
             dnsClient.Retries = retries;
             dnsClient.Timeout = timeout;
 
@@ -489,7 +490,7 @@ namespace TechnitiumLibrary.Net.Dns
             _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
         }
 
-        public async Task RecursiveResolveIPAddressAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
+        public async Task RecursiveResolveIPAddressAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
                 return;
@@ -517,7 +518,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             IPEndPoint ipEndPoint = null;
 
-            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, retries, timeout);
+            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, randomizeName, retries, timeout);
             if (addresses.Count > 0)
                 ipEndPoint = new IPEndPoint(addresses[0], this.Port);
 
@@ -529,7 +530,7 @@ namespace TechnitiumLibrary.Net.Dns
             _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
         }
 
-        public async Task ResolveDomainNameAsync(IReadOnlyList<NameServerAddress> nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
+        public async Task ResolveDomainNameAsync(IReadOnlyList<NameServerAddress> nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPoint != null)
             {
@@ -542,6 +543,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 dnsClient.Proxy = proxy;
                 dnsClient.PreferIPv6 = preferIPv6;
+                dnsClient.RandomizeName = randomizeName;
                 dnsClient.Retries = retries;
                 dnsClient.Timeout = timeout;
 
@@ -556,13 +558,13 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public async Task RecursiveResolveDomainNameAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000)
+        public async Task RecursiveResolveDomainNameAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPoint != null)
             {
                 try
                 {
-                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, retries, timeout));
+                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, retries, timeout));
                     if (ptrDomains != null)
                         _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
