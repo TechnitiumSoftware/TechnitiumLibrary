@@ -113,16 +113,16 @@ namespace TechnitiumLibrary.Net.Dns
             if (string.IsNullOrEmpty(name))
                 return name;
 
-            byte[] r = new byte[1];
             byte[] asciiName = Encoding.ASCII.GetBytes(name);
+            byte[] r = new byte[asciiName.Length];
+
+            _rng.GetBytes(r);
 
             for (int i = 0; i < asciiName.Length; i++)
             {
                 if (((asciiName[i] >= 97) && (asciiName[i] <= 122)) || ((asciiName[i] >= 65) && (asciiName[i] <= 90)))
                 {
-                    _rng.GetBytes(r);
-
-                    if ((r[0] & 0x1) > 0)
+                    if ((r[i] & 0x1) > 0)
                         asciiName[i] |= 0x20;
                     else
                         asciiName[i] &= 0xDF;
@@ -152,9 +152,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
-        #region public
+        #region internal
 
-        public void RandomizeName()
+        internal void RandomizeName()
         {
             if (_minimizedName == null)
                 _name = RandomizeName(_name);
@@ -162,13 +162,22 @@ namespace TechnitiumLibrary.Net.Dns
                 _minimizedName = RandomizeName(_minimizedName);
         }
 
-        public void NormalizeName()
+        internal void NormalizeName()
         {
             if (_minimizedName == null)
                 _name = _name.ToLower();
             else
                 _minimizedName = _minimizedName.ToLower();
         }
+
+        internal DnsQuestionRecord Clone()
+        {
+            return new DnsQuestionRecord(_name, _type, _class) { _zoneCut = _zoneCut, _minimizedName = _minimizedName };
+        }
+
+        #endregion
+
+        #region public
 
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
