@@ -308,7 +308,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
             else
             {
-                question = new DnsQuestionRecord(question.Name, question.Type, question.Class); //clone question so that original object is not affected
+                question = question.Clone(); //clone question so that original object is not affected
                 question.ZoneCut = ""; //enable QNAME minimization by setting zone cut to <root>
             }
 
@@ -1377,7 +1377,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             async Task<DnsDatagram> DoResolveAsync(CancellationToken cancellationToken = default)
             {
-                DnsDatagram asyncRequest = request.Clone();
+                DnsDatagram asyncRequest = request.CloneRequest(); //clone request (headers + question section) so that qname randomization does not pollute request question section and does not cause issue with parallel tasks
                 DnsDatagram lastResponse = null;
                 Exception lastException = null;
 
@@ -1428,7 +1428,7 @@ namespace TechnitiumLibrary.Net.Dns
                             //get connection
                             DnsClientConnection connection;
 
-                            if ((request.Question.Count > 0) && (request.Question[0].Type == DnsResourceRecordType.AXFR))
+                            if ((asyncRequest.Question.Count == 1) && (asyncRequest.Question[0].Type == DnsResourceRecordType.AXFR))
                             {
                                 //use separate connection for zone transfer
                                 if (server.Protocol == DnsTransportProtocol.Udp)
