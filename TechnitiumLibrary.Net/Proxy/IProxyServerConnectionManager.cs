@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -26,5 +27,14 @@ namespace TechnitiumLibrary.Net.Proxy
     public interface IProxyServerConnectionManager
     {
         Task<Socket> ConnectAsync(EndPoint remoteEP);
+
+        Task<IProxyServerUdpHandler> GetUdpHandlerAsync(EndPoint localEP);
+    }
+
+    public interface IProxyServerUdpHandler : IDisposable
+    {
+        Task SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP);
+
+        Task<UdpReceiveFromResult> ReceiveFromAsync(byte[] buffer, int offset, int count);
     }
 }
