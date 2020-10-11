@@ -26,7 +26,7 @@ using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    public class SocksProxyUdpAssociateHandler : IDisposable
+    public class SocksProxyUdpAssociateHandler : IProxyServerUdpHandler, IDisposable
     {
         #region variables
 
