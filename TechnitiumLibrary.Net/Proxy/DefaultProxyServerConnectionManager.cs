@@ -23,9 +23,9 @@ using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    class DefaultProxyServerConnectionManager : IProxyServerConnectionManager
+    public class DefaultProxyServerConnectionManager : IProxyServerConnectionManager
     {
-        public async Task<Socket> ConnectAsync(EndPoint remoteEP)
+        public virtual async Task<Socket> ConnectAsync(EndPoint remoteEP)
         {
             if (remoteEP.AddressFamily == AddressFamily.Unspecified)
                 remoteEP = await remoteEP.GetIPEndPointAsync();
@@ -37,6 +37,50 @@ namespace TechnitiumLibrary.Net.Proxy
             socket.NoDelay = true;
 
             return socket;
+        }
+
+        public Task<IProxyServerUdpHandler> GetUdpHandlerAsync(EndPoint localEP)
+        {
+            IProxyServerUdpHandler udpHandler = new UdpSocketHandler(localEP);
+            return Task.FromResult(udpHandler);
+        }
+
+        class UdpSocketHandler : IProxyServerUdpHandler
+        {
+            #region variables
+
+            Socket _socket;
+
+            #endregion
+
+            #region constructor
+
+            public UdpSocketHandler(EndPoint localEP)
+            {
+                _socket = new Socket(localEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+                _socket.Bind(localEP);
+            }
+
+            #endregion
+
+            #region public
+
+            public void Dispose()
+            {
+                _socket.Dispose();
+            }
+
+            public Task<UdpReceiveFromResult> ReceiveFromAsync(byte[] buffer, int offset, int count)
+            {
+                return _socket.ReceiveFromAsync(buffer, offset, count);
+            }
+
+            public Task SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP)
+            {
+                return _socket.SendToAsync(buffer, offset, count, remoteEP);
+            }
+
+            #endregion
         }
     }
 }

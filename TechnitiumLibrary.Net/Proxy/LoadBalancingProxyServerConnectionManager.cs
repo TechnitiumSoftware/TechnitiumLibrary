@@ -30,7 +30,7 @@ using TechnitiumLibrary.Net.Dns;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    public class LoadBalancingProxyServerConnectionManager : IProxyServerConnectionManager, IDisposable
+    public class LoadBalancingProxyServerConnectionManager : DefaultProxyServerConnectionManager, IDisposable
     {
         #region variables
 
@@ -122,7 +122,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public async Task<Socket> ConnectAsync(EndPoint remoteEP)
+        public override async Task<Socket> ConnectAsync(EndPoint remoteEP)
         {
             Network network;
             {
