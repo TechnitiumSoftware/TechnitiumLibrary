@@ -177,6 +177,11 @@ namespace TechnitiumLibrary.Net.Proxy
             return _isUdpAvailable;
         }
 
+        public override async Task<IProxyServerUdpHandler> GetUdpHandlerAsync(EndPoint localEP)
+        {
+            return await UdpAssociateAsync(localEP);
+        }
+
         public override async Task<int> UdpQueryAsync(byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
             if (IsBypassed(remoteEP))
@@ -245,7 +250,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return UdpAssociateAsync(new IPEndPoint(IPAddress.Any, localPort));
         }
 
-        public async Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync(IPEndPoint localEP)
+        public async Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync(EndPoint localEP)
         {
             //bind local ep
             Socket udpSocket = new Socket(localEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
