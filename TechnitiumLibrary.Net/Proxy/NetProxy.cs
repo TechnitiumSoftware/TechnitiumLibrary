@@ -200,7 +200,10 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public abstract Task<bool> IsUdpAvailableAsync();
+        public virtual Task<bool> IsUdpAvailableAsync()
+        {
+            return Task.FromResult(false);
+        }
 
         public async Task<Socket> ConnectAsync(string address, int port)
         {
@@ -218,6 +221,11 @@ namespace TechnitiumLibrary.Net.Proxy
                 return await ConnectAsync(remoteEP, await _viaProxy.ConnectAsync(_proxyEP));
         }
 
+        public virtual Task<IProxyServerUdpHandler> GetUdpHandlerAsync(EndPoint localEP)
+        {
+            throw new NotSupportedException();
+        }
+
         public Task<TunnelProxy> CreateTunnelProxyAsync(string address, int port, bool enableSsl = false, bool ignoreCertificateErrors = false)
         {
             return CreateTunnelProxyAsync(EndPointExtension.GetEndPoint(address, port), enableSsl, ignoreCertificateErrors);
@@ -233,7 +241,11 @@ namespace TechnitiumLibrary.Net.Proxy
             return UdpQueryAsync(request, 0, request.Length, response, 0, response.Length, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
         }
 
-        public abstract Task<int> UdpQueryAsync(byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default);
+        public virtual Task<int> UdpQueryAsync(byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
 
         #endregion
 
