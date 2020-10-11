@@ -21,7 +21,6 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
@@ -47,16 +46,6 @@ namespace TechnitiumLibrary.Net.Proxy
                 return destination;
 
             return new Uri("http://" + _proxyEP.ToString());
-        }
-
-        public override Task<bool> IsUdpAvailableAsync()
-        {
-            return Task.FromResult(false);
-        }
-
-        public override Task<int> UdpQueryAsync(byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException("Http proxy does not support udp protocol.");
         }
 
         #endregion
