@@ -536,12 +536,21 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
-        #region public
+        #region internal
 
-        public DnsDatagram Clone()
+        internal DnsDatagram CloneRequest()
         {
-            return new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, _answer, _authority, _additional);
+            DnsQuestionRecord[] clonedQuestion = new DnsQuestionRecord[_question.Count];
+
+            for (int i = 0; i < _question.Count; i++)
+                clonedQuestion[i] = _question[i].Clone();
+
+            return new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, clonedQuestion, _answer, _authority, _additional);
         }
+
+        #endregion
+
+        #region public
 
         public void SetMetadata(DnsDatagramMetadata metadata)
         {
