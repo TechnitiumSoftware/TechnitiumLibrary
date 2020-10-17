@@ -221,7 +221,12 @@ namespace TechnitiumLibrary.Net.Proxy
                 return await ConnectAsync(remoteEP, await _viaProxy.ConnectAsync(_proxyEP));
         }
 
-        public virtual Task<IProxyServerUdpHandler> GetUdpHandlerAsync(EndPoint localEP)
+        public virtual Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
+        {
+            throw new NotSupportedException();
+        }
+
+        public virtual Task<IProxyServerUdpAssociateHandler> GetUdpAssociateHandlerAsync(EndPoint localEP)
         {
             throw new NotSupportedException();
         }
