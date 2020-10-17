@@ -39,17 +39,134 @@ namespace TechnitiumLibrary.Net.Proxy
             return socket;
         }
 
-        public Task<IProxyServerUdpHandler> GetUdpHandlerAsync(EndPoint localEP)
+        public Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
         {
-            IProxyServerUdpHandler udpHandler = new UdpSocketHandler(localEP);
+            IProxyServerBindHandler bindHandler = new BindHandler(family);
+            return Task.FromResult(bindHandler);
+        }
+
+        public Task<IProxyServerUdpAssociateHandler> GetUdpAssociateHandlerAsync(EndPoint localEP)
+        {
+            IProxyServerUdpAssociateHandler udpHandler = new UdpSocketHandler(localEP);
             return Task.FromResult(udpHandler);
         }
 
-        class UdpSocketHandler : IProxyServerUdpHandler
+        class BindHandler : IProxyServerBindHandler
         {
             #region variables
 
-            Socket _socket;
+            readonly Socket _socket;
+
+            readonly SocksProxyReplyCode _replyCode;
+            readonly EndPoint _bindEP;
+
+            EndPoint _remoteEP;
+
+            #endregion
+
+            #region constructor
+
+            public BindHandler(AddressFamily family)
+            {
+                EndPoint localEP = null;
+                NetworkInfo networkInfo = null;
+
+                switch (family)
+                {
+                    case AddressFamily.InterNetwork:
+                        localEP = new IPEndPoint(IPAddress.Any, 0);
+                        networkInfo = NetUtilities.GetDefaultIPv4NetworkInfo();
+                        break;
+
+                    case AddressFamily.InterNetworkV6:
+                        localEP = new IPEndPoint(IPAddress.IPv6Any, 0);
+                        networkInfo = NetUtilities.GetDefaultIPv6NetworkInfo();
+                        break;
+
+                    default:
+                        _replyCode = SocksProxyReplyCode.AddressTypeNotSupported;
+                        _bindEP = new IPEndPoint(IPAddress.Any, 0);
+                        break;
+                }
+
+                if (localEP != null)
+                {
+                    if (networkInfo == null)
+                    {
+                        _replyCode = SocksProxyReplyCode.NetworkUnreachable;
+                        _bindEP = new IPEndPoint(IPAddress.Any, 0);
+                    }
+                    else
+                    {
+                        _socket = new Socket(localEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                        _socket.Bind(localEP);
+                        _socket.Listen(1);
+                        _socket.NoDelay = true;
+
+                        _replyCode = SocksProxyReplyCode.Succeeded;
+                        _bindEP = new IPEndPoint(networkInfo.LocalIP, (_socket.LocalEndPoint as IPEndPoint).Port);
+                    }
+                }
+            }
+
+            #endregion
+
+            #region IDisposable
+
+            bool _disposed;
+
+            protected virtual void Dispose(bool disposing)
+            {
+                if (_disposed)
+                    return;
+
+                if (disposing)
+                {
+                    if (_socket != null)
+                        _socket.Dispose();
+                }
+
+                _disposed = true;
+            }
+
+            public void Dispose()
+            {
+                Dispose(true);
+            }
+
+            #endregion
+
+            #region public
+
+            public async Task<Socket> AcceptAsync()
+            {
+                Socket remoteSocket = await _socket.AcceptAsync();
+                _remoteEP = remoteSocket.RemoteEndPoint;
+
+                return remoteSocket;
+            }
+
+            #endregion
+
+            #region properties
+
+            public SocksProxyReplyCode ReplyCode
+            { get { return _replyCode; } }
+
+            public EndPoint ProxyRemoteEndPoint
+            { get { return _remoteEP; } }
+
+            public EndPoint ProxyLocalEndPoint
+            { get { return _bindEP; } }
+
+            #endregion
+        }
+
+        class UdpSocketHandler : IProxyServerUdpAssociateHandler
+        {
+            #region variables
+
+            readonly Socket _socket;
 
             #endregion
 
@@ -63,12 +180,32 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #endregion
 
-            #region public
+            #region IDisposable
+
+            bool _disposed;
+
+            protected virtual void Dispose(bool disposing)
+            {
+                if (_disposed)
+                    return;
+
+                if (disposing)
+                {
+                    if (_socket != null)
+                        _socket.Dispose();
+                }
+
+                _disposed = true;
+            }
 
             public void Dispose()
             {
-                _socket.Dispose();
+                Dispose(true);
             }
+
+            #endregion
+
+            #region public
 
             public Task<UdpReceiveFromResult> ReceiveFromAsync(byte[] buffer, int offset, int count)
             {
