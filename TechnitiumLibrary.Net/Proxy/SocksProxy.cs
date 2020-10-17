@@ -177,7 +177,27 @@ namespace TechnitiumLibrary.Net.Proxy
             return _isUdpAvailable;
         }
 
-        public override async Task<IProxyServerUdpHandler> GetUdpHandlerAsync(EndPoint localEP)
+        public override async Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
+        {
+            try
+            {
+                return await BindAsync(family);
+            }
+            catch (NotSupportedException)
+            {
+                return new SocksProxyBindHandler(SocksProxyReplyCode.AddressTypeNotSupported);
+            }
+            catch (SocksProxyException ex)
+            {
+                return new SocksProxyBindHandler(ex.ReplyCode);
+            }
+            catch
+            {
+                return new SocksProxyBindHandler(SocksProxyReplyCode.GeneralSocksServerFailure);
+            }
+        }
+
+        public override async Task<IProxyServerUdpAssociateHandler> GetUdpAssociateHandlerAsync(EndPoint localEP)
         {
             return await UdpAssociateAsync(localEP);
         }
@@ -214,7 +234,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    endPoint = new IPEndPoint(IPAddress.Any, 0);
+                    endPoint = new IPEndPoint(IPAddress.IPv6Any, 0);
                     break;
 
                 default:
