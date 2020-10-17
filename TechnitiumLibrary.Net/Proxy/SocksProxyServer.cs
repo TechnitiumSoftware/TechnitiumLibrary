@@ -261,8 +261,9 @@ namespace TechnitiumLibrary.Net.Proxy
             readonly IProxyServerConnectionManager _connectionManager;
             readonly IProxyServerAuthenticationManager _authenticationManager;
 
-            Socket _udpRelaySocket;
             Socket _remoteSocket;
+            IProxyServerBindHandler _bindHandler;
+            Socket _udpRelaySocket;
 
             #endregion
 
@@ -299,11 +300,14 @@ namespace TechnitiumLibrary.Net.Proxy
                         if (_localSocket != null)
                             _localSocket.Dispose();
 
-                        if (_udpRelaySocket != null)
-                            _udpRelaySocket.Dispose();
-
                         if (_remoteSocket != null)
                             _remoteSocket.Dispose();
+
+                        if (_bindHandler != null)
+                            _bindHandler.Dispose();
+
+                        if (_udpRelaySocket != null)
+                            _udpRelaySocket.Dispose();
                     }
 
                     _disposed = true;
@@ -315,7 +319,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region private
 
-            private async Task CopyToAsync(IProxyServerUdpHandler src, IProxyServerUdpHandler dst)
+            private async Task CopyToAsync(IProxyServerUdpAssociateHandler src, IProxyServerUdpAssociateHandler dst)
             {
                 try
                 {
@@ -465,48 +469,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
                         case SocksProxyRequestCommand.Bind:
                             {
-                                EndPoint localEP = null;
-                                NetworkInfo networkInfo = null;
+                                _bindHandler = await _connectionManager.GetBindHandlerAsync(request.DestinationEndPoint.AddressFamily);
 
-                                switch (request.DestinationEndPoint.AddressFamily)
-                                {
-                                    case AddressFamily.InterNetwork:
-                                        localEP = new IPEndPoint(IPAddress.Any, 0);
-                                        networkInfo = NetUtilities.GetDefaultIPv4NetworkInfo();
-                                        break;
-
-                                    case AddressFamily.InterNetworkV6:
-                                        localEP = new IPEndPoint(IPAddress.IPv6Any, 0);
-                                        networkInfo = NetUtilities.GetDefaultIPv6NetworkInfo();
-                                        break;
-
-                                    default:
-                                        break;
-                                }
-
-                                if (localEP == null)
-                                {
-                                    reply = SocksProxyReplyCode.AddressTypeNotSupported;
-                                    bindEP = new IPEndPoint(IPAddress.Any, 0);
-                                }
-                                else
-                                {
-                                    if (networkInfo == null)
-                                    {
-                                        reply = SocksProxyReplyCode.NetworkUnreachable;
-                                        bindEP = new IPEndPoint(IPAddress.Any, 0);
-                                    }
-                                    else
-                                    {
-                                        _remoteSocket = new Socket(localEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                                        _remoteSocket.Bind(localEP);
-                                        _remoteSocket.Listen(1);
-                                        _remoteSocket.NoDelay = true;
-
-                                        reply = SocksProxyReplyCode.Succeeded;
-                                        bindEP = new IPEndPoint(networkInfo.LocalIP, (_remoteSocket.LocalEndPoint as IPEndPoint).Port);
-                                    }
-                                }
+                                reply = _bindHandler.ReplyCode;
+                                bindEP = _bindHandler.ProxyLocalEndPoint;
                             }
                             break;
 
@@ -543,6 +509,9 @@ namespace TechnitiumLibrary.Net.Proxy
                     await new SocksProxyReply(reply, bindEP).WriteToAsync(localStream);
                     await localStream.FlushAsync();
 
+                    if (reply != SocksProxyReplyCode.Succeeded)
+                        return; //nothing to do further
+
                     //final command process
                     switch (request.Command)
                     {
@@ -557,26 +526,29 @@ namespace TechnitiumLibrary.Net.Proxy
 
                         case SocksProxyRequestCommand.Bind:
                             {
-                                Socket socket = null;
-
                                 try
                                 {
-                                    socket = await _remoteSocket.AcceptAsync().WithTimeout(CLIENT_WAIT_TIMEOUT);
+                                    _remoteSocket = await _bindHandler.AcceptAsync().WithTimeout(CLIENT_WAIT_TIMEOUT);
+                                }
+                                catch (SocksProxyException ex)
+                                {
+                                    //send second reply
+                                    await new SocksProxyReply(ex.ReplyCode, _bindHandler.ProxyLocalEndPoint).WriteToAsync(localStream);
+                                    await localStream.FlushAsync();
                                 }
                                 catch
                                 {
                                     //send second reply
-                                    await new SocksProxyReply(SocksProxyReplyCode.GeneralSocksServerFailure, _remoteSocket.RemoteEndPoint).WriteToAsync(localStream);
+                                    await new SocksProxyReply(SocksProxyReplyCode.GeneralSocksServerFailure, _bindHandler.ProxyLocalEndPoint).WriteToAsync(localStream);
                                     await localStream.FlushAsync();
                                 }
 
-                                if (socket != null)
+                                if (_remoteSocket != null)
                                 {
-                                    _remoteSocket.Dispose();
-                                    _remoteSocket = socket;
+                                    _bindHandler.Dispose();
 
                                     //send second reply
-                                    await new SocksProxyReply(SocksProxyReplyCode.Succeeded, _remoteSocket.RemoteEndPoint).WriteToAsync(localStream);
+                                    await new SocksProxyReply(SocksProxyReplyCode.Succeeded, _bindHandler.ProxyRemoteEndPoint).WriteToAsync(localStream);
                                     await localStream.FlushAsync();
 
                                     //pipe sockets
@@ -605,9 +577,9 @@ namespace TechnitiumLibrary.Net.Proxy
                                         throw new NotSupportedException();
                                 }
 
-                                using (IProxyServerUdpHandler udpRemoteHandler = await _connectionManager.GetUdpHandlerAsync(localEP))
+                                using (IProxyServerUdpAssociateHandler udpRemoteHandler = await _connectionManager.GetUdpAssociateHandlerAsync(localEP))
                                 {
-                                    using (IProxyServerUdpHandler udpLocalHandler = new SocksProxyUdpAssociateHandler(_localSocket, _udpRelaySocket, new IPEndPoint((_localSocket.RemoteEndPoint as IPEndPoint).Address, (request.DestinationEndPoint as IPEndPoint).Port)))
+                                    using (IProxyServerUdpAssociateHandler udpLocalHandler = new SocksProxyUdpAssociateHandler(_localSocket, _udpRelaySocket, new IPEndPoint((_localSocket.RemoteEndPoint as IPEndPoint).Address, (request.DestinationEndPoint as IPEndPoint).Port)))
                                     {
                                         _ = CopyToAsync(udpRemoteHandler, udpLocalHandler);
                                         await CopyToAsync(udpLocalHandler, udpRemoteHandler);
