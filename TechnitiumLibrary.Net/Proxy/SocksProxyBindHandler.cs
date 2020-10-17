@@ -24,11 +24,13 @@ using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    public class SocksProxyBindHandler : IDisposable
+    public class SocksProxyBindHandler : IProxyServerBindHandler, IDisposable
     {
         #region variables
 
-        readonly Socket _socket;
+        Socket _socket;
+
+        readonly SocksProxyReplyCode _replyCode;
         readonly EndPoint _bindEP;
 
         EndPoint _remoteEP;
@@ -40,7 +42,15 @@ namespace TechnitiumLibrary.Net.Proxy
         internal SocksProxyBindHandler(Socket socket, EndPoint bindEP)
         {
             _socket = socket;
+
+            _replyCode = SocksProxyReplyCode.Succeeded;
             _bindEP = bindEP;
+        }
+
+        internal SocksProxyBindHandler(SocksProxyReplyCode replyCode)
+        {
+            _replyCode = replyCode;
+            _bindEP = new IPEndPoint(IPAddress.Any, 0);
         }
 
         #endregion
@@ -52,7 +62,7 @@ namespace TechnitiumLibrary.Net.Proxy
             Dispose(true);
         }
 
-        bool _disposed = false;
+        bool _disposed;
 
         protected virtual void Dispose(bool disposing)
         {
@@ -93,12 +103,18 @@ namespace TechnitiumLibrary.Net.Proxy
 
             _remoteEP = reply.BindEndPoint;
 
-            return _socket;
+            Socket socket = _socket;
+            _socket = null; //prevent socket from getting disposed
+
+            return socket;
         }
 
         #endregion
 
         #region properties
+
+        public SocksProxyReplyCode ReplyCode
+        { get { return _replyCode; } }
 
         public EndPoint ProxyRemoteEndPoint
         { get { return _remoteEP; } }
