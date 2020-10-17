@@ -26,7 +26,7 @@ using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
-    public class SocksProxyUdpAssociateHandler : IProxyServerUdpHandler, IDisposable
+    public class SocksProxyUdpAssociateHandler : IProxyServerUdpAssociateHandler, IDisposable
     {
         #region variables
 
@@ -185,7 +185,7 @@ namespace TechnitiumLibrary.Net.Proxy
             UdpReceiveFromResult result = await _udpSocket.ReceiveFromAsync(datagram);
 
             if (result.BytesReceived < 10)
-                throw new SocksProxyException("The connection was reset by the remote peer.");
+                throw new SocksProxyException("Incomplete SOCKS5 datagram was received.");
 
             EndPoint remoteEP;
 
