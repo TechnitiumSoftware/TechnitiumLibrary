@@ -28,10 +28,23 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         Task<Socket> ConnectAsync(EndPoint remoteEP);
 
-        Task<IProxyServerUdpHandler> GetUdpHandlerAsync(EndPoint localEP);
+        Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family);
+
+        Task<IProxyServerUdpAssociateHandler> GetUdpAssociateHandlerAsync(EndPoint localEP);
     }
 
-    public interface IProxyServerUdpHandler : IDisposable
+    public interface IProxyServerBindHandler : IDisposable
+    {
+        Task<Socket> AcceptAsync();
+
+        SocksProxyReplyCode ReplyCode { get; }
+
+        EndPoint ProxyRemoteEndPoint { get; }
+
+        EndPoint ProxyLocalEndPoint { get; }
+    }
+
+    public interface IProxyServerUdpAssociateHandler : IDisposable
     {
         Task SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP);
 
