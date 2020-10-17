@@ -25,7 +25,7 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        readonly SocksProxyReplyCode _replyCode;
+        readonly SocksProxyReplyCode _replyCode = SocksProxyReplyCode.GeneralSocksServerFailure;
 
         #endregion
 
