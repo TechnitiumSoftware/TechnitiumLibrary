@@ -34,7 +34,7 @@ namespace TechnitiumLibrary.IO
             while (n > 1)
             {
                 _rnd.GetBytes(buffer);
-                int k = (int)(BitConverter.ToUInt32(buffer, 0) % n--);
+                int k = (BitConverter.ToInt32(buffer, 0) & 0x7FFFFFFF) % n--;
                 T temp = array[n];
                 array[n] = array[k];
                 array[k] = temp;
