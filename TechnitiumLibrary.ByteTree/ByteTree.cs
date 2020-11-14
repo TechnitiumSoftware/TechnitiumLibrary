@@ -99,7 +99,7 @@ namespace TechnitiumLibrary.ByteTree
 
             byte[] bKey = ConvertToByteKey(key);
 
-            if (!_root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out _))
+            if (!_root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out _, out _))
                 throw new ArgumentException("Key already exists.");
         }
 
@@ -110,7 +110,7 @@ namespace TechnitiumLibrary.ByteTree
 
             byte[] bKey = ConvertToByteKey(key);
 
-            return _root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out _);
+            return _root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out _, out _);
         }
 
         public TValue AddOrUpdate(TKey key, Func<TKey, TValue> addValueFactory, Func<TKey, TValue, TValue> updateValueFactory)
@@ -120,10 +120,8 @@ namespace TechnitiumLibrary.ByteTree
 
             byte[] bKey = ConvertToByteKey(key);
 
-            TValue addValue = addValueFactory(key);
-
-            if (_root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, addValue); }, _keySpace, out NodeValue existingValue))
-                return addValue;
+            if (_root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, addValueFactory(key)); }, _keySpace, out NodeValue addedValue, out NodeValue existingValue))
+                return addedValue.Value;
 
             TValue updateValue = updateValueFactory(key, existingValue.Value);
             existingValue.Value = updateValue;
@@ -170,9 +168,8 @@ namespace TechnitiumLibrary.ByteTree
 
             byte[] bKey = ConvertToByteKey(key);
 
-            TValue value = valueFactory(key);
-            if (_root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out NodeValue existingValue))
-                return value;
+            if (_root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, valueFactory(key)); }, _keySpace, out NodeValue addedValue, out NodeValue existingValue))
+                return addedValue.Value;
 
             return existingValue.Value;
         }
@@ -301,7 +298,7 @@ namespace TechnitiumLibrary.ByteTree
 
             #region public
 
-            public bool AddNodeValue(byte[] key, Func<NodeValue> newValue, int keySpace, out NodeValue existingValue)
+            public bool AddNodeValue(byte[] key, Func<NodeValue> newValue, int keySpace, out NodeValue addedValue, out NodeValue existingValue)
             {
                 Node current = this;
 
@@ -321,6 +318,7 @@ namespace TechnitiumLibrary.ByteTree
                             if (originalChild is null)
                             {
                                 //value added as leaf node
+                                addedValue = current._children[k]._value;
                                 existingValue = null;
                                 return true;
                             }
@@ -338,6 +336,7 @@ namespace TechnitiumLibrary.ByteTree
                     if ((value != null) && KeyEquals(current._depth, value.Key, key))
                     {
                         //value found; cannot add
+                        addedValue = null;
                         existingValue = value;
                         return false;
                     }
@@ -396,6 +395,7 @@ namespace TechnitiumLibrary.ByteTree
                             if (ReferenceEquals(originalValue, value))
                             {
                                 //value added successfully
+                                addedValue = current._value;
                                 existingValue = null;
                                 return true;
                             }
@@ -403,6 +403,7 @@ namespace TechnitiumLibrary.ByteTree
                             if (originalValue != null)
                             {
                                 //another thread added value to stem node; return its reference
+                                addedValue = null;
                                 existingValue = originalValue;
                                 return false;
                             }
