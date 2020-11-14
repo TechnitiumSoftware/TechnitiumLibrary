@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Mail;
 using System.Net.Security;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -42,7 +43,7 @@ namespace TechnitiumLibrary.Net.Mail
         readonly FieldInfo _localHostName = GetLocalHostNameField();
         DnsClient _dnsClient;
         NetProxy _proxy;
-
+        bool _enableSslWrapper;
         string _host;
         int _port;
         bool _ignoreCertificateErrors;
@@ -209,6 +210,30 @@ namespace TechnitiumLibrary.Net.Mail
 
                 if (_proxy == null)
                 {
+                    if (_enableSslWrapper)
+                    {
+                        EndPoint remoteEP = EndPointExtension.GetEndPoint(_host, _port);
+
+                        if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
+                        {
+                            _tunnelProxy.Dispose();
+                            _tunnelProxy = null;
+                        }
+
+                        if ((_tunnelProxy == null) || _tunnelProxy.IsBroken)
+                        {
+                            IPEndPoint ep = await remoteEP.GetIPEndPointAsync();
+
+                            Socket socket = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                            await socket.ConnectAsync(ep);
+
+                            _tunnelProxy = new TunnelProxy(socket, remoteEP, _enableSslWrapper, _ignoreCertificateErrors);
+                        }
+
+                        base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
+                        base.Port = _tunnelProxy.TunnelEndPoint.Port;
+                    }
+
                     await base.SendMailAsync(message);
                 }
                 else
@@ -222,7 +247,7 @@ namespace TechnitiumLibrary.Net.Mail
                     }
 
                     if ((_tunnelProxy == null) || _tunnelProxy.IsBroken)
-                        _tunnelProxy = await _proxy.CreateTunnelProxyAsync(remoteEP);
+                        _tunnelProxy = await _proxy.CreateTunnelProxyAsync(remoteEP, _enableSslWrapper, _ignoreCertificateErrors);
 
                     base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
                     base.Port = _tunnelProxy.TunnelEndPoint.Port;
@@ -288,18 +313,40 @@ namespace TechnitiumLibrary.Net.Mail
             }
         }
 
+        public bool EnableSslWrapper
+        {
+            get { return _enableSslWrapper; }
+            set
+            {
+                _enableSslWrapper = value;
+
+                if (_enableSslWrapper)
+                {
+                    _host = base.Host;
+                    _port = base.Port;
+                }
+                else
+                {
+                    if (!string.IsNullOrEmpty(_host))
+                        base.Host = _host;
+
+                    base.Port = _port;
+                }
+            }
+        }
+
         public new string Host
         {
             get
             {
-                if (_proxy == null)
+                if ((_proxy == null) || !_enableSslWrapper)
                     return base.Host;
                 else
                     return _host;
             }
             set
             {
-                if (_proxy == null)
+                if ((_proxy == null) || !_enableSslWrapper)
                     base.Host = value;
                 else
                     _host = value;
@@ -310,14 +357,14 @@ namespace TechnitiumLibrary.Net.Mail
         {
             get
             {
-                if (_proxy == null)
+                if ((_proxy == null) || !_enableSslWrapper)
                     return base.Port;
                 else
                     return _port;
             }
             set
             {
-                if (_proxy == null)
+                if ((_proxy == null) || !_enableSslWrapper)
                     base.Port = value;
                 else
                     _port = value;
