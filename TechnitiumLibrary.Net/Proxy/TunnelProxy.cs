@@ -47,7 +47,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region constructor
 
-        internal TunnelProxy(Socket remoteSocket, EndPoint remoteEP, bool enableSsl, bool ignoreCertificateErrors)
+        public TunnelProxy(Socket remoteSocket, EndPoint remoteEP, bool enableSsl, bool ignoreCertificateErrors)
         {
             _remoteSocket = remoteSocket;
             _remoteEP = remoteEP;
