@@ -51,6 +51,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public LoadBalancingProxyServerConnectionManager()
         {
+            if (Environment.OSVersion.Platform != PlatformID.Win32NT)
+                throw new PlatformNotSupportedException();
+
             _networkRefreshTimer = new Timer(async delegate (object state)
             {
                 try
@@ -338,10 +341,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 foreach (Task<IPEndPoint> checkNetworkTask in _checkNetworkTasks)
                 {
-                    if (checkNetworkTask.Status == TaskStatus.RanToCompletion)
+                    IPEndPoint bindEP = await checkNetworkTask;
+                    if (bindEP != null)
                     {
-                        IPEndPoint bindEP = await checkNetworkTask;
-
                         if (bindEP.AddressFamily == AddressFamily.InterNetwork)
                             _ipv4BindEPs.Add(bindEP);
                         else
@@ -354,14 +356,21 @@ namespace TechnitiumLibrary.Net.Proxy
 
             private static async Task<IPEndPoint> CheckNetworkAsync(DnsClient dnsClient, IPEndPoint bindEP)
             {
-                using (Socket socket = new Socket(bindEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp))
+                try
                 {
-                    socket.Bind(bindEP);
-                    IReadOnlyList<IPAddress> addresses = await dnsClient.ResolveIPAsync("www.google.com", bindEP.AddressFamily == AddressFamily.InterNetworkV6);
-                    await socket.ConnectAsync(addresses.ToArray(), 80);
-                }
+                    using (Socket socket = new Socket(bindEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp))
+                    {
+                        socket.Bind(bindEP);
+                        IReadOnlyList<IPAddress> addresses = await dnsClient.ResolveIPAsync("www.google.com", bindEP.AddressFamily == AddressFamily.InterNetworkV6);
+                        await socket.ConnectAsync(addresses.ToArray(), 80);
+                    }
 
-                return bindEP;
+                    return bindEP;
+                }
+                catch
+                {
+                    return null;
+                }
             }
 
             #endregion
