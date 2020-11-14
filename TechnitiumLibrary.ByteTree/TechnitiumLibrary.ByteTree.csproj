@@ -9,6 +9,8 @@
     <Product>Technitium Library</Product>
     <Description>.NET Standard 2.0</Description>
     <RepositoryUrl>https://github.com/TechnitiumSoftware/TechnitiumLibrary</RepositoryUrl>
+    <AssemblyVersion>1.0.1.0</AssemblyVersion>
+    <FileVersion>1.0.1.0</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
