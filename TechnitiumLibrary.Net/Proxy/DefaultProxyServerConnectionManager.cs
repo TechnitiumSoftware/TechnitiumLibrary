@@ -25,6 +25,8 @@ namespace TechnitiumLibrary.Net.Proxy
 {
     public class DefaultProxyServerConnectionManager : IProxyServerConnectionManager
     {
+        #region public
+
         public virtual async Task<Socket> ConnectAsync(EndPoint remoteEP)
         {
             if (remoteEP.AddressFamily == AddressFamily.Unspecified)
@@ -39,19 +41,21 @@ namespace TechnitiumLibrary.Net.Proxy
             return socket;
         }
 
-        public Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
+        public virtual Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
         {
             IProxyServerBindHandler bindHandler = new BindHandler(family);
             return Task.FromResult(bindHandler);
         }
 
-        public Task<IProxyServerUdpAssociateHandler> GetUdpAssociateHandlerAsync(EndPoint localEP)
+        public virtual Task<IProxyServerUdpAssociateHandler> GetUdpAssociateHandlerAsync(EndPoint localEP)
         {
             IProxyServerUdpAssociateHandler udpHandler = new UdpSocketHandler(localEP);
             return Task.FromResult(udpHandler);
         }
 
-        class BindHandler : IProxyServerBindHandler
+        #endregion
+
+        protected class BindHandler : IProxyServerBindHandler
         {
             #region variables
 
@@ -109,6 +113,28 @@ namespace TechnitiumLibrary.Net.Proxy
                 }
             }
 
+            public BindHandler(IPEndPoint bindEP)
+            {
+                switch (bindEP.AddressFamily)
+                {
+                    case AddressFamily.InterNetwork:
+                    case AddressFamily.InterNetworkV6:
+                        _socket = new Socket(bindEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                        _socket.Bind(bindEP);
+                        _socket.Listen(1);
+                        _socket.NoDelay = true;
+
+                        _replyCode = SocksProxyReplyCode.Succeeded;
+                        _bindEP = new IPEndPoint(bindEP.Address, (_socket.LocalEndPoint as IPEndPoint).Port);
+                        break;
+
+                    default:
+                        _replyCode = SocksProxyReplyCode.AddressTypeNotSupported;
+                        _bindEP = new IPEndPoint(IPAddress.Any, 0);
+                        break;
+                }
+            }
+
             #endregion
 
             #region IDisposable
@@ -162,7 +188,7 @@ namespace TechnitiumLibrary.Net.Proxy
             #endregion
         }
 
-        class UdpSocketHandler : IProxyServerUdpAssociateHandler
+        protected class UdpSocketHandler : IProxyServerUdpAssociateHandler
         {
             #region variables
 
@@ -172,10 +198,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region constructor
 
-            public UdpSocketHandler(EndPoint localEP)
+            public UdpSocketHandler(EndPoint bindEP)
             {
-                _socket = new Socket(localEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-                _socket.Bind(localEP);
+                _socket = new Socket(bindEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+                _socket.Bind(bindEP);
             }
 
             #endregion
