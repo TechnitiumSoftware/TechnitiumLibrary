@@ -107,7 +107,7 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        public static async Task<IPEndPoint> GetIPEndPointAsync(this EndPoint ep)
+        public static async Task<IPEndPoint> GetIPEndPointAsync(this EndPoint ep, AddressFamily family = AddressFamily.Unspecified)
         {
             switch (ep.AddressFamily)
             {
@@ -124,7 +124,21 @@ namespace TechnitiumLibrary.Net
                     if (ipAddresses.Length == 0)
                         throw new SocketException((int)SocketError.HostNotFound);
 
-                    return new IPEndPoint(ipAddresses[0], dep.Port);
+                    switch (family)
+                    {
+                        case AddressFamily.InterNetwork:
+                        case AddressFamily.InterNetworkV6:
+                            foreach (IPAddress ipAddress in ipAddresses)
+                            {
+                                if (ipAddress.AddressFamily == family)
+                                    return new IPEndPoint(ipAddress, dep.Port);
+                            }
+
+                            throw new SocketException((int)SocketError.NetworkUnreachable);
+
+                        default:
+                            return new IPEndPoint(ipAddresses[0], dep.Port);
+                    }
 
                 default:
                     throw new NotSupportedException("AddressFamily not supported.");
