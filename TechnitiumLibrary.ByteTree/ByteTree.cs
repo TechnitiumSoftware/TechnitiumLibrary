@@ -314,11 +314,12 @@ namespace TechnitiumLibrary.ByteTree
                         if (child == null)
                         {
                             //try set new leaf node with add value in this empty spot
-                            Node originalChild = Interlocked.CompareExchange(ref current._children[k], new Node(current, k, 0, newValue()), null);
+                            Node addNewNode = new Node(current, k, 0, newValue());
+                            Node originalChild = Interlocked.CompareExchange(ref current._children[k], addNewNode, null);
                             if (originalChild is null)
                             {
                                 //value added as leaf node
-                                addedValue = current._children[k]._value;
+                                addedValue = addNewNode._value;
                                 existingValue = null;
                                 return true;
                             }
@@ -391,11 +392,12 @@ namespace TechnitiumLibrary.ByteTree
                         else
                         {
                             //current node is stem with no/invalid value; add value here
-                            NodeValue originalValue = Interlocked.CompareExchange(ref current._value, newValue(), value);
+                            NodeValue addNewValue = newValue();
+                            NodeValue originalValue = Interlocked.CompareExchange(ref current._value, addNewValue, value);
                             if (ReferenceEquals(originalValue, value))
                             {
                                 //value added successfully
-                                addedValue = current._value;
+                                addedValue = addNewValue;
                                 existingValue = null;
                                 return true;
                             }
