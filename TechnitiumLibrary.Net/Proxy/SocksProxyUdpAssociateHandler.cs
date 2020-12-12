@@ -32,7 +32,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         readonly Socket _controlSocket;
         readonly Socket _udpSocket;
-        readonly EndPoint _relayEP;
+        EndPoint _relayEP;
 
         #endregion
 
@@ -43,6 +43,9 @@ namespace TechnitiumLibrary.Net.Proxy
             _controlSocket = controlSocket;
             _udpSocket = udpSocket;
             _relayEP = relayEP;
+
+            if (_relayEP.GetPort() == 0)
+                _relayEP = null; //no relay ep provided
 
             _ = ReadControlSocketAsync();
         }
@@ -117,8 +120,11 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public Task SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP)
+        public Task<int> SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP)
         {
+            if (_relayEP == null)
+                return Task.FromResult(0); //relay ep not known yet
+
             //get type, address bytes & port bytes
             SocksAddressType type;
             byte[] address;
@@ -263,6 +269,9 @@ namespace TechnitiumLibrary.Net.Proxy
                 dataSize = count;
 
             Buffer.BlockCopy(datagram, dataOffset, buffer, offset, dataSize);
+
+            if (_relayEP == null)
+                _relayEP = result.RemoteEndPoint; //set new relay ep
 
             return new UdpReceiveFromResult(dataSize, remoteEP);
         }
