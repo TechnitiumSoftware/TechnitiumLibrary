@@ -177,7 +177,10 @@ namespace TechnitiumLibrary.Net.Proxy
                         await s.ReadBytesAsync(buffer, 0, 2);
                         Array.Reverse(buffer, 0, 2);
 
-                        return new DomainEndPoint(domain, BitConverter.ToUInt16(buffer, 0));
+                        if (IPAddress.TryParse(domain, out IPAddress address)) //some socks clients send ip address with domain address type
+                            return new IPEndPoint(address, BitConverter.ToUInt16(buffer, 0));
+                        else
+                            return new DomainEndPoint(domain, BitConverter.ToUInt16(buffer, 0));
                     }
 
                 default:
