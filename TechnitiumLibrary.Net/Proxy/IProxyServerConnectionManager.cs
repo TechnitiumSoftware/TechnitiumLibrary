@@ -46,7 +46,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
     public interface IProxyServerUdpAssociateHandler : IDisposable
     {
-        Task SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP);
+        Task<int> SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP);
 
         Task<UdpReceiveFromResult> ReceiveFromAsync(byte[] buffer, int offset, int count);
     }

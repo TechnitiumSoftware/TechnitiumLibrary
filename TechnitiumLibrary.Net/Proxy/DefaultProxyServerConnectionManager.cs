@@ -238,7 +238,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 return _socket.ReceiveFromAsync(buffer, offset, count);
             }
 
-            public Task SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP)
+            public Task<int> SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP)
             {
                 return _socket.SendToAsync(buffer, offset, count, remoteEP);
             }
