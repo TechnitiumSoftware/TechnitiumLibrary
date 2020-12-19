@@ -41,26 +41,26 @@ namespace TechnitiumLibrary.Net.Proxy
         static readonly RandomNumberGenerator _rng = RandomNumberGenerator.Create();
 
         readonly IReadOnlyList<IProxyServerConnectionManager> _connectionManagers;
-        readonly EndPoint _connectivityCheckEP;
+        readonly EndPoint[] _connectivityCheckEPs;
 
         IReadOnlyList<IProxyServerConnectionManager> _workingConnectionManagers;
 
         readonly Timer _networkCheckTimer;
         const int NETWORK_CHECK_TIMER_INITIAL_INTERVAL = 1000;
         const int NETWORK_CHECK_TIMER_PERIODIC_INTERVAL = 30000;
-        const int NETWORK_CHECK_CONNECTION_TIMEOUT = 10000;
+        const int NETWORK_CHECK_CONNECTION_TIMEOUT = 15000;
 
         #endregion
 
         #region constructor
 
-        public LoadBalancingProxyServerConnectionManager(IReadOnlyList<IProxyServerConnectionManager> connectionManagers, EndPoint connectivityCheckEP = null)
+        public LoadBalancingProxyServerConnectionManager(IReadOnlyList<IProxyServerConnectionManager> connectionManagers, EndPoint[] connectivityCheckEPs = null)
         {
             _connectionManagers = connectionManagers;
-            _connectivityCheckEP = connectivityCheckEP;
+            _connectivityCheckEPs = connectivityCheckEPs;
 
-            if (_connectivityCheckEP == null)
-                _connectivityCheckEP = new DomainEndPoint("www.google.com", 443);
+            if (_connectivityCheckEPs == null)
+                _connectivityCheckEPs = new EndPoint[] { new DomainEndPoint("www.google.com", 443), new DomainEndPoint("www.microsoft.com", 443) };
 
             _workingConnectionManagers = _connectionManagers;
 
@@ -142,19 +142,25 @@ namespace TechnitiumLibrary.Net.Proxy
 
         private async Task<IProxyServerConnectionManager> CheckConnectivityAsync(IProxyServerConnectionManager connectionManager)
         {
-            try
-            {
-                using (Socket socket = await connectionManager.ConnectAsync(_connectivityCheckEP).WithTimeout(NETWORK_CHECK_CONNECTION_TIMEOUT))
-                { }
+            Exception lastException = null;
 
-                return connectionManager;
-            }
-            catch (Exception ex)
+            foreach (EndPoint connectivityCheckEP in _connectivityCheckEPs)
             {
-                Errors?.Invoke(this, ex);
+                try
+                {
+                    using (Socket socket = await connectionManager.ConnectAsync(connectivityCheckEP).WithTimeout(NETWORK_CHECK_CONNECTION_TIMEOUT))
+                    { }
 
-                return null;
+                    return connectionManager;
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                }
             }
+
+            Errors?.Invoke(this, lastException);
+            return null;
         }
 
         private IProxyServerConnectionManager GetConnectionManager()
