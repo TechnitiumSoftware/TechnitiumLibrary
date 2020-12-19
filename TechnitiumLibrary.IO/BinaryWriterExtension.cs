@@ -51,7 +51,7 @@ namespace TechnitiumLibrary.IO
 
         public static void Write(this BinaryWriter bW, DateTime date)
         {
-            bW.Write(Convert.ToInt64((date - _epoch).TotalMilliseconds));
+            bW.Write(Convert.ToInt64((date.ToUniversalTime() - _epoch).TotalMilliseconds));
         }
 
         public static void WriteLength(this BinaryWriter bW, int valueLength)
