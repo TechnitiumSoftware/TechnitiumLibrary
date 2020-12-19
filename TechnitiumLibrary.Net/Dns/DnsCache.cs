@@ -34,11 +34,12 @@ namespace TechnitiumLibrary.Net.Dns
         const uint NEGATIVE_RECORD_TTL = 300u;
         const uint MINIMUM_RECORD_TTL = 10u;
         const uint SERVE_STALE_TTL = 0u;
+        const uint SERVE_STALE_TTL_MAX = 7 * 24 * 60 * 60; //7 days cap on serve stale
 
-        readonly uint _failureRecordTtl;
-        readonly uint _negativeRecordTtl;
-        readonly uint _minimumRecordTtl;
-        readonly uint _serveStaleTtl;
+        uint _failureRecordTtl;
+        uint _negativeRecordTtl;
+        uint _minimumRecordTtl;
+        uint _serveStaleTtl;
 
         readonly ConcurrentDictionary<string, DnsCacheEntry> _cache = new ConcurrentDictionary<string, DnsCacheEntry>();
 
@@ -552,6 +553,40 @@ namespace TechnitiumLibrary.Net.Dns
         public virtual void Flush()
         {
             _cache.Clear();
+        }
+
+        #endregion
+
+        #region properties
+
+        public uint FailureRecordTtl
+        {
+            get { return _failureRecordTtl; }
+            set { _failureRecordTtl = value; }
+        }
+
+        public uint NegativeRecordTtl
+        {
+            get { return _negativeRecordTtl; }
+            set { _negativeRecordTtl = value; }
+        }
+
+        public uint MinimumRecordTtl
+        {
+            get { return _minimumRecordTtl; }
+            set { _minimumRecordTtl = value; }
+        }
+
+        public uint ServeStaleTtl
+        {
+            get { return _serveStaleTtl; }
+            set
+            {
+                if (value > SERVE_STALE_TTL_MAX)
+                    throw new ArgumentOutOfRangeException("Serve stale TTL cannot be higher than 7 days. Recommended value is between 1-3 days.");
+
+                _serveStaleTtl = value;
+            }
         }
 
         #endregion
