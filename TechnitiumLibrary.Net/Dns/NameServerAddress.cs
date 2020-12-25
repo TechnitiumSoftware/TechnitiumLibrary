@@ -397,9 +397,16 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static List<NameServerAddress> GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool selectOnlyNameServersWithGlue)
         {
-            List<NameServerAddress> nameServers = new List<NameServerAddress>(response.Authority.Count);
+            IReadOnlyList<DnsResourceRecord> authorityRecords;
 
-            foreach (DnsResourceRecord authorityRecord in response.Authority)
+            if ((response.Question.Count > 0) && (response.Question[0].Type == DnsResourceRecordType.NS) && (response.Answer.Count > 0) && (response.Answer[0].Type == DnsResourceRecordType.NS))
+                authorityRecords = response.Answer;
+            else
+                authorityRecords = response.Authority;
+
+            List<NameServerAddress> nameServers = new List<NameServerAddress>(authorityRecords.Count);
+
+            foreach (DnsResourceRecord authorityRecord in authorityRecords)
             {
                 if (authorityRecord.Type == DnsResourceRecordType.NS)
                 {
