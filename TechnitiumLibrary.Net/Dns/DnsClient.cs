@@ -407,6 +407,28 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     //select only name servers with glue from cache to avoid getting stack overflow due to getting same set of NS records with no address every time from cache
                                     List<NameServerAddress> cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, true);
+                                    if (cacheNameServers.Count == 0)
+                                    {
+                                        //find name servers with glue from cache for closest parent zone
+                                        string currentDomain = question.Name;
+
+                                        do
+                                        {
+                                            //get parent domain
+                                            int i = currentDomain.IndexOf('.');
+                                            if (i < 0)
+                                                break;
+
+                                            currentDomain = currentDomain.Substring(i + 1);
+
+                                            //find name servers with glue
+                                            DnsDatagram cachedNsResponse = cache.Query(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }));
+
+                                            cacheNameServers = NameServerAddress.GetNameServersFromResponse(cachedNsResponse, preferIPv6, true);
+                                        }
+                                        while (cacheNameServers.Count == 0);
+                                    }
+
                                     if (cacheNameServers.Count > 0)
                                     {
                                         cacheNameServers.Shuffle();
