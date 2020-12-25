@@ -120,6 +120,40 @@ namespace TechnitiumLibrary.Net
                 null);
         }
 
+        public static Task<UdpReceiveMessageFromResult> ReceiveMessageFromAsync(this Socket socket, byte[] buffer)
+        {
+            return ReceiveMessageFromAsync(socket, buffer, 0, buffer.Length);
+        }
+
+        public static Task<UdpReceiveMessageFromResult> ReceiveMessageFromAsync(this Socket socket, byte[] buffer, int offset, int size, SocketFlags socketFlags = SocketFlags.None)
+        {
+            return Task.Factory.FromAsync(
+                delegate (AsyncCallback callback, object state)
+                {
+                    EndPoint ep;
+
+                    if (socket.AddressFamily == AddressFamily.InterNetworkV6)
+                        ep = IPEndPointIPv6Any;
+                    else
+                        ep = IPEndPointAny;
+
+                    return socket.BeginReceiveMessageFrom(buffer, offset, size, socketFlags, ref ep, callback, state);
+                },
+                delegate (IAsyncResult result)
+                {
+                    EndPoint ep;
+
+                    if (socket.AddressFamily == AddressFamily.InterNetworkV6)
+                        ep = IPEndPointIPv6Any;
+                    else
+                        ep = IPEndPointAny;
+
+                    int bytesReceived = socket.EndReceiveMessageFrom(result, ref socketFlags, ref ep, out IPPacketInformation ipPacketInformation);
+                    return new UdpReceiveMessageFromResult(bytesReceived, ep, ipPacketInformation);
+                },
+                null);
+        }
+
         public static Task<int> UdpQueryAsync(this Socket socket, byte[] request, byte[] response, EndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
             return UdpQueryAsync(socket, request, 0, request.Length, response, 0, response.Length, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
@@ -264,6 +298,32 @@ namespace TechnitiumLibrary.Net
 
         public EndPoint RemoteEndPoint
         { get { return _remoteEP; } }
+
+        #endregion
+    }
+
+    public class UdpReceiveMessageFromResult : UdpReceiveFromResult
+    {
+        #region variables
+
+        readonly IPPacketInformation _ipPacketInformation;
+
+        #endregion
+
+        #region constructor
+
+        public UdpReceiveMessageFromResult(int bytesReceived, EndPoint remoteEP, IPPacketInformation ipPacketInformation)
+            : base(bytesReceived, remoteEP)
+        {
+            _ipPacketInformation = ipPacketInformation;
+        }
+
+        #endregion
+
+        #region properties
+
+        public IPPacketInformation IPPacketInformation
+        { get { return _ipPacketInformation; } }
 
         #endregion
     }
