@@ -72,7 +72,9 @@ namespace TechnitiumLibrary.Net.Proxy
                 _connectionManager = new DefaultProxyServerConnectionManager();
 
             //accept requests async
-            _ = Task.Factory.StartNew(AcceptRequestAsync, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+            int tasks = Math.Max(1, Environment.ProcessorCount);
+            for (int i = 0; i < tasks; i++)
+                _ = Task.Factory.StartNew(AcceptRequestAsync, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
         }
 
         #endregion
@@ -125,7 +127,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     };
 
                     if (_sessions.TryAdd(session, null))
-                        _ = Task.Factory.StartNew(session.StartAsync, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+                        _ = session.StartAsync();
                 }
             }
             finally
