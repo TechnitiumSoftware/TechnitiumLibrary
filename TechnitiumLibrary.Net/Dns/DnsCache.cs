@@ -146,6 +146,42 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
+        private IReadOnlyList<DnsResourceRecord> GetAdditionalRecords(IReadOnlyList<DnsResourceRecord> refRecords)
+        {
+            List<DnsResourceRecord> additionalRecords = new List<DnsResourceRecord>();
+
+            foreach (DnsResourceRecord refRecord in refRecords)
+            {
+                switch (refRecord.Type)
+                {
+                    case DnsResourceRecordType.NS:
+                        ResolveAdditionalRecords((refRecord.RDATA as DnsNSRecord).NameServer, additionalRecords);
+                        break;
+
+                    case DnsResourceRecordType.MX:
+                        ResolveAdditionalRecords((refRecord.RDATA as DnsMXRecord).Exchange, additionalRecords);
+                        break;
+
+                    case DnsResourceRecordType.SRV:
+                        ResolveAdditionalRecords((refRecord.RDATA as DnsSRVRecord).Target, additionalRecords);
+                        break;
+                }
+            }
+
+            return additionalRecords;
+        }
+
+        private void ResolveAdditionalRecords(string domain, List<DnsResourceRecord> additionalRecords)
+        {
+            IReadOnlyList<DnsResourceRecord> glueAs = GetRecords(domain, DnsResourceRecordType.A);
+            if ((glueAs != null) && (glueAs.Count > 0) && (glueAs[0].RDATA is DnsARecord))
+                additionalRecords.AddRange(glueAs);
+
+            IReadOnlyList<DnsResourceRecord> glueAAAAs = GetRecords(domain, DnsResourceRecordType.AAAA);
+            if ((glueAAAAs != null) && (glueAAAAs.Count > 0) && (glueAAAAs[0].RDATA is DnsAAAARecord))
+                additionalRecords.AddRange(glueAAAAs);
+        }
+
         #endregion
 
         #region public
@@ -195,36 +231,26 @@ namespace TechnitiumLibrary.Net.Dns
                 if (answerRecords[0].RDATA is DnsFailureRecord)
                     return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, (answerRecords[0].RDATA as DnsFailureRecord).RCODE, request.Question);
 
-                return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, answerRecords);
-            }
+                IReadOnlyList<DnsResourceRecord> additionalRecords = null;
 
-            string currentZone = question.Name;
-
-            while (currentZone != null)
-            {
-                IReadOnlyList<DnsResourceRecord> nameServers = GetClosestNameServers(currentZone);
-                if (nameServers == null)
-                    break;
-
-                List<DnsResourceRecord> glueRecords = new List<DnsResourceRecord>();
-
-                foreach (DnsResourceRecord nameServer in nameServers)
+                switch (question.Type)
                 {
-                    string nsDomain = (nameServer.RDATA as DnsNSRecord).NameServer;
-
-                    IReadOnlyList<DnsResourceRecord> glueAs = GetRecords(nsDomain, DnsResourceRecordType.A);
-                    if ((glueAs != null) && (glueAs.Count > 0) && (glueAs[0].RDATA is DnsARecord))
-                        glueRecords.AddRange(glueAs);
-
-                    IReadOnlyList<DnsResourceRecord> glueAAAAs = GetRecords(nsDomain, DnsResourceRecordType.AAAA);
-                    if ((glueAAAAs != null) && (glueAAAAs.Count > 0) && (glueAAAAs[0].RDATA is DnsAAAARecord))
-                        glueRecords.AddRange(glueAAAAs);
+                    case DnsResourceRecordType.NS:
+                    case DnsResourceRecordType.MX:
+                    case DnsResourceRecordType.SRV:
+                        additionalRecords = GetAdditionalRecords(answerRecords);
+                        break;
                 }
 
-                if (glueRecords.Count > 0)
-                    return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, nameServers, glueRecords);
+                return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, answerRecords, null, additionalRecords);
+            }
 
-                currentZone = GetParentZone(currentZone);
+            IReadOnlyList<DnsResourceRecord> closestAuthority = GetClosestNameServers(question.Name);
+            if (closestAuthority != null)
+            {
+                IReadOnlyList<DnsResourceRecord> additionalRecords = GetAdditionalRecords(closestAuthority);
+
+                return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, closestAuthority, additionalRecords);
             }
 
             return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.Refused, request.Question);
