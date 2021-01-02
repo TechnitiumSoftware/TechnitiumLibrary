@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -65,12 +65,18 @@ namespace TechnitiumLibrary.Net.Mail
         { }
 
         public SmtpClientEx(string host)
-            : base(host, 25)
-        { }
+            : base()
+        {
+            _host = host;
+            _port = 25;
+        }
 
         public SmtpClientEx(string host, int port)
-            : base(host, port)
-        { }
+            : base()
+        {
+            _host = host;
+            _port = port;
+        }
 
         #endregion
 
@@ -163,7 +169,7 @@ namespace TechnitiumLibrary.Net.Mail
             byte[] buffer = new byte[4];
             _rng.GetBytes(buffer);
 
-            this.LocalHostName = BitConverter.ToString(buffer).Replace("-", "");
+            LocalHostName = BitConverter.ToString(buffer).Replace("-", "");
         }
 
         public new void Send(string from, string recipients, string subject, string body)
@@ -193,19 +199,19 @@ namespace TechnitiumLibrary.Net.Mail
 
             if (DeliveryMethod == SmtpDeliveryMethod.Network)
             {
-                if (string.IsNullOrEmpty(this.Host))
+                if (string.IsNullOrEmpty(_host))
                 {
                     if (_dnsClient == null)
                         _dnsClient = new DnsClient();
 
                     IReadOnlyList<string> mxServers = await _dnsClient.ResolveMXAsync(message.To[0].Host);
                     if (mxServers.Count > 0)
-                        this.Host = mxServers[0];
+                        _host = mxServers[0];
                     else
-                        this.Host = message.To[0].Host;
+                        _host = message.To[0].Host;
 
-                    this.Port = 25;
-                    this.Credentials = null;
+                    _port = 25;
+                    Credentials = null;
                 }
 
                 if (_proxy == null)
@@ -232,6 +238,11 @@ namespace TechnitiumLibrary.Net.Mail
 
                         base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
                         base.Port = _tunnelProxy.TunnelEndPoint.Port;
+                    }
+                    else
+                    {
+                        base.Host = _host;
+                        base.Port = _port;
                     }
 
                     await base.SendMailAsync(message);
@@ -294,81 +305,25 @@ namespace TechnitiumLibrary.Net.Mail
         public NetProxy Proxy
         {
             get { return _proxy; }
-            set
-            {
-                _proxy = value;
-
-                if (_proxy == null)
-                {
-                    if (!string.IsNullOrEmpty(_host))
-                        base.Host = _host;
-
-                    base.Port = _port;
-                }
-                else
-                {
-                    _host = base.Host;
-                    _port = base.Port;
-                }
-            }
+            set { _proxy = value; }
         }
 
         public bool EnableSslWrapper
         {
             get { return _enableSslWrapper; }
-            set
-            {
-                _enableSslWrapper = value;
-
-                if (_enableSslWrapper)
-                {
-                    _host = base.Host;
-                    _port = base.Port;
-                }
-                else
-                {
-                    if (!string.IsNullOrEmpty(_host))
-                        base.Host = _host;
-
-                    base.Port = _port;
-                }
-            }
+            set { _enableSslWrapper = value; }
         }
 
         public new string Host
         {
-            get
-            {
-                if ((_proxy == null) || !_enableSslWrapper)
-                    return base.Host;
-                else
-                    return _host;
-            }
-            set
-            {
-                if ((_proxy == null) || !_enableSslWrapper)
-                    base.Host = value;
-                else
-                    _host = value;
-            }
+            get { return _host; }
+            set { _host = value; }
         }
 
         public new int Port
         {
-            get
-            {
-                if ((_proxy == null) || !_enableSslWrapper)
-                    return base.Port;
-                else
-                    return _port;
-            }
-            set
-            {
-                if ((_proxy == null) || !_enableSslWrapper)
-                    base.Port = value;
-                else
-                    _port = value;
-            }
+            get { return _port; }
+            set { _port = value; }
         }
 
         public bool IgnoreCertificateErrors
