@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -306,29 +306,26 @@ namespace TechnitiumLibrary.Net.Dns
                             case DnsResourceRecordType.NS:
                                 string nsDomain = (answer.RDATA as DnsNSRecord).NameServer;
 
-                                if (!nsDomain.EndsWith(".root-servers.net", StringComparison.OrdinalIgnoreCase))
+                                foreach (DnsResourceRecord record in response.Additional)
                                 {
-                                    foreach (DnsResourceRecord record in response.Additional)
+                                    if (nsDomain.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
                                     {
-                                        if (nsDomain.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                                        switch (record.Type)
                                         {
-                                            switch (record.Type)
-                                            {
-                                                case DnsResourceRecordType.A:
-                                                    if (IPAddress.IsLoopback((record.RDATA as DnsARecord).Address))
-                                                        continue;
+                                            case DnsResourceRecordType.A:
+                                                if (IPAddress.IsLoopback((record.RDATA as DnsARecord).Address))
+                                                    continue;
 
-                                                    break;
+                                                break;
 
-                                                case DnsResourceRecordType.AAAA:
-                                                    if (IPAddress.IsLoopback((record.RDATA as DnsAAAARecord).Address))
-                                                        continue;
+                                            case DnsResourceRecordType.AAAA:
+                                                if (IPAddress.IsLoopback((record.RDATA as DnsAAAARecord).Address))
+                                                    continue;
 
-                                                    break;
-                                            }
-
-                                            cachableRecords.Add(record);
+                                                break;
                                         }
+
+                                        cachableRecords.Add(record);
                                     }
                                 }
 
@@ -471,29 +468,27 @@ namespace TechnitiumLibrary.Net.Dns
                                     cachableRecords.Add(authorityRecords);
 
                                     string nsDomain = (authorityRecords.RDATA as DnsNSRecord).NameServer;
-                                    if (!nsDomain.EndsWith(".root-servers.net", StringComparison.OrdinalIgnoreCase))
+
+                                    foreach (DnsResourceRecord record in response.Additional)
                                     {
-                                        foreach (DnsResourceRecord record in response.Additional)
+                                        if (nsDomain.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
                                         {
-                                            if (nsDomain.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                                            switch (record.Type)
                                             {
-                                                switch (record.Type)
-                                                {
-                                                    case DnsResourceRecordType.A:
-                                                        if (IPAddress.IsLoopback((record.RDATA as DnsARecord).Address))
-                                                            continue;
+                                                case DnsResourceRecordType.A:
+                                                    if (IPAddress.IsLoopback((record.RDATA as DnsARecord).Address))
+                                                        continue;
 
-                                                        break;
+                                                    break;
 
-                                                    case DnsResourceRecordType.AAAA:
-                                                        if (IPAddress.IsLoopback((record.RDATA as DnsAAAARecord).Address))
-                                                            continue;
+                                                case DnsResourceRecordType.AAAA:
+                                                    if (IPAddress.IsLoopback((record.RDATA as DnsAAAARecord).Address))
+                                                        continue;
 
-                                                        break;
-                                                }
-
-                                                cachableRecords.Add(record);
+                                                    break;
                                             }
+
+                                            cachableRecords.Add(record);
                                         }
                                     }
                                 }
