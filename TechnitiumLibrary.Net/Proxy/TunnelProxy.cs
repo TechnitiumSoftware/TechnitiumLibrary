@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -55,14 +55,16 @@ namespace TechnitiumLibrary.Net.Proxy
             _ignoreCertificateErrors = ignoreCertificateErrors;
 
             //start local tunnel
-            _tunnelListener = new Socket(_remoteEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            _tunnelListener.NoDelay = true;
+            IPEndPoint bindEP;
 
-            if (_remoteEP.AddressFamily == AddressFamily.InterNetworkV6)
-                _tunnelListener.Bind(new IPEndPoint(IPAddress.IPv6Loopback, 0));
+            if (_remoteSocket.AddressFamily == AddressFamily.InterNetworkV6)
+                bindEP = new IPEndPoint(IPAddress.IPv6Loopback, 0);
             else
-                _tunnelListener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+                bindEP = new IPEndPoint(IPAddress.Loopback, 0);
 
+            _tunnelListener = new Socket(bindEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            _tunnelListener.NoDelay = true;
+            _tunnelListener.Bind(bindEP);
             _tunnelListener.Listen(1);
 
             _tunnelEP = _tunnelListener.LocalEndPoint as IPEndPoint;
@@ -151,24 +153,7 @@ namespace TechnitiumLibrary.Net.Proxy
                         sslStream = new SslStream(remoteStream);
                     }
 
-                    string targetHost;
-
-                    switch (_remoteEP.AddressFamily)
-                    {
-                        case AddressFamily.InterNetwork:
-                        case AddressFamily.InterNetworkV6:
-                            targetHost = (_remoteEP as IPEndPoint).Address.ToString();
-                            break;
-
-                        case AddressFamily.Unspecified:
-                            targetHost = (_remoteEP as DomainEndPoint).Address;
-                            break;
-
-                        default:
-                            throw new NotSupportedException("AddressFamily not supported.");
-                    }
-
-                    await sslStream.AuthenticateAsClientAsync(targetHost).WithTimeout(TUNNEL_WAIT_TIMEOUT);
+                    await sslStream.AuthenticateAsClientAsync(_remoteEP.GetAddress()).WithTimeout(TUNNEL_WAIT_TIMEOUT);
 
                     remoteStream = sslStream;
                 }
