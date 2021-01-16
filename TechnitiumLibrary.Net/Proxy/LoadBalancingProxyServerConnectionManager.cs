@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -41,7 +41,8 @@ namespace TechnitiumLibrary.Net.Proxy
         static readonly RandomNumberGenerator _rng = RandomNumberGenerator.Create();
 
         readonly IReadOnlyList<IProxyServerConnectionManager> _connectionManagers;
-        readonly EndPoint[] _connectivityCheckEPs;
+        readonly IReadOnlyCollection<EndPoint> _connectivityCheckEPs;
+        readonly bool _redundancyOnly;
 
         IReadOnlyList<IProxyServerConnectionManager> _workingConnectionManagers;
 
@@ -54,10 +55,11 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region constructor
 
-        public LoadBalancingProxyServerConnectionManager(IReadOnlyList<IProxyServerConnectionManager> connectionManagers, EndPoint[] connectivityCheckEPs = null)
+        public LoadBalancingProxyServerConnectionManager(IReadOnlyList<IProxyServerConnectionManager> connectionManagers, IReadOnlyCollection<EndPoint> connectivityCheckEPs = null, bool redundancyOnly = false)
         {
             _connectionManagers = connectionManagers;
             _connectivityCheckEPs = connectivityCheckEPs;
+            _redundancyOnly = redundancyOnly;
 
             if (_connectivityCheckEPs == null)
                 _connectivityCheckEPs = new EndPoint[] { new DomainEndPoint("www.google.com", 443), new DomainEndPoint("www.microsoft.com", 443) };
@@ -77,10 +79,30 @@ namespace TechnitiumLibrary.Net.Proxy
                     IProxyServerConnectionManager[] results = await Task.WhenAll(tasks);
                     List<IProxyServerConnectionManager> workingConnectionManagers = new List<IProxyServerConnectionManager>();
 
-                    foreach (IProxyServerConnectionManager result in results)
+                    if (_redundancyOnly)
                     {
-                        if (result != null)
-                            workingConnectionManagers.Add(result);
+                        foreach (IProxyServerConnectionManager connectionManager in _connectionManagers)
+                        {
+                            foreach (IProxyServerConnectionManager result in results)
+                            {
+                                if (ReferenceEquals(connectionManager, result))
+                                {
+                                    workingConnectionManagers.Add(result);
+                                    break;
+                                }
+                            }
+
+                            if (workingConnectionManagers.Count > 0)
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        foreach (IProxyServerConnectionManager result in results)
+                        {
+                            if (result != null)
+                                workingConnectionManagers.Add(result);
+                        }
                     }
 
                     _workingConnectionManagers = workingConnectionManagers;
@@ -169,7 +191,7 @@ namespace TechnitiumLibrary.Net.Proxy
             if ((workingConnectionManagers == null) || (workingConnectionManagers.Count == 0))
                 throw new SocketException((int)SocketError.NetworkUnreachable);
 
-            if (workingConnectionManagers.Count == 1)
+            if ((workingConnectionManagers.Count == 1) || _redundancyOnly)
                 return workingConnectionManagers[0];
 
             return workingConnectionManagers[GetRandomNumber() % workingConnectionManagers.Count];
