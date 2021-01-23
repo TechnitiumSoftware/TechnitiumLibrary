@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -226,8 +226,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 await localStream.WriteAsync(Encoding.ASCII.GetBytes(httpRequest.Protocol + " 200 OK\r\nConnection: close\r\n\r\n"));
 
                 //pipe sockets
-                _ = _localSocket.CopyToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
-                _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
+                _ = _localSocket.PipeToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
             }
 
             private Task SendResponseAsync(Exception ex)
@@ -406,8 +405,19 @@ namespace TechnitiumLibrary.Net.Proxy
                                 lastHost = host;
                                 lastPort = port;
 
-                                //pipe response stream
-                                _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
+                                //copy remote socket to local socket
+                                _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask)
+                                {
+                                    try
+                                    {
+                                        if ((prevTask.Status == TaskStatus.RanToCompletion) && _localSocket.Connected)
+                                            _localSocket.Shutdown(SocketShutdown.Both);
+                                    }
+                                    finally
+                                    {
+                                        Dispose();
+                                    }
+                                });
                             }
 
                             #endregion
