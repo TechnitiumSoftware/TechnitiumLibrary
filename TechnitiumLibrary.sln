@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Security.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.ByteTree", "TechnitiumLibrary.ByteTree\TechnitiumLibrary.ByteTree.csproj", "{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Net.Proxy", "TechnitiumLibrary.Net.Proxy\TechnitiumLibrary.Net.Proxy.csproj", "{6CABA254-3738-43E3-9201-F59CBF8B3483}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -75,6 +77,10 @@ Global
 		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6CABA254-3738-43E3-9201-F59CBF8B3483}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6CABA254-3738-43E3-9201-F59CBF8B3483}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6CABA254-3738-43E3-9201-F59CBF8B3483}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6CABA254-3738-43E3-9201-F59CBF8B3483}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
