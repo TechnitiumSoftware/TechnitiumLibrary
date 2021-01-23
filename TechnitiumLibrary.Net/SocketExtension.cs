@@ -264,9 +264,23 @@ namespace TechnitiumLibrary.Net
 
                 await dst.SendAsync(buffer, 0, bytesRead);
             }
+        }
 
-            if (dst.Connected)
-                dst.Shutdown(SocketShutdown.Both);
+        public static async Task PipeToAsync(this Socket socket1, Socket socket2, int bufferSize = 64 * 1024)
+        {
+            Task t1 = socket1.CopyToAsync(socket2, bufferSize).ContinueWith(delegate (Task prevTask)
+            {
+                if ((prevTask.Status == TaskStatus.RanToCompletion) && socket2.Connected)
+                    socket2.Shutdown(SocketShutdown.Send);
+            });
+
+            Task t2 = socket2.CopyToAsync(socket1, bufferSize).ContinueWith(delegate (Task prevTask)
+            {
+                if ((prevTask.Status == TaskStatus.RanToCompletion) && socket1.Connected)
+                    socket1.Shutdown(SocketShutdown.Send);
+            });
+
+            await Task.WhenAll(t1, t2);
         }
 
         #endregion
