@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -523,8 +523,7 @@ namespace TechnitiumLibrary.Net.Proxy
                         case SocksProxyRequestCommand.Connect:
                             {
                                 //pipe sockets
-                                _ = _localSocket.CopyToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
-                                _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
+                                _ = _localSocket.PipeToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
                                 dontDispose = true;
                             }
                             break;
@@ -557,8 +556,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                     await localStream.FlushAsync();
 
                                     //pipe sockets
-                                    _ = _localSocket.CopyToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
-                                    _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
+                                    _ = _localSocket.PipeToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
                                     dontDispose = true;
                                 }
                             }
