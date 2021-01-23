@@ -890,75 +890,6 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        private static async Task<DnsDatagram> ResolveQueryAsync(DnsQuestionRecord question, Func<DnsQuestionRecord, Task<DnsDatagram>> resolveAsync)
-        {
-            DnsDatagram response = await resolveAsync(question);
-
-            IReadOnlyList<DnsResourceRecord> authority = null;
-            IReadOnlyList<DnsResourceRecord> additional = null;
-
-            if (response.Answer.Count > 0)
-            {
-                DnsResourceRecord lastRR = response.Answer[response.Answer.Count - 1];
-
-                if ((lastRR.Type != question.Type) && (lastRR.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
-                {
-                    List<DnsResourceRecord> responseAnswer = new List<DnsResourceRecord>();
-                    responseAnswer.AddRange(response.Answer);
-
-                    DnsDatagram lastResponse;
-                    int queryCount = 0;
-
-                    do
-                    {
-                        DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class);
-
-                        lastResponse = await resolveAsync(cnameQuestion);
-
-                        if (lastResponse.Answer.Count == 0)
-                            break;
-
-                        responseAnswer.AddRange(lastResponse.Answer);
-
-                        lastRR = lastResponse.Answer[lastResponse.Answer.Count - 1];
-
-                        if (lastRR.Type == question.Type)
-                            break;
-
-                        if (lastRR.Type != DnsResourceRecordType.CNAME)
-                            throw new DnsClientException("Invalid response received from DNS server.");
-                    }
-                    while (++queryCount < MAX_CNAME_HOPS);
-
-                    if ((lastResponse.Authority.Count > 0) && (lastResponse.Authority[0].Type == DnsResourceRecordType.SOA))
-                        authority = lastResponse.Authority;
-
-                    if ((response.Additional.Count > 0) && (question.Type == DnsResourceRecordType.MX))
-                        additional = response.Additional;
-
-                    DnsDatagram compositeResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, lastResponse.RCODE, new DnsQuestionRecord[] { question }, responseAnswer, authority, additional);
-
-                    if (lastResponse.Metadata != null)
-                        compositeResponse.SetMetadata(new DnsDatagramMetadata(lastResponse.Metadata.NameServerAddress, lastResponse.Metadata.Protocol, -1, lastResponse.Metadata.RTT));
-
-                    return compositeResponse;
-                }
-            }
-
-            if ((response.Authority.Count > 0) && (response.Authority[0].Type == DnsResourceRecordType.SOA))
-                authority = response.Authority;
-
-            if ((response.Additional.Count > 0) && (question.Type == DnsResourceRecordType.MX))
-                additional = response.Additional;
-
-            DnsDatagram finalResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, response.RCODE, new DnsQuestionRecord[] { question }, response.Answer, authority, additional);
-
-            if (response.Metadata != null)
-                finalResponse.SetMetadata(new DnsDatagramMetadata(response.Metadata.NameServerAddress, response.Metadata.Protocol, -1, response.Metadata.RTT));
-
-            return finalResponse;
-        }
-
         public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
         {
             if (cache == null)
@@ -1349,6 +1280,75 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             return word;
+        }
+
+        private static async Task<DnsDatagram> ResolveQueryAsync(DnsQuestionRecord question, Func<DnsQuestionRecord, Task<DnsDatagram>> resolveAsync)
+        {
+            DnsDatagram response = await resolveAsync(question);
+
+            IReadOnlyList<DnsResourceRecord> authority = null;
+            IReadOnlyList<DnsResourceRecord> additional = null;
+
+            if (response.Answer.Count > 0)
+            {
+                DnsResourceRecord lastRR = response.Answer[response.Answer.Count - 1];
+
+                if ((lastRR.Type != question.Type) && (lastRR.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
+                {
+                    List<DnsResourceRecord> responseAnswer = new List<DnsResourceRecord>();
+                    responseAnswer.AddRange(response.Answer);
+
+                    DnsDatagram lastResponse;
+                    int queryCount = 0;
+
+                    do
+                    {
+                        DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class);
+
+                        lastResponse = await resolveAsync(cnameQuestion);
+
+                        if (lastResponse.Answer.Count == 0)
+                            break;
+
+                        responseAnswer.AddRange(lastResponse.Answer);
+
+                        lastRR = lastResponse.Answer[lastResponse.Answer.Count - 1];
+
+                        if (lastRR.Type == question.Type)
+                            break;
+
+                        if (lastRR.Type != DnsResourceRecordType.CNAME)
+                            throw new DnsClientException("Invalid response received from DNS server.");
+                    }
+                    while (++queryCount < MAX_CNAME_HOPS);
+
+                    if ((lastResponse.Authority.Count > 0) && (lastResponse.Authority[0].Type == DnsResourceRecordType.SOA))
+                        authority = lastResponse.Authority;
+
+                    if ((response.Additional.Count > 0) && (question.Type == DnsResourceRecordType.MX))
+                        additional = response.Additional;
+
+                    DnsDatagram compositeResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, lastResponse.RCODE, new DnsQuestionRecord[] { question }, responseAnswer, authority, additional);
+
+                    if (lastResponse.Metadata != null)
+                        compositeResponse.SetMetadata(new DnsDatagramMetadata(lastResponse.Metadata.NameServerAddress, lastResponse.Metadata.Protocol, -1, lastResponse.Metadata.RTT));
+
+                    return compositeResponse;
+                }
+            }
+
+            if ((response.Authority.Count > 0) && (response.Authority[0].Type == DnsResourceRecordType.SOA))
+                authority = response.Authority;
+
+            if ((response.Additional.Count > 0) && (question.Type == DnsResourceRecordType.MX))
+                additional = response.Additional;
+
+            DnsDatagram finalResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, response.RCODE, new DnsQuestionRecord[] { question }, response.Answer, authority, additional);
+
+            if (response.Metadata != null)
+                finalResponse.SetMetadata(new DnsDatagramMetadata(response.Metadata.NameServerAddress, response.Metadata.Protocol, -1, response.Metadata.RTT));
+
+            return finalResponse;
         }
 
         private async Task<DnsDatagram> InternalResolveAsync(DnsDatagram request)
