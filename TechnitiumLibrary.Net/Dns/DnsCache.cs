@@ -92,14 +92,40 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        protected static IReadOnlyList<DnsResourceRecord> GetGlueRecordsFrom(DnsResourceRecord record)
+        {
+            List<DnsResourceRecord> glueRecords = record.Tag as List<DnsResourceRecord>;
+            if (glueRecords == null)
+                return Array.Empty<DnsResourceRecord>();
+
+            return glueRecords;
+        }
+
         #endregion
 
         #region private
 
+        private static void AddGlueRecordTo(DnsResourceRecord record, DnsResourceRecord glueRecord)
+        {
+            List<DnsResourceRecord> glueRecords = record.Tag as List<DnsResourceRecord>;
+            if (glueRecords == null)
+            {
+                glueRecords = new List<DnsResourceRecord>();
+                record.Tag = glueRecords;
+            }
+
+            glueRecords.Add(glueRecord);
+        }
+
         private void InternalCacheRecords(IReadOnlyList<DnsResourceRecord> resourceRecords)
         {
             foreach (DnsResourceRecord resourceRecord in resourceRecords)
+            {
                 resourceRecord.NormalizeName();
+
+                foreach (DnsResourceRecord glueRecord in GetGlueRecordsFrom(resourceRecord))
+                    glueRecord.NormalizeName();
+            }
 
             CacheRecords(resourceRecords);
         }
@@ -155,15 +181,15 @@ namespace TechnitiumLibrary.Net.Dns
                 switch (refRecord.Type)
                 {
                     case DnsResourceRecordType.NS:
-                        ResolveAdditionalRecords((refRecord.RDATA as DnsNSRecord).NameServer, additionalRecords);
+                        ResolveAdditionalRecords(refRecord, (refRecord.RDATA as DnsNSRecord).NameServer, additionalRecords);
                         break;
 
                     case DnsResourceRecordType.MX:
-                        ResolveAdditionalRecords((refRecord.RDATA as DnsMXRecord).Exchange, additionalRecords);
+                        ResolveAdditionalRecords(refRecord, (refRecord.RDATA as DnsMXRecord).Exchange, additionalRecords);
                         break;
 
                     case DnsResourceRecordType.SRV:
-                        ResolveAdditionalRecords((refRecord.RDATA as DnsSRVRecord).Target, additionalRecords);
+                        ResolveAdditionalRecords(refRecord, (refRecord.RDATA as DnsSRVRecord).Target, additionalRecords);
                         break;
                 }
             }
@@ -171,8 +197,26 @@ namespace TechnitiumLibrary.Net.Dns
             return additionalRecords;
         }
 
-        private void ResolveAdditionalRecords(string domain, List<DnsResourceRecord> additionalRecords)
+        private void ResolveAdditionalRecords(DnsResourceRecord refRecord, string domain, List<DnsResourceRecord> additionalRecords)
         {
+            IReadOnlyList<DnsResourceRecord> glueRecords = GetGlueRecordsFrom(refRecord);
+            if (glueRecords.Count > 0)
+            {
+                bool added = false;
+
+                foreach (DnsResourceRecord glueRecord in glueRecords)
+                {
+                    if (!glueRecord.IsStale)
+                    {
+                        added = true;
+                        additionalRecords.Add(glueRecord);
+                    }
+                }
+
+                if (added)
+                    return;
+            }
+
             IReadOnlyList<DnsResourceRecord> glueAs = GetRecords(domain, DnsResourceRecordType.A);
             if ((glueAs != null) && (glueAs.Count > 0) && (glueAs[0].RDATA is DnsARecord))
                 additionalRecords.AddRange(glueAs);
@@ -306,38 +350,49 @@ namespace TechnitiumLibrary.Net.Dns
                             case DnsResourceRecordType.NS:
                                 string nsDomain = (answer.RDATA as DnsNSRecord).NameServer;
 
-                                foreach (DnsResourceRecord record in response.Additional)
+                                foreach (DnsResourceRecord additionalRecord in response.Additional)
                                 {
-                                    if (nsDomain.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                                    if (nsDomain.Equals(additionalRecord.Name, StringComparison.OrdinalIgnoreCase))
                                     {
-                                        switch (record.Type)
+                                        switch (additionalRecord.Type)
                                         {
                                             case DnsResourceRecordType.A:
-                                                if (IPAddress.IsLoopback((record.RDATA as DnsARecord).Address))
+                                                if (IPAddress.IsLoopback((additionalRecord.RDATA as DnsARecord).Address))
                                                     continue;
 
                                                 break;
 
                                             case DnsResourceRecordType.AAAA:
-                                                if (IPAddress.IsLoopback((record.RDATA as DnsAAAARecord).Address))
+                                                if (IPAddress.IsLoopback((additionalRecord.RDATA as DnsAAAARecord).Address))
                                                     continue;
 
                                                 break;
                                         }
 
-                                        cachableRecords.Add(record);
+                                        AddGlueRecordTo(answer, additionalRecord);
                                     }
                                 }
 
                                 break;
 
-                            case DnsResourceRecordType.MX:
+                            case DnsResourceRecordType.MX: //glue suitable MX records
                                 string mxExchange = (answer.RDATA as DnsMXRecord).Exchange;
 
-                                foreach (DnsResourceRecord record in response.Additional)
+                                foreach (DnsResourceRecord additionalRecord in response.Additional)
                                 {
-                                    if (mxExchange.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
-                                        cachableRecords.Add(record);
+                                    if (mxExchange.Equals(additionalRecord.Name, StringComparison.OrdinalIgnoreCase))
+                                        AddGlueRecordTo(answer, additionalRecord);
+                                }
+
+                                break;
+
+                            case DnsResourceRecordType.SRV: //glue suitable SRV records
+                                string srvTarget = (answer.RDATA as DnsSRVRecord).Target;
+
+                                foreach (DnsResourceRecord additionalRecord in response.Additional)
+                                {
+                                    if (srvTarget.Equals(additionalRecord.Name, StringComparison.OrdinalIgnoreCase))
+                                        AddGlueRecordTo(answer, additionalRecord);
                                 }
 
                                 break;
@@ -456,39 +511,39 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    //cache suitable NS records
+                    //glue suitable NS records
                     if ((response.Question[0].Type != DnsResourceRecordType.NS) || (response.Answer.Count == 0))
                     {
                         foreach (DnsQuestionRecord question in response.Question)
                         {
-                            foreach (DnsResourceRecord authorityRecords in response.Authority)
+                            foreach (DnsResourceRecord authorityRecord in response.Authority)
                             {
-                                if ((authorityRecords.Type == DnsResourceRecordType.NS) && (question.Name.Equals(authorityRecords.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authorityRecords.Name, StringComparison.OrdinalIgnoreCase)))
+                                if ((authorityRecord.Type == DnsResourceRecordType.NS) && (question.Name.Equals(authorityRecord.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authorityRecord.Name, StringComparison.OrdinalIgnoreCase)))
                                 {
-                                    cachableRecords.Add(authorityRecords);
+                                    cachableRecords.Add(authorityRecord);
 
-                                    string nsDomain = (authorityRecords.RDATA as DnsNSRecord).NameServer;
+                                    string nsDomain = (authorityRecord.RDATA as DnsNSRecord).NameServer;
 
-                                    foreach (DnsResourceRecord record in response.Additional)
+                                    foreach (DnsResourceRecord additionalRecord in response.Additional)
                                     {
-                                        if (nsDomain.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                                        if (nsDomain.Equals(additionalRecord.Name, StringComparison.OrdinalIgnoreCase))
                                         {
-                                            switch (record.Type)
+                                            switch (additionalRecord.Type)
                                             {
                                                 case DnsResourceRecordType.A:
-                                                    if (IPAddress.IsLoopback((record.RDATA as DnsARecord).Address))
+                                                    if (IPAddress.IsLoopback((additionalRecord.RDATA as DnsARecord).Address))
                                                         continue;
 
                                                     break;
 
                                                 case DnsResourceRecordType.AAAA:
-                                                    if (IPAddress.IsLoopback((record.RDATA as DnsAAAARecord).Address))
+                                                    if (IPAddress.IsLoopback((additionalRecord.RDATA as DnsAAAARecord).Address))
                                                         continue;
 
                                                     break;
                                             }
 
-                                            cachableRecords.Add(record);
+                                            AddGlueRecordTo(authorityRecord, additionalRecord);
                                         }
                                     }
                                 }
@@ -566,7 +621,12 @@ namespace TechnitiumLibrary.Net.Dns
 
             //set expiry for cached records
             foreach (DnsResourceRecord record in cachableRecords)
+            {
                 record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
+
+                foreach (DnsResourceRecord glueRecord in GetGlueRecordsFrom(record))
+                    glueRecord.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
+            }
 
             InternalCacheRecords(cachableRecords);
         }
