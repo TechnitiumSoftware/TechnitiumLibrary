@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -538,7 +538,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region internal
 
-        internal DnsDatagram CloneRequest()
+        internal DnsDatagram CloneHeadersAndQuestions()
         {
             DnsQuestionRecord[] clonedQuestion = new DnsQuestionRecord[_question.Count];
 
@@ -546,6 +546,11 @@ namespace TechnitiumLibrary.Net.Dns
                 clonedQuestion[i] = _question[i].Clone();
 
             return new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, clonedQuestion, _answer, _authority, _additional);
+        }
+
+        internal DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer)
+        {
+            return new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, _authority, _additional);
         }
 
         #endregion
