@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@ namespace TechnitiumLibrary.Net.Proxy
         protected readonly NetworkCredential _credential;
 
         protected NetProxy _viaProxy;
-        ICollection<NetProxyBypassItem> _bypassList = new List<NetProxyBypassItem> { new NetProxyBypassItem("127.0.0.0/8"), new NetProxyBypassItem("169.254.0.0/16"), new NetProxyBypassItem("fe80::/10"), new NetProxyBypassItem("::1"), new NetProxyBypassItem("localhost") };
+        IReadOnlyCollection<NetProxyBypassItem> _bypassList = new List<NetProxyBypassItem> { new NetProxyBypassItem("127.0.0.0/8"), new NetProxyBypassItem("169.254.0.0/16"), new NetProxyBypassItem("fe80::/10"), new NetProxyBypassItem("::1"), new NetProxyBypassItem("localhost") };
 
         HttpProxyServer _httpProxyServer;
 
@@ -283,7 +283,7 @@ namespace TechnitiumLibrary.Net.Proxy
             set { _viaProxy = value; }
         }
 
-        public ICollection<NetProxyBypassItem> BypassList
+        public IReadOnlyCollection<NetProxyBypassItem> BypassList
         {
             get { return _bypassList; }
             set { _bypassList = value; }
