@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -140,12 +140,12 @@ namespace TechnitiumLibrary.Net.Proxy
                 case NetProxyBypassItemType.DomainName:
                     if (ep is DomainEndPoint)
                     {
-                        string domainName = (ep as DomainEndPoint).Address;
+                        string matchDomainName = (ep as DomainEndPoint).Address;
 
-                        if (_domainName.Length == domainName.Length)
-                            return _domainName.Equals(domainName, StringComparison.OrdinalIgnoreCase);
+                        if (_domainName.Length == matchDomainName.Length)
+                            return _domainName.Equals(matchDomainName, StringComparison.OrdinalIgnoreCase);
                         else
-                            return ("." + _domainName).EndsWith(domainName, StringComparison.OrdinalIgnoreCase);
+                            return matchDomainName.EndsWith("." + _domainName, StringComparison.OrdinalIgnoreCase);
                     }
 
                     return false;
