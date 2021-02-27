@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -222,6 +222,11 @@ namespace TechnitiumLibrary.Net.Dns
         public override int GetHashCode()
         {
             return _name.GetHashCode();
+        }
+
+        public override string ToString()
+        {
+            return _name + ". " + _type.ToString() + " " + _class.ToString();
         }
 
         #endregion
