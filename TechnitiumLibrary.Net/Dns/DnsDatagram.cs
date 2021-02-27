@@ -545,12 +545,26 @@ namespace TechnitiumLibrary.Net.Dns
             for (int i = 0; i < _question.Count; i++)
                 clonedQuestion[i] = _question[i].Clone();
 
-            return new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, clonedQuestion, _answer, _authority, _additional);
+            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, clonedQuestion, _answer, _authority, _additional);
+
+            datagram._metadata = _metadata;
+
+            return datagram;
         }
 
-        internal DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer)
+        internal DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer, IReadOnlyList<DnsResourceRecord> authority)
         {
-            return new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, _authority, _additional);
+            if (answer == null)
+                answer = _answer;
+
+            if (authority == null)
+                authority = _authority;
+
+            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, authority, _additional);
+
+            datagram._metadata = _metadata;
+
+            return datagram;
         }
 
         #endregion
