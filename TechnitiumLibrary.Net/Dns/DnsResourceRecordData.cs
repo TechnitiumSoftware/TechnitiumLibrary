@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        protected ushort _length;
+        protected ushort _rdLength;
 
         #endregion
 
@@ -40,7 +40,7 @@ namespace TechnitiumLibrary.Net.Dns
         protected DnsResourceRecordData(Stream s)
         {
             //read RDLENGTH
-            _length = DnsDatagram.ReadUInt16NetworkOrder(s);
+            _rdLength = DnsDatagram.ReadUInt16NetworkOrder(s);
 
             //read RDATA
             Parse(s);
@@ -102,7 +102,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         [IgnoreDataMember]
         public ushort RDLENGTH
-        { get { return _length; } }
+        { get { return _rdLength; } }
 
         #endregion
     }
