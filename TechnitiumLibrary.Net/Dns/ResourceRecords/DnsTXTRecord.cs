@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -46,7 +46,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsTXTRecord(dynamic jsonResourceRecord)
         {
-            _length = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+            _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
             _text = DnsDatagram.DecodeCharacterString(jsonResourceRecord.data.Value);
         }
@@ -60,7 +60,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             int bytesRead = 0;
             int length;
 
-            while (bytesRead < _length)
+            while (bytesRead < _rdLength)
             {
                 length = s.ReadByte();
                 if (length < 0)
