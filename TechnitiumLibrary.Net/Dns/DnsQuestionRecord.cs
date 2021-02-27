@@ -243,7 +243,7 @@ namespace TechnitiumLibrary.Net.Dns
         { get { return _class; } }
 
         [IgnoreDataMember]
-        public string ZoneCut
+        internal string ZoneCut
         {
             get { return _zoneCut; }
             set
@@ -260,11 +260,11 @@ namespace TechnitiumLibrary.Net.Dns
         }
 
         [IgnoreDataMember]
-        public string MinimizedName
+        internal string MinimizedName
         { get { return _minimizedName; } }
 
         [IgnoreDataMember]
-        public DnsResourceRecordType MinimizedType
+        internal DnsResourceRecordType MinimizedType
         {
             get
             {
