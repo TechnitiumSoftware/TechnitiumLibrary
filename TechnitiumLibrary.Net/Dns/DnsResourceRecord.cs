@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -116,6 +116,7 @@ namespace TechnitiumLibrary.Net.Dns
         DLV = 32769,
         ANAME = 65280, //private use - draft-ietf-dnsop-aname-04
         FWD = 65281, //private use - conditional forwarder
+        APP = 65282, //private use - application
     }
 
     public enum DnsClass : ushort
@@ -219,6 +220,10 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsForwarderRecord(s);
                     break;
 
+                case DnsResourceRecordType.APP:
+                    _data = new DnsApplicationRecord(s);
+                    break;
+
                 default:
                     _data = new DnsUnknownRecord(s);
                     break;
@@ -284,6 +289,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                 case DnsResourceRecordType.FWD:
                     _data = new DnsForwarderRecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.APP:
+                    _data = new DnsApplicationRecord(jsonResourceRecord);
                     break;
 
                 default:
@@ -436,6 +445,11 @@ namespace TechnitiumLibrary.Net.Dns
                 return value;
 
             return this._ttl.CompareTo(other._ttl);
+        }
+
+        public override string ToString()
+        {
+            return _name + ". " + _type.ToString() + " " + _class.ToString() + " " + _ttl + " " + _data.ToString();
         }
 
         #endregion
