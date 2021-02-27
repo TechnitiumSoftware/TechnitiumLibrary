@@ -511,7 +511,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    //glue suitable NS records
+                    //cache and glue suitable NS records
                     if ((response.Question[0].Type != DnsResourceRecordType.NS) || (response.Answer.Count == 0))
                     {
                         foreach (DnsQuestionRecord question in response.Question)
