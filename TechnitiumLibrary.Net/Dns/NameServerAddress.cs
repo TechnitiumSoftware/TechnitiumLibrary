@@ -395,7 +395,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static List<NameServerAddress> GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool selectOnlyNameServersWithGlue)
+        public static List<NameServerAddress> GetNameServersFromResponse(DnsDatagram response, bool preferIPv6)
         {
             IReadOnlyList<DnsResourceRecord> authorityRecords;
 
@@ -436,7 +436,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    if ((endPoint == null) && !selectOnlyNameServersWithGlue)
+                    if (endPoint == null)
                         nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NameServer, 53)));
                 }
             }
@@ -497,7 +497,7 @@ namespace TechnitiumLibrary.Net.Dns
             _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
         }
 
-        public async Task RecursiveResolveIPAddressAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000)
+        public async Task RecursiveResolveIPAddressAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
                 return;
@@ -525,7 +525,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             IPEndPoint ipEndPoint = null;
 
-            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, randomizeName, retries, timeout);
+            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, randomizeName, qnameMinimization, retries, timeout);
             if (addresses.Count > 0)
                 ipEndPoint = new IPEndPoint(addresses[0], this.Port);
 
@@ -565,13 +565,13 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public async Task RecursiveResolveDomainNameAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000)
+        public async Task RecursiveResolveDomainNameAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000)
         {
             if (_ipEndPoint != null)
             {
                 try
                 {
-                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, retries, timeout));
+                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, qnameMinimization, retries, timeout));
                     if (ptrDomains != null)
                         _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
