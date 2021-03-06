@@ -29,7 +29,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _package;
+        string _appName;
         string _classPath;
         string _data;
 
@@ -37,9 +37,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsApplicationRecord(string package, string classPath, string data)
+        public DnsApplicationRecord(string appName, string classPath, string data)
         {
-            _package = package;
+            _appName = appName;
             _classPath = classPath;
             _data = data;
         }
@@ -54,7 +54,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             string[] parts = (jsonResourceRecord.data.Value as string).Split(new char[] { ' ' }, 3);
 
-            _package = parts[0];
+            _appName = parts[0];
             _classPath = parts[1];
 
             if (parts.Length > 2)
@@ -73,7 +73,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 switch (version)
                 {
                     case 1:
-                        _package = bR.ReadShortString();
+                        _appName = bR.ReadShortString();
                         _classPath = bR.ReadShortString();
                         _data = bR.ReadString();
                         break;
@@ -89,7 +89,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             using (BinaryWriter bW = new BinaryWriter(s, Encoding.UTF8, true))
             {
                 bW.Write((byte)1); //version
-                bW.WriteShortString(_package);
+                bW.WriteShortString(_appName);
                 bW.WriteShortString(_classPath);
                 bW.Write(_data);
             }
@@ -111,7 +111,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (other == null)
                 return false;
 
-            if (!_package.Equals(other._package))
+            if (!_appName.Equals(other._appName))
                 return false;
 
             if (!_classPath.Equals(other._classPath))
@@ -122,20 +122,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return _package.GetHashCode() ^ _classPath.GetHashCode() ^ _data.GetHashCode();
+            return _appName.GetHashCode() ^ _classPath.GetHashCode() ^ _data.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _package + " " + _classPath + (_data == null ? "" : " " + Convert.ToBase64String(Encoding.UTF8.GetBytes(_data)));
+            return _appName + " " + _classPath + " " + Convert.ToBase64String(Encoding.UTF8.GetBytes(_data));
         }
 
         #endregion
 
         #region properties
 
-        public string Package
-        { get { return _package; } }
+        public string AppName
+        { get { return _appName; } }
 
         public string ClassPath
         { get { return _classPath; } }
