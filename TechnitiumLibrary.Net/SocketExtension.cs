@@ -34,6 +34,25 @@ namespace TechnitiumLibrary.Net
 
         #endregion
 
+        #region private
+
+        internal static IPEndPoint GetEndPointAnyFor(AddressFamily addressFamily)
+        {
+            switch (addressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    return IPEndPointAny;
+
+                case AddressFamily.InterNetworkV6:
+                    return IPEndPointIPv6Any;
+
+                default:
+                    throw new NotSupportedException("AddressFamily not supported.");
+            }
+        }
+
+        #endregion
+
         #region static
 
         public static void Connect(this Socket socket, string host, int port, int timeout)
@@ -67,101 +86,10 @@ namespace TechnitiumLibrary.Net
             socket.EndConnect(result);
         }
 
-        public static Task<int> SendToAsync(this Socket socket, byte[] buffer, EndPoint remoteEP)
+        public static async Task<int> UdpQueryAsync(this Socket socket, ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
-            return SendToAsync(socket, buffer, 0, buffer.Length, remoteEP);
-        }
-
-        public static Task<int> SendToAsync(this Socket socket, byte[] buffer, int offset, int size, EndPoint remoteEP, SocketFlags socketFlags = SocketFlags.None)
-        {
-            return Task.Factory.FromAsync(
-                delegate (AsyncCallback callback, object state)
-                {
-                    return socket.BeginSendTo(buffer, offset, size, socketFlags, remoteEP, callback, state);
-                },
-                delegate (IAsyncResult result)
-                {
-                    return socket.EndSendTo(result);
-                },
-                null);
-        }
-
-        public static Task<UdpReceiveFromResult> ReceiveFromAsync(this Socket socket, byte[] buffer)
-        {
-            return ReceiveFromAsync(socket, buffer, 0, buffer.Length);
-        }
-
-        public static Task<UdpReceiveFromResult> ReceiveFromAsync(this Socket socket, byte[] buffer, int offset, int size, SocketFlags socketFlags = SocketFlags.None)
-        {
-            return Task.Factory.FromAsync(
-                delegate (AsyncCallback callback, object state)
-                {
-                    EndPoint ep;
-
-                    if (socket.AddressFamily == AddressFamily.InterNetworkV6)
-                        ep = IPEndPointIPv6Any;
-                    else
-                        ep = IPEndPointAny;
-
-                    return socket.BeginReceiveFrom(buffer, offset, size, socketFlags, ref ep, callback, state);
-                },
-                delegate (IAsyncResult result)
-                {
-                    EndPoint ep;
-
-                    if (socket.AddressFamily == AddressFamily.InterNetworkV6)
-                        ep = IPEndPointIPv6Any;
-                    else
-                        ep = IPEndPointAny;
-
-                    int bytesReceived = socket.EndReceiveFrom(result, ref ep);
-                    return new UdpReceiveFromResult(bytesReceived, ep);
-                },
-                null);
-        }
-
-        public static Task<UdpReceiveMessageFromResult> ReceiveMessageFromAsync(this Socket socket, byte[] buffer)
-        {
-            return ReceiveMessageFromAsync(socket, buffer, 0, buffer.Length);
-        }
-
-        public static Task<UdpReceiveMessageFromResult> ReceiveMessageFromAsync(this Socket socket, byte[] buffer, int offset, int size, SocketFlags socketFlags = SocketFlags.None)
-        {
-            return Task.Factory.FromAsync(
-                delegate (AsyncCallback callback, object state)
-                {
-                    EndPoint ep;
-
-                    if (socket.AddressFamily == AddressFamily.InterNetworkV6)
-                        ep = IPEndPointIPv6Any;
-                    else
-                        ep = IPEndPointAny;
-
-                    return socket.BeginReceiveMessageFrom(buffer, offset, size, socketFlags, ref ep, callback, state);
-                },
-                delegate (IAsyncResult result)
-                {
-                    EndPoint ep;
-
-                    if (socket.AddressFamily == AddressFamily.InterNetworkV6)
-                        ep = IPEndPointIPv6Any;
-                    else
-                        ep = IPEndPointAny;
-
-                    int bytesReceived = socket.EndReceiveMessageFrom(result, ref socketFlags, ref ep, out IPPacketInformation ipPacketInformation);
-                    return new UdpReceiveMessageFromResult(bytesReceived, ep, ipPacketInformation);
-                },
-                null);
-        }
-
-        public static Task<int> UdpQueryAsync(this Socket socket, byte[] request, byte[] response, EndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
-        {
-            return UdpQueryAsync(socket, request, 0, request.Length, response, 0, response.Length, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
-        }
-
-        public static async Task<int> UdpQueryAsync(this Socket socket, byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
-        {
-            Task<UdpReceiveFromResult> recvTask = null;
+            Task<SocketReceiveFromResult> recvTask = null;
+            EndPoint epAny = GetEndPointAnyFor(remoteEP.AddressFamily);
 
             int timeoutValue = timeout;
             int retry = 0;
@@ -176,13 +104,13 @@ namespace TechnitiumLibrary.Net
                     return await Task.FromCanceled<int>(cancellationToken); //task cancelled
 
                 //send request
-                await socket.SendToAsync(request, requestOffset, requestCount, remoteEP);
+                await socket.SendToAsync(request, SocketFlags.None, remoteEP);
 
                 while (true)
                 {
                     //receive request
                     if (recvTask == null)
-                        recvTask = socket.ReceiveFromAsync(response, responseOffset, responseCount);
+                        recvTask = socket.ReceiveFromAsync(response, SocketFlags.None, epAny);
 
                     //receive with timeout
                     using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
@@ -196,12 +124,12 @@ namespace TechnitiumLibrary.Net
                         timeoutCancellationTokenSource.Cancel(); //to stop delay task
                     }
 
-                    UdpReceiveFromResult result = await recvTask;
+                    SocketReceiveFromResult result = await recvTask;
 
                     if (remoteEP.Equals(result.RemoteEndPoint))
                     {
                         //got response
-                        return result.BytesReceived;
+                        return result.ReceivedBytes;
                     }
 
                     //recv task is complete; set recvTask to null so that another task is used to read next response packet
@@ -213,44 +141,6 @@ namespace TechnitiumLibrary.Net
             throw new SocketException((int)SocketError.TimedOut);
         }
 
-        public static Task<int> SendAsync(this Socket socket, byte[] buffer)
-        {
-            return SendAsync(socket, buffer, 0, buffer.Length);
-        }
-
-        public static Task<int> SendAsync(this Socket socket, byte[] buffer, int offset, int size, SocketFlags socketFlags = SocketFlags.None)
-        {
-            return Task.Factory.FromAsync(
-                delegate (AsyncCallback callback, object state)
-                {
-                    return socket.BeginSend(buffer, offset, size, socketFlags, callback, state);
-                },
-                delegate (IAsyncResult result)
-                {
-                    return socket.EndSend(result);
-                },
-                null);
-        }
-
-        public static Task<int> ReceiveAsync(this Socket socket, byte[] buffer)
-        {
-            return ReceiveAsync(socket, buffer, 0, buffer.Length);
-        }
-
-        public static Task<int> ReceiveAsync(this Socket socket, byte[] buffer, int offset, int size, SocketFlags socketFlags = SocketFlags.None)
-        {
-            return Task.Factory.FromAsync(
-                delegate (AsyncCallback callback, object state)
-                {
-                    return socket.BeginReceive(buffer, offset, size, socketFlags, callback, state);
-                },
-                delegate (IAsyncResult result)
-                {
-                    return socket.EndReceive(result);
-                },
-                null);
-        }
-
         public static async Task CopyToAsync(this Socket src, Socket dst, int bufferSize = 64 * 1024)
         {
             byte[] buffer = new byte[bufferSize];
@@ -258,11 +148,11 @@ namespace TechnitiumLibrary.Net
 
             while (true)
             {
-                bytesRead = await src.ReceiveAsync(buffer, 0, buffer.Length);
+                bytesRead = await src.ReceiveAsync(buffer, SocketFlags.None);
                 if (bytesRead < 1)
                     break;
 
-                await dst.SendAsync(buffer, 0, bytesRead);
+                await dst.SendAsync(buffer, SocketFlags.None);
             }
         }
 
@@ -282,62 +172,6 @@ namespace TechnitiumLibrary.Net
 
             await Task.WhenAll(t1, t2);
         }
-
-        #endregion
-    }
-
-    public class UdpReceiveFromResult
-    {
-        #region variables
-
-        readonly int _bytesReceived;
-        readonly EndPoint _remoteEP;
-
-        #endregion
-
-        #region constructor
-
-        public UdpReceiveFromResult(int bytesReceived, EndPoint remoteEP)
-        {
-            _bytesReceived = bytesReceived;
-            _remoteEP = remoteEP;
-        }
-
-        #endregion
-
-        #region properties
-
-        public int BytesReceived
-        { get { return _bytesReceived; } }
-
-        public EndPoint RemoteEndPoint
-        { get { return _remoteEP; } }
-
-        #endregion
-    }
-
-    public class UdpReceiveMessageFromResult : UdpReceiveFromResult
-    {
-        #region variables
-
-        readonly IPPacketInformation _ipPacketInformation;
-
-        #endregion
-
-        #region constructor
-
-        public UdpReceiveMessageFromResult(int bytesReceived, EndPoint remoteEP, IPPacketInformation ipPacketInformation)
-            : base(bytesReceived, remoteEP)
-        {
-            _ipPacketInformation = ipPacketInformation;
-        }
-
-        #endregion
-
-        #region properties
-
-        public IPPacketInformation IPPacketInformation
-        { get { return _ipPacketInformation; } }
 
         #endregion
     }
