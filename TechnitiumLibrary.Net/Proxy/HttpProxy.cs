@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -63,10 +63,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 httpConnectRequest += "\r\n";
 
-                await viaSocket.SendAsync(Encoding.ASCII.GetBytes(httpConnectRequest));
+                await viaSocket.SendAsync(Encoding.ASCII.GetBytes(httpConnectRequest), SocketFlags.None);
 
                 byte[] buffer = new byte[128];
-                int bytesRecv = await viaSocket.ReceiveAsync(buffer);
+                int bytesRecv = await viaSocket.ReceiveAsync(buffer, SocketFlags.None);
 
                 if (bytesRecv < 1)
                     throw new HttpProxyException("No response was received from http proxy server.");
