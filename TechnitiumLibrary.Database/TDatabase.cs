@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,12 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Data;
-using System.Data.OleDb;
-using System.Data.SqlClient;
-using System.Diagnostics;
 
 namespace TechnitiumLibrary.Database
 {
@@ -173,7 +168,7 @@ namespace TechnitiumLibrary.Database
         #endregion
     }
 
-    [System.Serializable()]
+    [Serializable()]
     public class TDatabaseException : Exception
     {
         #region constructor
