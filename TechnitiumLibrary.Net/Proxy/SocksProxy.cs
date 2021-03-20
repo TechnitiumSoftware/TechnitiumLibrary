@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -202,7 +202,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return await UdpAssociateAsync(localEP);
         }
 
-        public override async Task<int> UdpQueryAsync(byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
+        public override async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
             if (IsBypassed(remoteEP))
             {
@@ -210,7 +210,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 using (Socket socket = new Socket(hostEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
                 {
-                    return await socket.UdpQueryAsync(request, requestOffset, requestCount, response, responseOffset, responseCount, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
+                    return await socket.UdpQueryAsync(request, response, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
                 }
             }
 
@@ -219,7 +219,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             using (SocksProxyUdpAssociateHandler proxyUdpRequestHandler = await UdpAssociateAsync())
             {
-                return await proxyUdpRequestHandler.UdpQueryAsync(request, requestOffset, requestCount, response, responseOffset, responseCount, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
+                return await proxyUdpRequestHandler.UdpQueryAsync(request, response, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
             }
         }
 
