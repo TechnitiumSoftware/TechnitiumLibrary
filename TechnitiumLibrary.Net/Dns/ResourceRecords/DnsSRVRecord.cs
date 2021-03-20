@@ -123,7 +123,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _priority + " " + _weight + " " + _port + " " + _target + ".";
+            return _priority + " " + _weight + " " + _port + " " + _target.ToLower() + ".";
         }
 
         #endregion

@@ -101,7 +101,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _domain + ".";
+            return _domain.ToLower() + ".";
         }
 
         #endregion

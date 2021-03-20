@@ -173,7 +173,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _primaryNameServer + ". " + _responsiblePerson + ". " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
+            return _primaryNameServer.ToLower() + ". " + _responsiblePerson.ToLower() + ". " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
         }
 
         #endregion

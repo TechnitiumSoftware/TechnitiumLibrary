@@ -112,7 +112,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _preference + " " + _exchange + ".";
+            return _preference + " " + _exchange.ToLower() + ".";
         }
 
         #endregion

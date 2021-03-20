@@ -449,7 +449,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public override string ToString()
         {
-            return _name + ". " + _type.ToString() + " " + _class.ToString() + " " + _ttl + " " + _data.ToString();
+            return _name.ToLower() + ". " + _type.ToString() + " " + _class.ToString() + " " + _ttl + " " + _data.ToString();
         }
 
         #endregion
