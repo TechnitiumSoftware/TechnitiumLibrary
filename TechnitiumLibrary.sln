@@ -3,15 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30011.22
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Database", "TechnitiumLibrary.Database\TechnitiumLibrary.Database.csproj", "{01B4AF8A-DF03-40F7-9B5D-438C649B2B1D}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.IO", "TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj", "{E0BA5456-FEAA-4380-92BB-6B1C4BC3DC70}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net", "TechnitiumLibrary.Net\TechnitiumLibrary.Net.csproj", "{C8293A12-5A6A-4F53-BEBE-35A6D37BD891}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net.BitTorrent", "TechnitiumLibrary.Net.BitTorrent\TechnitiumLibrary.Net.BitTorrent.csproj", "{14942D60-8899-42C8-B315-56190940CD15}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Net.Firewall", "TechnitiumLibrary.Net.Firewall\TechnitiumLibrary.Net.Firewall.csproj", "{A5E9FCC4-3532-4F48-B3C1-C646F398FD8E}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net.Mail", "TechnitiumLibrary.Net.Mail\TechnitiumLibrary.Net.Mail.csproj", "{2CC93DE0-3FD9-4523-829A-D06B41965FF7}"
 EndProject
@@ -21,11 +17,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Security.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net.Tor", "TechnitiumLibrary.Net.Tor\TechnitiumLibrary.Net.Tor.csproj", "{03A2ECB0-BC8A-4FAB-A9CE-9D50EF34A546}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Security.Cryptography.EllipticCurve", "TechnitiumLibrary.Security.Cryptography.EllipticCurve\TechnitiumLibrary.Security.Cryptography.EllipticCurve.csproj", "{888D0328-D6F1-4CA8-88A6-F77D59F23CF2}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.ByteTree", "TechnitiumLibrary.ByteTree\TechnitiumLibrary.ByteTree.csproj", "{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Net.Proxy", "TechnitiumLibrary.Net.Proxy\TechnitiumLibrary.Net.Proxy.csproj", "{6CABA254-3738-43E3-9201-F59CBF8B3483}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Database", "TechnitiumLibrary.Database\TechnitiumLibrary.Database.csproj", "{E1CA5AAC-1568-4682-A8DE-EF60378A2259}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Net.Firewall", "TechnitiumLibrary.Net.Firewall\TechnitiumLibrary.Net.Firewall.csproj", "{677C11FB-30F3-440B-98BB-5EDBFD8806A1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,10 +29,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{01B4AF8A-DF03-40F7-9B5D-438C649B2B1D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{01B4AF8A-DF03-40F7-9B5D-438C649B2B1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{01B4AF8A-DF03-40F7-9B5D-438C649B2B1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{01B4AF8A-DF03-40F7-9B5D-438C649B2B1D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E0BA5456-FEAA-4380-92BB-6B1C4BC3DC70}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E0BA5456-FEAA-4380-92BB-6B1C4BC3DC70}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E0BA5456-FEAA-4380-92BB-6B1C4BC3DC70}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -49,10 +41,6 @@ Global
 		{14942D60-8899-42C8-B315-56190940CD15}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{14942D60-8899-42C8-B315-56190940CD15}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{14942D60-8899-42C8-B315-56190940CD15}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A5E9FCC4-3532-4F48-B3C1-C646F398FD8E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A5E9FCC4-3532-4F48-B3C1-C646F398FD8E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A5E9FCC4-3532-4F48-B3C1-C646F398FD8E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A5E9FCC4-3532-4F48-B3C1-C646F398FD8E}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2CC93DE0-3FD9-4523-829A-D06B41965FF7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2CC93DE0-3FD9-4523-829A-D06B41965FF7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2CC93DE0-3FD9-4523-829A-D06B41965FF7}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -69,18 +57,18 @@ Global
 		{03A2ECB0-BC8A-4FAB-A9CE-9D50EF34A546}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{03A2ECB0-BC8A-4FAB-A9CE-9D50EF34A546}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{03A2ECB0-BC8A-4FAB-A9CE-9D50EF34A546}.Release|Any CPU.Build.0 = Release|Any CPU
-		{888D0328-D6F1-4CA8-88A6-F77D59F23CF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{888D0328-D6F1-4CA8-88A6-F77D59F23CF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{888D0328-D6F1-4CA8-88A6-F77D59F23CF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{888D0328-D6F1-4CA8-88A6-F77D59F23CF2}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6CABA254-3738-43E3-9201-F59CBF8B3483}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6CABA254-3738-43E3-9201-F59CBF8B3483}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6CABA254-3738-43E3-9201-F59CBF8B3483}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6CABA254-3738-43E3-9201-F59CBF8B3483}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E1CA5AAC-1568-4682-A8DE-EF60378A2259}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E1CA5AAC-1568-4682-A8DE-EF60378A2259}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E1CA5AAC-1568-4682-A8DE-EF60378A2259}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E1CA5AAC-1568-4682-A8DE-EF60378A2259}.Release|Any CPU.Build.0 = Release|Any CPU
+		{677C11FB-30F3-440B-98BB-5EDBFD8806A1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{677C11FB-30F3-440B-98BB-5EDBFD8806A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{677C11FB-30F3-440B-98BB-5EDBFD8806A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{677C11FB-30F3-440B-98BB-5EDBFD8806A1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
