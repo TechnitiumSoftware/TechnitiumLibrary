@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -70,7 +70,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     stopwatch.Start();
 
-                    bufferSize = await socket.UdpQueryAsync(buffer, 0, bufferSize, buffer, 0, buffer.Length, _server.EndPoint, timeout, retries, false, cancellationToken);
+                    bufferSize = await socket.UdpQueryAsync(new ArraySegment<byte>(buffer, 0, bufferSize), buffer, _server.EndPoint, timeout, retries, false, cancellationToken);
 
                     stopwatch.Stop();
                 }
@@ -79,7 +79,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 stopwatch.Start();
 
-                bufferSize = await _proxy.UdpQueryAsync(buffer, 0, bufferSize, buffer, 0, buffer.Length, _server.EndPoint, timeout, retries, false, cancellationToken);
+                bufferSize = await _proxy.UdpQueryAsync(new ArraySegment<byte>(buffer, 0, bufferSize), buffer, _server.EndPoint, timeout, retries, false, cancellationToken);
 
                 stopwatch.Stop();
             }
