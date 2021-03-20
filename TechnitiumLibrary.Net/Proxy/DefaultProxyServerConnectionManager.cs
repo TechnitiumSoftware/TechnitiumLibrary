@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -233,14 +234,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region public
 
-            public Task<UdpReceiveFromResult> ReceiveFromAsync(byte[] buffer, int offset, int count)
+            public Task<int> SendToAsync(ArraySegment<byte> buffer, EndPoint remoteEP)
             {
-                return _socket.ReceiveFromAsync(buffer, offset, count);
+                return _socket.SendToAsync(buffer, SocketFlags.None, remoteEP);
             }
 
-            public Task<int> SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP)
+            public Task<SocketReceiveFromResult> ReceiveFromAsync(ArraySegment<byte> buffer)
             {
-                return _socket.SendToAsync(buffer, offset, count, remoteEP);
+                return _socket.ReceiveFromAsync(buffer, SocketFlags.None, SocketExtension.GetEndPointAnyFor(_socket.AddressFamily));
             }
 
             #endregion
