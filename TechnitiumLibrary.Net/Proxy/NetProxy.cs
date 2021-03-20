@@ -241,12 +241,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return new TunnelProxy(await ConnectAsync(remoteEP), remoteEP, enableSsl, ignoreCertificateErrors);
         }
 
-        public Task<int> UdpQueryAsync(byte[] request, byte[] response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
-        {
-            return UdpQueryAsync(request, 0, request.Length, response, 0, response.Length, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
-        }
-
-        public virtual Task<int> UdpQueryAsync(byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
+        public virtual Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
