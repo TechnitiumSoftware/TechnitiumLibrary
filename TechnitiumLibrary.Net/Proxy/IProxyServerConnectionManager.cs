@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -46,8 +46,8 @@ namespace TechnitiumLibrary.Net.Proxy
 
     public interface IProxyServerUdpAssociateHandler : IDisposable
     {
-        Task<int> SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP);
+        Task<int> SendToAsync(ArraySegment<byte> buffer, EndPoint remoteEP);
 
-        Task<UdpReceiveFromResult> ReceiveFromAsync(byte[] buffer, int offset, int count);
+        Task<SocketReceiveFromResult> ReceiveFromAsync(ArraySegment<byte> buffer);
     }
 }
