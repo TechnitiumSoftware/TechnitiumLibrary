@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -105,7 +105,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 while (true)
                 {
-                    bytesRecv = await _controlSocket.ReceiveAsync(buffer);
+                    bytesRecv = await _controlSocket.ReceiveAsync(buffer, SocketFlags.None);
                     if (bytesRecv < 1)
                         break;
                 }
@@ -120,7 +120,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public Task<int> SendToAsync(byte[] buffer, int offset, int count, EndPoint remoteEP)
+        public Task<int> SendToAsync(ArraySegment<byte> buffer, EndPoint remoteEP)
         {
             if (_relayEP == null)
                 return Task.FromResult(0); //relay ep not known yet
@@ -167,7 +167,7 @@ namespace TechnitiumLibrary.Net.Proxy
             }
 
             //create datagram
-            byte[] datagram = new byte[address.Length + 6 + count];
+            byte[] datagram = new byte[address.Length + 6 + buffer.Count];
 
             datagram[2] = 0x00;
             datagram[3] = (byte)type;
@@ -178,19 +178,19 @@ namespace TechnitiumLibrary.Net.Proxy
             Array.Reverse(portBytes);
             Buffer.BlockCopy(portBytes, 0, datagram, 4 + address.Length, 2);
 
-            Buffer.BlockCopy(buffer, offset, datagram, 4 + address.Length + 2, count);
+            buffer.CopyTo(datagram, 4 + address.Length + 2);
 
             //send datagram
-            return _udpSocket.SendToAsync(datagram, 0, datagram.Length, _relayEP);
+            return _udpSocket.SendToAsync(datagram, SocketFlags.None, _relayEP);
         }
 
-        public async Task<UdpReceiveFromResult> ReceiveFromAsync(byte[] buffer, int offset, int count)
+        public async Task<SocketReceiveFromResult> ReceiveFromAsync(ArraySegment<byte> buffer)
         {
-            byte[] datagram = new byte[262 + count];
+            byte[] datagram = new byte[262 + buffer.Count];
 
-            UdpReceiveFromResult result = await _udpSocket.ReceiveFromAsync(datagram);
+            SocketReceiveFromResult result = await _udpSocket.ReceiveFromAsync(datagram, SocketFlags.None, SocketExtension.GetEndPointAnyFor(_udpSocket.AddressFamily));
 
-            if (result.BytesReceived < 10)
+            if (result.ReceivedBytes < 10)
                 throw new SocksProxyException("Incomplete SOCKS5 datagram was received.");
 
             EndPoint remoteEP;
@@ -263,27 +263,23 @@ namespace TechnitiumLibrary.Net.Proxy
             }
 
             int dataOffset = 6 + addressSize;
-            int dataSize = result.BytesReceived - dataOffset;
+            int dataSize = result.ReceivedBytes - dataOffset;
 
-            if (dataSize > count)
-                dataSize = count;
+            if (dataSize > buffer.Count)
+                dataSize = buffer.Count;
 
-            Buffer.BlockCopy(datagram, dataOffset, buffer, offset, dataSize);
+            ArraySegment<byte> recvData = new ArraySegment<byte>(datagram, dataOffset, dataSize);
+            recvData.CopyTo(buffer);
 
             if (_relayEP == null)
                 _relayEP = result.RemoteEndPoint; //set new relay ep
 
-            return new UdpReceiveFromResult(dataSize, remoteEP);
+            return new SocketReceiveFromResult() { ReceivedBytes = dataSize, RemoteEndPoint = remoteEP };
         }
 
-        public Task<int> UdpQueryAsync(byte[] request, byte[] response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
+        public async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
-            return UdpQueryAsync(request, 0, request.Length, response, 0, response.Length, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
-        }
-
-        public async Task<int> UdpQueryAsync(byte[] request, int requestOffset, int requestCount, byte[] response, int responseOffset, int responseCount, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
-        {
-            Task<UdpReceiveFromResult> recvTask = null;
+            Task<SocketReceiveFromResult> recvTask = null;
 
             int timeoutValue = timeout;
             int retry = 0;
@@ -298,13 +294,13 @@ namespace TechnitiumLibrary.Net.Proxy
                     return await Task.FromCanceled<int>(cancellationToken); //task cancelled
 
                 //send request
-                await SendToAsync(request, requestOffset, requestCount, remoteEP);
+                await SendToAsync(request, remoteEP);
 
                 while (true)
                 {
                     //receive request
                     if (recvTask == null)
-                        recvTask = ReceiveFromAsync(response, responseOffset, responseCount);
+                        recvTask = ReceiveFromAsync(response);
 
                     //receive with timeout
                     using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
@@ -318,12 +314,12 @@ namespace TechnitiumLibrary.Net.Proxy
                         timeoutCancellationTokenSource.Cancel(); //to stop delay task
                     }
 
-                    UdpReceiveFromResult result = await recvTask;
+                    SocketReceiveFromResult result = await recvTask;
 
                     if ((remoteEP is DomainEndPoint) || remoteEP.Equals(result.RemoteEndPoint)) //in case remoteEP is domain end point then returned response will contain the resolved IP address so cant compare it together
                     {
                         //got response
-                        return result.BytesReceived;
+                        return result.ReceivedBytes;
                     }
 
                     //recv task is complete; set recvTask to null so that another task is used to read next response packet
