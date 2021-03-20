@@ -332,8 +332,8 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     while (true)
                     {
-                        UdpReceiveFromResult result = await src.ReceiveFromAsync(buffer, 0, buffer.Length);
-                        await dst.SendToAsync(buffer, 0, result.BytesReceived, result.RemoteEndPoint);
+                        SocketReceiveFromResult result = await src.ReceiveFromAsync(buffer);
+                        await dst.SendToAsync(new ArraySegment<byte>(buffer, 0, result.ReceivedBytes), result.RemoteEndPoint);
                     }
                 }
                 finally
