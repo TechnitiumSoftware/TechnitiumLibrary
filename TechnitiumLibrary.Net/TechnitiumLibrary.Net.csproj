@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -17,11 +17,11 @@
     <PackageProjectUrl></PackageProjectUrl>
     <RepositoryUrl>https://github.com/TechnitiumSoftware/TechnitiumLibrary</RepositoryUrl>
     <RepositoryType></RepositoryType>
-    <Description>.NET Standard 2.0</Description>
+    <Description>.NET 5</Description>
     <PackageId>TechnitiumLibrary.Net</PackageId>
-    <AssemblyVersion>4.4.0.0</AssemblyVersion>
-    <FileVersion>4.4.0.0</FileVersion>
-    <Version>4.4</Version>
+    <AssemblyVersion>5.0.0.0</AssemblyVersion>
+    <FileVersion>5.0.0.0</FileVersion>
+    <Version>5.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
