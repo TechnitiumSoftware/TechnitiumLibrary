@@ -264,7 +264,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 try
                 {
                     if (_localSocket.Connected)
-                        await _localSocket.SendAsync(Encoding.ASCII.GetBytes(response));
+                        await _localSocket.SendAsync(Encoding.ASCII.GetBytes(response), SocketFlags.None);
                 }
                 catch
                 { }
