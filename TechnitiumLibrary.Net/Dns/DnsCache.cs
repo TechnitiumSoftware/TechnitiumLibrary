@@ -942,15 +942,9 @@ namespace TechnitiumLibrary.Net.Dns
                     List<DnsResourceRecord> anyRecords = new List<DnsResourceRecord>();
 
                     foreach (IReadOnlyList<DnsResourceRecord> entryRecords in _entries.Values)
-                    {
-                        if (entryRecords[0].IsStale)
-                            continue;
+                        anyRecords.AddRange(FilterExpiredRecords(type, entryRecords, true));
 
-                        anyRecords.AddRange(entryRecords);
-                    }
-
-                    if (anyRecords.Count > 0)
-                        return anyRecords;
+                    return anyRecords;
                 }
                 else if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
                 {
