@@ -152,7 +152,7 @@ namespace TechnitiumLibrary.Net
                 if (bytesRead < 1)
                     break;
 
-                await dst.SendAsync(buffer, SocketFlags.None);
+                await dst.SendAsync(new ArraySegment<byte>(buffer, 0, bytesRead), SocketFlags.None);
             }
         }
 
