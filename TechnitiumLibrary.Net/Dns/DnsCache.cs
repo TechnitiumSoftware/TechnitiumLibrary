@@ -946,10 +946,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                     return anyRecords;
                 }
-                else if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
-                {
+
+                if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
                     return FilterExpiredRecords(type, existingRecords, filterSpecialCacheRecords);
-                }
 
                 return Array.Empty<DnsResourceRecord>();
             }
