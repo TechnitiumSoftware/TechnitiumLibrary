@@ -68,6 +68,9 @@ namespace TechnitiumLibrary.Net.Dns
         {
             if (resourceRecords.Count == 1)
             {
+                if (resourceRecords[0].Name.Contains('*'))
+                    return;
+
                 DnsCacheEntry entry = _cache.GetOrAdd(resourceRecords[0].Name.ToLower(), delegate (string key)
                 {
                     return new DnsCacheEntry();
@@ -82,6 +85,9 @@ namespace TechnitiumLibrary.Net.Dns
                 //add grouped entries into cache
                 foreach (KeyValuePair<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> cacheEntry in cacheEntries)
                 {
+                    if (cacheEntry.Key.Contains('*'))
+                        continue;
+
                     DnsCacheEntry entry = _cache.GetOrAdd(cacheEntry.Key.ToLower(), delegate (string key)
                     {
                         return new DnsCacheEntry();
@@ -178,15 +184,24 @@ namespace TechnitiumLibrary.Net.Dns
                 switch (refRecord.Type)
                 {
                     case DnsResourceRecordType.NS:
-                        ResolveAdditionalRecords(refRecord, (refRecord.RDATA as DnsNSRecord).NameServer, additionalRecords);
+                        DnsNSRecord nsRecord = refRecord.RDATA as DnsNSRecord;
+                        if (nsRecord != null)
+                            ResolveAdditionalRecords(refRecord, nsRecord.NameServer, additionalRecords);
+
                         break;
 
                     case DnsResourceRecordType.MX:
-                        ResolveAdditionalRecords(refRecord, (refRecord.RDATA as DnsMXRecord).Exchange, additionalRecords);
+                        DnsMXRecord mxRecord = refRecord.RDATA as DnsMXRecord;
+                        if (mxRecord != null)
+                            ResolveAdditionalRecords(refRecord, mxRecord.Exchange, additionalRecords);
+
                         break;
 
                     case DnsResourceRecordType.SRV:
-                        ResolveAdditionalRecords(refRecord, (refRecord.RDATA as DnsSRVRecord).Target, additionalRecords);
+                        DnsSRVRecord srvRecord = refRecord.RDATA as DnsSRVRecord;
+                        if (srvRecord != null)
+                            ResolveAdditionalRecords(refRecord, srvRecord.Target, additionalRecords);
+
                         break;
                 }
             }
