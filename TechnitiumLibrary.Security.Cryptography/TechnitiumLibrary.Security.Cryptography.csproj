@@ -7,7 +7,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <OutputPath>..\bin\</OutputPath>
   </PropertyGroup>
-  
+
   <PropertyGroup>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <Authors>Shreyas Zare</Authors>
@@ -18,11 +18,9 @@
     <RepositoryType></RepositoryType>
     <Description>.NET 5</Description>
     <PackageId>TechnitiumLibrary.Security.Cryptography</PackageId>
-    <AssemblyVersion>3.0.0.0</AssemblyVersion>
-    <FileVersion>3.0.0.0</FileVersion>
     <Version>3.0</Version>
   </PropertyGroup>
-  
+
   <ItemGroup>
     <PackageReference Include="System.Security.Cryptography.Cng" Version="5.0.0" />
   </ItemGroup>
