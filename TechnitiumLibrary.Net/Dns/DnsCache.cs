@@ -604,6 +604,17 @@ namespace TechnitiumLibrary.Net.Dns
             InternalCacheRecords(cachableRecords);
         }
 
+        public virtual void RemoveExpiredRecords()
+        {
+            foreach (KeyValuePair<string, DnsCacheEntry> entry in _cache)
+            {
+                entry.Value.RemoveExpiredRecords();
+
+                if (entry.Value.IsEmpty)
+                    _cache.TryRemove(entry.Key, out _); //remove empty entry
+            }
+        }
+
         public virtual void Flush()
         {
             _cache.Clear();
@@ -906,38 +917,12 @@ namespace TechnitiumLibrary.Net.Dns
                     //call trying to cache failure record
                     if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
                     {
-                        if ((existingRecords.Count > 0) && !existingRecords[0].IsStale && !(existingRecords[0].RDATA is DnsFailureRecord))
+                        if ((existingRecords.Count > 0) && !(existingRecords[0].RDATA is DnsFailureRecord) && !existingRecords[0].IsStale)
                             return; //skip to avoid overwriting a useful record with a failure record
                     }
                 }
 
-                _entries.AddOrUpdate(type, records, delegate (DnsResourceRecordType key, IReadOnlyList<DnsResourceRecord> oldValue)
-                {
-                    return records;
-                });
-
-                switch (type)
-                {
-                    case DnsResourceRecordType.CNAME:
-                    case DnsResourceRecordType.SOA:
-                    case DnsResourceRecordType.NS:
-                        //do nothing
-                        break;
-
-                    default:
-                        //remove old CNAME entry since current new entry type overlaps any existing CNAME entry in cache
-                        //keeping both entries will create issue since CNAME entry will be always returned
-
-                        if (_entries.TryGetValue(DnsResourceRecordType.CNAME, out IReadOnlyList<DnsResourceRecord> existingCNAMERecords))
-                        {
-                            if ((existingCNAMERecords.Count > 0) && (existingCNAMERecords[0].RDATA is DnsCNAMERecord))
-                            {
-                                //delete CNAME entry only when it contains DnsCNAMERecord RDATA and not special cache records
-                                _entries.TryRemove(DnsResourceRecordType.CNAME, out _);
-                            }
-                        }
-                        break;
-                }
+                _entries[type] = records;
             }
 
             public IReadOnlyList<DnsResourceRecord> QueryRecords(DnsResourceRecordType type, bool filterSpecialCacheRecords)
@@ -967,6 +952,58 @@ namespace TechnitiumLibrary.Net.Dns
 
                 return Array.Empty<DnsResourceRecord>();
             }
+
+            public void RemoveExpiredRecords()
+            {
+                foreach (KeyValuePair<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> entry in _entries)
+                {
+                    bool isExpired = false;
+
+                    foreach (DnsResourceRecord record in entry.Value)
+                    {
+                        if (record.IsStale)
+                        {
+                            //record expired
+                            isExpired = true;
+                            break;
+                        }
+                    }
+
+                    if (isExpired)
+                    {
+                        List<DnsResourceRecord> newRecords = null;
+
+                        foreach (DnsResourceRecord record in entry.Value)
+                        {
+                            if (record.IsStale)
+                                continue; //record expired, skip it
+
+                            if (newRecords == null)
+                                newRecords = new List<DnsResourceRecord>(entry.Value.Count);
+
+                            newRecords.Add(record);
+                        }
+
+                        if (newRecords == null)
+                        {
+                            //all records expired; remove entry
+                            _entries.TryRemove(entry.Key, out _);
+                        }
+                        else
+                        {
+                            //try update entry with non-expired records
+                            _entries.TryUpdate(entry.Key, newRecords, entry.Value);
+                        }
+                    }
+                }
+            }
+
+            #endregion
+
+            #region properties
+
+            public bool IsEmpty
+            { get { return _entries.IsEmpty; } }
 
             #endregion
         }
