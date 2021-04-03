@@ -576,6 +576,9 @@ namespace TechnitiumLibrary.Net.Dns
                         }
 
                         //sanitize response
+                        if ((response.Answer.Count > 0) && !response.AuthoritativeAnswer)
+                            continue; //continue to next name server since response is not authoritative
+
                         response = SanitizeResponseAnswer(response, zoneCut); //sanitize answer section
                         response = SanitizeResponseAuthority(response, zoneCut); //sanitize authority section
 
@@ -1549,12 +1552,6 @@ namespace TechnitiumLibrary.Net.Dns
                                     DnsDatagram response = await connection.QueryAsync(asyncRequest, _timeout, _retries, cancellationToken);
                                     if (response != null)
                                     {
-                                        if (response.ParsingException != null)
-                                        {
-                                            lastException = response.ParsingException;
-                                            break;
-                                        }
-
                                         //got valid response
                                         if (response.Truncation)
                                         {
@@ -1573,10 +1570,23 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
                                         else
                                         {
-                                            if (response.RCODE == DnsResponseCode.NoError)
-                                                return response;
+                                            if (response.ParsingException != null)
+                                            {
+                                                lastException = response.ParsingException;
+                                            }
+                                            else
+                                            {
+                                                switch (response.RCODE)
+                                                {
+                                                    case DnsResponseCode.NoError:
+                                                    case DnsResponseCode.NameError:
+                                                        return response;
 
-                                            lastResponse = response;
+                                                    default:
+                                                        lastResponse = response;
+                                                        break;
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1619,7 +1629,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     //start worker tasks
                     for (int i = 0; i < concurrency; i++)
-                        tasks.Add(DoResolveAsync(cancellationTokenSource.Token));
+                        tasks.Add(Task.Factory.StartNew(delegate () { return DoResolveAsync(cancellationTokenSource.Token); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current).Unwrap());
 
                     //add delay task
                     Task delayTask = Task.Delay(_timeout * _retries * (int)Math.Ceiling((double)servers.Count / concurrency), cancellationTokenSource.Token);
@@ -1650,14 +1660,19 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             //resolver task complete
                             DnsDatagram response = await (completedTask as Task<DnsDatagram>); //await to get response
-                            if (response.RCODE == DnsResponseCode.NoError)
-                            {
-                                cancellationTokenSource.Cancel(); //to stop delay and other resolver tasks
-                                return response;
-                            }
 
-                            //keep response
-                            lastResponse = response;
+                            switch (response.RCODE)
+                            {
+                                case DnsResponseCode.NoError:
+                                case DnsResponseCode.NameError:
+                                    cancellationTokenSource.Cancel(); //to stop delay and other resolver tasks
+                                    return response;
+
+                                default:
+                                    //keep response
+                                    lastResponse = response;
+                                    break;
+                            }
                         }
 
                         if (tasks.Count == 2)
