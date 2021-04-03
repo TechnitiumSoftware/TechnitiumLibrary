@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Concurrent;
-using System.Linq;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
@@ -31,19 +31,18 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region variables
 
         readonly static Timer _maintenanceTimer;
-        const int MAINTENANCE_TIMER_INITIAL_INTERVAL = CONNECTION_EXPIRY + MAINTENANCE_TIMER_PERIODIC_INTERVAL;
-        const int MAINTENANCE_TIMER_PERIODIC_INTERVAL = 15 * 60 * 1000;
-        const int CONNECTION_EXPIRY = 1 * 60 * 60 * 1000;
+        const int MAINTENANCE_TIMER_INITIAL_INTERVAL = CONNECTION_EXPIRY;
+        const int MAINTENANCE_TIMER_PERIODIC_INTERVAL = CONNECTION_EXPIRY;
+        const int CONNECTION_EXPIRY = 15 * 60 * 1000;
 
         protected readonly DnsTransportProtocol _protocol;
         protected readonly NameServerAddress _server;
         protected readonly NetProxy _proxy;
 
-        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, TcpClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, TcpClientConnection>>();
-        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, TlsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, TlsClientConnection>>();
-        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, HttpsClientConnection>> _existingHttpsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, HttpsClientConnection>>();
-        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, HttpsJsonClientConnection>> _existingHttpsJsonConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<object, HttpsJsonClientConnection>>();
-        const string NO_PROXY = "NO_PROXY";
+        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>>();
+        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>>();
+        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsClientConnection>> _existingHttpsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsClientConnection>>();
+        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsJsonClientConnection>> _existingHttpsJsonConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsJsonClientConnection>>();
 
         #endregion
 
@@ -58,17 +57,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     DateTime expiryTime = DateTime.UtcNow.AddMilliseconds(CONNECTION_EXPIRY * -1);
 
                     //cleanup unused tcp connections
-                    foreach (NameServerAddress nameServer in _existingTcpConnections.Keys.ToArray())
+                    foreach (KeyValuePair<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>> existingTcpConnection in _existingTcpConnections)
                     {
-                        ConcurrentDictionary<object, TcpClientConnection> existingTcpConnection = _existingTcpConnections[nameServer];
-
-                        foreach (object proxy in existingTcpConnection.Keys.ToArray())
+                        foreach (KeyValuePair<NetProxy, TcpClientConnection> connection in existingTcpConnection.Value)
                         {
-                            TcpClientConnection connection = existingTcpConnection[proxy];
-
-                            if (connection.LastQueried < expiryTime)
+                            if (connection.Value.LastQueried < expiryTime)
                             {
-                                if (existingTcpConnection.TryRemove(proxy, out TcpClientConnection removedConnection))
+                                if (existingTcpConnection.Value.TryRemove(connection.Key, out TcpClientConnection removedConnection))
                                 {
                                     removedConnection.Pooled = false;
                                     removedConnection.Dispose();
@@ -76,22 +71,18 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                             }
                         }
 
-                        if (existingTcpConnection.IsEmpty)
-                            _existingTcpConnections.TryRemove(nameServer, out _);
+                        if (existingTcpConnection.Value.IsEmpty)
+                            _existingTcpConnections.TryRemove(existingTcpConnection.Key, out _);
                     }
 
                     //cleanup unused tls connections
-                    foreach (NameServerAddress nameServer in _existingTlsConnections.Keys.ToArray())
+                    foreach (KeyValuePair<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>> existingTlsConnection in _existingTlsConnections)
                     {
-                        ConcurrentDictionary<object, TlsClientConnection> existingTlsConnection = _existingTlsConnections[nameServer];
-
-                        foreach (object proxy in existingTlsConnection.Keys.ToArray())
+                        foreach (KeyValuePair<NetProxy, TlsClientConnection> connection in existingTlsConnection.Value)
                         {
-                            TlsClientConnection connection = existingTlsConnection[proxy];
-
-                            if (connection.LastQueried < expiryTime)
+                            if (connection.Value.LastQueried < expiryTime)
                             {
-                                if (existingTlsConnection.TryRemove(proxy, out TlsClientConnection removedConnection))
+                                if (existingTlsConnection.Value.TryRemove(connection.Key, out TlsClientConnection removedConnection))
                                 {
                                     removedConnection.Pooled = false;
                                     removedConnection.Dispose();
@@ -99,22 +90,18 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                             }
                         }
 
-                        if (existingTlsConnection.IsEmpty)
-                            _existingTlsConnections.TryRemove(nameServer, out _);
+                        if (existingTlsConnection.Value.IsEmpty)
+                            _existingTlsConnections.TryRemove(existingTlsConnection.Key, out _);
                     }
 
                     //cleanup unused https connections
-                    foreach (NameServerAddress nameServer in _existingHttpsConnections.Keys.ToArray())
+                    foreach (KeyValuePair<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsClientConnection>> existingHttpsConnection in _existingHttpsConnections)
                     {
-                        ConcurrentDictionary<object, HttpsClientConnection> existingHttpsConnection = _existingHttpsConnections[nameServer];
-
-                        foreach (object proxy in existingHttpsConnection.Keys.ToArray())
+                        foreach (KeyValuePair<NetProxy, HttpsClientConnection> connection in existingHttpsConnection.Value)
                         {
-                            HttpsClientConnection connection = existingHttpsConnection[proxy];
-
-                            if (connection.LastQueried < expiryTime)
+                            if (connection.Value.LastQueried < expiryTime)
                             {
-                                if (existingHttpsConnection.TryRemove(proxy, out HttpsClientConnection removedConnection))
+                                if (existingHttpsConnection.Value.TryRemove(connection.Key, out HttpsClientConnection removedConnection))
                                 {
                                     removedConnection.Pooled = false;
                                     removedConnection.Dispose();
@@ -122,22 +109,18 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                             }
                         }
 
-                        if (existingHttpsConnection.IsEmpty)
-                            _existingHttpsConnections.TryRemove(nameServer, out _);
+                        if (existingHttpsConnection.Value.IsEmpty)
+                            _existingHttpsConnections.TryRemove(existingHttpsConnection.Key, out _);
                     }
 
                     //cleanup unused https json connections
-                    foreach (NameServerAddress nameServer in _existingHttpsJsonConnections.Keys.ToArray())
+                    foreach (KeyValuePair<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsJsonClientConnection>> existingHttpsJsonConnection in _existingHttpsJsonConnections)
                     {
-                        ConcurrentDictionary<object, HttpsJsonClientConnection> existingHttpsJsonConnection = _existingHttpsJsonConnections[nameServer];
-
-                        foreach (object proxy in existingHttpsJsonConnection.Keys.ToArray())
+                        foreach (KeyValuePair<NetProxy, HttpsJsonClientConnection> connection in existingHttpsJsonConnection.Value)
                         {
-                            HttpsJsonClientConnection connection = existingHttpsJsonConnection[proxy];
-
-                            if (connection.LastQueried < expiryTime)
+                            if (connection.Value.LastQueried < expiryTime)
                             {
-                                if (existingHttpsJsonConnection.TryRemove(proxy, out HttpsJsonClientConnection removedConnection))
+                                if (existingHttpsJsonConnection.Value.TryRemove(connection.Key, out HttpsJsonClientConnection removedConnection))
                                 {
                                     removedConnection.Pooled = false;
                                     removedConnection.Dispose();
@@ -145,8 +128,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                             }
                         }
 
-                        if (existingHttpsJsonConnection.IsEmpty)
-                            _existingHttpsJsonConnections.TryRemove(nameServer, out _);
+                        if (existingHttpsJsonConnection.Value.IsEmpty)
+                            _existingHttpsJsonConnections.TryRemove(existingHttpsJsonConnection.Key, out _);
                     }
                 }
                 catch
@@ -188,17 +171,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 case DnsTransportProtocol.Tcp:
                     {
-                        ConcurrentDictionary<object, TcpClientConnection> existingTcpConnection = _existingTcpConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        ConcurrentDictionary<NetProxy, TcpClientConnection> existingTcpConnection = _existingTcpConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
                         {
-                            return new ConcurrentDictionary<object, TcpClientConnection>();
+                            return new ConcurrentDictionary<NetProxy, TcpClientConnection>();
                         });
 
-                        object proxyKey = proxy;
+                        NetProxy proxyKey = proxy;
 
                         if (proxyKey == null)
-                            proxyKey = NO_PROXY;
+                            proxyKey = NetProxy.NONE;
 
-                        return existingTcpConnection.GetOrAdd(proxyKey, delegate (object netProxyKey)
+                        return existingTcpConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
                         {
                             TcpClientConnection connection = new TcpClientConnection(server, proxy);
                             connection.Pooled = true;
@@ -208,17 +191,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 case DnsTransportProtocol.Tls:
                     {
-                        ConcurrentDictionary<object, TlsClientConnection> existingTlsConnection = _existingTlsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        ConcurrentDictionary<NetProxy, TlsClientConnection> existingTlsConnection = _existingTlsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
                         {
-                            return new ConcurrentDictionary<object, TlsClientConnection>();
+                            return new ConcurrentDictionary<NetProxy, TlsClientConnection>();
                         });
 
-                        object proxyKey = proxy;
+                        NetProxy proxyKey = proxy;
 
                         if (proxyKey == null)
-                            proxyKey = NO_PROXY;
+                            proxyKey = NetProxy.NONE;
 
-                        return existingTlsConnection.GetOrAdd(proxyKey, delegate (object netProxyKey)
+                        return existingTlsConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
                         {
                             TlsClientConnection connection = new TlsClientConnection(server, proxy);
                             connection.Pooled = true;
@@ -228,17 +211,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 case DnsTransportProtocol.Https:
                     {
-                        ConcurrentDictionary<object, HttpsClientConnection> existingHttpsConnection = _existingHttpsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        ConcurrentDictionary<NetProxy, HttpsClientConnection> existingHttpsConnection = _existingHttpsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
                         {
-                            return new ConcurrentDictionary<object, HttpsClientConnection>();
+                            return new ConcurrentDictionary<NetProxy, HttpsClientConnection>();
                         });
 
-                        object proxyKey = proxy;
+                        NetProxy proxyKey = proxy;
 
                         if (proxyKey == null)
-                            proxyKey = NO_PROXY;
+                            proxyKey = NetProxy.NONE;
 
-                        return existingHttpsConnection.GetOrAdd(proxyKey, delegate (object netProxyKey)
+                        return existingHttpsConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
                         {
                             HttpsClientConnection connection = new HttpsClientConnection(server, proxy);
                             connection.Pooled = true;
@@ -248,17 +231,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 case DnsTransportProtocol.HttpsJson:
                     {
-                        ConcurrentDictionary<object, HttpsJsonClientConnection> existingHttpsJsonConnection = _existingHttpsJsonConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        ConcurrentDictionary<NetProxy, HttpsJsonClientConnection> existingHttpsJsonConnection = _existingHttpsJsonConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
                         {
-                            return new ConcurrentDictionary<object, HttpsJsonClientConnection>();
+                            return new ConcurrentDictionary<NetProxy, HttpsJsonClientConnection>();
                         });
 
-                        object proxyKey = proxy;
+                        NetProxy proxyKey = proxy;
 
                         if (proxyKey == null)
-                            proxyKey = NO_PROXY;
+                            proxyKey = NetProxy.NONE;
 
-                        return existingHttpsJsonConnection.GetOrAdd(proxyKey, delegate (object netProxyKey)
+                        return existingHttpsJsonConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
                         {
                             HttpsJsonClientConnection connection = new HttpsJsonClientConnection(server, proxy);
                             connection.Pooled = true;

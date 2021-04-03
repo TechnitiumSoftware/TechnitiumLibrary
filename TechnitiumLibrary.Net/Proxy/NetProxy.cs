@@ -38,6 +38,8 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
+        internal readonly static NetProxy NONE = new NoProxy();
+
         readonly NetProxyType _type;
 
         protected readonly EndPoint _proxyEP;
@@ -285,5 +287,17 @@ namespace TechnitiumLibrary.Net.Proxy
         }
 
         #endregion
+
+        class NoProxy : NetProxy
+        {
+            public NoProxy()
+                : base(NetProxyType.None, null, null)
+            { }
+
+            protected override Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket)
+            {
+                throw new NotImplementedException();
+            }
+        }
     }
 }
