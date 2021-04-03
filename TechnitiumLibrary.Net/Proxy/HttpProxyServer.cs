@@ -292,12 +292,16 @@ namespace TechnitiumLibrary.Net.Proxy
                         {
                             Task<HttpRequest> task = HttpRequest.ReadRequestAsync(localStream);
 
-                            using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
+                            if (remoteStream == null)
                             {
-                                if (await Task.WhenAny(task, Task.Delay(CLIENT_REQUEST_TIMEOUT, timeoutCancellationTokenSource.Token)) != task)
-                                    return; //request timed out
+                                //wait for timeout only for initial request to avoid causing timeout to close existing data stream
+                                using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
+                                {
+                                    if (await Task.WhenAny(task, Task.Delay(CLIENT_REQUEST_TIMEOUT, timeoutCancellationTokenSource.Token)) != task)
+                                        return; //request timed out
 
-                                timeoutCancellationTokenSource.Cancel(); //cancel delay task
+                                    timeoutCancellationTokenSource.Cancel(); //cancel delay task
+                                }
                             }
 
                             httpRequest = await task;
