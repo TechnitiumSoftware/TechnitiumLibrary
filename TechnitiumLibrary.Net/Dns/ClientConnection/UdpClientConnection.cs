@@ -43,22 +43,18 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             //serialize request
             byte[] buffer = new byte[512];
-            int bufferSize;
+            MemoryStream bufferStream = new MemoryStream(buffer);
 
-            using (MemoryStream mS = new MemoryStream(buffer))
+            try
             {
-                try
-                {
-                    request.WriteToUdp(mS);
-                }
-                catch (NotSupportedException)
-                {
-                    throw new DnsClientException("DnsClient cannot send request of more than 512 bytes with UDP protocol.");
-                }
-
-                bufferSize = (int)mS.Position;
+                request.WriteToUdp(bufferStream);
+            }
+            catch (NotSupportedException)
+            {
+                throw new DnsClientException("DnsClient cannot send request of more than 512 bytes with UDP protocol.");
             }
 
+            int bufferSize = (int)bufferStream.Position;
             Stopwatch stopwatch = new Stopwatch();
 
             if (_proxy == null)
@@ -85,43 +81,43 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
 
             //parse response
-            using (MemoryStream mS = new MemoryStream(buffer, 0, bufferSize, false))
+            bufferStream.Position = 0;
+            bufferStream.SetLength(bufferSize);
+
+            DnsDatagram response = DnsDatagram.ReadFromUdp(bufferStream);
+
+            response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, bufferSize, stopwatch.Elapsed.TotalMilliseconds));
+
+            if (response.Identifier != request.Identifier)
+                throw new DnsClientResponseValidationException("Invalid response was received: query ID mismatch.");
+
+            if (response.Question.Count != request.Question.Count)
+                throw new DnsClientResponseValidationException("Invalid response was received: question count mismatch.");
+
+            for (int i = 0; i < response.Question.Count; i++)
             {
-                DnsDatagram response = DnsDatagram.ReadFromUdp(mS);
-
-                response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, bufferSize, stopwatch.Elapsed.TotalMilliseconds));
-
-                if (response.Identifier != request.Identifier)
-                    throw new DnsClientResponseValidationException("Invalid response was received: query ID mismatch.");
-
-                if (response.Question.Count != request.Question.Count)
-                    throw new DnsClientResponseValidationException("Invalid response was received: question count mismatch.");
-
-                for (int i = 0; i < response.Question.Count; i++)
+                if (request.Question[i].ZoneCut == null)
                 {
-                    if (request.Question[i].ZoneCut == null)
-                    {
-                        if (!response.Question[i].Name.Equals(request.Question[i].Name, StringComparison.Ordinal))
-                            throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
+                    if (!response.Question[i].Name.Equals(request.Question[i].Name, StringComparison.Ordinal))
+                        throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
 
-                        if (response.Question[i].Type != request.Question[i].Type)
-                            throw new DnsClientResponseValidationException("Invalid response was received: QTYPE mismatch.");
-                    }
-                    else
-                    {
-                        if (!response.Question[i].Name.Equals(request.Question[i].MinimizedName, StringComparison.Ordinal))
-                            throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
+                    if (response.Question[i].Type != request.Question[i].Type)
+                        throw new DnsClientResponseValidationException("Invalid response was received: QTYPE mismatch.");
+                }
+                else
+                {
+                    if (!response.Question[i].Name.Equals(request.Question[i].MinimizedName, StringComparison.Ordinal))
+                        throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
 
-                        if (response.Question[i].Type != request.Question[i].MinimizedType)
-                            throw new DnsClientResponseValidationException("Invalid response was received: QTYPE mismatch.");
-                    }
-
-                    if (response.Question[i].Class != request.Question[i].Class)
-                        throw new DnsClientResponseValidationException("Invalid response was received: QCLASS mismatch.");
+                    if (response.Question[i].Type != request.Question[i].MinimizedType)
+                        throw new DnsClientResponseValidationException("Invalid response was received: QTYPE mismatch.");
                 }
 
-                return response;
+                if (response.Question[i].Class != request.Question[i].Class)
+                    throw new DnsClientResponseValidationException("Invalid response was received: QCLASS mismatch.");
             }
+
+            return response;
         }
 
         #endregion
