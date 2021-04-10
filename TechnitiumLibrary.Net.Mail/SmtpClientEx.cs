@@ -40,7 +40,7 @@ namespace TechnitiumLibrary.Net.Mail
         readonly static RandomNumberGenerator _rng = new RNGCryptoServiceProvider();
         readonly static RemoteCertificateValidationCallback _existingServerCertificateValidationCallback;
 
-        readonly FieldInfo _localHostName = GetLocalHostNameField();
+        readonly static FieldInfo _localHostName = typeof(SmtpClient).GetField("_clientDomain", BindingFlags.Instance | BindingFlags.NonPublic);
         DnsClient _dnsClient;
         NetProxy _proxy;
         bool _enableSslWrapper;
@@ -139,25 +139,6 @@ namespace TechnitiumLibrary.Net.Mail
             {
                 return sslPolicyErrors == SslPolicyErrors.None;
             }
-        }
-
-        #endregion
-
-        #region private
-
-        //Since the fix for this doesn't seem to have made the cut for .NET 4.0, the hacky workaround is still required.
-        //Unfortunately, the field name was changed in one of the service packs for .NET 2.0 from "localHostName" to "clientDomain"; .NET 4.0 also uses "clientDomain".
-        //To fix the workaround, you'll need to change the GetLocalHostNameField method to:
-
-        private static FieldInfo GetLocalHostNameField()
-        {
-            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
-
-            FieldInfo result = typeof(SmtpClient).GetField("clientDomain", flags);
-            if (result == null)
-                result = typeof(SmtpClient).GetField("localHostName", flags);
-
-            return result;
         }
 
         #endregion
