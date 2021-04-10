@@ -75,7 +75,7 @@ namespace TechnitiumLibrary.Net.Dns
             long originalPosition = s.Position;
 
             //write dummy RDLENGTH
-            s.Write(new byte[] { 0, 0 }, 0, 2);
+            s.Position += 2;
 
             //write RDATA
             WriteRecordData(s, domainEntries);
