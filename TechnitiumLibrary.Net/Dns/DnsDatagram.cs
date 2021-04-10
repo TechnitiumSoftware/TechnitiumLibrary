@@ -496,7 +496,7 @@ namespace TechnitiumLibrary.Net.Dns
                     long CurrentPosition = s.Position;
                     s.Position = Offset;
                     domain.Append(DeserializeDomainName(s, maxDepth - 1));
-                    domain.Append(".");
+                    domain.Append('.');
                     s.Position = CurrentPosition;
                     break;
                 }
@@ -507,7 +507,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     s.ReadBytes(buffer, 0, labelLength);
                     domain.Append(Encoding.ASCII.GetString(buffer, 0, labelLength));
-                    domain.Append(".");
+                    domain.Append('.');
                     labelLength = s.ReadBytes(1)[0];
                 }
             }
@@ -586,10 +586,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         public void SetRandomIdentifier()
         {
-            byte[] buffer = new byte[2];
+            Span<byte> buffer = stackalloc byte[2];
             _rnd.GetBytes(buffer);
 
-            _ID = BitConverter.ToUInt16(buffer, 0);
+            _ID = BitConverter.ToUInt16(buffer);
         }
 
         public void WriteToUdp(Stream s)
