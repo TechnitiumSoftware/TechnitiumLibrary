@@ -152,10 +152,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
         private static int GetRandomNumber()
         {
-            byte[] randomBuffer = new byte[4];
+            Span<byte> randomBuffer = stackalloc byte[4];
             _rng.GetBytes(randomBuffer);
 
-            return BitConverter.ToInt32(randomBuffer, 0) & 0x7FFFFFFF;
+            return BitConverter.ToInt32(randomBuffer) & 0x7FFFFFFF;
         }
 
         #endregion
