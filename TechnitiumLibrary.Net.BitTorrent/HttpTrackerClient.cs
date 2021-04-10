@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -146,7 +146,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             if (_clientID.NoPeerID)
                 queryString += "&no_peer_id=1";
 
-            HttpClientHandler handler = new HttpClientHandler();
+            SocketsHttpHandler handler = new SocketsHttpHandler();
             handler.Proxy = _proxy;
 
             using (HttpClient httpClient = new HttpClient(handler))
