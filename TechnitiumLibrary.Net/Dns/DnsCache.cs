@@ -42,7 +42,7 @@ namespace TechnitiumLibrary.Net.Dns
         uint _minimumRecordTtl;
         uint _serveStaleTtl;
 
-        readonly ConcurrentDictionary<string, DnsCacheEntry> _cache = new ConcurrentDictionary<string, DnsCacheEntry>();
+        readonly ConcurrentDictionary<string, DnsCacheEntry> _cache = new ConcurrentDictionary<string, DnsCacheEntry>(1, 5);
 
         #endregion
 
@@ -73,7 +73,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 DnsCacheEntry entry = _cache.GetOrAdd(resourceRecords[0].Name.ToLower(), delegate (string key)
                 {
-                    return new DnsCacheEntry();
+                    return new DnsCacheEntry(1);
                 });
 
                 entry.SetRecords(resourceRecords[0].Type, resourceRecords);
@@ -90,7 +90,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     DnsCacheEntry entry = _cache.GetOrAdd(cacheEntry.Key.ToLower(), delegate (string key)
                     {
-                        return new DnsCacheEntry();
+                        return new DnsCacheEntry(cacheEntry.Value.Count);
                     });
 
                     foreach (KeyValuePair<DnsResourceRecordType, List<DnsResourceRecord>> cacheTypeEntry in cacheEntry.Value)
@@ -852,7 +852,16 @@ namespace TechnitiumLibrary.Net.Dns
         {
             #region variables
 
-            readonly ConcurrentDictionary<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> _entries = new ConcurrentDictionary<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>>();
+            readonly ConcurrentDictionary<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> _entries;
+
+            #endregion
+
+            #region constructor
+
+            public DnsCacheEntry(int capacity)
+            {
+                _entries = new ConcurrentDictionary<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>>(1, capacity);
+            }
 
             #endregion
 
@@ -941,8 +950,8 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     List<DnsResourceRecord> anyRecords = new List<DnsResourceRecord>();
 
-                    foreach (IReadOnlyList<DnsResourceRecord> entryRecords in _entries.Values)
-                        anyRecords.AddRange(FilterExpiredRecords(type, entryRecords, true));
+                    foreach (KeyValuePair<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> entry in _entries)
+                        anyRecords.AddRange(FilterExpiredRecords(type, entry.Value, true));
 
                     return anyRecords;
                 }
