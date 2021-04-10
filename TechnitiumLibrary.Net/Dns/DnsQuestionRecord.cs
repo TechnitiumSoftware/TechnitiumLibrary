@@ -114,7 +114,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return name;
 
             byte[] asciiName = Encoding.ASCII.GetBytes(name);
-            byte[] r = new byte[asciiName.Length];
+            Span<byte> r = stackalloc byte[asciiName.Length];
 
             _rng.GetBytes(r);
 
