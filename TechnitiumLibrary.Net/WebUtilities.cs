@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -367,8 +367,8 @@ namespace TechnitiumLibrary.Net
 
                 StreamReader sR = new StreamReader(networkStream);
 
-                string TMP = await sR.ReadLineAsync().WithTimeout(timeout);
-                string[] RetVal = TMP.Split(' ');
+                string line = await sR.ReadLineAsync().WithTimeout(timeout);
+                string[] RetVal = line.Split(' ');
 
                 switch (RetVal[1])
                 {
@@ -378,15 +378,15 @@ namespace TechnitiumLibrary.Net
                     case "307":
                         while (true)
                         {
-                            TMP = sR.ReadLine();
-                            if (string.IsNullOrEmpty(TMP))
+                            line = sR.ReadLine();
+                            if (string.IsNullOrEmpty(line))
                                 break;
 
-                            if (TMP.StartsWith("location", StringComparison.OrdinalIgnoreCase))
+                            if (line.StartsWith("location", StringComparison.OrdinalIgnoreCase))
                             {
-                                int i = TMP.IndexOf(':');
+                                int i = line.IndexOf(':');
                                 if (i > -1)
-                                    return new Uri(TMP.Substring(i + 1).Trim());
+                                    return new Uri(line.Substring(i + 1).Trim());
                             }
                         }
 
@@ -396,7 +396,7 @@ namespace TechnitiumLibrary.Net
                         return sourceUri;
 
                     default:
-                        throw new HttpRequestException("Error while opening location: " + sourceUri.AbsoluteUri + ", HTTP response: " + TMP);
+                        throw new HttpRequestException("Error while opening location: " + sourceUri.AbsoluteUri + ", HTTP response: " + line);
                 }
             }
         }
@@ -406,7 +406,7 @@ namespace TechnitiumLibrary.Net
             if (uriCheckList == null)
                 uriCheckList = new Uri[] { new Uri("https://www.google.com/"), new Uri("https://www.microsoft.com/") };
 
-            HttpClientHandler handler = new HttpClientHandler();
+            SocketsHttpHandler handler = new SocketsHttpHandler();
             handler.Proxy = proxy;
 
             HttpClientNetworkHandler networkHandler = new HttpClientNetworkHandler(handler);
