@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,13 +29,13 @@ namespace TechnitiumLibrary.IO
 
         public static void Shuffle<T>(this IList<T> array)
         {
-            byte[] buffer = new byte[4];
+            Span<byte> buffer = stackalloc byte[4];
 
             int n = array.Count;
             while (n > 1)
             {
                 _rnd.GetBytes(buffer);
-                int k = (BitConverter.ToInt32(buffer, 0) & 0x7FFFFFFF) % n--;
+                int k = (BitConverter.ToInt32(buffer) & 0x7FFFFFFF) % n--;
                 T temp = array[n];
                 array[n] = array[k];
                 array[k] = temp;
