@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@ namespace TechnitiumLibrary.Net.Firewall
 {
     public enum Protocol
     {
+        Unknown = -1,
         ICMPv4 = 1,
         IGMP = 2,
         IPv4 = 4,
@@ -150,7 +151,7 @@ namespace TechnitiumLibrary.Net.Firewall
             }
         }
 
-        public static RuleStatus RuleExistsVista(string name, string applicationPath)
+        public static RuleStatus RuleExistsVista(string name, string applicationPath, Protocol protocol = Protocol.Unknown)
         {
             INetFwPolicy2 firewallPolicy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
 
@@ -158,6 +159,9 @@ namespace TechnitiumLibrary.Net.Firewall
             {
                 if (((rule.Name != null) && rule.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) || ((rule.ApplicationName != null) && rule.ApplicationName.Equals(applicationPath, StringComparison.OrdinalIgnoreCase)))
                 {
+                    if ((protocol != Protocol.Unknown) && (rule.Protocol != (int)protocol))
+                        continue;
+
                     if (rule.Enabled)
                     {
                         if (rule.Action == NET_FW_ACTION_.NET_FW_ACTION_ALLOW)
@@ -181,7 +185,7 @@ namespace TechnitiumLibrary.Net.Firewall
 
             portClass.Name = name;
             portClass.Port = port;
-            portClass.Scope = NetFwTypeLib.NET_FW_SCOPE_.NET_FW_SCOPE_ALL;
+            portClass.Scope = NET_FW_SCOPE_.NET_FW_SCOPE_ALL;
             portClass.Enabled = enable;
 
             switch (protocol)
