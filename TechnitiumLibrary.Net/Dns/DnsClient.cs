@@ -476,7 +476,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                             break;
 
-                        case DnsResponseCode.NameError:
+                        case DnsResponseCode.NxDomain:
                             if (resolverStack.Count == 0)
                             {
                                 return cacheResponse;
@@ -804,7 +804,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     continue; //continue to next name server since current name server may be misconfigured
                                 }
 
-                            case DnsResponseCode.NameError:
+                            case DnsResponseCode.NxDomain:
                                 if (question.ZoneCut != null)
                                 {
                                     if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
@@ -944,7 +944,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     return ipAddresses;
 
-                case DnsResponseCode.NameError:
+                case DnsResponseCode.NxDomain:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
@@ -983,7 +983,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     return ipAddresses;
 
-                case DnsResponseCode.NameError:
+                case DnsResponseCode.NxDomain:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
@@ -1022,7 +1022,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     return txtRecords;
 
-                case DnsResponseCode.NameError:
+                case DnsResponseCode.NxDomain:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
@@ -1064,7 +1064,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     return null;
 
-                case DnsResponseCode.NameError:
+                case DnsResponseCode.NxDomain:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
@@ -1116,7 +1116,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     return Array.Empty<string>();
 
-                case DnsResponseCode.NameError:
+                case DnsResponseCode.NxDomain:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata == null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
@@ -1579,7 +1579,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 switch (response.RCODE)
                                                 {
                                                     case DnsResponseCode.NoError:
-                                                    case DnsResponseCode.NameError:
+                                                    case DnsResponseCode.NxDomain:
                                                         return response;
 
                                                     default:
@@ -1664,7 +1664,7 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (response.RCODE)
                             {
                                 case DnsResponseCode.NoError:
-                                case DnsResponseCode.NameError:
+                                case DnsResponseCode.NxDomain:
                                     cancellationTokenSource.Cancel(); //to stop delay and other resolver tasks
                                     return response;
 

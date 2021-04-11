@@ -275,7 +275,7 @@ namespace TechnitiumLibrary.Net.Dns
                     else
                         responseAuthority = new DnsResourceRecord[] { authority };
 
-                    return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NameError, request.Question, null, responseAuthority);
+                    return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NxDomain, request.Question, null, responseAuthority);
                 }
 
                 if (answerRecords[0].RDATA is DnsFailureRecord)
@@ -314,7 +314,7 @@ namespace TechnitiumLibrary.Net.Dns
             switch (response.RCODE)
             {
                 case DnsResponseCode.NoError:
-                case DnsResponseCode.NameError:
+                case DnsResponseCode.NxDomain:
                     //cache response after this switch
                     break;
 
@@ -426,7 +426,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 switch (response.RCODE)
                                 {
-                                    case DnsResponseCode.NameError:
+                                    case DnsResponseCode.NxDomain:
                                         record = new DnsResourceRecord(question.Name, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(authority));
                                         break;
 
@@ -458,7 +458,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                     switch (response.RCODE)
                                     {
-                                        case DnsResponseCode.NameError:
+                                        case DnsResponseCode.NxDomain:
                                             record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(authority));
                                             break;
 
@@ -495,7 +495,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                     switch (response.RCODE)
                                     {
-                                        case DnsResponseCode.NameError:
+                                        case DnsResponseCode.NxDomain:
                                             record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsNXRecord(authority));
                                             break;
 
@@ -570,7 +570,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         switch (response.RCODE)
                         {
-                            case DnsResponseCode.NameError:
+                            case DnsResponseCode.NxDomain:
                                 record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsNXRecord(null));
                                 break;
 

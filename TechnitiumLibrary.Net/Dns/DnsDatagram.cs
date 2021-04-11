@@ -44,7 +44,7 @@ namespace TechnitiumLibrary.Net.Dns
         NoError = 0,
         FormatError = 1,
         ServerFailure = 2,
-        NameError = 3,
+        NxDomain = 3,
         NotImplemented = 4,
         Refused = 5,
         YXDomain = 6,
