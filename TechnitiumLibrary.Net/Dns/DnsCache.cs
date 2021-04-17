@@ -146,33 +146,47 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
-        private IReadOnlyList<DnsResourceRecord> QueryRecords(string domain, DnsResourceRecordType type, bool filterSpecialCacheRecords)
-        {
-            domain = domain.ToLower();
-
-            if (_cache.TryGetValue(domain, out DnsCacheEntry entry))
-                return entry.QueryRecords(type, filterSpecialCacheRecords);
-
-            return Array.Empty<DnsResourceRecord>();
-        }
-
         private IReadOnlyList<DnsResourceRecord> GetClosestNameServers(string domain)
         {
             domain = domain.ToLower();
 
-            while (domain != null)
+            do
             {
                 if (_cache.TryGetValue(domain, out DnsCacheEntry entry))
                 {
                     IReadOnlyList<DnsResourceRecord> records = entry.QueryRecords(DnsResourceRecordType.NS, true);
-                    if ((records.Count > 0) && (records[0].RDATA is DnsNSRecord))
+                    if ((records.Count > 0) && (records[0].Type == DnsResourceRecordType.NS))
                         return records;
                 }
 
                 domain = GetParentZone(domain);
             }
+            while (domain != null);
 
             return Array.Empty<DnsResourceRecord>();
+        }
+
+        private void ResolveCNAME(DnsQuestionRecord question, DnsResourceRecord lastCNAME, List<DnsResourceRecord> answerRecords)
+        {
+            int queryCount = 0;
+
+            do
+            {
+                if (!_cache.TryGetValue((lastCNAME.RDATA as DnsCNAMERecord).Domain.ToLower(), out DnsCacheEntry entry))
+                    break;
+
+                IReadOnlyList<DnsResourceRecord> records = entry.QueryRecords(question.Type, true);
+                if (records.Count < 1)
+                    break;
+
+                answerRecords.AddRange(records);
+
+                if (records[0].Type != DnsResourceRecordType.CNAME)
+                    break;
+
+                lastCNAME = records[0];
+            }
+            while (++queryCount < DnsClient.MAX_CNAME_HOPS);
         }
 
         private IReadOnlyList<DnsResourceRecord> GetAdditionalRecords(IReadOnlyList<DnsResourceRecord> refRecords)
@@ -229,13 +243,16 @@ namespace TechnitiumLibrary.Net.Dns
                     return;
             }
 
-            IReadOnlyList<DnsResourceRecord> glueAs = QueryRecords(domain, DnsResourceRecordType.A, true);
-            if ((glueAs.Count > 0) && (glueAs[0].RDATA is DnsARecord))
-                additionalRecords.AddRange(glueAs);
+            if (_cache.TryGetValue(domain.ToLower(), out DnsCacheEntry entry))
+            {
+                IReadOnlyList<DnsResourceRecord> glueAs = entry.QueryRecords(DnsResourceRecordType.A, true);
+                if ((glueAs.Count > 0) && (glueAs[0].Type == DnsResourceRecordType.A))
+                    additionalRecords.AddRange(glueAs);
 
-            IReadOnlyList<DnsResourceRecord> glueAAAAs = QueryRecords(domain, DnsResourceRecordType.AAAA, true);
-            if ((glueAAAAs.Count > 0) && (glueAAAAs[0].RDATA is DnsAAAARecord))
-                additionalRecords.AddRange(glueAAAAs);
+                IReadOnlyList<DnsResourceRecord> glueAAAAs = entry.QueryRecords(DnsResourceRecordType.AAAA, true);
+                if ((glueAAAAs.Count > 0) && (glueAAAAs[0].Type == DnsResourceRecordType.AAAA))
+                    additionalRecords.AddRange(glueAAAAs);
+            }
         }
 
         #endregion
@@ -249,50 +266,65 @@ namespace TechnitiumLibrary.Net.Dns
 
             DnsQuestionRecord question = request.Question[0];
 
-            IReadOnlyList<DnsResourceRecord> answerRecords = QueryRecords(question.Name, question.Type, false);
-            if (answerRecords.Count > 0)
+            if (_cache.TryGetValue(question.Name.ToLower(), out DnsCacheEntry entry))
             {
-                if (answerRecords[0].RDATA is DnsEmptyRecord)
+                IReadOnlyList<DnsResourceRecord> answers = entry.QueryRecords(question.Type, false);
+                if (answers.Count > 0)
                 {
-                    DnsResourceRecord[] responseAuthority;
-                    DnsResourceRecord authority = (answerRecords[0].RDATA as DnsEmptyRecord).Authority;
+                    DnsResourceRecord firstRR = answers[0];
 
-                    if (authority == null)
-                        responseAuthority = Array.Empty<DnsResourceRecord>();
-                    else
-                        responseAuthority = new DnsResourceRecord[] { authority };
+                    if (firstRR.RDATA is DnsEmptyRecord)
+                    {
+                        DnsResourceRecord[] responseAuthority;
+                        DnsResourceRecord authority = (firstRR.RDATA as DnsEmptyRecord).Authority;
 
-                    return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, responseAuthority);
+                        if (authority == null)
+                            responseAuthority = Array.Empty<DnsResourceRecord>();
+                        else
+                            responseAuthority = new DnsResourceRecord[] { authority };
+
+                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, responseAuthority);
+                    }
+
+                    if (firstRR.RDATA is DnsNXRecord)
+                    {
+                        DnsResourceRecord[] responseAuthority;
+                        DnsResourceRecord authority = (firstRR.RDATA as DnsNXRecord).Authority;
+
+                        if (authority == null)
+                            responseAuthority = Array.Empty<DnsResourceRecord>();
+                        else
+                            responseAuthority = new DnsResourceRecord[] { authority };
+
+                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NxDomain, request.Question, null, responseAuthority);
+                    }
+
+                    if (firstRR.RDATA is DnsFailureRecord)
+                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, (firstRR.RDATA as DnsFailureRecord).RCODE, request.Question);
+
+                    DnsResourceRecord lastRR = answers[answers.Count - 1];
+                    if ((lastRR.Type != question.Type) && (lastRR.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
+                    {
+                        List<DnsResourceRecord> newAnswers = new List<DnsResourceRecord>(answers);
+
+                        ResolveCNAME(question, lastRR, newAnswers);
+
+                        answers = newAnswers;
+                    }
+
+                    IReadOnlyList<DnsResourceRecord> additional = null;
+
+                    switch (question.Type)
+                    {
+                        case DnsResourceRecordType.NS:
+                        case DnsResourceRecordType.MX:
+                        case DnsResourceRecordType.SRV:
+                            additional = GetAdditionalRecords(answers);
+                            break;
+                    }
+
+                    return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, answers, null, additional);
                 }
-
-                if (answerRecords[0].RDATA is DnsNXRecord)
-                {
-                    DnsResourceRecord[] responseAuthority;
-                    DnsResourceRecord authority = (answerRecords[0].RDATA as DnsNXRecord).Authority;
-
-                    if (authority == null)
-                        responseAuthority = Array.Empty<DnsResourceRecord>();
-                    else
-                        responseAuthority = new DnsResourceRecord[] { authority };
-
-                    return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NxDomain, request.Question, null, responseAuthority);
-                }
-
-                if (answerRecords[0].RDATA is DnsFailureRecord)
-                    return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, (answerRecords[0].RDATA as DnsFailureRecord).RCODE, request.Question);
-
-                IReadOnlyList<DnsResourceRecord> additionalRecords = null;
-
-                switch (question.Type)
-                {
-                    case DnsResourceRecordType.NS:
-                    case DnsResourceRecordType.MX:
-                    case DnsResourceRecordType.SRV:
-                        additionalRecords = GetAdditionalRecords(answerRecords);
-                        break;
-                }
-
-                return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, answerRecords, null, additionalRecords);
             }
 
             IReadOnlyList<DnsResourceRecord> closestAuthority = GetClosestNameServers(question.Name);
@@ -428,10 +460,12 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     case DnsResponseCode.NxDomain:
                                         record = new DnsResourceRecord(question.Name, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(authority));
+                                        authority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                         break;
 
                                     case DnsResponseCode.NoError:
                                         record = new DnsResourceRecord(question.Name, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(authority));
+                                        authority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                         break;
                                 }
 
@@ -460,10 +494,12 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         case DnsResponseCode.NxDomain:
                                             record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(authority));
+                                            authority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                             break;
 
                                         case DnsResponseCode.NoError:
                                             record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(authority));
+                                            authority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                             break;
                                     }
 
@@ -951,9 +987,9 @@ namespace TechnitiumLibrary.Net.Dns
                     List<DnsResourceRecord> anyRecords = new List<DnsResourceRecord>();
 
                     foreach (KeyValuePair<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> entry in _entries)
-                        anyRecords.AddRange(FilterExpiredRecords(type, entry.Value, true));
+                        anyRecords.AddRange(entry.Value);
 
-                    return anyRecords;
+                    return FilterExpiredRecords(type, anyRecords, true);
                 }
 
                 if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
