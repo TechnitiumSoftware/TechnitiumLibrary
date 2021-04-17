@@ -50,7 +50,7 @@ namespace TechnitiumLibrary.Net.Dns
         readonly static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv6;
 
         const int MAX_DELEGATION_HOPS = 16;
-        const int MAX_CNAME_HOPS = 16;
+        internal const int MAX_CNAME_HOPS = 16;
 
         readonly IReadOnlyList<NameServerAddress> _servers;
 
@@ -1588,6 +1588,35 @@ namespace TechnitiumLibrary.Net.Dns
                                                 }
                                             }
                                         }
+                                    }
+                                }
+                                catch (SocketException ex)
+                                {
+                                    switch (ex.SocketErrorCode)
+                                    {
+                                        case SocketError.MessageSize:
+                                            if (server.Protocol == DnsTransportProtocol.Udp)
+                                            {
+                                                //unexpected large UDP response was received; switch protocols
+                                                server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
+
+                                                if (_randomizeName)
+                                                {
+                                                    foreach (DnsQuestionRecord question in asyncRequest.Question)
+                                                        question.NormalizeName();
+                                                }
+
+                                                switchProtocol = true;
+                                            }
+                                            else
+                                            {
+                                                throw;
+                                            }
+
+                                            break;
+
+                                        default:
+                                            throw;
                                     }
                                 }
                                 catch (DnsClientResponseValidationException)
