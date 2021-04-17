@@ -379,6 +379,14 @@ namespace TechnitiumLibrary.Net.Dns
             _setExpiry = false;
         }
 
+        public bool IsExpired(bool serveStale)
+        {
+            if (serveStale)
+                return TtlValue < 1u;
+
+            return IsStale;
+        }
+
         public void WriteTo(Stream s)
         {
             WriteTo(s, null);
