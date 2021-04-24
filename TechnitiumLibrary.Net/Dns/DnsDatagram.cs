@@ -290,7 +290,14 @@ namespace TechnitiumLibrary.Net.Dns
                 try
                 {
                     for (int i = 0; i < QDCOUNT; i++)
-                        question.Add(new DnsQuestionRecord(sharedBuffer));
+                    {
+                        DnsQuestionRecord questionRecord = new DnsQuestionRecord(sharedBuffer);
+
+                        if ((question.Count > 0) && question.Contains(questionRecord))
+                            continue;
+
+                        question.Add(questionRecord);
+                    }
 
                     for (int i = 0; i < ANCOUNT; i++)
                         answer.Add(new DnsResourceRecord(sharedBuffer));
