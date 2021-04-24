@@ -318,33 +318,30 @@ namespace TechnitiumLibrary.Net.Dns
 
             void InspectCacheNameServersForStackOverflow(List<NameServerAddress> cacheNameServers)
             {
-                if (cacheNameServers.Count > 0)
+                bool allCacheNameServersHaveGlue = true;
+
+                foreach (NameServerAddress cacheNameServer in cacheNameServers)
                 {
-                    bool allCacheNameServersHaveGlue = true;
-
-                    foreach (NameServerAddress cacheNameServer in cacheNameServers)
+                    if (cacheNameServer.IsIPEndPointStale)
                     {
-                        if (cacheNameServer.IsIPEndPointStale)
-                        {
-                            allCacheNameServersHaveGlue = false;
-                            break;
-                        }
+                        allCacheNameServersHaveGlue = false;
+                        break;
                     }
+                }
 
-                    if (allCacheNameServersHaveGlue)
-                        return; //no inspection needed since all cache name servers have a glue record
+                if (allCacheNameServersHaveGlue)
+                    return; //no inspection needed since all cache name servers have a glue record
 
-                    //inspect stack to see if the name servers returned by cache have repeated to avoid stack overflow
-                    foreach (ResolverData stack in resolverStack)
+                //inspect stack to see if the name servers returned by cache have repeated to avoid stack overflow
+                foreach (ResolverData stack in resolverStack)
+                {
+                    foreach (NameServerAddress stackNameServer in stack.NameServers)
                     {
-                        foreach (NameServerAddress stackNameServer in stack.NameServers)
+                        if (cacheNameServers.Contains(stackNameServer))
                         {
-                            if (cacheNameServers.Contains(stackNameServer))
-                            {
-                                //one of name servers returned by cache already exists in stack; so dont use these set of name servers from cache
-                                cacheNameServers.Clear();
-                                return;
-                            }
+                            //one of name servers returned by cache already exists in stack; so dont use these set of name servers from cache
+                            cacheNameServers.Clear();
+                            return;
                         }
                     }
                 }
@@ -366,42 +363,12 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question });
                     DnsDatagram cacheResponse = cache.Query(request);
-
-                    switch (cacheResponse.RCODE)
+                    if (cacheResponse != null)
                     {
-                        case DnsResponseCode.NoError:
-                            if (cacheResponse.Answer.Count > 0)
-                            {
-                                if (resolverStack.Count == 0)
-                                {
-                                    return cacheResponse;
-                                }
-                                else
-                                {
-                                    PopStack();
-
-                                    switch (cacheResponse.Answer[0].Type)
-                                    {
-                                        case DnsResourceRecordType.AAAA:
-                                            nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsAAAARecord).Address, nameServers[nameServerIndex].Port));
-                                            break;
-
-                                        case DnsResourceRecordType.A:
-                                            nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsARecord).Address, nameServers[nameServerIndex].Port));
-                                            break;
-
-                                        default:
-                                            //didnt find IP for current name server
-                                            nameServerIndex++; //increment to skip current name server
-                                            break;
-                                    }
-
-                                    //proceed to resolver loop
-                                }
-                            }
-                            else if (cacheResponse.Authority.Count > 0)
-                            {
-                                if (cacheResponse.Authority[0].Type == DnsResourceRecordType.SOA)
+                        switch (cacheResponse.RCODE)
+                        {
+                            case DnsResponseCode.NoError:
+                                if (cacheResponse.Answer.Count > 0)
                                 {
                                     if (resolverStack.Count == 0)
                                     {
@@ -409,87 +376,123 @@ namespace TechnitiumLibrary.Net.Dns
                                     }
                                     else
                                     {
-                                        if (question.Type == DnsResourceRecordType.AAAA)
-                                        {
-                                            question = new DnsQuestionRecord(question.Name, DnsResourceRecordType.A, question.Class);
+                                        PopStack();
 
-                                            continue; //to stack loop to query cache for A record
+                                        switch (cacheResponse.Answer[0].Type)
+                                        {
+                                            case DnsResourceRecordType.AAAA:
+                                                nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsAAAARecord).Address, nameServers[nameServerIndex].Port));
+                                                break;
+
+                                            case DnsResourceRecordType.A:
+                                                nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsARecord).Address, nameServers[nameServerIndex].Port));
+                                                break;
+
+                                            default:
+                                                //didnt find IP for current name server
+                                                nameServerIndex++; //increment to skip current name server
+                                                break;
+                                        }
+
+                                        //proceed to resolver loop
+                                    }
+                                }
+                                else if (cacheResponse.Authority.Count > 0)
+                                {
+                                    if (cacheResponse.Authority[0].Type == DnsResourceRecordType.SOA)
+                                    {
+                                        if (resolverStack.Count == 0)
+                                        {
+                                            return cacheResponse;
                                         }
                                         else
                                         {
-                                            //didnt find IP for current name server
-                                            //pop and try next name server
-                                            PopStack();
-                                            nameServerIndex++; //increment to skip current name server
-                                            //proceed to resolver loop
+                                            if (question.Type == DnsResourceRecordType.AAAA)
+                                            {
+                                                question = new DnsQuestionRecord(question.Name, DnsResourceRecordType.A, question.Class);
+
+                                                continue; //to stack loop to query cache for A record
+                                            }
+                                            else
+                                            {
+                                                //didnt find IP for current name server
+                                                //pop and try next name server
+                                                PopStack();
+                                                nameServerIndex++; //increment to skip current name server
+                                                                   //proceed to resolver loop
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        List<NameServerAddress> cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6);
+                                        if (cacheNameServers.Count > 0)
+                                            InspectCacheNameServersForStackOverflow(cacheNameServers);
+
+                                        if (cacheNameServers.Count == 0)
+                                        {
+                                            //find name servers with glue from cache for closest parent zone
+                                            string currentDomain = question.Name;
+
+                                            do
+                                            {
+                                                //get parent domain
+                                                int i = currentDomain.IndexOf('.');
+                                                if (i < 0)
+                                                    break;
+
+                                                currentDomain = currentDomain.Substring(i + 1);
+
+                                                //find name servers with glue
+                                                DnsDatagram cachedNsResponse = cache.Query(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }));
+                                                if (cachedNsResponse != null)
+                                                {
+                                                    cacheNameServers = NameServerAddress.GetNameServersFromResponse(cachedNsResponse, preferIPv6);
+                                                    if (cacheNameServers.Count > 0)
+                                                        InspectCacheNameServersForStackOverflow(cacheNameServers);
+                                                }
+                                            }
+                                            while (cacheNameServers.Count == 0);
+                                        }
+
+                                        if (cacheNameServers.Count > 0)
+                                        {
+                                            cacheNameServers.Shuffle();
+
+                                            if (preferIPv6)
+                                                cacheNameServers.Sort();
+
+                                            zoneCut = cacheResponse.Authority[0].Name;
+                                            nameServers = cacheNameServers;
+
+                                            if (question.ZoneCut != null)
+                                                question.ZoneCut = cacheResponse.Authority[0].Name;
                                         }
                                     }
                                 }
                                 else
                                 {
-                                    List<NameServerAddress> cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6);
-                                    InspectCacheNameServersForStackOverflow(cacheNameServers);
-
-                                    if (cacheNameServers.Count == 0)
-                                    {
-                                        //find name servers with glue from cache for closest parent zone
-                                        string currentDomain = question.Name;
-
-                                        do
-                                        {
-                                            //get parent domain
-                                            int i = currentDomain.IndexOf('.');
-                                            if (i < 0)
-                                                break;
-
-                                            currentDomain = currentDomain.Substring(i + 1);
-
-                                            //find name servers with glue
-                                            DnsDatagram cachedNsResponse = cache.Query(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }));
-
-                                            cacheNameServers = NameServerAddress.GetNameServersFromResponse(cachedNsResponse, preferIPv6);
-                                            InspectCacheNameServersForStackOverflow(cacheNameServers);
-                                        }
-                                        while (cacheNameServers.Count == 0);
-                                    }
-
-                                    if (cacheNameServers.Count > 0)
-                                    {
-                                        cacheNameServers.Shuffle();
-
-                                        if (preferIPv6)
-                                            cacheNameServers.Sort();
-
-                                        zoneCut = cacheResponse.Authority[0].Name;
-                                        nameServers = cacheNameServers;
-
-                                        if (question.ZoneCut != null)
-                                            question.ZoneCut = cacheResponse.Authority[0].Name;
-                                    }
+                                    if (resolverStack.Count == 0)
+                                        return cacheResponse;
                                 }
-                            }
-                            else
-                            {
-                                if (resolverStack.Count == 0)
-                                    return cacheResponse;
-                            }
 
-                            break;
-
-                        case DnsResponseCode.NxDomain:
-                            if (resolverStack.Count == 0)
-                            {
-                                return cacheResponse;
-                            }
-                            else
-                            {
-                                //current name server domain doesnt exists
-                                //pop and try next name server
-                                PopStack();
-                                nameServerIndex++; //increment to skip current name server
-                                //proceed to resolver loop
                                 break;
-                            }
+
+                            case DnsResponseCode.NxDomain:
+                                if (resolverStack.Count == 0)
+                                {
+                                    return cacheResponse;
+                                }
+                                else
+                                {
+                                    //current name server domain doesnt exists
+                                    //pop and try next name server
+                                    PopStack();
+                                    nameServerIndex++; //increment to skip current name server
+                                                       //proceed to resolver loop
+                                    break;
+                                }
+                        }
                     }
                 }
 
@@ -576,9 +579,6 @@ namespace TechnitiumLibrary.Net.Dns
                         }
 
                         //sanitize response
-                        if ((response.Answer.Count > 0) && !response.AuthoritativeAnswer)
-                            continue; //continue to next name server since response is not authoritative
-
                         response = SanitizeResponseAnswer(response, zoneCut); //sanitize answer section
                         response = SanitizeResponseAuthority(response, zoneCut); //sanitize authority section
 
@@ -1281,40 +1281,50 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static DnsDatagram SanitizeResponseAnswer(DnsDatagram response, string zoneCut)
         {
-            if (response.Answer.Count > 1)
+            string qName = response.Question[0].Name;
+
+            for (int i = 0; i < response.Answer.Count; i++)
             {
-                string qName = response.Question[0].Name;
+                DnsResourceRecord answer = response.Answer[i];
 
-                for (int i = 0; i < response.Answer.Count; i++)
+                if (answer.Name.Equals(qName, StringComparison.OrdinalIgnoreCase))
                 {
-                    DnsResourceRecord answer = response.Answer[i];
-
-                    if (answer.Name.Equals(qName, StringComparison.OrdinalIgnoreCase))
+                    switch (answer.Type)
                     {
-                        switch (answer.Type)
-                        {
-                            case DnsResourceRecordType.CNAME:
+                        case DnsResourceRecordType.CNAME:
+                            if (i < response.Answer.Count - 1)
+                            {
+                                string domain = (answer.RDATA as DnsCNAMERecord).Domain;
+
+                                if (!domain.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !domain.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase))
                                 {
-                                    string domain = (answer.RDATA as DnsCNAMERecord).Domain;
+                                    //domain is not inside zone cut
+                                    //truncate answer upto current RR
 
-                                    if (!(domain.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || domain.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase)))
-                                    {
-                                        //domain is not inside zone cut
-                                        //truncate answer
+                                    List<DnsResourceRecord> newAnswers = new List<DnsResourceRecord>(i + 1);
 
-                                        List<DnsResourceRecord> newAnswers = new List<DnsResourceRecord>(i + 1);
+                                    for (int j = 0; j <= i; j++)
+                                        newAnswers.Add(response.Answer[j]);
 
-                                        for (int j = 0; j <= i; j++)
-                                            newAnswers.Add(response.Answer[j]);
-
-                                        return response.Clone(newAnswers, null);
-                                    }
-
-                                    qName = domain;
+                                    return response.Clone(newAnswers, null);
                                 }
-                                break;
-                        }
+
+                                qName = domain;
+                            }
+                            break;
                     }
+                }
+                else
+                {
+                    //name mismatch
+                    //truncate answer upto previous RR
+
+                    List<DnsResourceRecord> newAnswers = new List<DnsResourceRecord>(i);
+
+                    for (int j = 0; j < i; j++)
+                        newAnswers.Add(response.Answer[j]);
+
+                    return response.Clone(newAnswers, null);
                 }
             }
 
@@ -1329,17 +1339,32 @@ namespace TechnitiumLibrary.Net.Dns
                 return response;
             }
 
-            if ((response.Authority.Count > 0) && (response.Authority[0].Type == DnsResourceRecordType.NS))
+            if (response.Authority.Count > 0)
             {
-                List<DnsResourceRecord> newAuthority = new List<DnsResourceRecord>(response.Authority.Count);
+                bool authorityNotInZoneCut = false;
+                string zoneCutEnd = "." + zoneCut;
 
                 foreach (DnsResourceRecord authority in response.Authority)
                 {
-                    if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || authority.Name.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase))
-                        newAuthority.Add(authority);
+                    if (!authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                    {
+                        authorityNotInZoneCut = true;
+                        break;
+                    }
                 }
 
-                return response.Clone(null, newAuthority);
+                if (authorityNotInZoneCut)
+                {
+                    List<DnsResourceRecord> newAuthority = new List<DnsResourceRecord>(response.Authority.Count);
+
+                    foreach (DnsResourceRecord authority in response.Authority)
+                    {
+                        if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                            newAuthority.Add(authority);
+                    }
+
+                    return response.Clone(null, newAuthority);
+                }
             }
 
             return response;
@@ -1388,8 +1413,17 @@ namespace TechnitiumLibrary.Net.Dns
                     if ((lastResponse.Authority.Count > 0) && (lastResponse.Authority[0].Type == DnsResourceRecordType.SOA))
                         authority = lastResponse.Authority;
 
-                    if ((response.Additional.Count > 0) && (question.Type == DnsResourceRecordType.MX))
-                        additional = response.Additional;
+                    if (response.Authority.Count == 0)
+                    {
+                        switch (question.Type)
+                        {
+                            case DnsResourceRecordType.NS:
+                            case DnsResourceRecordType.MX:
+                            case DnsResourceRecordType.SRV:
+                                additional = response.Additional;
+                                break;
+                        }
+                    }
 
                     DnsDatagram compositeResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, lastResponse.RCODE, new DnsQuestionRecord[] { question }, responseAnswer, authority, additional);
 
@@ -1403,8 +1437,17 @@ namespace TechnitiumLibrary.Net.Dns
             if ((response.Authority.Count > 0) && (response.Authority[0].Type == DnsResourceRecordType.SOA))
                 authority = response.Authority;
 
-            if ((response.Additional.Count > 0) && (question.Type == DnsResourceRecordType.MX))
-                additional = response.Additional;
+            if (response.Authority.Count == 0)
+            {
+                switch (question.Type)
+                {
+                    case DnsResourceRecordType.NS:
+                    case DnsResourceRecordType.MX:
+                    case DnsResourceRecordType.SRV:
+                        additional = response.Additional;
+                        break;
+                }
+            }
 
             DnsDatagram finalResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, response.RCODE, new DnsQuestionRecord[] { question }, response.Answer, authority, additional);
 
@@ -1735,14 +1778,15 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 DnsDatagram newRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { q });
 
-                DnsDatagram newResponse = _cache.Query(newRequest);
-                if (newResponse.RCODE == DnsResponseCode.Refused)
+                DnsDatagram cacheResponse = _cache.Query(newRequest);
+                if (cacheResponse != null)
                 {
-                    newResponse = await InternalResolveAsync(newRequest, false);
-
-                    _cache.CacheResponse(newResponse);
+                    if ((cacheResponse.Answer.Count > 0) || ((cacheResponse.Authority.Count > 0) && (cacheResponse.Authority[0].Type == DnsResourceRecordType.SOA)))
+                        return cacheResponse;
                 }
 
+                DnsDatagram newResponse = await InternalResolveAsync(newRequest, false);
+                _cache.CacheResponse(newResponse);
                 return newResponse;
             });
         }
