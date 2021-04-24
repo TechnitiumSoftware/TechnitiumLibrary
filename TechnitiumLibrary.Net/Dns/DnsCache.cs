@@ -143,6 +143,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (i > -1)
                 return domain.Substring(i + 1);
 
+            //dont return root zone
             return null;
         }
 
@@ -163,7 +164,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
             while (domain != null);
 
-            return Array.Empty<DnsResourceRecord>();
+            return null;
         }
 
         private void ResolveCNAME(DnsQuestionRecord question, DnsResourceRecord lastCNAME, List<DnsResourceRecord> answerRecords)
@@ -273,34 +274,14 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     DnsResourceRecord firstRR = answers[0];
 
-                    if (firstRR.RDATA is DnsEmptyRecord)
-                    {
-                        DnsResourceRecord[] responseAuthority;
-                        DnsResourceRecord authority = (firstRR.RDATA as DnsEmptyRecord).Authority;
+                    if (firstRR.RDATA is DnsEmptyRecord dnsEmptyRecord)
+                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, dnsEmptyRecord.Authority);
 
-                        if (authority == null)
-                            responseAuthority = Array.Empty<DnsResourceRecord>();
-                        else
-                            responseAuthority = new DnsResourceRecord[] { authority };
+                    if (firstRR.RDATA is DnsNXRecord dnsNXRecord)
+                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NxDomain, request.Question, null, dnsNXRecord.Authority);
 
-                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, responseAuthority);
-                    }
-
-                    if (firstRR.RDATA is DnsNXRecord)
-                    {
-                        DnsResourceRecord[] responseAuthority;
-                        DnsResourceRecord authority = (firstRR.RDATA as DnsNXRecord).Authority;
-
-                        if (authority == null)
-                            responseAuthority = Array.Empty<DnsResourceRecord>();
-                        else
-                            responseAuthority = new DnsResourceRecord[] { authority };
-
-                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NxDomain, request.Question, null, responseAuthority);
-                    }
-
-                    if (firstRR.RDATA is DnsFailureRecord)
-                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, (firstRR.RDATA as DnsFailureRecord).RCODE, request.Question);
+                    if (firstRR.RDATA is DnsFailureRecord dnsFailureRecord)
+                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, dnsFailureRecord.RCODE, request.Question);
 
                     DnsResourceRecord lastRR = answers[answers.Count - 1];
                     if ((lastRR.Type != question.Type) && (lastRR.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
@@ -328,14 +309,14 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             IReadOnlyList<DnsResourceRecord> closestAuthority = GetClosestNameServers(question.Name);
-            if (closestAuthority.Count > 0)
+            if (closestAuthority != null)
             {
                 IReadOnlyList<DnsResourceRecord> additionalRecords = GetAdditionalRecords(closestAuthority);
 
                 return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, closestAuthority, additionalRecords);
             }
 
-            return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.Refused, request.Question);
+            return null;
         }
 
         public void CacheResponse(DnsDatagram response)
@@ -386,53 +367,62 @@ namespace TechnitiumLibrary.Net.Dns
                                 break;
 
                             case DnsResourceRecordType.NS:
-                                string nsDomain = (answer.RDATA as DnsNSRecord).NameServer;
-
-                                foreach (DnsResourceRecord additionalRecord in response.Additional)
+                                if (response.Authority.Count == 0)
                                 {
-                                    if (nsDomain.Equals(additionalRecord.Name, StringComparison.OrdinalIgnoreCase))
+                                    //add glue from additional section
+                                    string nsDomain = (answer.RDATA as DnsNSRecord).NameServer;
+
+                                    foreach (DnsResourceRecord additional in response.Additional)
                                     {
-                                        switch (additionalRecord.Type)
+                                        if (nsDomain.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
                                         {
-                                            case DnsResourceRecordType.A:
-                                                if (IPAddress.IsLoopback((additionalRecord.RDATA as DnsARecord).Address))
-                                                    continue;
+                                            switch (additional.Type)
+                                            {
+                                                case DnsResourceRecordType.A:
+                                                    if (IPAddress.IsLoopback((additional.RDATA as DnsARecord).Address))
+                                                        continue;
 
-                                                break;
+                                                    break;
 
-                                            case DnsResourceRecordType.AAAA:
-                                                if (IPAddress.IsLoopback((additionalRecord.RDATA as DnsAAAARecord).Address))
-                                                    continue;
+                                                case DnsResourceRecordType.AAAA:
+                                                    if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecord).Address))
+                                                        continue;
 
-                                                break;
+                                                    break;
+                                            }
+
+                                            AddGlueRecordTo(answer, additional);
                                         }
-
-                                        AddGlueRecordTo(answer, additionalRecord);
                                     }
                                 }
-
                                 break;
 
-                            case DnsResourceRecordType.MX: //glue suitable MX records
-                                string mxExchange = (answer.RDATA as DnsMXRecord).Exchange;
-
-                                foreach (DnsResourceRecord additionalRecord in response.Additional)
+                            case DnsResourceRecordType.MX:
+                                if (response.Authority.Count == 0)
                                 {
-                                    if (mxExchange.Equals(additionalRecord.Name, StringComparison.OrdinalIgnoreCase))
-                                        AddGlueRecordTo(answer, additionalRecord);
-                                }
+                                    //add glue from additional section
+                                    string mxExchange = (answer.RDATA as DnsMXRecord).Exchange;
 
+                                    foreach (DnsResourceRecord additional in response.Additional)
+                                    {
+                                        if (mxExchange.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                            AddGlueRecordTo(answer, additional);
+                                    }
+                                }
                                 break;
 
-                            case DnsResourceRecordType.SRV: //glue suitable SRV records
-                                string srvTarget = (answer.RDATA as DnsSRVRecord).Target;
-
-                                foreach (DnsResourceRecord additionalRecord in response.Additional)
+                            case DnsResourceRecordType.SRV:
+                                if (response.Authority.Count == 0)
                                 {
-                                    if (srvTarget.Equals(additionalRecord.Name, StringComparison.OrdinalIgnoreCase))
-                                        AddGlueRecordTo(answer, additionalRecord);
-                                }
+                                    //add glue from additional section
+                                    string srvTarget = (answer.RDATA as DnsSRVRecord).Target;
 
+                                    foreach (DnsResourceRecord additional in response.Additional)
+                                    {
+                                        if (srvTarget.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                            AddGlueRecordTo(answer, additional);
+                                    }
+                                }
                                 break;
                         }
                     }
@@ -442,30 +432,60 @@ namespace TechnitiumLibrary.Net.Dns
             //get cachable authority records
             if (response.Authority.Count > 0)
             {
-                DnsResourceRecord authority = response.Authority[0];
-                if (authority.Type == DnsResourceRecordType.SOA)
-                {
+                foreach (DnsResourceRecord authority in response.Authority)
                     authority.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
+                DnsResourceRecord firstAuthority = response.Authority[0];
+                if (firstAuthority.Type == DnsResourceRecordType.SOA)
+                {
                     if (response.Answer.Count == 0)
                     {
                         //empty response with authority
                         foreach (DnsQuestionRecord question in response.Question)
                         {
-                            if (question.Name.Equals(authority.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authority.Name, StringComparison.OrdinalIgnoreCase) || (authority.Name.Length == 0))
+                            DnsResourceRecord record = null;
+
+                            switch (response.RCODE)
+                            {
+                                case DnsResponseCode.NxDomain:
+                                    record = new DnsResourceRecord(question.Name, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(response.Authority));
+                                    firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
+                                    break;
+
+                                case DnsResponseCode.NoError:
+                                    record = new DnsResourceRecord(question.Name, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(response.Authority));
+                                    firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
+                                    break;
+                            }
+
+                            if (record != null)
+                            {
+                                record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
+
+                                InternalCacheRecords(new DnsResourceRecord[] { record });
+                            }
+                        }
+                    }
+                    else
+                    {
+                        //answer response with authority
+                        DnsResourceRecord lastAnswer = response.Answer[response.Answer.Count - 1];
+                        if (lastAnswer.Type == DnsResourceRecordType.CNAME)
+                        {
+                            foreach (DnsQuestionRecord question in response.Question)
                             {
                                 DnsResourceRecord record = null;
 
                                 switch (response.RCODE)
                                 {
                                     case DnsResponseCode.NxDomain:
-                                        record = new DnsResourceRecord(question.Name, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(authority));
-                                        authority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
+                                        record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(response.Authority));
+                                        firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                         break;
 
                                     case DnsResponseCode.NoError:
-                                        record = new DnsResourceRecord(question.Name, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(authority));
-                                        authority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
+                                        record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(response.Authority));
+                                        firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                         break;
                                 }
 
@@ -478,53 +498,16 @@ namespace TechnitiumLibrary.Net.Dns
                             }
                         }
                     }
-                    else
-                    {
-                        //answer response with authority
-                        DnsResourceRecord lastAnswer = response.Answer[response.Answer.Count - 1];
-                        if (lastAnswer.Type == DnsResourceRecordType.CNAME)
-                        {
-                            foreach (DnsQuestionRecord question in response.Question)
-                            {
-                                if (question.Name.Equals(authority.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authority.Name, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    DnsResourceRecord record = null;
-
-                                    switch (response.RCODE)
-                                    {
-                                        case DnsResponseCode.NxDomain:
-                                            record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(authority));
-                                            authority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
-                                            break;
-
-                                        case DnsResponseCode.NoError:
-                                            record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (authority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(authority));
-                                            authority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
-                                            break;
-                                    }
-
-                                    if (record != null)
-                                    {
-                                        record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
-
-                                        InternalCacheRecords(new DnsResourceRecord[] { record });
-                                    }
-
-                                    break;
-                                }
-                            }
-                        }
-                    }
                 }
-                else if (authority.Type == DnsResourceRecordType.NS)
+                else if (firstAuthority.Type == DnsResourceRecordType.NS)
                 {
                     if (response.Answer.Count == 0)
                     {
                         foreach (DnsQuestionRecord question in response.Question)
                         {
-                            foreach (DnsResourceRecord authorityRecord in response.Authority)
+                            foreach (DnsResourceRecord authority in response.Authority)
                             {
-                                if ((authorityRecord.Type == DnsResourceRecordType.NS) && (authorityRecord.RDATA as DnsNSRecord).NameServer.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
+                                if ((authority.Type == DnsResourceRecordType.NS) && (authority.RDATA as DnsNSRecord).NameServer.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
                                 {
                                     //empty response from authority name server that was queried
                                     DnsResourceRecord record = null;
@@ -532,11 +515,13 @@ namespace TechnitiumLibrary.Net.Dns
                                     switch (response.RCODE)
                                     {
                                         case DnsResponseCode.NxDomain:
-                                            record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsNXRecord(authority));
+                                            record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsNXRecord(response.Authority));
+                                            firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                             break;
 
                                         case DnsResponseCode.NoError:
-                                            record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsEmptyRecord(authority));
+                                            record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsEmptyRecord(response.Authority));
+                                            firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                             break;
                                     }
 
@@ -554,40 +539,41 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     //cache and glue suitable NS records
-                    if ((response.Question[0].Type != DnsResourceRecordType.NS) || (response.Answer.Count == 0))
+                    foreach (DnsQuestionRecord question in response.Question)
                     {
-                        foreach (DnsQuestionRecord question in response.Question)
+                        if ((question.Type == DnsResourceRecordType.NS) && (response.Answer.Count > 0))
+                            continue; //prevent overwriting NS records in answer section
+
+                        foreach (DnsResourceRecord authority in response.Authority)
                         {
-                            foreach (DnsResourceRecord authorityRecord in response.Authority)
+                            if (authority.Type != DnsResourceRecordType.NS)
+                                continue;
+
+                            cachableRecords.Add(authority);
+
+                            //add glue from additional section
+                            string nsDomain = (authority.RDATA as DnsNSRecord).NameServer;
+
+                            foreach (DnsResourceRecord additional in response.Additional)
                             {
-                                if ((authorityRecord.Type == DnsResourceRecordType.NS) && (question.Name.Equals(authorityRecord.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authorityRecord.Name, StringComparison.OrdinalIgnoreCase)))
+                                if (nsDomain.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
                                 {
-                                    cachableRecords.Add(authorityRecord);
-
-                                    string nsDomain = (authorityRecord.RDATA as DnsNSRecord).NameServer;
-
-                                    foreach (DnsResourceRecord additionalRecord in response.Additional)
+                                    switch (additional.Type)
                                     {
-                                        if (nsDomain.Equals(additionalRecord.Name, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            switch (additionalRecord.Type)
-                                            {
-                                                case DnsResourceRecordType.A:
-                                                    if (IPAddress.IsLoopback((additionalRecord.RDATA as DnsARecord).Address))
-                                                        continue;
+                                        case DnsResourceRecordType.A:
+                                            if (IPAddress.IsLoopback((additional.RDATA as DnsARecord).Address))
+                                                continue;
 
-                                                    break;
+                                            break;
 
-                                                case DnsResourceRecordType.AAAA:
-                                                    if (IPAddress.IsLoopback((additionalRecord.RDATA as DnsAAAARecord).Address))
-                                                        continue;
+                                        case DnsResourceRecordType.AAAA:
+                                            if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecord).Address))
+                                                continue;
 
-                                                    break;
-                                            }
-
-                                            AddGlueRecordTo(authorityRecord, additionalRecord);
-                                        }
+                                            break;
                                     }
+
+                                    AddGlueRecordTo(authority, additional);
                                 }
                             }
                         }
@@ -696,13 +682,13 @@ namespace TechnitiumLibrary.Net.Dns
         {
             #region variables
 
-            readonly DnsResourceRecord _authority;
+            readonly IReadOnlyList<DnsResourceRecord> _authority;
 
             #endregion
 
             #region constructor
 
-            public DnsNXRecord(DnsResourceRecord authority)
+            public DnsNXRecord(IReadOnlyList<DnsResourceRecord> authority)
             {
                 _authority = authority;
             }
@@ -743,14 +729,27 @@ namespace TechnitiumLibrary.Net.Dns
 
             public override string ToString()
             {
-                return _authority?.ToString();
+                if ((_authority is null) || (_authority.Count < 1))
+                    return string.Empty;
+
+                string value = null;
+
+                foreach (DnsResourceRecord record in _authority)
+                {
+                    if (value is null)
+                        value = record.ToString();
+                    else
+                        value += ", " + record.ToString();
+                }
+
+                return value;
             }
 
             #endregion
 
             #region properties
 
-            public DnsResourceRecord Authority
+            public IReadOnlyList<DnsResourceRecord> Authority
             { get { return _authority; } }
 
             #endregion
@@ -760,13 +759,13 @@ namespace TechnitiumLibrary.Net.Dns
         {
             #region variables
 
-            readonly DnsResourceRecord _authority;
+            readonly IReadOnlyList<DnsResourceRecord> _authority;
 
             #endregion
 
             #region constructor
 
-            public DnsEmptyRecord(DnsResourceRecord authority)
+            public DnsEmptyRecord(IReadOnlyList<DnsResourceRecord> authority)
             {
                 _authority = authority;
             }
@@ -807,14 +806,27 @@ namespace TechnitiumLibrary.Net.Dns
 
             public override string ToString()
             {
-                return _authority?.ToString();
+                if ((_authority is null) || (_authority.Count < 1))
+                    return string.Empty;
+
+                string value = null;
+
+                foreach (DnsResourceRecord record in _authority)
+                {
+                    if (value is null)
+                        value = record.ToString();
+                    else
+                        value += ", " + record.ToString();
+                }
+
+                return value;
             }
 
             #endregion
 
             #region properties
 
-            public DnsResourceRecord Authority
+            public IReadOnlyList<DnsResourceRecord> Authority
             { get { return _authority; } }
 
             #endregion
