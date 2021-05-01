@@ -27,6 +27,7 @@ namespace TechnitiumLibrary.Net.Dns
 {
     public enum DnsResourceRecordType : ushort
     {
+        Unknown = 0,
         A = 1,
         NS = 2,
         MD = 3,
