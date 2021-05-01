@@ -785,6 +785,32 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
                                 else
                                 {
+                                    //empty response: no answer, no authority
+                                    if (question.ZoneCut != null)
+                                    {
+                                        if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA))
+                                            {
+                                                //record does not exists
+                                            }
+                                            else
+                                            {
+                                                //disable QNAME minimization and query again to current server to get correct type response
+                                                question.ZoneCut = null;
+                                                i--;
+                                                continue;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            //use minimized name as zone cut and query again to current server to move to next label
+                                            question.ZoneCut = question.MinimizedName;
+                                            i--;
+                                            continue;
+                                        }
+                                    }
+
                                     if ((i + 1) == nameServers.Count)
                                     {
                                         if (resolverStack.Count == 0)
