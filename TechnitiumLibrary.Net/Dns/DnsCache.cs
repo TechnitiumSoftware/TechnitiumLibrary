@@ -102,7 +102,7 @@ namespace TechnitiumLibrary.Net.Dns
         protected static IReadOnlyList<DnsResourceRecord> GetGlueRecordsFrom(DnsResourceRecord record)
         {
             List<DnsResourceRecord> glueRecords = record.Tag as List<DnsResourceRecord>;
-            if (glueRecords == null)
+            if (glueRecords is null)
                 return Array.Empty<DnsResourceRecord>();
 
             return glueRecords;
@@ -115,7 +115,7 @@ namespace TechnitiumLibrary.Net.Dns
         private static void AddGlueRecordTo(DnsResourceRecord record, DnsResourceRecord glueRecord)
         {
             List<DnsResourceRecord> glueRecords = record.Tag as List<DnsResourceRecord>;
-            if (glueRecords == null)
+            if (glueRecords is null)
             {
                 glueRecords = new List<DnsResourceRecord>();
                 record.Tag = glueRecords;
@@ -162,7 +162,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 domain = GetParentZone(domain);
             }
-            while (domain != null);
+            while (domain is not null);
 
             return null;
         }
@@ -200,21 +200,21 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     case DnsResourceRecordType.NS:
                         DnsNSRecord nsRecord = refRecord.RDATA as DnsNSRecord;
-                        if (nsRecord != null)
+                        if (nsRecord is not null)
                             ResolveAdditionalRecords(refRecord, nsRecord.NameServer, additionalRecords);
 
                         break;
 
                     case DnsResourceRecordType.MX:
                         DnsMXRecord mxRecord = refRecord.RDATA as DnsMXRecord;
-                        if (mxRecord != null)
+                        if (mxRecord is not null)
                             ResolveAdditionalRecords(refRecord, mxRecord.Exchange, additionalRecords);
 
                         break;
 
                     case DnsResourceRecordType.SRV:
                         DnsSRVRecord srvRecord = refRecord.RDATA as DnsSRVRecord;
-                        if (srvRecord != null)
+                        if (srvRecord is not null)
                             ResolveAdditionalRecords(refRecord, srvRecord.Target, additionalRecords);
 
                         break;
@@ -309,7 +309,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             IReadOnlyList<DnsResourceRecord> closestAuthority = GetClosestNameServers(question.Name);
-            if (closestAuthority != null)
+            if (closestAuthority is not null)
             {
                 IReadOnlyList<DnsResourceRecord> additionalRecords = GetAdditionalRecords(closestAuthority);
 
@@ -449,16 +449,14 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 case DnsResponseCode.NxDomain:
                                     record = new DnsResourceRecord(question.Name, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(response.Authority));
-                                    firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                     break;
 
                                 case DnsResponseCode.NoError:
                                     record = new DnsResourceRecord(question.Name, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(response.Authority));
-                                    firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                     break;
                             }
 
-                            if (record != null)
+                            if (record is not null)
                             {
                                 record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
@@ -480,16 +478,14 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     case DnsResponseCode.NxDomain:
                                         record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(response.Authority));
-                                        firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                         break;
 
                                     case DnsResponseCode.NoError:
                                         record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(response.Authority));
-                                        firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                         break;
                                 }
 
-                                if (record != null)
+                                if (record is not null)
                                 {
                                     record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
@@ -516,16 +512,14 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         case DnsResponseCode.NxDomain:
                                             record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsNXRecord(response.Authority));
-                                            firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                             break;
 
                                         case DnsResponseCode.NoError:
                                             record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsEmptyRecord(response.Authority));
-                                            firstAuthority.Tag = record; //keeping reference for serve stale purposes to allow calling parent's ResetExpiry()
                                             break;
                                     }
 
-                                    if (record != null)
+                                    if (record is not null)
                                     {
                                         record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
@@ -601,7 +595,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 break;
                         }
 
-                        if (record != null)
+                        if (record is not null)
                         {
                             record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
 
@@ -716,7 +710,7 @@ namespace TechnitiumLibrary.Net.Dns
                     return true;
 
                 DnsNXRecord other = obj as DnsNXRecord;
-                if (other == null)
+                if (other is null)
                     return false;
 
                 return _authority.Equals(other._authority);
@@ -793,7 +787,7 @@ namespace TechnitiumLibrary.Net.Dns
                     return true;
 
                 DnsEmptyRecord other = obj as DnsEmptyRecord;
-                if (other == null)
+                if (other is null)
                     return false;
 
                 return _authority.Equals(other._authority);
@@ -870,7 +864,7 @@ namespace TechnitiumLibrary.Net.Dns
                     return true;
 
                 DnsFailureRecord other = obj as DnsFailureRecord;
-                if (other == null)
+                if (other is null)
                     return false;
 
                 return this._rcode == other._rcode;
@@ -1035,13 +1029,13 @@ namespace TechnitiumLibrary.Net.Dns
                             if (record.IsStale)
                                 continue; //record expired, skip it
 
-                            if (newRecords == null)
+                            if (newRecords is null)
                                 newRecords = new List<DnsResourceRecord>(entry.Value.Count);
 
                             newRecords.Add(record);
                         }
 
-                        if (newRecords == null)
+                        if (newRecords is null)
                         {
                             //all records expired; remove entry
                             _entries.TryRemove(entry.Key, out _);
