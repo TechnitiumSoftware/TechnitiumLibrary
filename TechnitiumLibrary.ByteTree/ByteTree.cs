@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -64,13 +64,13 @@ namespace TechnitiumLibrary.ByteTree
 
         protected bool TryRemove(TKey key, out TValue value, out Node closestNode)
         {
-            if (key == null)
+            if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
 
             NodeValue removedValue = _root.RemoveNodeValue(bKey, out closestNode);
-            if (removedValue == null)
+            if (removedValue is null)
             {
                 value = default;
                 return false;
@@ -94,7 +94,7 @@ namespace TechnitiumLibrary.ByteTree
 
         public void Add(TKey key, TValue value)
         {
-            if (key == null)
+            if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
@@ -105,7 +105,7 @@ namespace TechnitiumLibrary.ByteTree
 
         public bool TryAdd(TKey key, TValue value)
         {
-            if (key == null)
+            if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
@@ -115,7 +115,7 @@ namespace TechnitiumLibrary.ByteTree
 
         public TValue AddOrUpdate(TKey key, Func<TKey, TValue> addValueFactory, Func<TKey, TValue, TValue> updateValueFactory)
         {
-            if (key == null)
+            if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
@@ -135,23 +135,23 @@ namespace TechnitiumLibrary.ByteTree
 
         public bool ContainsKey(TKey key)
         {
-            if (key == null)
+            if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
 
-            return _root.FindNodeValue(bKey, out _) != null;
+            return _root.FindNodeValue(bKey, out _) is not null;
         }
 
         public bool TryGet(TKey key, out TValue value)
         {
-            if (key == null)
+            if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
 
             NodeValue nodeValue = _root.FindNodeValue(bKey, out _);
-            if (nodeValue == null)
+            if (nodeValue is null)
             {
                 value = default;
                 return false;
@@ -163,7 +163,7 @@ namespace TechnitiumLibrary.ByteTree
 
         public TValue GetOrAdd(TKey key, Func<TKey, TValue> valueFactory)
         {
-            if (key == null)
+            if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
@@ -186,13 +186,13 @@ namespace TechnitiumLibrary.ByteTree
 
         public bool TryUpdate(TKey key, TValue newValue, TValue comparisonValue)
         {
-            if (key == null)
+            if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
 
             NodeValue nodeValue = _root.FindNodeValue(bKey, out _);
-            if (nodeValue == null)
+            if (nodeValue is null)
                 return false;
 
             return nodeValue.TryUpdateValue(newValue, comparisonValue);
@@ -219,13 +219,13 @@ namespace TechnitiumLibrary.ByteTree
         {
             get
             {
-                if (key == null)
+                if (key is null)
                     throw new ArgumentNullException(nameof(key));
 
                 byte[] bKey = ConvertToByteKey(key);
 
                 NodeValue nodeValue = _root.FindNodeValue(bKey, out _);
-                if (nodeValue == null)
+                if (nodeValue is null)
                     throw new KeyNotFoundException();
 
                 return nodeValue.Value;
@@ -255,7 +255,7 @@ namespace TechnitiumLibrary.ByteTree
 
             public Node(Node parent, byte k, int keySpace, NodeValue value)
             {
-                if (parent == null)
+                if (parent is null)
                 {
                     _depth = 0;
                     _k = 0;
@@ -272,7 +272,7 @@ namespace TechnitiumLibrary.ByteTree
 
                 _value = value;
 
-                if ((_children == null) && (_value == null))
+                if ((_children is null) && (_value is null))
                     throw new InvalidOperationException();
             }
 
@@ -306,12 +306,12 @@ namespace TechnitiumLibrary.ByteTree
                 {
                     while (current._depth < key.Length) //find loop
                     {
-                        if (current._children == null)
+                        if (current._children is null)
                             break;
 
                         byte k = key[current._depth];
                         Node child = Volatile.Read(ref current._children[k]);
-                        if (child == null)
+                        if (child is null)
                         {
                             //try set new leaf node with add value in this empty spot
                             Node addNewNode = new Node(current, k, 0, newValue());
@@ -334,7 +334,7 @@ namespace TechnitiumLibrary.ByteTree
                     //either current is leaf or key belongs to current
                     NodeValue value = current._value;
 
-                    if ((value != null) && KeyEquals(current._depth, value.Key, key))
+                    if ((value is not null) && KeyEquals(current._depth, value.Key, key))
                     {
                         //value found; cannot add
                         addedValue = null;
@@ -344,7 +344,7 @@ namespace TechnitiumLibrary.ByteTree
                     else
                     {
                         //value key does not match
-                        if (current._children == null)
+                        if (current._children is null)
                         {
                             //current node is a leaf (has no children); convert it into stem node
                             Node stemNode;
@@ -402,7 +402,7 @@ namespace TechnitiumLibrary.ByteTree
                                 return true;
                             }
 
-                            if (originalValue != null)
+                            if (originalValue is not null)
                             {
                                 //another thread added value to stem node; return its reference
                                 addedValue = null;
@@ -423,11 +423,11 @@ namespace TechnitiumLibrary.ByteTree
 
                 while (closestNode._depth < key.Length) //find loop
                 {
-                    if (closestNode._children == null)
+                    if (closestNode._children is null)
                         break;
 
                     Node child = Volatile.Read(ref closestNode._children[key[closestNode._depth]]);
-                    if (child == null)
+                    if (child is null)
                         return null; //value not found
 
                     closestNode = child;
@@ -436,7 +436,7 @@ namespace TechnitiumLibrary.ByteTree
                 //either closestNode is leaf or key belongs to closestNode
                 NodeValue value = closestNode._value;
 
-                if ((value != null) && KeyEquals(closestNode._depth, value.Key, key))
+                if ((value is not null) && KeyEquals(closestNode._depth, value.Key, key))
                     return value; //value found
 
                 return null; //value key does not match
@@ -450,11 +450,11 @@ namespace TechnitiumLibrary.ByteTree
                 {
                     while (closestNode._depth < key.Length) //find loop
                     {
-                        if (closestNode._children == null)
+                        if (closestNode._children is null)
                             break;
 
                         Node child = Volatile.Read(ref closestNode._children[key[closestNode._depth]]);
-                        if (child == null)
+                        if (child is null)
                             return null; //value not found
 
                         closestNode = child;
@@ -463,10 +463,10 @@ namespace TechnitiumLibrary.ByteTree
                     //either closestNode is leaf or key belongs to closestNode
                     NodeValue value = closestNode._value;
 
-                    if ((value != null) && KeyEquals(closestNode._depth, value.Key, key))
+                    if ((value is not null) && KeyEquals(closestNode._depth, value.Key, key))
                     {
                         //value found; remove and return value
-                        if (closestNode._children == null)
+                        if (closestNode._children is null)
                         {
                             //remove leaf node directly from parent
                             Node originalNode = Interlocked.CompareExchange(ref closestNode._parent._children[closestNode._k], null, closestNode);
@@ -508,9 +508,9 @@ namespace TechnitiumLibrary.ByteTree
             {
                 Node current = this;
 
-                while (current._parent != null)
+                while (current._parent is not null)
                 {
-                    if (current._children == null)
+                    if (current._children is null)
                     {
                         //current node is leaf
                         //leaf node already was removed so move up to parent
@@ -535,7 +535,7 @@ namespace TechnitiumLibrary.ByteTree
                 //remove value
                 _value = null;
 
-                if (_children != null)
+                if (_children is not null)
                 {
                     //remove all children
                     for (int i = 0; i < _children.Length; i++)
@@ -548,9 +548,9 @@ namespace TechnitiumLibrary.ByteTree
                 int k = 0;
                 Node current = this;
 
-                while ((current != null) && (current._depth >= baseDepth))
+                while ((current is not null) && (current._depth >= baseDepth))
                 {
-                    if (current._children != null)
+                    if (current._children is not null)
                     {
                         //find child node
                         Node child = null;
@@ -558,17 +558,17 @@ namespace TechnitiumLibrary.ByteTree
                         for (int i = k; i < current._children.Length; i++)
                         {
                             child = Volatile.Read(ref current._children[i]);
-                            if (child != null)
+                            if (child is not null)
                             {
-                                if (child._value != null)
+                                if (child._value is not null)
                                     return child; //child has value so return it
 
-                                if (child._children != null)
+                                if (child._children is not null)
                                     break;
                             }
                         }
 
-                        if (child != null)
+                        if (child is not null)
                         {
                             //make found child as current
                             k = 0;
@@ -608,14 +608,14 @@ namespace TechnitiumLibrary.ByteTree
             {
                 get
                 {
-                    if (_value != null)
+                    if (_value is not null)
                         return false;
 
-                    if (_children != null)
+                    if (_children is not null)
                     {
                         for (int i = 0; i < _children.Length; i++)
                         {
-                            if (Volatile.Read(ref _children[i]) != null)
+                            if (Volatile.Read(ref _children[i]) is not null)
                                 return false;
                         }
                     }
@@ -628,12 +628,12 @@ namespace TechnitiumLibrary.ByteTree
             {
                 get
                 {
-                    if (_children == null)
+                    if (_children is null)
                         return false;
 
                     for (int i = 0; i < _children.Length; i++)
                     {
-                        if (Volatile.Read(ref _children[i]) != null)
+                        if (Volatile.Read(ref _children[i]) is not null)
                             return true;
                     }
 
@@ -724,7 +724,7 @@ namespace TechnitiumLibrary.ByteTree
             {
                 get
                 {
-                    if (_value == null)
+                    if (_value is null)
                         return default;
 
                     return _value.Value;
@@ -735,7 +735,7 @@ namespace TechnitiumLibrary.ByteTree
             {
                 get
                 {
-                    if (_value == null)
+                    if (_value is null)
                         return default;
 
                     return _value.Value;
@@ -754,12 +754,12 @@ namespace TechnitiumLibrary.ByteTree
                 if (_finished)
                     return false;
 
-                if (_current == null)
+                if (_current is null)
                 {
                     _current = _root;
 
                     NodeValue value = _current.Value;
-                    if (value != null)
+                    if (value is not null)
                     {
                         _value = value;
                         return true;
@@ -769,7 +769,7 @@ namespace TechnitiumLibrary.ByteTree
                 do
                 {
                     _current = _current.GetNextNodeWithValue(_root.Depth);
-                    if (_current == null)
+                    if (_current is null)
                     {
                         _value = null;
                         _finished = true;
@@ -777,7 +777,7 @@ namespace TechnitiumLibrary.ByteTree
                     }
 
                     NodeValue value = _current.Value;
-                    if (value != null)
+                    if (value is not null)
                     {
                         _value = value;
                         return true;
