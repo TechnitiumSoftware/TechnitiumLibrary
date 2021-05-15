@@ -41,8 +41,7 @@ namespace TechnitiumLibrary.Net.Proxy
         readonly NetProxyBypassItemType _type;
 
         readonly IPAddress _ipAddress;
-        readonly IPAddress _networkAddress;
-        readonly int _networkMaskWidth;
+        readonly NetworkAddress _networkAddress;
         readonly string _domainName;
 
         #endregion
@@ -57,54 +56,34 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 _type = NetProxyBypassItemType.IpAddress;
             }
-            else if (value.Contains("/"))
+            else if (NetworkAddress.TryParse(value, out _networkAddress))
             {
-                string[] network = value.Split(new char[] { '/' }, 2);
-
-                if (IPAddress.TryParse(network[0], out _networkAddress) && int.TryParse(network[1], out _networkMaskWidth))
+                switch (_networkAddress.Address.AddressFamily)
                 {
-                    switch (_networkAddress.AddressFamily)
-                    {
-                        case AddressFamily.InterNetwork:
-                            if (_networkMaskWidth > 32)
-                                throw new NetProxyException("Invalid proxy bypass value: " + value);
+                    case AddressFamily.InterNetwork:
+                        if (_networkAddress.SubnetMaskWidth == 32)
+                        {
+                            _type = NetProxyBypassItemType.IpAddress;
+                            _ipAddress = _networkAddress.Address;
+                            _networkAddress = null;
+                            return;
+                        }
 
-                            if (_networkMaskWidth == 32)
-                            {
-                                _type = NetProxyBypassItemType.IpAddress;
-                                _ipAddress = _networkAddress;
-                            }
-                            else
-                            {
-                                _type = NetProxyBypassItemType.NetworkAddress;
-                            }
+                        break;
 
-                            break;
+                    case AddressFamily.InterNetworkV6:
+                        if (_networkAddress.SubnetMaskWidth == 128)
+                        {
+                            _type = NetProxyBypassItemType.IpAddress;
+                            _ipAddress = _networkAddress.Address;
+                            _networkAddress = null;
+                            return;
+                        }
 
-                        case AddressFamily.InterNetworkV6:
-                            if (_networkMaskWidth > 128)
-                                throw new NetProxyException("Invalid proxy bypass value: " + value);
-
-                            if (_networkMaskWidth == 128)
-                            {
-                                _type = NetProxyBypassItemType.IpAddress;
-                                _ipAddress = _networkAddress;
-                            }
-                            else
-                            {
-                                _type = NetProxyBypassItemType.NetworkAddress;
-                            }
-
-                            break;
-
-                        default:
-                            throw new NotSupportedException("Address family not supported.");
-                    }
+                        break;
                 }
-                else
-                {
-                    throw new NetProxyException("Invalid proxy bypass value: " + value);
-                }
+
+                _type = NetProxyBypassItemType.NetworkAddress;
             }
             else if (DnsClient.IsDomainNameValid(value))
             {
@@ -126,21 +105,21 @@ namespace TechnitiumLibrary.Net.Proxy
             switch (_type)
             {
                 case NetProxyBypassItemType.IpAddress:
-                    if (ep is IPEndPoint)
-                        return _ipAddress.Equals((ep as IPEndPoint).Address);
+                    if (ep is IPEndPoint ipep1)
+                        return _ipAddress.Equals(ipep1.Address);
 
                     return false;
 
                 case NetProxyBypassItemType.NetworkAddress:
-                    if (ep is IPEndPoint)
-                        return _networkAddress.Equals((ep as IPEndPoint).Address.GetNetworkAddress(_networkMaskWidth));
+                    if (ep is IPEndPoint ipep2)
+                        return _networkAddress.Contains(ipep2.Address);
 
                     return false;
 
                 case NetProxyBypassItemType.DomainName:
-                    if (ep is DomainEndPoint)
+                    if (ep is DomainEndPoint dep)
                     {
-                        string matchDomainName = (ep as DomainEndPoint).Address;
+                        string matchDomainName = dep.Address;
 
                         if (_domainName.Length == matchDomainName.Length)
                             return _domainName.Equals(matchDomainName, StringComparison.OrdinalIgnoreCase);
