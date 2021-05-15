@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -68,7 +68,7 @@ namespace TechnitiumLibrary.Net.Http
 
                 while (crlfCount != 4)
                 {
-                    length = await stream.ReadAsync(buffer, 0, buffer.Length);
+                    length = await stream.ReadAsync(buffer);
                     if (length < 1)
                     {
                         if (firstRead)

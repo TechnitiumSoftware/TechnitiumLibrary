@@ -154,7 +154,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 stopwatch.Stop();
                 httpResponse.EnsureSuccessStatusCode();
 
-                byte[] responseBuffer = await httpResponse.Content.ReadAsByteArrayAsync();
+                byte[] responseBuffer = await httpResponse.Content.ReadAsByteArrayAsync(cancellationToken);
 
                 //parse response
                 using (MemoryStream mS = new MemoryStream(responseBuffer, false))

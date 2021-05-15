@@ -103,17 +103,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsSRVRecord other = obj as DnsSRVRecord;
-            if (other == null)
-                return false;
+            if (obj is DnsSRVRecord other)
+            {
+                if (_port != other._port)
+                    return false;
 
-            if (_port != other._port)
-                return false;
+                if (!_target.Equals(other._target, StringComparison.OrdinalIgnoreCase))
+                    return false;
 
-            if (!_target.Equals(other._target, StringComparison.OrdinalIgnoreCase))
-                return false;
+                return true;
+            }
 
-            return true;
+            return false;
         }
 
         public override int GetHashCode()

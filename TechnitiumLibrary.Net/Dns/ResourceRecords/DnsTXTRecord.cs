@@ -107,11 +107,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsTXTRecord other = obj as DnsTXTRecord;
-            if (other == null)
-                return false;
+            if (obj is DnsTXTRecord other)
+                return _text.Equals(other._text);
 
-            return this._text.Equals(other._text);
+            return false;
         }
 
         public override int GetHashCode()

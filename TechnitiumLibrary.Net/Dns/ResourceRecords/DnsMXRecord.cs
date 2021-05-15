@@ -98,11 +98,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsMXRecord other = obj as DnsMXRecord;
-            if (other == null)
-                return false;
-
-            return this._exchange.Equals(other._exchange, StringComparison.OrdinalIgnoreCase);
+            if (obj is DnsMXRecord other)
+                return _exchange.Equals(other._exchange, StringComparison.OrdinalIgnoreCase);
+            
+            return false;
         }
 
         public override int GetHashCode()

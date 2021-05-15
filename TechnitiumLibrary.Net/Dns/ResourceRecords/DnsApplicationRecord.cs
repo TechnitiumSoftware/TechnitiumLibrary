@@ -107,17 +107,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsApplicationRecord other = obj as DnsApplicationRecord;
-            if (other == null)
-                return false;
+            if (obj is DnsApplicationRecord other)
+            {
+                if (!_appName.Equals(other._appName))
+                    return false;
 
-            if (!_appName.Equals(other._appName))
-                return false;
+                if (!_classPath.Equals(other._classPath))
+                    return false;
 
-            if (!_classPath.Equals(other._classPath))
-                return false;
+                return _data.Equals(other._data);
+            }
 
-            return _data.Equals(other._data);
+            return false;
         }
 
         public override int GetHashCode()

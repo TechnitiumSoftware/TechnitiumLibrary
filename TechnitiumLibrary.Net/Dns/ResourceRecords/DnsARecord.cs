@@ -87,11 +87,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsARecord other = obj as DnsARecord;
-            if (other == null)
-                return false;
-
-            return this._address.Equals(other._address);
+            if (obj is DnsARecord other)
+                return _address.Equals(other._address);
+            
+            return false;
         }
 
         public override int GetHashCode()

@@ -105,20 +105,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsCAARecord other = obj as DnsCAARecord;
-            if (other == null)
-                return false;
+            if (obj is DnsCAARecord other)
+            {
+                if (_flags != other._flags)
+                    return false;
 
-            if (this._flags != other._flags)
-                return false;
+                if (_tag != other._tag)
+                    return false;
 
-            if (this._tag != other._tag)
-                return false;
+                if (_value != other._value)
+                    return false;
 
-            if (this._value != other._value)
-                return false;
+                return true;
+            }
 
-            return true;
+            return false;
         }
 
         public override int GetHashCode()

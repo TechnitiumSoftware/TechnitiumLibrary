@@ -138,32 +138,33 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsSOARecord other = obj as DnsSOARecord;
-            if (other == null)
-                return false;
+            if (obj is DnsSOARecord other)
+            {
+                if (!_primaryNameServer.Equals(other._primaryNameServer, StringComparison.OrdinalIgnoreCase))
+                    return false;
 
-            if (!this._primaryNameServer.Equals(other._primaryNameServer, StringComparison.OrdinalIgnoreCase))
-                return false;
+                if (!_responsiblePerson.Equals(other._responsiblePerson, StringComparison.OrdinalIgnoreCase))
+                    return false;
 
-            if (!this._responsiblePerson.Equals(other._responsiblePerson, StringComparison.OrdinalIgnoreCase))
-                return false;
+                if (_serial != other._serial)
+                    return false;
 
-            if (this._serial != other._serial)
-                return false;
+                if (_refresh != other._refresh)
+                    return false;
 
-            if (this._refresh != other._refresh)
-                return false;
+                if (_retry != other._retry)
+                    return false;
 
-            if (this._retry != other._retry)
-                return false;
+                if (_expire != other._expire)
+                    return false;
 
-            if (this._expire != other._expire)
-                return false;
+                if (_minimum != other._minimum)
+                    return false;
 
-            if (this._minimum != other._minimum)
-                return false;
+                return true;
+            }
 
-            return true;
+            return false;
         }
 
         public override int GetHashCode()

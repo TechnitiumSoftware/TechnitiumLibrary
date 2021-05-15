@@ -37,15 +37,15 @@ namespace TechnitiumLibrary.Net
             if (size < 1000)
                 return Math.Round(size, roundToDigits) + " B";
 
-            size = size / 1024;
+            size /= 1024;
             if (size < 1000)
                 return Math.Round(size, roundToDigits) + " KB";
 
-            size = size / 1024;
+            size /= 1024;
             if (size < 1000)
                 return Math.Round(size, roundToDigits) + " MB";
 
-            size = size / 1024;
+            size /= 1024;
             return Math.Round(size, roundToDigits) + " GB";
         }
 
@@ -53,20 +53,20 @@ namespace TechnitiumLibrary.Net
         {
             if (bitsPerSecond)
             {
-                bytesPerSecond = bytesPerSecond * 8;
+                bytesPerSecond *= 8;
 
                 if (bytesPerSecond < 1000)
                     return Math.Round(bytesPerSecond, roundToDigits) + " bps";
 
-                bytesPerSecond = bytesPerSecond / 1000;
+                bytesPerSecond /= 1000;
                 if (bytesPerSecond < 1000)
                     return Math.Round(bytesPerSecond, roundToDigits) + " kbps";
 
-                bytesPerSecond = bytesPerSecond / 1000;
+                bytesPerSecond /= 1000;
                 if (bytesPerSecond < 1000)
                     return Math.Round(bytesPerSecond, roundToDigits) + " mbps";
 
-                bytesPerSecond = bytesPerSecond / 1000;
+                bytesPerSecond /= 1000;
                 return Math.Round(bytesPerSecond, roundToDigits) + " gbps";
             }
             else
@@ -74,15 +74,15 @@ namespace TechnitiumLibrary.Net
                 if (bytesPerSecond < 1000)
                     return Math.Round(bytesPerSecond, roundToDigits) + " B/s";
 
-                bytesPerSecond = bytesPerSecond / 1024;
+                bytesPerSecond /= 1024;
                 if (bytesPerSecond < 1000)
                     return Math.Round(bytesPerSecond, roundToDigits) + " KB/s";
 
-                bytesPerSecond = bytesPerSecond / 1024;
+                bytesPerSecond /= 1024;
                 if (bytesPerSecond < 1000)
                     return Math.Round(bytesPerSecond, roundToDigits) + " MB/s";
 
-                bytesPerSecond = bytesPerSecond / 1024;
+                bytesPerSecond /= 1024;
                 return Math.Round(bytesPerSecond, roundToDigits) + " GB/s";
             }
         }
@@ -111,7 +111,7 @@ namespace TechnitiumLibrary.Net
                 sB.Append(" hour");
 
                 if (timeSpan.Hours > 1)
-                    sB.Append("s");
+                    sB.Append('s');
             }
 
             if (timeSpan.Minutes > 0)
@@ -123,7 +123,7 @@ namespace TechnitiumLibrary.Net
                 sB.Append(" min");
 
                 if (timeSpan.Minutes > 1)
-                    sB.Append("s");
+                    sB.Append('s');
             }
 
             if ((timeSpan.Seconds > 0) || (sB.Length < 1))

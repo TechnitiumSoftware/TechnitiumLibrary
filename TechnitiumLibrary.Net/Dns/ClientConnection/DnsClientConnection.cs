@@ -156,6 +156,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         public void Dispose()
         {
             Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         #endregion

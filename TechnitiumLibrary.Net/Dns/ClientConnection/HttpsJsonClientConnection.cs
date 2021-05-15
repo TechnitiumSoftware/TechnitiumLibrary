@@ -140,7 +140,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 stopwatch.Stop();
                 httpResponse.EnsureSuccessStatusCode();
 
-                string responseJson = await httpResponse.Content.ReadAsStringAsync();
+                string responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
 
                 //parse response
                 DnsDatagram response = DnsDatagram.ReadFromJson(JsonConvert.DeserializeObject(responseJson));

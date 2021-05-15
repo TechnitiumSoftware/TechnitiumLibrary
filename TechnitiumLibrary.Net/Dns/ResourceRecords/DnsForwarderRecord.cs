@@ -102,14 +102,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsForwarderRecord other = obj as DnsForwarderRecord;
-            if (other == null)
-                return false;
+            if (obj is DnsForwarderRecord other)
+            {
+                if (_protocol != other._protocol)
+                    return false;
 
-            if (_protocol != other._protocol)
-                return false;
+                return _forwarder.Equals(other._forwarder, StringComparison.OrdinalIgnoreCase);
+            }
 
-            return _forwarder.Equals(other._forwarder, StringComparison.OrdinalIgnoreCase);
+            return false;
         }
 
         public override int GetHashCode()

@@ -95,11 +95,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsHINFORecord other = obj as DnsHINFORecord;
-            if (other == null)
-                return false;
-
-            return _cpu.Equals(other._cpu) && _os.Equals(other._os);
+            if (obj is DnsHINFORecord other)
+                return _cpu.Equals(other._cpu) && _os.Equals(other._os);
+            
+            return false;
         }
 
         public override string ToString()
@@ -109,10 +108,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            int hashCode = -597155466;
-            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(_cpu);
-            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(_os);
-            return hashCode;
+            return HashCode.Combine(_cpu, _os);
         }
 
         #endregion

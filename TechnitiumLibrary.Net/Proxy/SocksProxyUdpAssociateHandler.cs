@@ -57,6 +57,7 @@ namespace TechnitiumLibrary.Net.Proxy
         public void Dispose()
         {
             Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         bool _disposed = false;

@@ -316,7 +316,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 finally
                 {
                     if (_transactions.TryRemove(request.Identifier, out Transaction transaction))
-                        transaction.ResponseTask.TrySetCanceled();
+                        transaction.ResponseTask.TrySetCanceled(CancellationToken.None);
                 }
             }
 

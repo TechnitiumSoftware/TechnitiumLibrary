@@ -203,20 +203,21 @@ namespace TechnitiumLibrary.Net.Dns
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsQuestionRecord other = obj as DnsQuestionRecord;
-            if (other == null)
-                return false;
+            if (obj is DnsQuestionRecord other)
+            {
+                if (!_name.Equals(other._name, StringComparison.OrdinalIgnoreCase))
+                    return false;
 
-            if (!_name.Equals(other._name, StringComparison.OrdinalIgnoreCase))
-                return false;
+                if (_type != other._type)
+                    return false;
 
-            if (_type != other._type)
-                return false;
+                if (_class != other._class)
+                    return false;
 
-            if (_class != other._class)
-                return false;
+                return true;
+            }
 
-            return true;
+            return false;
         }
 
         public override int GetHashCode()

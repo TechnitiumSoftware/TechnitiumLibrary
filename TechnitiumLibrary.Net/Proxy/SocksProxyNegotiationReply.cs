@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -73,7 +73,7 @@ namespace TechnitiumLibrary.Net.Proxy
             buffer[0] = _version;
             buffer[1] = (byte)_method;
 
-            await s.WriteAsync(buffer, 0, buffer.Length);
+            await s.WriteAsync(buffer);
         }
 
         #endregion

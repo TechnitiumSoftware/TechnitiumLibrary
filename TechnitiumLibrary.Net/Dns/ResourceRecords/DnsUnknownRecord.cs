@@ -77,20 +77,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsUnknownRecord other = obj as DnsUnknownRecord;
-            if (other == null)
-                return false;
-
-            if (this._data.Length != other._data.Length)
-                return false;
-
-            for (int i = 0; i < this._data.Length; i++)
+            if (obj is DnsUnknownRecord other)
             {
-                if (this._data[i] != other._data[i])
+                if (_data.Length != other._data.Length)
                     return false;
+
+                for (int i = 0; i < _data.Length; i++)
+                {
+                    if (_data[i] != other._data[i])
+                        return false;
+                }
+
+                return true;
             }
 
-            return true;
+            return false;
         }
 
         public override int GetHashCode()

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -626,33 +626,29 @@ namespace TechnitiumLibrary.Net.Dns
             if (ReferenceEquals(this, obj))
                 return true;
 
-            NameServerAddress other = obj as NameServerAddress;
-            if (other == null)
-                return false;
+            if (obj is NameServerAddress other)
+            {
+                if (!EqualityComparer<DnsTransportProtocol>.Default.Equals(_protocol, other._protocol))
+                    return false;
 
-            if (!EqualityComparer<DnsTransportProtocol>.Default.Equals(_protocol, other._protocol))
-                return false;
+                if (!EqualityComparer<Uri>.Default.Equals(_dohEndPoint, other._dohEndPoint))
+                    return false;
 
-            if (!EqualityComparer<Uri>.Default.Equals(_dohEndPoint, other._dohEndPoint))
-                return false;
+                if (!EqualityComparer<DomainEndPoint>.Default.Equals(_domainEndPoint, other._domainEndPoint))
+                    return false;
 
-            if (!EqualityComparer<DomainEndPoint>.Default.Equals(_domainEndPoint, other._domainEndPoint))
-                return false;
+                if (!EqualityComparer<IPEndPoint>.Default.Equals(_ipEndPoint, other._ipEndPoint))
+                    return false;
 
-            if (!EqualityComparer<IPEndPoint>.Default.Equals(_ipEndPoint, other._ipEndPoint))
-                return false;
+                return true;
+            }
 
-            return true;
+            return false;
         }
 
         public override int GetHashCode()
         {
-            var hashCode = 563096372;
-            hashCode = hashCode * -1521134295 + EqualityComparer<DnsTransportProtocol>.Default.GetHashCode(_protocol);
-            hashCode = hashCode * -1521134295 + EqualityComparer<Uri>.Default.GetHashCode(_dohEndPoint);
-            hashCode = hashCode * -1521134295 + EqualityComparer<DomainEndPoint>.Default.GetHashCode(_domainEndPoint);
-            hashCode = hashCode * -1521134295 + EqualityComparer<IPEndPoint>.Default.GetHashCode(_ipEndPoint);
-            return hashCode;
+            return HashCode.Combine(_protocol, _dohEndPoint, _domainEndPoint, _ipEndPoint);
         }
 
         #endregion

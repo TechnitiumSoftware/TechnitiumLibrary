@@ -87,11 +87,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DnsANAMERecord other = obj as DnsANAMERecord;
-            if (other == null)
-                return false;
-
-            return this._domain.Equals(other._domain, StringComparison.OrdinalIgnoreCase);
+            if (obj is DnsANAMERecord other)
+                return _domain.Equals(other._domain, StringComparison.OrdinalIgnoreCase);
+            
+            return false;
         }
 
         public override int GetHashCode()

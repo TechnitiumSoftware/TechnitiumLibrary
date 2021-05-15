@@ -101,11 +101,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected static IReadOnlyList<DnsResourceRecord> GetGlueRecordsFrom(DnsResourceRecord record)
         {
-            List<DnsResourceRecord> glueRecords = record.Tag as List<DnsResourceRecord>;
-            if (glueRecords is null)
-                return Array.Empty<DnsResourceRecord>();
+            if (record.Tag is List<DnsResourceRecord> glueRecords)
+                return glueRecords;
 
-            return glueRecords;
+            return Array.Empty<DnsResourceRecord>();
         }
 
         #endregion
@@ -114,8 +113,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static void AddGlueRecordTo(DnsResourceRecord record, DnsResourceRecord glueRecord)
         {
-            List<DnsResourceRecord> glueRecords = record.Tag as List<DnsResourceRecord>;
-            if (glueRecords is null)
+            if (record.Tag is not List<DnsResourceRecord> glueRecords)
             {
                 glueRecords = new List<DnsResourceRecord>();
                 record.Tag = glueRecords;
@@ -664,7 +662,7 @@ namespace TechnitiumLibrary.Net.Dns
             set
             {
                 if (value > SERVE_STALE_TTL_MAX)
-                    throw new ArgumentOutOfRangeException("Serve stale TTL cannot be higher than 7 days. Recommended value is between 1-3 days.");
+                    throw new ArgumentOutOfRangeException(nameof(ServeStaleTtl), "Serve stale TTL cannot be higher than 7 days. Recommended value is between 1-3 days.");
 
                 _serveStaleTtl = value;
             }
@@ -709,11 +707,10 @@ namespace TechnitiumLibrary.Net.Dns
                 if (ReferenceEquals(this, obj))
                     return true;
 
-                DnsNXRecord other = obj as DnsNXRecord;
-                if (other is null)
-                    return false;
+                if (obj is DnsNXRecord other)
+                    return _authority.Equals(other._authority);
 
-                return _authority.Equals(other._authority);
+                return false;
             }
 
             public override int GetHashCode()
@@ -786,11 +783,10 @@ namespace TechnitiumLibrary.Net.Dns
                 if (ReferenceEquals(this, obj))
                     return true;
 
-                DnsEmptyRecord other = obj as DnsEmptyRecord;
-                if (other is null)
-                    return false;
+                if (obj is DnsEmptyRecord other)
+                    return _authority.Equals(other._authority);
 
-                return _authority.Equals(other._authority);
+                return false;
             }
 
             public override int GetHashCode()
@@ -863,11 +859,10 @@ namespace TechnitiumLibrary.Net.Dns
                 if (ReferenceEquals(this, obj))
                     return true;
 
-                DnsFailureRecord other = obj as DnsFailureRecord;
-                if (other is null)
-                    return false;
+                if (obj is DnsFailureRecord other)
+                    return _rcode == other._rcode;
 
-                return this._rcode == other._rcode;
+                return false;
             }
 
             public override int GetHashCode()

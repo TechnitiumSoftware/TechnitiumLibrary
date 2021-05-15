@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -116,8 +116,7 @@ namespace TechnitiumLibrary.Net
                     return ep as IPEndPoint;
 
                 case AddressFamily.Unspecified:
-                    DomainEndPoint dep = ep as DomainEndPoint;
-                    if (dep == null)
+                    if (ep is not DomainEndPoint dep)
                         throw new NotSupportedException("AddressFamily not supported.");
 
                     IPAddress[] ipAddresses = await System.Net.Dns.GetHostAddressesAsync(dep.Address);

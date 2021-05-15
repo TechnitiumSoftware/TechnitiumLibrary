@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -39,12 +39,12 @@ namespace TechnitiumLibrary.Net
         public DomainEndPoint(string address, int port)
         {
             if (address == null)
-                throw new ArgumentNullException();
+                throw new ArgumentNullException(nameof(address));
 
             DnsClient.IsDomainNameValid(address, true);
 
             if (IPAddress.TryParse(address, out _))
-                throw new ArgumentException("Address must be a domain name: " + address);
+                throw new ArgumentException("Address must be a domain name: " + address, nameof(address));
 
             _address = address;
             _port = port;
@@ -73,17 +73,18 @@ namespace TechnitiumLibrary.Net
             if (ReferenceEquals(this, obj))
                 return true;
 
-            DomainEndPoint other = obj as DomainEndPoint;
-            if (other == null)
-                return false;
+            if (obj is DomainEndPoint other)
+            {
+                if (!_address.Equals(other._address, StringComparison.OrdinalIgnoreCase))
+                    return false;
 
-            if (!_address.Equals(other._address, StringComparison.OrdinalIgnoreCase))
-                return false;
+                if (_port != other._port)
+                    return false;
 
-            if (_port != other._port)
-                return false;
+                return true;
+            }
 
-            return true;
+            return false;
         }
 
         public override int GetHashCode()
