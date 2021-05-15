@@ -125,6 +125,9 @@ namespace TechnitiumLibrary.Net
 
         public bool Contains(IPAddress address)
         {
+            if (_address.AddressFamily != address.AddressFamily)
+                return false;
+
             return _address.Equals(address.GetNetworkAddress(_subnetMaskWidth));
         }
 
