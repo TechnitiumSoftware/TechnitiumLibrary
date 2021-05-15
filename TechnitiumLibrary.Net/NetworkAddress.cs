@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 
@@ -119,6 +120,14 @@ namespace TechnitiumLibrary.Net
             return true;
         }
 
+        public static NetworkAddress Parse(BinaryReader bR)
+        {
+            IPAddress address = IPAddressExtension.Parse(bR);
+            int subnetMaskWidth = bR.ReadByte();
+
+            return new NetworkAddress(address, subnetMaskWidth, false);
+        }
+
         #endregion
 
         #region public
@@ -129,6 +138,12 @@ namespace TechnitiumLibrary.Net
                 return false;
 
             return _address.Equals(address.GetNetworkAddress(_subnetMaskWidth));
+        }
+
+        public void WriteTo(BinaryWriter bW)
+        {
+            _address.WriteTo(bW);
+            bW.Write(Convert.ToByte(_subnetMaskWidth));
         }
 
         public bool Equals(NetworkAddress other)
