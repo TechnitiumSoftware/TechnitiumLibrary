@@ -61,7 +61,7 @@ namespace TechnitiumLibrary.Net
                 }
             }
 
-            _address = address;
+            _address = address.GetNetworkAddress(subnetMaskWidth);
             _subnetMaskWidth = subnetMaskWidth;
         }
 
