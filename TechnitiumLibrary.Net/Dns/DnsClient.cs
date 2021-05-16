@@ -42,7 +42,7 @@ namespace TechnitiumLibrary.Net.Dns
         HttpsJson = 4 //Google
     }
 
-    public class DnsClient
+    public class DnsClient : IDnsClient
     {
         #region variables
 
@@ -957,6 +957,18 @@ namespace TechnitiumLibrary.Net.Dns
             return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, qnameMinimization, retries, timeout, maxStackCount));
         }
 
+        public static async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(IDnsClient dnsClient, string domain, bool preferIPv6 = false)
+        {
+            if (preferIPv6)
+            {
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN)));
+                if (addresses.Count > 0)
+                    return addresses;
+            }
+
+            return ParseResponseA(await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN)));
+        }
+
         public static IReadOnlyList<IPAddress> ParseResponseA(DnsDatagram response)
         {
             string domain = response.Question[0].Name;
@@ -1855,12 +1867,12 @@ namespace TechnitiumLibrary.Net.Dns
                 return InternalCachedResolveQueryAsync(question);
         }
 
-        public async Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type)
+        public Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type)
         {
             if ((type == DnsResourceRecordType.PTR) && IPAddress.TryParse(domain, out IPAddress address))
-                return await ResolveAsync(new DnsQuestionRecord(address, DnsClass.IN));
+                return ResolveAsync(new DnsQuestionRecord(address, DnsClass.IN));
             else
-                return await ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN));
+                return ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN));
         }
 
         public async Task<IReadOnlyList<string>> ResolveMXAsync(string domain, bool resolveIP = false, bool preferIPv6 = false)
@@ -1941,16 +1953,9 @@ namespace TechnitiumLibrary.Net.Dns
             return ParseResponseTXT(await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.TXT, DnsClass.IN)));
         }
 
-        public async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(string domain, bool preferIPv6 = false)
+        public Task<IReadOnlyList<IPAddress>> ResolveIPAsync(string domain, bool preferIPv6 = false)
         {
-            if (preferIPv6)
-            {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN)));
-                if (addresses.Count > 0)
-                    return addresses;
-            }
-
-            return ParseResponseA(await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN)));
+            return ResolveIPAsync(this, domain, preferIPv6);
         }
 
         #endregion
