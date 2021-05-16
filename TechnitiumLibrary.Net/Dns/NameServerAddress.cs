@@ -448,7 +448,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public async Task ResolveIPAddressAsync(IReadOnlyList<NameServerAddress> nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000)
+        public async Task ResolveIPAddressAsync(IDnsClient dnsClient, bool preferIPv6 = false)
         {
             if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
                 return;
@@ -474,20 +474,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return;
             }
 
-            DnsClient dnsClient;
-
-            if (nameServers == null)
-                dnsClient = new DnsClient();
-            else
-                dnsClient = new DnsClient(nameServers);
-
-            dnsClient.Proxy = proxy;
-            dnsClient.PreferIPv6 = preferIPv6;
-            dnsClient.RandomizeName = randomizeName;
-            dnsClient.Retries = retries;
-            dnsClient.Timeout = timeout;
-
-            IReadOnlyList<IPAddress> serverIPs = await dnsClient.ResolveIPAsync(domain, preferIPv6);
+            IReadOnlyList<IPAddress> serverIPs = await DnsClient.ResolveIPAsync(dnsClient, domain, preferIPv6);
 
             if (serverIPs.Count == 0)
                 throw new DnsClientException("No IP address was found for name server: " + domain);
@@ -537,26 +524,13 @@ namespace TechnitiumLibrary.Net.Dns
             _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
         }
 
-        public async Task ResolveDomainNameAsync(IReadOnlyList<NameServerAddress> nameServers = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, int retries = 2, int timeout = 2000)
+        public async Task ResolveDomainNameAsync(IDnsClient dnsClient)
         {
             if (_ipEndPoint != null)
             {
-                DnsClient dnsClient;
-
-                if (nameServers == null)
-                    dnsClient = new DnsClient();
-                else
-                    dnsClient = new DnsClient(nameServers);
-
-                dnsClient.Proxy = proxy;
-                dnsClient.PreferIPv6 = preferIPv6;
-                dnsClient.RandomizeName = randomizeName;
-                dnsClient.Retries = retries;
-                dnsClient.Timeout = timeout;
-
                 try
                 {
-                    IReadOnlyList<string> ptrDomains = await dnsClient.ResolvePTRAsync(_ipEndPoint.Address);
+                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await dnsClient.ResolveAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN)));
                     if (ptrDomains != null)
                         _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
