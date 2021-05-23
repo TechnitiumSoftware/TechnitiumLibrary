@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.Net.Mail
         readonly static FieldInfo _localHostName = typeof(SmtpClient).GetField("_clientDomain", BindingFlags.Instance | BindingFlags.NonPublic);
         IDnsClient _dnsClient;
         NetProxy _proxy;
-        bool _enableSslWrapper;
+        bool _smtpOverTls;
         string _host;
         int _port;
         bool _ignoreCertificateErrors;
@@ -178,18 +178,32 @@ namespace TechnitiumLibrary.Net.Mail
             if (_disposed)
                 throw new ObjectDisposedException("SmtpClientEx");
 
+            if (message.To.Count == 0)
+                throw new ArgumentException("Message does not contain receipent email address.");
+
             if (DeliveryMethod == SmtpDeliveryMethod.Network)
             {
-                if (string.IsNullOrEmpty(_host))
-                {
-                    if (_dnsClient == null)
-                        _dnsClient = new DnsClient();
+                string host = _host;
 
-                    IReadOnlyList<string> mxServers = await Dns.DnsClient.ResolveMXAsync(_dnsClient, message.To[0].Host);
-                    if (mxServers.Count > 0)
-                        _host = mxServers[0];
+                if (string.IsNullOrEmpty(host))
+                {
+                    //resolve MX for the receipent domain using IDnsClient
+                    if (_dnsClient == null)
+                        _dnsClient = new DnsClient() { Proxy = _proxy };
+
+                    IReadOnlyList<string> mxAddresses = await Dns.DnsClient.ResolveMXAsync(_dnsClient, message.To[0].Host, true);
+                    if (mxAddresses.Count > 0)
+                    {
+                        host = mxAddresses[0];
+                    }
                     else
-                        _host = message.To[0].Host;
+                    {
+                        IReadOnlyList<IPAddress> addresses = await Dns.DnsClient.ResolveIPAsync(_dnsClient, message.To[0].Host);
+                        if (addresses.Count == 0)
+                            throw new SocketException((int)SocketError.HostNotFound);
+
+                        host = addresses[0].ToString();
+                    }
 
                     _port = 25;
                     Credentials = null;
@@ -197,9 +211,22 @@ namespace TechnitiumLibrary.Net.Mail
 
                 if (_proxy == null)
                 {
-                    if (_enableSslWrapper)
+                    if (!IPAddress.TryParse(host, out IPAddress hostIP))
                     {
-                        EndPoint remoteEP = EndPointExtension.GetEndPoint(_host, _port);
+                        //resolve host using IDnsClient
+                        if (_dnsClient == null)
+                            _dnsClient = new DnsClient() { Proxy = _proxy };
+
+                        IReadOnlyList<IPAddress> addresses = await Dns.DnsClient.ResolveIPAsync(_dnsClient, host);
+                        if (addresses.Count == 0)
+                            throw new SocketException((int)SocketError.HostNotFound);
+
+                        hostIP = addresses[0];
+                    }
+
+                    if (_smtpOverTls)
+                    {
+                        IPEndPoint remoteEP = new IPEndPoint(hostIP, _port);
 
                         if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
                         {
@@ -209,12 +236,10 @@ namespace TechnitiumLibrary.Net.Mail
 
                         if ((_tunnelProxy == null) || _tunnelProxy.IsBroken)
                         {
-                            IPEndPoint ep = await remoteEP.GetIPEndPointAsync();
+                            Socket socket = new Socket(remoteEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                            await socket.ConnectAsync(remoteEP);
 
-                            Socket socket = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                            await socket.ConnectAsync(ep);
-
-                            _tunnelProxy = new TunnelProxy(socket, remoteEP, _enableSslWrapper, _ignoreCertificateErrors);
+                            _tunnelProxy = new TunnelProxy(socket, remoteEP, _smtpOverTls, _ignoreCertificateErrors);
                         }
 
                         base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
@@ -222,7 +247,7 @@ namespace TechnitiumLibrary.Net.Mail
                     }
                     else
                     {
-                        base.Host = _host;
+                        base.Host = hostIP.ToString();
                         base.Port = _port;
                     }
 
@@ -230,7 +255,7 @@ namespace TechnitiumLibrary.Net.Mail
                 }
                 else
                 {
-                    EndPoint remoteEP = EndPointExtension.GetEndPoint(_host, _port);
+                    EndPoint remoteEP = EndPointExtension.GetEndPoint(host, _port);
 
                     if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
                     {
@@ -239,7 +264,7 @@ namespace TechnitiumLibrary.Net.Mail
                     }
 
                     if ((_tunnelProxy == null) || _tunnelProxy.IsBroken)
-                        _tunnelProxy = await _proxy.CreateTunnelProxyAsync(remoteEP, _enableSslWrapper, _ignoreCertificateErrors);
+                        _tunnelProxy = await _proxy.CreateTunnelProxyAsync(remoteEP, _smtpOverTls, _ignoreCertificateErrors);
 
                     base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
                     base.Port = _tunnelProxy.TunnelEndPoint.Port;
@@ -289,10 +314,10 @@ namespace TechnitiumLibrary.Net.Mail
             set { _proxy = value; }
         }
 
-        public bool EnableSslWrapper
+        public bool SmtpOverTls
         {
-            get { return _enableSslWrapper; }
-            set { _enableSslWrapper = value; }
+            get { return _smtpOverTls; }
+            set { _smtpOverTls = value; }
         }
 
         public new string Host
