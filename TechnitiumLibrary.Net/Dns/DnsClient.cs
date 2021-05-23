@@ -1025,12 +1025,8 @@ namespace TechnitiumLibrary.Net.Dns
                         foreach (IPAddress ip in ipList)
                             mxAddresses.Add(ip.ToString());
                     }
-                    catch (NameErrorDnsClientException)
-                    { }
                     catch (DnsClientException)
-                    {
-                        mxAddresses.Add(mxEntry);
-                    }
+                    { }
                 }
             }
 
