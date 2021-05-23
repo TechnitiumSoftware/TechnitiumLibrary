@@ -969,6 +969,74 @@ namespace TechnitiumLibrary.Net.Dns
             return ParseResponseA(await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN)));
         }
 
+        public static async Task<IReadOnlyList<string>> ResolveMXAsync(IDnsClient dnsClient, string domain, bool resolveIP = false, bool preferIPv6 = false)
+        {
+            if (IPAddress.TryParse(domain, out _))
+            {
+                //host is valid ip address
+                return new string[] { domain };
+            }
+
+            DnsDatagram response = await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.MX, DnsClass.IN));
+            IReadOnlyList<string> mxEntries = ParseResponseMX(response);
+
+            if (!resolveIP)
+                return mxEntries;
+
+            //resolve IP addresses
+            List<string> mxAddresses = new List<string>();
+
+            //check glue records
+            foreach (string mxEntry in mxEntries)
+            {
+                bool glueRecordFound = false;
+
+                foreach (DnsResourceRecord record in response.Additional)
+                {
+                    if (record.Name.Equals(mxEntry, StringComparison.OrdinalIgnoreCase))
+                    {
+                        switch (record.Type)
+                        {
+                            case DnsResourceRecordType.A:
+                                if (!preferIPv6)
+                                {
+                                    mxAddresses.Add(((DnsARecord)record.RDATA).Address.ToString());
+                                    glueRecordFound = true;
+                                }
+                                break;
+
+                            case DnsResourceRecordType.AAAA:
+                                if (preferIPv6)
+                                {
+                                    mxAddresses.Add(((DnsAAAARecord)record.RDATA).Address.ToString());
+                                    glueRecordFound = true;
+                                }
+                                break;
+                        }
+                    }
+                }
+
+                if (!glueRecordFound)
+                {
+                    try
+                    {
+                        IReadOnlyList<IPAddress> ipList = await ResolveIPAsync(dnsClient, mxEntry, preferIPv6);
+
+                        foreach (IPAddress ip in ipList)
+                            mxAddresses.Add(ip.ToString());
+                    }
+                    catch (NameErrorDnsClientException)
+                    { }
+                    catch (DnsClientException)
+                    {
+                        mxAddresses.Add(mxEntry);
+                    }
+                }
+            }
+
+            return mxAddresses;
+        }
+
         public static IReadOnlyList<IPAddress> ParseResponseA(DnsDatagram response)
         {
             string domain = response.Question[0].Name;
@@ -1875,72 +1943,9 @@ namespace TechnitiumLibrary.Net.Dns
                 return ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN));
         }
 
-        public async Task<IReadOnlyList<string>> ResolveMXAsync(string domain, bool resolveIP = false, bool preferIPv6 = false)
+        public Task<IReadOnlyList<string>> ResolveMXAsync(string domain, bool resolveIP = false, bool preferIPv6 = false)
         {
-            if (IPAddress.TryParse(domain, out _))
-            {
-                //host is valid ip address
-                return new string[] { domain };
-            }
-
-            DnsDatagram response = await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.MX, DnsClass.IN));
-            IReadOnlyList<string> mxEntries = ParseResponseMX(response);
-
-            if (!resolveIP)
-                return mxEntries;
-
-            //resolve IP addresses
-            List<string> mxAddresses = new List<string>();
-
-            //check glue records
-            foreach (string mxEntry in mxEntries)
-            {
-                bool glueRecordFound = false;
-
-                foreach (DnsResourceRecord record in response.Additional)
-                {
-                    if (record.Name.Equals(mxEntry, StringComparison.OrdinalIgnoreCase))
-                    {
-                        switch (record.Type)
-                        {
-                            case DnsResourceRecordType.A:
-                                if (!preferIPv6)
-                                {
-                                    mxAddresses.Add(((DnsARecord)record.RDATA).Address.ToString());
-                                    glueRecordFound = true;
-                                }
-                                break;
-
-                            case DnsResourceRecordType.AAAA:
-                                if (preferIPv6)
-                                {
-                                    mxAddresses.Add(((DnsAAAARecord)record.RDATA).Address.ToString());
-                                    glueRecordFound = true;
-                                }
-                                break;
-                        }
-                    }
-                }
-
-                if (!glueRecordFound)
-                {
-                    try
-                    {
-                        IReadOnlyList<IPAddress> ipList = await ResolveIPAsync(mxEntry, preferIPv6);
-
-                        foreach (IPAddress ip in ipList)
-                            mxAddresses.Add(ip.ToString());
-                    }
-                    catch (NameErrorDnsClientException)
-                    { }
-                    catch (DnsClientException)
-                    {
-                        mxAddresses.Add(mxEntry);
-                    }
-                }
-            }
-
-            return mxAddresses;
+            return ResolveMXAsync(this, domain, resolveIP, preferIPv6);
         }
 
         public async Task<IReadOnlyList<string>> ResolvePTRAsync(IPAddress ip)
