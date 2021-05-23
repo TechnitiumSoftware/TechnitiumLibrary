@@ -41,7 +41,7 @@ namespace TechnitiumLibrary.Net.Mail
         readonly static RemoteCertificateValidationCallback _existingServerCertificateValidationCallback;
 
         readonly static FieldInfo _localHostName = typeof(SmtpClient).GetField("_clientDomain", BindingFlags.Instance | BindingFlags.NonPublic);
-        DnsClient _dnsClient;
+        IDnsClient _dnsClient;
         NetProxy _proxy;
         bool _enableSslWrapper;
         string _host;
@@ -185,7 +185,7 @@ namespace TechnitiumLibrary.Net.Mail
                     if (_dnsClient == null)
                         _dnsClient = new DnsClient();
 
-                    IReadOnlyList<string> mxServers = await _dnsClient.ResolveMXAsync(message.To[0].Host);
+                    IReadOnlyList<string> mxServers = await Dns.DnsClient.ResolveMXAsync(_dnsClient, message.To[0].Host);
                     if (mxServers.Count > 0)
                         _host = mxServers[0];
                     else
@@ -277,7 +277,7 @@ namespace TechnitiumLibrary.Net.Mail
             }
         }
 
-        public DnsClient DnsClient
+        public IDnsClient DnsClient
         {
             get { return _dnsClient; }
             set { _dnsClient = value; }
