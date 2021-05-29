@@ -928,7 +928,10 @@ namespace TechnitiumLibrary.Net.Dns
                     if (resolverStack.Count == 0)
                     {
                         if (lastResponse is not null)
-                            return lastResponse; //return the last response that was received
+                        {
+                            if (lastResponse.Question[0].Equals(question))
+                                return lastResponse; //return the last response that was received
+                        }
 
                         string strNameServers = null;
 
@@ -1697,6 +1700,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     asyncRequest.SetRandomIdentifier();
 
+                    bool protocolWasSwitched = false;
                     try
                     {
                         bool switchProtocol;
@@ -1760,6 +1764,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 }
 
                                                 switchProtocol = true;
+                                                protocolWasSwitched = true;
                                             }
                                         }
                                         else
@@ -1802,6 +1807,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                 lastException = ex;
                                                 switchProtocol = true;
+                                                protocolWasSwitched = true;
                                             }
                                             else
                                             {
@@ -1829,6 +1835,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                         lastException = ex;
                                         switchProtocol = true;
+                                        protocolWasSwitched = true;
                                     }
                                     else
                                     {
@@ -1841,7 +1848,14 @@ namespace TechnitiumLibrary.Net.Dns
                     }
                     catch (Exception ex)
                     {
-                        lastException = ex;
+                        if (protocolWasSwitched && (lastException is DnsClientResponseValidationException) && (ex is SocketException))
+                        {
+                            //keep previous last exception to allow recursive resolver distinguish exception for qname minimization to work
+                        }
+                        else
+                        {
+                            lastException = ex;
+                        }
                     }
                 }
             }
