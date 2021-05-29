@@ -597,6 +597,37 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             response = await client.InternalResolveAsync(request, qnameMinimization);
                         }
+                        catch (DnsClientResponseValidationException ex)
+                        {
+                            if (question.ZoneCut is not null)
+                            {
+                                if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA))
+                                    {
+                                        //domain wont resolve
+                                    }
+                                    else
+                                    {
+                                        //disable QNAME minimization and query again to current server to get correct type response
+                                        question.ZoneCut = null;
+                                        i--;
+                                        continue;
+                                    }
+                                }
+                                else
+                                {
+                                    //use minimized name as zone cut and query again to current server to move to next label
+                                    question.ZoneCut = question.MinimizedName;
+                                    i--;
+                                    continue;
+                                }
+                            }
+
+                            //continue for loop to next name server since current name server may be misconfigured
+                            lastException = ex;
+                            continue; //try next name server
+                        }
                         catch (Exception ex)
                         {
                             lastException = ex;
@@ -1769,6 +1800,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                         question.NormalizeName();
                                                 }
 
+                                                lastException = ex;
                                                 switchProtocol = true;
                                             }
                                             else
@@ -1782,7 +1814,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             throw;
                                     }
                                 }
-                                catch (DnsClientResponseValidationException)
+                                catch (DnsClientResponseValidationException ex)
                                 {
                                     if (server.Protocol == DnsTransportProtocol.Udp)
                                     {
@@ -1795,6 +1827,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 question.NormalizeName();
                                         }
 
+                                        lastException = ex;
                                         switchProtocol = true;
                                     }
                                     else
