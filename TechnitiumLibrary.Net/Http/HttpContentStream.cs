@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -146,7 +146,7 @@ namespace TechnitiumLibrary.Net.Http
                     return bytesRead;
 
                 _offset = 0;
-                _length = bytesRemaining;
+                _length = bytesRead;
             }
         }
 
@@ -184,7 +184,7 @@ namespace TechnitiumLibrary.Net.Http
                     return bytesRead;
 
                 _offset = 0;
-                _length = bytesRemaining;
+                _length = bytesRead;
             }
         }
 
