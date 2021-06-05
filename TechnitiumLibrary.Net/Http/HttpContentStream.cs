@@ -130,11 +130,11 @@ namespace TechnitiumLibrary.Net.Http
                 if (_contentLength > -1)
                 {
                     bytesRemaining = _contentLength - _totalBytesRead;
-                    if (bytesRemaining > _buffer.Length)
-                        bytesRemaining = _buffer.Length;
-
                     if (bytesRemaining < 1)
                         return 0;
+
+                    if (bytesRemaining > _buffer.Length)
+                        bytesRemaining = _buffer.Length;
                 }
                 else
                 {
@@ -168,11 +168,11 @@ namespace TechnitiumLibrary.Net.Http
                 if (_contentLength > -1)
                 {
                     bytesRemaining = _contentLength - _totalBytesRead;
-                    if (bytesRemaining > _buffer.Length)
-                        bytesRemaining = _buffer.Length;
-
                     if (bytesRemaining < 1)
                         return 0;
+
+                    if (bytesRemaining > _buffer.Length)
+                        bytesRemaining = _buffer.Length;
                 }
                 else
                 {
