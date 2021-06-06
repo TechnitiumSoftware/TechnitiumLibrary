@@ -18,7 +18,7 @@
     <RepositoryType></RepositoryType>
     <Description>.NET 5</Description>
     <PackageId>TechnitiumLibrary.Net.Mail</PackageId>
-    <Version>2.1</Version>
+    <Version>2.2</Version>
   </PropertyGroup>
 
   <ItemGroup>
