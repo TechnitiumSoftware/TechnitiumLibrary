@@ -189,6 +189,10 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsPTRRecord(s);
                     break;
 
+                case DnsResourceRecordType.HINFO:
+                    _data = new DnsHINFORecord(s);
+                    break;
+
                 case DnsResourceRecordType.MX:
                     _data = new DnsMXRecord(s);
                     break;
@@ -205,12 +209,12 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsSRVRecord(s);
                     break;
 
-                case DnsResourceRecordType.CAA:
-                    _data = new DnsCAARecord(s);
+                case DnsResourceRecordType.DNAME:
+                    _data = new DnsDNAMERecord(s);
                     break;
 
-                case DnsResourceRecordType.HINFO:
-                    _data = new DnsHINFORecord(s);
+                case DnsResourceRecordType.CAA:
+                    _data = new DnsCAARecord(s);
                     break;
 
                 case DnsResourceRecordType.ANAME:
@@ -260,6 +264,10 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsPTRRecord(jsonResourceRecord);
                     break;
 
+                case DnsResourceRecordType.HINFO:
+                    _data = new DnsHINFORecord(jsonResourceRecord);
+                    break;
+
                 case DnsResourceRecordType.MX:
                     _data = new DnsMXRecord(jsonResourceRecord);
                     break;
@@ -276,12 +284,12 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsSRVRecord(jsonResourceRecord);
                     break;
 
-                case DnsResourceRecordType.CAA:
-                    _data = new DnsCAARecord(jsonResourceRecord);
+                case DnsResourceRecordType.DNAME:
+                    _data = new DnsDNAMERecord(jsonResourceRecord);
                     break;
 
-                case DnsResourceRecordType.HINFO:
-                    _data = new DnsHINFORecord(jsonResourceRecord);
+                case DnsResourceRecordType.CAA:
+                    _data = new DnsCAARecord(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.ANAME:
