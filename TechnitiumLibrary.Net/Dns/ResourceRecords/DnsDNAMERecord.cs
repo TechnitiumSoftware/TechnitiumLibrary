@@ -78,6 +78,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
+        public string Substitute(string qname, string owner)
+        {
+            if (_domain.Length == 0)
+                return qname.Substring(0, qname.Length - owner.Length - 1);
+            else
+                return qname.Substring(0, qname.Length - owner.Length) + _domain;
+        }
+
         public override bool Equals(object obj)
         {
             if (obj is null)
