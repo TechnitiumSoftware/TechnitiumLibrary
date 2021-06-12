@@ -486,23 +486,30 @@ namespace TechnitiumLibrary.Net.Dns
             s.WriteByte(Convert.ToByte(0));
         }
 
-        public static string DeserializeDomainName(Stream s, int maxDepth = 10)
+        public static string DeserializeDomainName(Stream s, int maxDepth = 10, bool ignoreMissingNullTermination = false)
         {
             if (maxDepth < 0)
                 throw new DnsClientException("Error while reading domain name: max depth for decompression reached");
 
+            int labelLength = s.ReadByte();
+            if (labelLength < 0)
+                throw new EndOfStreamException();
+
             StringBuilder domain = new StringBuilder();
-            byte labelLength = s.ReadBytes(1)[0];
             byte[] buffer = null;
 
             while (labelLength > 0)
             {
                 if ((labelLength & 0xC0) == 0xC0)
                 {
-                    short Offset = BitConverter.ToInt16(new byte[] { s.ReadBytes(1)[0], (byte)(labelLength & 0x3F) }, 0);
+                    int secondByte = s.ReadByte();
+                    if (secondByte < 0)
+                        throw new EndOfStreamException();
+
+                    short Offset = BitConverter.ToInt16(new byte[] { (byte)secondByte, (byte)(labelLength & 0x3F) }, 0);
                     long CurrentPosition = s.Position;
                     s.Position = Offset;
-                    domain.Append(DeserializeDomainName(s, maxDepth - 1));
+                    domain.Append(DeserializeDomainName(s, maxDepth - 1, ignoreMissingNullTermination));
                     domain.Append('.');
                     s.Position = CurrentPosition;
                     break;
@@ -513,9 +520,15 @@ namespace TechnitiumLibrary.Net.Dns
                         buffer = new byte[255]; //late buffer init to avoid unnecessary allocation in most cases
 
                     s.ReadBytes(buffer, 0, labelLength);
-                    domain.Append(Encoding.ASCII.GetString(buffer, 0, labelLength));
+                    domain.Append(Encoding.ASCII.GetChars(buffer, 0, labelLength));
                     domain.Append('.');
-                    labelLength = s.ReadBytes(1)[0];
+
+                    if (ignoreMissingNullTermination && (s.Length == s.Position))
+                        break; //option to ignore for buggy DHCP clients
+
+                    labelLength = s.ReadByte();
+                    if (labelLength < 0)
+                        throw new EndOfStreamException();
                 }
             }
 
