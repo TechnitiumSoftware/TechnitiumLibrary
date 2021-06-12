@@ -650,7 +650,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     if (response.Answer.Count > 0)
                                     {
-                                        if (response.Answer[0].Name.Equals(question.Name, StringComparison.OrdinalIgnoreCase))
+                                        if (response.Answer[0].Name.Equals(question.Name, StringComparison.OrdinalIgnoreCase) || (response.Answer[0].Type == DnsResourceRecordType.DNAME)) //checking for DNAME since response was sanitized
                                         {
                                             if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA))
                                             {
@@ -1467,6 +1467,10 @@ namespace TechnitiumLibrary.Net.Dns
                             }
                             break;
                     }
+                }
+                else if ((answer.Type == DnsResourceRecordType.DNAME) && qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase) && (answer.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || answer.Name.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase)))
+                {
+                    //found DNAME, continue next
                 }
                 else
                 {
