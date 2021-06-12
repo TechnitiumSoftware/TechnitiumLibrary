@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Globalization;
 using System.IO;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,7 +34,8 @@ namespace TechnitiumLibrary.Net.Http
 
         const int BUFFER_SIZE = 8 * 1024;
 
-        readonly Stream _baseStream;
+        readonly HttpContentStream _baseStream;
+        readonly int _maxContentLength;
 
         readonly MemoryStream _buffer = new MemoryStream();
 
@@ -41,9 +43,10 @@ namespace TechnitiumLibrary.Net.Http
 
         #region constructor
 
-        public HttpChunkedStream(Stream baseStream)
+        public HttpChunkedStream(HttpContentStream baseStream, int maxContentLength = -1)
         {
             _baseStream = baseStream;
+            _maxContentLength = maxContentLength;
         }
 
         #endregion
@@ -97,6 +100,9 @@ namespace TechnitiumLibrary.Net.Http
                 if (bytesRead > 0)
                     return bytesRead;
 
+                if ((_maxContentLength > -1) && (_baseStream.TotalBytesRead > _maxContentLength))
+                    throw new HttpRequestException("Response content size is greater than max content length: " + _baseStream.TotalBytesRead);
+
                 //fill buffer
                 byte[] byteBuffer = new byte[1];
                 byte[] strHexLength = new byte[8];
@@ -148,6 +154,9 @@ namespace TechnitiumLibrary.Net.Http
                 int bytesRead = _buffer.Read(buffer, 0, count);
                 if (bytesRead > 0)
                     return bytesRead;
+
+                if ((_maxContentLength > -1) && (_baseStream.TotalBytesRead > _maxContentLength))
+                    throw new HttpRequestException("Response content size is greater than max content length: " + _baseStream.TotalBytesRead);
 
                 //fill buffer
                 byte[] byteBuffer = new byte[1];

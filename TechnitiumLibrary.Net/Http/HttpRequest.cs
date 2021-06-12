@@ -52,7 +52,7 @@ namespace TechnitiumLibrary.Net.Http
 
         #region static
 
-        public static async Task<HttpRequest> ReadRequestAsync(Stream stream)
+        public static async Task<HttpRequest> ReadRequestAsync(Stream stream, int maxContentLength = -1)
         {
             HttpRequest httpRequest = new HttpRequest();
 
@@ -156,7 +156,12 @@ namespace TechnitiumLibrary.Net.Http
                 string strContentLength = httpRequest._headers[HttpRequestHeader.ContentLength];
                 if (!string.IsNullOrEmpty(strContentLength))
                 {
-                    httpRequest._inputStream = new HttpContentStream(stream, buffer, offset, length, int.Parse(strContentLength));
+                    int contentLength = int.Parse(strContentLength);
+
+                    if ((maxContentLength > -1) && (contentLength > maxContentLength))
+                        throw new HttpRequestException("Response content length is greater than max content length: " + contentLength);
+
+                    httpRequest._inputStream = new HttpContentStream(stream, buffer, offset, length, contentLength);
                     return httpRequest;
                 }
 
@@ -166,7 +171,7 @@ namespace TechnitiumLibrary.Net.Http
                     if (!strTransferEncoding.Equals("chunked", StringComparison.OrdinalIgnoreCase))
                         throw new HttpRequestException("Transfer encoding is not supported: " + strTransferEncoding);
 
-                    httpRequest._inputStream = new HttpChunkedStream(new HttpContentStream(stream, buffer, offset, length));
+                    httpRequest._inputStream = new HttpChunkedStream(new HttpContentStream(stream, buffer, offset, length), maxContentLength);
                     return httpRequest;
                 }
             }

@@ -189,5 +189,12 @@ namespace TechnitiumLibrary.Net.Http
         }
 
         #endregion
+
+        #region properties
+
+        public int TotalBytesRead
+        { get { return _totalBytesRead; } }
+
+        #endregion
     }
 }
