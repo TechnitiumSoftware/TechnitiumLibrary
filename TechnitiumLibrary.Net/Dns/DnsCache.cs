@@ -424,6 +424,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 break;
                         }
                     }
+                    else if ((answer.Type == DnsResourceRecordType.DNAME) && qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        cachableRecords.Add(answer);
+                    }
                 }
             }
 
