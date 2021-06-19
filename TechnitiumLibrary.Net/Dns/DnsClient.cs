@@ -929,8 +929,8 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         if (lastResponse is not null)
                         {
-                            if (lastResponse.Question[0].Equals(question))
-                                return lastResponse; //return the last response that was received
+                            if (lastResponse.Question[0].Equals(question) && (lastResponse.RCODE != DnsResponseCode.NoError))
+                                return lastResponse; //return the last response with error that was received
                         }
 
                         string strNameServers = null;
