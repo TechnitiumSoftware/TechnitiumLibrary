@@ -676,7 +676,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 string value = _rcode.ToString();
 
-                if ((_authority is not null) && (_authority.Count > 0))
+                if (_authority is not null)
                 {
                     foreach (DnsResourceRecord record in _authority)
                         value += ", " + record.ToString();
