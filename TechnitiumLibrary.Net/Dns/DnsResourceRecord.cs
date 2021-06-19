@@ -365,10 +365,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public void SetExpiry(uint minimumTtl, uint serveStaleTtl)
+        public void SetExpiry(uint minimumTtl, uint maximumTtl, uint serveStaleTtl)
         {
             if (_ttl < minimumTtl)
                 _ttl = minimumTtl; //to help keep record in cache for a minimum time
+            else if (_ttl > maximumTtl)
+                _ttl = maximumTtl; //to help remove record from cache early
 
             _setExpiry = true;
             _ttlExpires = DateTime.UtcNow.AddSeconds(_ttl);
