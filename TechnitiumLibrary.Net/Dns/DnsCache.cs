@@ -31,15 +31,17 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        const uint FAILURE_RECORD_TTL = 30u;
+        const uint FAILURE_RECORD_TTL = 60u;
         const uint NEGATIVE_RECORD_TTL = 300u;
         const uint MINIMUM_RECORD_TTL = 10u;
+        const uint MAXIMUM_RECORD_TTL = 3600u;
         const uint SERVE_STALE_TTL = 0u;
         const uint SERVE_STALE_TTL_MAX = 7 * 24 * 60 * 60; //7 days cap on serve stale
 
         uint _failureRecordTtl;
         uint _negativeRecordTtl;
         uint _minimumRecordTtl;
+        uint _maximumRecordTtl;
         uint _serveStaleTtl;
 
         readonly ConcurrentDictionary<string, DnsCacheEntry> _cache = new ConcurrentDictionary<string, DnsCacheEntry>(1, 5);
@@ -49,14 +51,15 @@ namespace TechnitiumLibrary.Net.Dns
         #region constructor
 
         public DnsCache()
-            : this(FAILURE_RECORD_TTL, NEGATIVE_RECORD_TTL, MINIMUM_RECORD_TTL, SERVE_STALE_TTL)
+            : this(FAILURE_RECORD_TTL, NEGATIVE_RECORD_TTL, MINIMUM_RECORD_TTL, MAXIMUM_RECORD_TTL, SERVE_STALE_TTL)
         { }
 
-        protected DnsCache(uint failureRecordTtl, uint negativeRecordTtl, uint minimumRecordTtl, uint serveStaleTtl)
+        protected DnsCache(uint failureRecordTtl, uint negativeRecordTtl, uint minimumRecordTtl, uint maximumRecordTtl, uint serveStaleTtl)
         {
             _failureRecordTtl = failureRecordTtl;
             _negativeRecordTtl = negativeRecordTtl;
             _minimumRecordTtl = minimumRecordTtl;
+            _maximumRecordTtl = maximumRecordTtl;
             _serveStaleTtl = serveStaleTtl;
         }
 
@@ -272,14 +275,8 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     DnsResourceRecord firstRR = answers[0];
 
-                    if (firstRR.RDATA is DnsEmptyRecord dnsEmptyRecord)
-                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, dnsEmptyRecord.Authority);
-
-                    if (firstRR.RDATA is DnsNXRecord dnsNXRecord)
-                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NxDomain, request.Question, null, dnsNXRecord.Authority);
-
-                    if (firstRR.RDATA is DnsFailureRecord dnsFailureRecord)
-                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, dnsFailureRecord.RCODE, request.Question);
+                    if (firstRR.RDATA is DnsSpecialCacheRecord dnsSpecialCacheRecord)
+                        return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, dnsSpecialCacheRecord.RCODE, request.Question, null, dnsSpecialCacheRecord.Authority);
 
                     DnsResourceRecord lastRR = answers[answers.Count - 1];
                     if ((lastRR.Type != question.Type) && (lastRR.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
@@ -326,23 +323,22 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 case DnsResponseCode.NoError:
                 case DnsResponseCode.NxDomain:
+                case DnsResponseCode.YXDomain:
                     //cache response after this switch
                     break;
 
                 default:
-                    //cache as failure record with RCODE
+                    //cache as failure record
                     foreach (DnsQuestionRecord question in response.Question)
                     {
-                        DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _failureRecordTtl, new DnsFailureRecord(response.RCODE));
-                        record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
+                        DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _failureRecordTtl, new DnsSpecialCacheRecord(response, true));
+                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                         InternalCacheRecords(new DnsResourceRecord[] { record });
                     }
 
                     return;
             }
-
-            //cache only NoError and NameError responses
 
             //combine all records in the response
             List<DnsResourceRecord> cachableRecords = new List<DnsResourceRecord>();
@@ -435,7 +431,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (response.Authority.Count > 0)
             {
                 foreach (DnsResourceRecord authority in response.Authority)
-                    authority.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
+                    authority.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                 DnsResourceRecord firstAuthority = response.Authority[0];
                 if (firstAuthority.Type == DnsResourceRecordType.SOA)
@@ -445,25 +441,10 @@ namespace TechnitiumLibrary.Net.Dns
                         //empty response with authority
                         foreach (DnsQuestionRecord question in response.Question)
                         {
-                            DnsResourceRecord record = null;
+                            DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsSpecialCacheRecord(response));
+                            record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                            switch (response.RCODE)
-                            {
-                                case DnsResponseCode.NxDomain:
-                                    record = new DnsResourceRecord(question.Name, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(response.Authority));
-                                    break;
-
-                                case DnsResponseCode.NoError:
-                                    record = new DnsResourceRecord(question.Name, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(response.Authority));
-                                    break;
-                            }
-
-                            if (record is not null)
-                            {
-                                record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
-
-                                InternalCacheRecords(new DnsResourceRecord[] { record });
-                            }
+                            InternalCacheRecords(new DnsResourceRecord[] { record });
                         }
                     }
                     else
@@ -474,25 +455,10 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             foreach (DnsQuestionRecord question in response.Question)
                             {
-                                DnsResourceRecord record = null;
+                                DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsSpecialCacheRecord(response));
+                                record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                                switch (response.RCODE)
-                                {
-                                    case DnsResponseCode.NxDomain:
-                                        record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsNXRecord(response.Authority));
-                                        break;
-
-                                    case DnsResponseCode.NoError:
-                                        record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsEmptyRecord(response.Authority));
-                                        break;
-                                }
-
-                                if (record is not null)
-                                {
-                                    record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
-
-                                    InternalCacheRecords(new DnsResourceRecord[] { record });
-                                }
+                                InternalCacheRecords(new DnsResourceRecord[] { record });
                             }
                         }
                     }
@@ -508,26 +474,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 if ((authority.Type == DnsResourceRecordType.NS) && (authority.RDATA as DnsNSRecord).NameServer.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
                                 {
                                     //empty response from authority name server that was queried
-                                    DnsResourceRecord record = null;
+                                    DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecord(response));
+                                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                                    switch (response.RCODE)
-                                    {
-                                        case DnsResponseCode.NxDomain:
-                                            record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsNXRecord(response.Authority));
-                                            break;
-
-                                        case DnsResponseCode.NoError:
-                                            record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsEmptyRecord(response.Authority));
-                                            break;
-                                    }
-
-                                    if (record is not null)
-                                    {
-                                        record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
-
-                                        InternalCacheRecords(new DnsResourceRecord[] { record });
-                                    }
-
+                                    InternalCacheRecords(new DnsResourceRecord[] { record });
                                     break;
                                 }
                             }
@@ -584,25 +534,10 @@ namespace TechnitiumLibrary.Net.Dns
                     //empty response with no authority
                     foreach (DnsQuestionRecord question in response.Question)
                     {
-                        DnsResourceRecord record = null;
+                        DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecord(response));
+                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                        switch (response.RCODE)
-                        {
-                            case DnsResponseCode.NxDomain:
-                                record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsNXRecord(null));
-                                break;
-
-                            case DnsResponseCode.NoError:
-                                record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsEmptyRecord(null));
-                                break;
-                        }
-
-                        if (record is not null)
-                        {
-                            record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
-
-                            InternalCacheRecords(new DnsResourceRecord[] { record });
-                        }
+                        InternalCacheRecords(new DnsResourceRecord[] { record });
                     }
                 }
             }
@@ -613,10 +548,10 @@ namespace TechnitiumLibrary.Net.Dns
             //set expiry for cached records
             foreach (DnsResourceRecord record in cachableRecords)
             {
-                record.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
+                record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                 foreach (DnsResourceRecord glueRecord in GetGlueRecordsFrom(record))
-                    glueRecord.SetExpiry(_minimumRecordTtl, _serveStaleTtl);
+                    glueRecord.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
             }
 
             InternalCacheRecords(cachableRecords);
@@ -660,6 +595,12 @@ namespace TechnitiumLibrary.Net.Dns
             set { _minimumRecordTtl = value; }
         }
 
+        public uint MaximumRecordTtl
+        {
+            get { return _maximumRecordTtl; }
+            set { _maximumRecordTtl = value; }
+        }
+
         public uint ServeStaleTtl
         {
             get { return _serveStaleTtl; }
@@ -674,171 +615,23 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
-        public class DnsNXRecord : DnsResourceRecordData
-        {
-            #region variables
-
-            readonly IReadOnlyList<DnsResourceRecord> _authority;
-
-            #endregion
-
-            #region constructor
-
-            public DnsNXRecord(IReadOnlyList<DnsResourceRecord> authority)
-            {
-                _authority = authority;
-            }
-
-            #endregion
-
-            #region protected
-
-            protected override void Parse(Stream s)
-            { }
-
-            protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
-            { }
-
-            #endregion
-
-            #region public
-
-            public override bool Equals(object obj)
-            {
-                if (obj is null)
-                    return false;
-
-                if (ReferenceEquals(this, obj))
-                    return true;
-
-                if (obj is DnsNXRecord other)
-                    return _authority.Equals(other._authority);
-
-                return false;
-            }
-
-            public override int GetHashCode()
-            {
-                return _authority.GetHashCode();
-            }
-
-            public override string ToString()
-            {
-                if ((_authority is null) || (_authority.Count < 1))
-                    return string.Empty;
-
-                string value = null;
-
-                foreach (DnsResourceRecord record in _authority)
-                {
-                    if (value is null)
-                        value = record.ToString();
-                    else
-                        value += ", " + record.ToString();
-                }
-
-                return value;
-            }
-
-            #endregion
-
-            #region properties
-
-            public IReadOnlyList<DnsResourceRecord> Authority
-            { get { return _authority; } }
-
-            #endregion
-        }
-
-        public class DnsEmptyRecord : DnsResourceRecordData
-        {
-            #region variables
-
-            readonly IReadOnlyList<DnsResourceRecord> _authority;
-
-            #endregion
-
-            #region constructor
-
-            public DnsEmptyRecord(IReadOnlyList<DnsResourceRecord> authority)
-            {
-                _authority = authority;
-            }
-
-            #endregion
-
-            #region protected
-
-            protected override void Parse(Stream s)
-            { }
-
-            protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
-            { }
-
-            #endregion
-
-            #region public
-
-            public override bool Equals(object obj)
-            {
-                if (obj is null)
-                    return false;
-
-                if (ReferenceEquals(this, obj))
-                    return true;
-
-                if (obj is DnsEmptyRecord other)
-                    return _authority.Equals(other._authority);
-
-                return false;
-            }
-
-            public override int GetHashCode()
-            {
-                return _authority.GetHashCode();
-            }
-
-            public override string ToString()
-            {
-                if ((_authority is null) || (_authority.Count < 1))
-                    return string.Empty;
-
-                string value = null;
-
-                foreach (DnsResourceRecord record in _authority)
-                {
-                    if (value is null)
-                        value = record.ToString();
-                    else
-                        value += ", " + record.ToString();
-                }
-
-                return value;
-            }
-
-            #endregion
-
-            #region properties
-
-            public IReadOnlyList<DnsResourceRecord> Authority
-            { get { return _authority; } }
-
-            #endregion
-        }
-
-        public class DnsFailureRecord : DnsResourceRecordData
+        public class DnsSpecialCacheRecord : DnsResourceRecordData
         {
             #region variables
 
             readonly DnsResponseCode _rcode;
+            readonly IReadOnlyList<DnsResourceRecord> _authority;
+            readonly bool _isFailure;
 
             #endregion
 
             #region constructor
 
-            public DnsFailureRecord(DnsResponseCode rcode)
+            public DnsSpecialCacheRecord(DnsDatagram response, bool isFailure = false)
             {
-                _rcode = rcode;
+                _rcode = response.RCODE;
+                _authority = response.Authority;
+                _isFailure = isFailure;
             }
 
             #endregion
@@ -863,20 +656,33 @@ namespace TechnitiumLibrary.Net.Dns
                 if (ReferenceEquals(this, obj))
                     return true;
 
-                if (obj is DnsFailureRecord other)
-                    return _rcode == other._rcode;
+                if (obj is DnsSpecialCacheRecord other)
+                {
+                    if (_rcode != other._rcode)
+                        return false;
+
+                    return _authority.Equals(other._authority);
+                }
 
                 return false;
             }
 
             public override int GetHashCode()
             {
-                return _rcode.GetHashCode();
+                return HashCode.Combine(_rcode, _authority);
             }
 
             public override string ToString()
             {
-                return _rcode.ToString();
+                string value = _rcode.ToString();
+
+                if ((_authority is not null) && (_authority.Count > 0))
+                {
+                    foreach (DnsResourceRecord record in _authority)
+                        value += ", " + record.ToString();
+                }
+
+                return value;
             }
 
             #endregion
@@ -885,6 +691,12 @@ namespace TechnitiumLibrary.Net.Dns
 
             public DnsResponseCode RCODE
             { get { return _rcode; } }
+
+            public IReadOnlyList<DnsResourceRecord> Authority
+            { get { return _authority; } }
+
+            public bool IsFailure
+            { get { return _isFailure; } }
 
             #endregion
         }
@@ -919,7 +731,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     if (filterSpecialCacheRecords)
                     {
-                        if ((record.RDATA is DnsNXRecord) || (record.RDATA is DnsEmptyRecord) || (record.RDATA is DnsFailureRecord))
+                        if (record.RDATA is DnsSpecialCacheRecord)
                             return Array.Empty<DnsResourceRecord>(); //special cache record
                     }
 
@@ -935,7 +747,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     if (filterSpecialCacheRecords)
                     {
-                        if ((record.RDATA is DnsNXRecord) || (record.RDATA is DnsEmptyRecord) || (record.RDATA is DnsFailureRecord))
+                        if (record.RDATA is DnsSpecialCacheRecord)
                             continue; //special cache record
                     }
 
@@ -962,12 +774,12 @@ namespace TechnitiumLibrary.Net.Dns
 
             public void SetRecords(DnsResourceRecordType type, IReadOnlyList<DnsResourceRecord> records)
             {
-                if ((records.Count > 0) && (records[0].RDATA is DnsFailureRecord))
+                if ((records.Count > 0) && (records[0].RDATA is DnsSpecialCacheRecord splRecord) && splRecord.IsFailure)
                 {
                     //call trying to cache failure record
                     if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
                     {
-                        if ((existingRecords.Count > 0) && !(existingRecords[0].RDATA is DnsFailureRecord) && !existingRecords[0].IsStale)
+                        if ((existingRecords.Count > 0) && !(existingRecords[0].RDATA is DnsSpecialCacheRecord existingSplRecord && existingSplRecord.IsFailure) && !existingRecords[0].IsStale)
                             return; //skip to avoid overwriting a useful record with a failure record
                     }
                 }
