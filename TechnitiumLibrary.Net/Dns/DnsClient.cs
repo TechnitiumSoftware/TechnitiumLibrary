@@ -287,7 +287,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
         {
             if (cache is null)
                 cache = new DnsCache();
@@ -477,6 +477,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                 zoneCut = cacheResponse.Authority[0].Name;
                                                 nameServers = cacheNameServers;
+                                                lastResponse = null;
                                             }
                                         }
                                     }
@@ -533,6 +534,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         zoneCut = "";
                         nameServers = nameServersCopy;
+                        lastResponse = null;
                     }
                     else
                     {
@@ -541,6 +543,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         zoneCut = "";
                         nameServers = nameServersCopy;
+                        lastResponse = null;
                     }
                 }
 
@@ -817,8 +820,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                 zoneCut = response.Authority[0].Name;
                                                 nameServers = nextNameServers;
-
                                                 hopCount++;
+                                                lastResponse = null; //reset last response for current zone cut
+
                                                 goto resolverLoop;
                                             }
 
@@ -929,8 +933,8 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         if (lastResponse is not null)
                         {
-                            if (lastResponse.Question[0].Equals(question) && (lastResponse.RCODE != DnsResponseCode.NoError))
-                                return lastResponse; //return the last response with error that was received
+                            if (lastResponse.Question[0].Equals(question))
+                                return lastResponse; //return the last response
                         }
 
                         string strNameServers = null;
@@ -965,7 +969,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
         {
             if (cache is null)
                 cache = new DnsCache();
@@ -976,7 +980,7 @@ namespace TechnitiumLibrary.Net.Dns
             });
         }
 
-        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000, int maxStackCount = 10)
+        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
         {
             if (cache is null)
                 cache = new DnsCache();
