@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,8 +25,6 @@ namespace TechnitiumLibrary.IO
 {
     public static class BinaryWriterExtension
     {
-        static readonly DateTime _epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
         public static void WriteBuffer(this BinaryWriter bW, byte[] buffer, int offset, int count)
         {
             WriteLength(bW, count);
@@ -51,7 +49,7 @@ namespace TechnitiumLibrary.IO
 
         public static void Write(this BinaryWriter bW, DateTime date)
         {
-            bW.Write(Convert.ToInt64((date.ToUniversalTime() - _epoch).TotalMilliseconds));
+            bW.Write(Convert.ToInt64((date.ToUniversalTime() - DateTime.UnixEpoch).TotalMilliseconds));
         }
 
         public static void WriteLength(this BinaryWriter bW, int valueLength)
