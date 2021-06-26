@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2018  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,8 +25,6 @@ namespace TechnitiumLibrary.IO
 {
     public static class BinaryReaderExtension
     {
-        static readonly DateTime _epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
         public static byte[] ReadBuffer(this BinaryReader bR)
         {
             return bR.ReadBytes(ReadLength(bR));
@@ -37,9 +35,9 @@ namespace TechnitiumLibrary.IO
             return Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadByte()));
         }
 
-        public static DateTime ReadDate(this BinaryReader bR)
+        public static DateTime ReadDateTime(this BinaryReader bR)
         {
-            return _epoch.AddMilliseconds(bR.ReadInt64());
+            return DateTime.UnixEpoch.AddMilliseconds(bR.ReadInt64());
         }
 
         public static int ReadLength(this BinaryReader bR)
