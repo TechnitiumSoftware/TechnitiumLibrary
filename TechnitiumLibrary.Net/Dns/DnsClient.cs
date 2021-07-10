@@ -1741,13 +1741,33 @@ namespace TechnitiumLibrary.Net.Dns
                             }
                             else
                             {
-                                //use pooled connection if possible
-                                connection = DnsClientConnection.GetConnection(server, _proxy);
-
-                                if (_randomizeName && (server.Protocol == DnsTransportProtocol.Udp))
+                                if ((server.Protocol != DnsTransportProtocol.Udp) && (asyncRequest.Question.Count == 1) && (asyncRequest.Question[0].Type == DnsResourceRecordType.IXFR))
                                 {
-                                    foreach (DnsQuestionRecord question in asyncRequest.Question)
-                                        question.RandomizeName();
+                                    //use separate connection for incremental zone transfer
+                                    switch (server.Protocol)
+                                    {
+                                        case DnsTransportProtocol.Tcp:
+                                            connection = new TcpClientConnection(server, _proxy);
+                                            break;
+
+                                        case DnsTransportProtocol.Tls:
+                                            connection = new TlsClientConnection(server, _proxy);
+                                            break;
+
+                                        default:
+                                            throw new NotSupportedException("DNS transport protocol not supported for incremental zone transfer.");
+                                    }
+                                }
+                                else
+                                {
+                                    //use pooled connection if possible
+                                    connection = DnsClientConnection.GetConnection(server, _proxy);
+
+                                    if (_randomizeName && (server.Protocol == DnsTransportProtocol.Udp))
+                                    {
+                                        foreach (DnsQuestionRecord question in asyncRequest.Question)
+                                            question.RandomizeName();
+                                    }
                                 }
                             }
 
