@@ -61,7 +61,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 switch (_networkAddress.Address.AddressFamily)
                 {
                     case AddressFamily.InterNetwork:
-                        if (_networkAddress.SubnetMaskWidth == 32)
+                        if (_networkAddress.PrefixLength == 32)
                         {
                             _type = NetProxyBypassItemType.IpAddress;
                             _ipAddress = _networkAddress.Address;
@@ -72,7 +72,7 @@ namespace TechnitiumLibrary.Net.Proxy
                         break;
 
                     case AddressFamily.InterNetworkV6:
-                        if (_networkAddress.SubnetMaskWidth == 128)
+                        if (_networkAddress.PrefixLength == 128)
                         {
                             _type = NetProxyBypassItemType.IpAddress;
                             _ipAddress = _networkAddress.Address;

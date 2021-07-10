@@ -29,30 +29,30 @@ namespace TechnitiumLibrary.Net
         #region variables
 
         readonly IPAddress _address;
-        readonly int _subnetMaskWidth;
+        readonly int _prefixLength;
 
         #endregion
 
         #region constructor
 
-        private NetworkAddress(IPAddress address, int subnetMaskWidth, bool validate)
+        private NetworkAddress(IPAddress address, int prefixLength, bool validate)
         {
             if (validate)
             {
-                if (subnetMaskWidth < 0)
-                    throw new ArgumentOutOfRangeException(nameof(subnetMaskWidth));
+                if (prefixLength < 0)
+                    throw new ArgumentOutOfRangeException(nameof(prefixLength));
 
                 switch (address.AddressFamily)
                 {
                     case AddressFamily.InterNetwork:
-                        if (subnetMaskWidth > 32)
-                            throw new ArgumentOutOfRangeException(nameof(subnetMaskWidth));
+                        if (prefixLength > 32)
+                            throw new ArgumentOutOfRangeException(nameof(prefixLength));
 
                         break;
 
                     case AddressFamily.InterNetworkV6:
-                        if (subnetMaskWidth > 128)
-                            throw new ArgumentOutOfRangeException(nameof(subnetMaskWidth));
+                        if (prefixLength > 128)
+                            throw new ArgumentOutOfRangeException(nameof(prefixLength));
 
                         break;
 
@@ -61,12 +61,12 @@ namespace TechnitiumLibrary.Net
                 }
             }
 
-            _address = address.GetNetworkAddress(subnetMaskWidth);
-            _subnetMaskWidth = subnetMaskWidth;
+            _address = address.GetNetworkAddress(prefixLength);
+            _prefixLength = prefixLength;
         }
 
-        public NetworkAddress(IPAddress address, int subnetMaskWidth)
-            : this(address, subnetMaskWidth, true)
+        public NetworkAddress(IPAddress address, int prefixLength)
+            : this(address, prefixLength, true)
         { }
 
         #endregion
@@ -85,7 +85,7 @@ namespace TechnitiumLibrary.Net
         {
             string[] network = cidr.Split(new char[] { '/' }, 2);
 
-            if ((network.Length != 2) || !IPAddress.TryParse(network[0], out IPAddress address) || !int.TryParse(network[1], out int subnetMaskWidth) || (subnetMaskWidth < 0))
+            if ((network.Length != 2) || !IPAddress.TryParse(network[0], out IPAddress address) || !int.TryParse(network[1], out int prefixLength) || (prefixLength < 0))
             {
                 networkAddress = null;
                 return false;
@@ -94,7 +94,7 @@ namespace TechnitiumLibrary.Net
             switch (address.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    if (subnetMaskWidth > 32)
+                    if (prefixLength > 32)
                     {
                         networkAddress = null;
                         return false;
@@ -103,7 +103,7 @@ namespace TechnitiumLibrary.Net
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    if (subnetMaskWidth > 128)
+                    if (prefixLength > 128)
                     {
                         networkAddress = null;
                         return false;
@@ -116,16 +116,16 @@ namespace TechnitiumLibrary.Net
                     return false;
             }
 
-            networkAddress = new NetworkAddress(address, subnetMaskWidth, false);
+            networkAddress = new NetworkAddress(address, prefixLength, false);
             return true;
         }
 
         public static NetworkAddress Parse(BinaryReader bR)
         {
             IPAddress address = IPAddressExtension.Parse(bR);
-            int subnetMaskWidth = bR.ReadByte();
+            int prefixLength = bR.ReadByte();
 
-            return new NetworkAddress(address, subnetMaskWidth, false);
+            return new NetworkAddress(address, prefixLength, false);
         }
 
         #endregion
@@ -137,13 +137,13 @@ namespace TechnitiumLibrary.Net
             if (_address.AddressFamily != address.AddressFamily)
                 return false;
 
-            return _address.Equals(address.GetNetworkAddress(_subnetMaskWidth));
+            return _address.Equals(address.GetNetworkAddress(_prefixLength));
         }
 
         public void WriteTo(BinaryWriter bW)
         {
             _address.WriteTo(bW);
-            bW.Write(Convert.ToByte(_subnetMaskWidth));
+            bW.Write(Convert.ToByte(_prefixLength));
         }
 
         public bool Equals(NetworkAddress other)
@@ -151,7 +151,7 @@ namespace TechnitiumLibrary.Net
             if (other is null)
                 return false;
 
-            if (_subnetMaskWidth != other._subnetMaskWidth)
+            if (_prefixLength != other._prefixLength)
                 return false;
 
             if (!_address.Equals(other._address))
@@ -170,12 +170,12 @@ namespace TechnitiumLibrary.Net
 
         public override string ToString()
         {
-            return _address.ToString() + "/" + _subnetMaskWidth;
+            return _address.ToString() + "/" + _prefixLength;
         }
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_address, _subnetMaskWidth);
+            return HashCode.Combine(_address, _prefixLength);
         }
 
         #endregion
@@ -185,8 +185,8 @@ namespace TechnitiumLibrary.Net
         public IPAddress Address
         { get { return _address; } }
 
-        public int SubnetMaskWidth
-        { get { return _subnetMaskWidth; } }
+        public int PrefixLength
+        { get { return _prefixLength; } }
 
         #endregion
     }
