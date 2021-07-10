@@ -66,6 +66,8 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
+        const int MAX_XFR_RESPONSE_SIZE = 16384; //since the compressed name pointer offset can only address 16384 bytes in datagram
+
         readonly static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         DnsDatagramMetadata _metadata;
@@ -655,27 +657,18 @@ namespace TechnitiumLibrary.Net.Dns
                     for (; iQD < _question.Count; iQD++, QDCOUNT++)
                         _question[iQD].WriteTo(sharedBufferOffset, domainEntries);
 
-                    for (; iAN < _answer.Count; iAN++, ANCOUNT++)
+                    for (; (iAN < _answer.Count) && (sharedBuffer.Length < MAX_XFR_RESPONSE_SIZE); iAN++, ANCOUNT++)
                     {
                         _answer[iAN].WriteTo(sharedBufferOffset, domainEntries);
-
-                        if (sharedBuffer.Length >= 16384)
-                            break;
                     }
 
-                    for (; iNS < _authority.Count; iNS++, NSCOUNT++)
+                    for (; (iNS < _authority.Count) && (sharedBuffer.Length < MAX_XFR_RESPONSE_SIZE); iNS++, NSCOUNT++)
                     {
-                        if (sharedBuffer.Length >= 16384)
-                            break;
-
                         _authority[iNS].WriteTo(sharedBufferOffset, domainEntries);
                     }
 
-                    for (; iAR < _additional.Count; iAR++, ARCOUNT++)
+                    for (; (iAR < _additional.Count) && (sharedBuffer.Length < MAX_XFR_RESPONSE_SIZE); iAR++, ARCOUNT++)
                     {
-                        if (sharedBuffer.Length >= 16384)
-                            break;
-
                         _additional[iAR].WriteTo(sharedBufferOffset, domainEntries);
                     }
 
