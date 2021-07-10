@@ -227,7 +227,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (question.Count == 0)
                         break;
 
-                    if (question[0].Type != DnsResourceRecordType.AXFR)
+                    if ((question[0].Type != DnsResourceRecordType.AXFR) && (question[0].Type != DnsResourceRecordType.IXFR))
                         break;
 
                     if (answer.Count == 0)
@@ -629,12 +629,16 @@ namespace TechnitiumLibrary.Net.Dns
         {
             OffsetStream sharedBufferOffset = new OffsetStream(sharedBuffer);
 
-            if ((_question.Count > 0) && (_question[0].Type == DnsResourceRecordType.AXFR))
+            if ((_question.Count > 0) && ((_question[0].Type == DnsResourceRecordType.AXFR) || (_question[0].Type == DnsResourceRecordType.IXFR)))
             {
                 int iQD = 0;
                 int iAN = 0;
+                int iNS = 0;
+                int iAR = 0;
                 int QDCOUNT;
                 int ANCOUNT;
+                int NSCOUNT;
+                int ARCOUNT;
                 List<DnsDomainOffset> domainEntries = new List<DnsDomainOffset>(1);
 
                 do
@@ -644,6 +648,8 @@ namespace TechnitiumLibrary.Net.Dns
 
                     QDCOUNT = 0;
                     ANCOUNT = 0;
+                    NSCOUNT = 0;
+                    ARCOUNT = 0;
                     domainEntries.Clear();
 
                     for (; iQD < _question.Count; iQD++, QDCOUNT++)
@@ -657,9 +663,25 @@ namespace TechnitiumLibrary.Net.Dns
                             break;
                     }
 
+                    for (; iNS < _authority.Count; iNS++, NSCOUNT++)
+                    {
+                        if (sharedBuffer.Length >= 16384)
+                            break;
+
+                        _authority[iNS].WriteTo(sharedBufferOffset, domainEntries);
+                    }
+
+                    for (; iAR < _additional.Count; iAR++, ARCOUNT++)
+                    {
+                        if (sharedBuffer.Length >= 16384)
+                            break;
+
+                        _additional[iAR].WriteTo(sharedBufferOffset, domainEntries);
+                    }
+
                     sharedBuffer.Position = 0;
                     WriteUInt16NetworkOrder(Convert.ToUInt16(sharedBuffer.Length - 2), sharedBuffer);
-                    WriteHeaders(sharedBuffer, QDCOUNT, ANCOUNT, 0, 0);
+                    WriteHeaders(sharedBuffer, QDCOUNT, ANCOUNT, NSCOUNT, ARCOUNT);
 
                     sharedBuffer.Position = 0;
                     await sharedBuffer.CopyToAsync(s, 512);
