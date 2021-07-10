@@ -251,7 +251,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 _zoneCut = value;
                 _minimizedName = GetMinimizedName(_name, _zoneCut);
-                if ((_minimizedName == null) || (_minimizedName.Split('.').Length > MAX_MINIMISE_COUNT))
+                if ((_minimizedName is null) || _minimizedName.StartsWith('_') || (_minimizedName.Split('.').Length > MAX_MINIMISE_COUNT))
                 {
                     //auto disable QNAME minimization
                     _zoneCut = null;
