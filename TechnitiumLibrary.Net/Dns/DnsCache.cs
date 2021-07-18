@@ -261,7 +261,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public virtual DnsDatagram Query(DnsDatagram request, bool serveStale = false)
+        public virtual DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false)
         {
             if (serveStale)
                 throw new NotImplementedException("DnsCache does not implement serve stale.");
@@ -303,12 +303,15 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            IReadOnlyList<DnsResourceRecord> closestAuthority = GetClosestNameServers(question.Name);
-            if (closestAuthority is not null)
+            if (findClosestNameServers)
             {
-                IReadOnlyList<DnsResourceRecord> additionalRecords = GetAdditionalRecords(closestAuthority);
+                IReadOnlyList<DnsResourceRecord> closestAuthority = GetClosestNameServers(question.Name);
+                if (closestAuthority is not null)
+                {
+                    IReadOnlyList<DnsResourceRecord> additionalRecords = GetAdditionalRecords(closestAuthority);
 
-                return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, closestAuthority, additionalRecords);
+                    return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, closestAuthority, additionalRecords);
+                }
             }
 
             return null;
