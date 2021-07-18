@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ namespace TechnitiumLibrary.Net.Dns
 {
     public interface IDnsCache
     {
-        DnsDatagram Query(DnsDatagram request, bool serveStale = false);
+        DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false);
 
         void CacheResponse(DnsDatagram response);
     }
