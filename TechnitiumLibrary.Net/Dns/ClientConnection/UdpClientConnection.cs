@@ -47,7 +47,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             try
             {
-                request.WriteToUdp(bufferStream);
+                request.WriteTo(bufferStream);
             }
             catch (NotSupportedException)
             {
@@ -84,9 +84,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             bufferStream.Position = 0;
             bufferStream.SetLength(bufferSize);
 
-            DnsDatagram response = DnsDatagram.ReadFromUdp(bufferStream);
+            DnsDatagram response = DnsDatagram.ReadFrom(bufferStream);
 
-            response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, bufferSize, stopwatch.Elapsed.TotalMilliseconds));
+            response.SetMetadata(_server, _protocol, stopwatch.Elapsed.TotalMilliseconds);
 
             if (response.Identifier != request.Identifier)
                 throw new DnsClientResponseValidationException("Invalid response was received: query ID mismatch.");

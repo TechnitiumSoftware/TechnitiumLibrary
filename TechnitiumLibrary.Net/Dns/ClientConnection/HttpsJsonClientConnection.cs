@@ -143,10 +143,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 string responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
 
                 //parse response
-                DnsDatagram response = DnsDatagram.ReadFromJson(JsonConvert.DeserializeObject(responseJson));
+                DnsDatagram response = DnsDatagram.ReadFromJson(JsonConvert.DeserializeObject(responseJson), responseJson.Length);
 
                 response.SetIdentifier(request.Identifier);
-                response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, responseJson.Length, stopwatch.Elapsed.TotalMilliseconds));
+                response.SetMetadata(_server, _protocol, stopwatch.Elapsed.TotalMilliseconds);
 
                 if (response.Question.Count != request.Question.Count)
                     throw new DnsClientResponseValidationException("Invalid response was received: question count mismatch.");
@@ -177,7 +177,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 return response;
             }
 
-            return null;
+            throw new DnsClientException("DnsClient failed to resolve the request: request timed out.");
         }
 
         #endregion

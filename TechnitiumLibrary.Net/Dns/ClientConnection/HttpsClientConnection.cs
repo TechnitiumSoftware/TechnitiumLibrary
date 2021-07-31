@@ -96,7 +96,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 using (MemoryStream mS = new MemoryStream(32))
                 {
-                    request.WriteToUdp(mS);
+                    request.WriteTo(mS);
                     requestBuffer = mS.ToArray();
                 }
 
@@ -159,9 +159,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 //parse response
                 using (MemoryStream mS = new MemoryStream(responseBuffer, false))
                 {
-                    DnsDatagram response = DnsDatagram.ReadFromUdp(mS);
+                    DnsDatagram response = DnsDatagram.ReadFrom(mS);
 
-                    response.SetMetadata(new DnsDatagramMetadata(_server, _protocol, responseBuffer.Length, stopwatch.Elapsed.TotalMilliseconds));
+                    response.SetMetadata(_server, _protocol, stopwatch.Elapsed.TotalMilliseconds);
 
                     if (response.Identifier != request.Identifier)
                         throw new DnsClientResponseValidationException("Invalid response was received: query ID mismatch.");
@@ -196,7 +196,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
             }
 
-            return null;
+            throw new DnsClientException("DnsClient failed to resolve the request: request timed out.");
         }
 
         #endregion
