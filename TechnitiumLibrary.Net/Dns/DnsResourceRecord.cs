@@ -153,7 +153,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             DnsClient.IsDomainNameValid(name, true);
 
-            _name = name.ToLower();
+            _name = name;
             _type = type;
             _class = @class;
             _ttl = ttl;
@@ -229,6 +229,10 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsApplicationRecord(s);
                     break;
 
+                case DnsResourceRecordType.TSIG:
+                    _data = new DnsTSIGRecord(s);
+                    break;
+
                 default:
                     _data = new DnsUnknownRecord(s);
                     break;
@@ -302,6 +306,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                 case DnsResourceRecordType.APP:
                     _data = new DnsApplicationRecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.TSIG:
+                    _data = new DnsTSIGRecord(jsonResourceRecord);
                     break;
 
                 default:
@@ -562,6 +570,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsResourceRecordData RDATA
         { get { return _data; } }
+
+        [IgnoreDataMember]
+        public ushort UncompressedLength
+        { get { return Convert.ToUInt16(_name.Length + 2 + 2 + 2 + 4 + 2 + _data.UncompressedLength); } }
 
         [IgnoreDataMember]
         public object Tag { get; set; }
