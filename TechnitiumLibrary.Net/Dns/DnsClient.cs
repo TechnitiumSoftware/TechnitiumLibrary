@@ -371,7 +371,7 @@ namespace TechnitiumLibrary.Net.Dns
                 //query cache
                 {
                     DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question });
-                    DnsDatagram cacheResponse = cache.Query(request);
+                    DnsDatagram cacheResponse = cache.Query(request, false, true);
                     if (cacheResponse is not null)
                     {
                         switch (cacheResponse.RCODE)
@@ -454,7 +454,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     currentDomain = currentDomain.Substring(i + 1);
 
                                                     //find name servers with glue
-                                                    DnsDatagram cachedNsResponse = cache.Query(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }));
+                                                    DnsDatagram cachedNsResponse = cache.Query(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }), false, true);
                                                     if (cachedNsResponse is not null)
                                                     {
                                                         cacheNameServers = NameServerAddress.GetNameServersFromResponse(cachedNsResponse, preferIPv6);
@@ -1590,7 +1590,7 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsDatagram compositeResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, lastResponse.RCODE, new DnsQuestionRecord[] { question }, responseAnswer, authority, additional);
 
                     if (lastResponse.Metadata is not null)
-                        compositeResponse.SetMetadata(new DnsDatagramMetadata(lastResponse.Metadata.NameServerAddress, lastResponse.Metadata.Protocol, -1, lastResponse.Metadata.RTT));
+                        compositeResponse.SetMetadata(lastResponse.Metadata.NameServerAddress, lastResponse.Metadata.Protocol, lastResponse.Metadata.RTT);
 
                     return compositeResponse;
                 }
@@ -1614,7 +1614,7 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram finalResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, response.RCODE, new DnsQuestionRecord[] { question }, response.Answer, authority, additional);
 
             if (response.Metadata is not null)
-                finalResponse.SetMetadata(new DnsDatagramMetadata(response.Metadata.NameServerAddress, response.Metadata.Protocol, -1, response.Metadata.RTT));
+                finalResponse.SetMetadata(response.Metadata.NameServerAddress, response.Metadata.Protocol, response.Metadata.RTT);
 
             return finalResponse;
         }
@@ -1716,103 +1716,59 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             switchProtocol = false;
 
-                            //get connection
-                            DnsClientConnection connection;
-
-                            if ((asyncRequest.Question.Count == 1) && (asyncRequest.Question[0].Type == DnsResourceRecordType.AXFR))
+                            if (server.Protocol == DnsTransportProtocol.Udp)
                             {
-                                //use separate connection for zone transfer
-                                if (server.Protocol == DnsTransportProtocol.Udp)
+                                if ((asyncRequest.Question.Count > 0) && (asyncRequest.Question[0].Type == DnsResourceRecordType.AXFR))
+                                {
+                                    //use TCP for AXFR
                                     server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
-
-                                switch (server.Protocol)
-                                {
-                                    case DnsTransportProtocol.Tcp:
-                                        connection = new TcpClientConnection(server, _proxy);
-                                        break;
-
-                                    case DnsTransportProtocol.Tls:
-                                        connection = new TlsClientConnection(server, _proxy);
-                                        break;
-
-                                    default:
-                                        throw new NotSupportedException("DNS transport protocol not supported for zone transfer.");
                                 }
-                            }
-                            else
-                            {
-                                if ((server.Protocol != DnsTransportProtocol.Udp) && (asyncRequest.Question.Count == 1) && (asyncRequest.Question[0].Type == DnsResourceRecordType.IXFR))
+                                else if (_randomizeName)
                                 {
-                                    //use separate connection for incremental zone transfer
-                                    switch (server.Protocol)
-                                    {
-                                        case DnsTransportProtocol.Tcp:
-                                            connection = new TcpClientConnection(server, _proxy);
-                                            break;
-
-                                        case DnsTransportProtocol.Tls:
-                                            connection = new TlsClientConnection(server, _proxy);
-                                            break;
-
-                                        default:
-                                            throw new NotSupportedException("DNS transport protocol not supported for incremental zone transfer.");
-                                    }
-                                }
-                                else
-                                {
-                                    //use pooled connection if possible
-                                    connection = DnsClientConnection.GetConnection(server, _proxy);
-
-                                    if (_randomizeName && (server.Protocol == DnsTransportProtocol.Udp))
-                                    {
-                                        foreach (DnsQuestionRecord question in asyncRequest.Question)
-                                            question.RandomizeName();
-                                    }
+                                    foreach (DnsQuestionRecord question in asyncRequest.Question)
+                                        question.RandomizeName();
                                 }
                             }
 
-                            using (connection)
+                            //get connection
+                            using (DnsClientConnection connection = DnsClientConnection.GetConnection(server, _proxy))
                             {
                                 try
                                 {
                                     DnsDatagram response = await connection.QueryAsync(asyncRequest, _timeout, _retries, cancellationToken);
-                                    if (response is not null)
+                                    if (response.Truncation)
                                     {
-                                        //got valid response
-                                        if (response.Truncation)
+                                        if (server.Protocol == DnsTransportProtocol.Udp)
                                         {
-                                            if (server.Protocol == DnsTransportProtocol.Udp)
+                                            server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
+
+                                            if (_randomizeName)
                                             {
-                                                server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
-
-                                                if (_randomizeName)
-                                                {
-                                                    foreach (DnsQuestionRecord question in asyncRequest.Question)
-                                                        question.NormalizeName();
-                                                }
-
-                                                switchProtocol = true;
-                                                protocolWasSwitched = true;
+                                                foreach (DnsQuestionRecord question in asyncRequest.Question)
+                                                    question.NormalizeName();
                                             }
+
+                                            switchProtocol = true;
+                                            protocolWasSwitched = true;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (response.ParsingException is not null)
+                                        {
+                                            lastException = response.ParsingException;
                                         }
                                         else
                                         {
-                                            if (response.ParsingException is not null)
+                                            switch (response.RCODE)
                                             {
-                                                lastException = response.ParsingException;
-                                            }
-                                            else
-                                            {
-                                                switch (response.RCODE)
-                                                {
-                                                    case DnsResponseCode.NoError:
-                                                    case DnsResponseCode.NxDomain:
-                                                        return response;
+                                                case DnsResponseCode.NoError:
+                                                case DnsResponseCode.NxDomain:
+                                                    return response;
 
-                                                    default:
-                                                        lastResponse = response;
-                                                        break;
-                                                }
+                                                default:
+                                                    lastResponse = response;
+                                                    break;
                                             }
                                         }
                                     }
