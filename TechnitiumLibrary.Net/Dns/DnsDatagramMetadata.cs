@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2019  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region constructor
 
-        public DnsDatagramMetadata(NameServerAddress server = null, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, int size = 0, double rtt = 0.0)
+        public DnsDatagramMetadata(NameServerAddress server, DnsTransportProtocol protocol, int size, double rtt)
         {
             _server = server;
             _protocol = protocol;
