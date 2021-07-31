@@ -25,7 +25,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public enum DnsTSIGError : ushort
+    public enum DnsTsigError : ushort
     {
         NoError = 0,
         BADSIG = 16,
@@ -61,18 +61,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         ushort _fudge;
         byte[] _mac;
         ushort _originalID;
-        DnsTSIGError _error;
+        DnsTsigError _error;
         byte[] _otherData;
 
         #endregion
 
         #region constructor
 
-        public DnsTSIGRecord(string algorithmName, DateTime timeSigned, ushort fudge, byte[] mac, ushort originalID, DnsTSIGError error, byte[] otherData)
+        public DnsTSIGRecord(string algorithmName, DateTime timeSigned, ushort fudge, byte[] mac, ushort originalID, DnsTsigError error, byte[] otherData)
             : this(algorithmName, Convert.ToUInt64((timeSigned - DateTime.UnixEpoch).TotalSeconds), fudge, mac, originalID, error, otherData)
         { }
 
-        public DnsTSIGRecord(string algorithmName, ulong timeSigned, ushort fudge, byte[] mac, ushort originalID, DnsTSIGError error, byte[] otherData)
+        public DnsTSIGRecord(string algorithmName, ulong timeSigned, ushort fudge, byte[] mac, ushort originalID, DnsTsigError error, byte[] otherData)
         {
             _algorithmName = algorithmName;
             _timeSigned = timeSigned;
@@ -98,7 +98,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _fudge = ushort.Parse(parts[2]);
             _mac = Convert.FromBase64String(parts[3]);
             _originalID = ushort.Parse(parts[4]);
-            _error = (DnsTSIGError)ushort.Parse(parts[5]);
+            _error = (DnsTsigError)ushort.Parse(parts[5]);
             _otherData = Convert.FromBase64String(parts[6]);
         }
 
@@ -116,7 +116,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _mac = s.ReadBytes(macSize);
 
             _originalID = DnsDatagram.ReadUInt16NetworkOrder(s);
-            _error = (DnsTSIGError)DnsDatagram.ReadUInt16NetworkOrder(s);
+            _error = (DnsTsigError)DnsDatagram.ReadUInt16NetworkOrder(s);
 
             ushort otherLen = DnsDatagram.ReadUInt16NetworkOrder(s);
             _otherData = s.ReadBytes(otherLen);
@@ -124,7 +124,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(_algorithmName, s, null); //MUST NOT be compressed
+            DnsDatagram.SerializeDomainName(_algorithmName, s); //MUST NOT be compressed
             DnsDatagram.WriteUInt48NetworkOrder(_timeSigned, s);
             DnsDatagram.WriteUInt16NetworkOrder(_fudge, s);
 
@@ -208,7 +208,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public ushort OriginalID
         { get { return _originalID; } }
 
-        public DnsTSIGError Error
+        public DnsTsigError Error
         { get { return _error; } }
 
         public byte[] OtherData
