@@ -113,6 +113,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public string IPAddress
         { get { return _address.ToString(); } }
+        
+        [IgnoreDataMember]
+        public override ushort UncompressedLength
+        { get { return 16; } }
 
         #endregion
     }

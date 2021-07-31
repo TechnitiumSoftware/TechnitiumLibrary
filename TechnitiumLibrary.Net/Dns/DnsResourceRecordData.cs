@@ -104,6 +104,10 @@ namespace TechnitiumLibrary.Net.Dns
         public ushort RDLENGTH
         { get { return _rdLength; } }
 
+        [IgnoreDataMember]
+        public abstract ushort UncompressedLength
+        { get; }
+
         #endregion
     }
 }

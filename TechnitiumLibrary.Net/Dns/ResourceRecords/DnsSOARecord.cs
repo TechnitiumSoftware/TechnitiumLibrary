@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -201,6 +202,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public uint Minimum
         { get { return _minimum; } }
+
+        [IgnoreDataMember]
+        public override ushort UncompressedLength
+        { get { return Convert.ToUInt16(_primaryNameServer.Length + 2 + _responsiblePerson.Length + 2 + 4 + 4 + 4 + 4 + 4); } }
 
         #endregion
     }

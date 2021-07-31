@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -88,7 +89,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             if (obj is DnsNSRecord other)
                 return _nameServer.Equals(other._nameServer, StringComparison.OrdinalIgnoreCase);
-            
+
             return false;
         }
 
@@ -108,6 +109,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public string NameServer
         { get { return _nameServer; } }
+
+        [IgnoreDataMember]
+        public override ushort UncompressedLength
+        { get { return Convert.ToUInt16(_nameServer.Length + 2); } }
 
         #endregion
     }

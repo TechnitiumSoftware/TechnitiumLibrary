@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization;
 using System.Text;
 using TechnitiumLibrary.IO;
 
@@ -97,7 +98,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             if (obj is DnsHINFORecord other)
                 return _cpu.Equals(other._cpu) && _os.Equals(other._os);
-            
+
             return false;
         }
 
@@ -120,6 +121,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public string OS
         { get { return _os; } }
+
+        [IgnoreDataMember]
+        public override ushort UncompressedLength
+        { get { return Convert.ToUInt16(1 + _cpu.Length + 1 + _os.Length); } }
 
         #endregion
     }

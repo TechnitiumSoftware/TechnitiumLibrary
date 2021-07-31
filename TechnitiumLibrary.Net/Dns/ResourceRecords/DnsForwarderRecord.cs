@@ -137,6 +137,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public NameServerAddress NameServer
         { get { return _nameServer; } }
 
+        [IgnoreDataMember]
+        public override ushort UncompressedLength
+        { get { return Convert.ToUInt16(1 + 1 + _forwarder.Length); } }
+
         #endregion
     }
 }

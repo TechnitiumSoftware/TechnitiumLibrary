@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -116,6 +117,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public string Domain
         { get { return _domain; } }
+
+        [IgnoreDataMember]
+        public override ushort UncompressedLength
+        { get { return Convert.ToUInt16(_domain.Length + 2); } }
 
         #endregion
     }
