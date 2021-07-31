@@ -701,6 +701,9 @@ namespace TechnitiumLibrary.Net.Dns
             public bool IsFailure
             { get { return _isFailure; } }
 
+            public override ushort UncompressedLength
+            { get { throw new InvalidOperationException(); } }
+
             #endregion
         }
 
