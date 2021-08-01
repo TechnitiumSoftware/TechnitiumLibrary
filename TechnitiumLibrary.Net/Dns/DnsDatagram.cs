@@ -156,6 +156,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static DnsDatagram ReadFrom(Stream s)
         {
+            if (s.Position > 0)
+                s = new OffsetStream(s, s.Position); //for handling datagram compression pointer offsets correctly
+
             DnsDatagram datagram = new DnsDatagram();
 
             datagram._ID = ReadUInt16NetworkOrder(s);
@@ -621,6 +624,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         public void WriteTo(Stream s)
         {
+            if (s.Position > 0)
+                s = new OffsetStream(s, s.Position); //for handling datagram compression pointer offsets correctly
+
             WriteUInt16NetworkOrder(_ID, s);
             s.WriteByte(Convert.ToByte((_QR << 7) | ((byte)_OPCODE << 3) | (_AA << 2) | (_TC << 1) | _RD));
             s.WriteByte(Convert.ToByte((_RA << 7) | (_Z << 6) | (_AD << 5) | (_CD << 4) | (byte)_RCODE));
@@ -654,15 +660,13 @@ namespace TechnitiumLibrary.Net.Dns
 
         public async Task WriteToTcpAsync(Stream s, MemoryStream sharedBuffer)
         {
-            OffsetStream sharedBufferOffset = new OffsetStream(sharedBuffer);
-
             DnsDatagram current = this;
 
             do
             {
                 sharedBuffer.SetLength(0);
-                sharedBufferOffset.Reset(2, 0, 0);
-                current.WriteTo(sharedBufferOffset);
+                sharedBuffer.Position = 2;
+                current.WriteTo(sharedBuffer);
 
                 sharedBuffer.Position = 0;
                 WriteUInt16NetworkOrder(Convert.ToUInt16(sharedBuffer.Length - 2), sharedBuffer);
