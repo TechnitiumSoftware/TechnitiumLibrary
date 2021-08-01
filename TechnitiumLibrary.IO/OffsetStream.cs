@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ namespace TechnitiumLibrary.IO
         #region variables
 
         readonly Stream _stream;
-        long _offset;
+        readonly long _offset;
         long _length;
         long _position;
         readonly bool _readOnly;
@@ -39,27 +39,9 @@ namespace TechnitiumLibrary.IO
 
         public OffsetStream(Stream stream, long offset = 0, long length = 0, bool readOnly = false, bool ownsStream = false)
         {
-            if (stream.CanSeek)
-            {
-                if (offset > stream.Length)
-                    throw new EndOfStreamException();
-                else
-                    _offset = offset;
-
-                if (length > (stream.Length - offset))
-                    throw new EndOfStreamException();
-                else if (length == 0)
-                    _length = stream.Length - offset;
-                else
-                    _length = length;
-            }
-            else
-            {
-                _offset = 0;
-                _length = length;
-            }
-
             _stream = stream;
+            _offset = offset;
+            _length = length;
             _readOnly = readOnly;
             _ownsStream = ownsStream;
         }
@@ -117,6 +99,7 @@ namespace TechnitiumLibrary.IO
                     throw new InvalidOperationException("Cannot seek stream.");
 
                 _position = value;
+                _stream.Position = _offset + _position;
 
                 if (_position > _length)
                     _length = _position;
@@ -139,8 +122,10 @@ namespace TechnitiumLibrary.IO
             if (_position >= _length)
                 return 0;
 
-            if (count > (_length - _position))
-                count = Convert.ToInt32(_length - _position);
+            int available = Convert.ToInt32(_length - _position);
+
+            if (count > available)
+                count = available;
 
             if (_stream.CanSeek)
                 _stream.Position = _offset + _position;
@@ -173,14 +158,17 @@ namespace TechnitiumLibrary.IO
                     break;
 
                 default:
-                    pos = 0;
-                    break;
+                    throw new InvalidOperationException();
             }
 
             if ((pos < 0) || (pos >= _length))
                 throw new EndOfStreamException("OffsetStream reached begining/end of stream.");
 
             _position = pos;
+            _stream.Position = _offset + _position;
+
+            if (_position > _length)
+                _length = _position;
 
             return pos;
         }
@@ -192,6 +180,12 @@ namespace TechnitiumLibrary.IO
 
             _stream.SetLength(_offset + value);
             _length = value;
+
+            if (_position > _length)
+            {
+                _position = _length;
+                _stream.Position = _offset + _position;
+            }
         }
 
         public override void Write(byte[] buffer, int offset, int count)
@@ -222,13 +216,6 @@ namespace TechnitiumLibrary.IO
         public Stream BaseStream
         { get { return _stream; } }
 
-        public void Reset(long offset, long length, long position)
-        {
-            _offset = offset;
-            _length = length;
-            _position = position;
-        }
-
         public void WriteTo(Stream s)
         {
             WriteTo(s, 4096);
@@ -244,14 +231,16 @@ namespace TechnitiumLibrary.IO
 
             long previousPosition = _position;
             _position = 0;
+            _stream.Position = _offset;
 
             try
             {
-                this.CopyTo(stream, bufferSize);
+                CopyTo(stream, bufferSize);
             }
             finally
             {
                 _position = previousPosition;
+                _stream.Position = _offset + _position;
             }
         }
 
