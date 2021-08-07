@@ -287,8 +287,8 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 if (value is null)
                     _bypassList = Array.Empty<NetProxyBypassItem>();
-
-                _bypassList = value;
+                else
+                    _bypassList = value;
             }
         }
 
