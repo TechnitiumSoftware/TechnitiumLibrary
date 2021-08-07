@@ -283,7 +283,13 @@ namespace TechnitiumLibrary.Net.Proxy
         public IReadOnlyCollection<NetProxyBypassItem> BypassList
         {
             get { return _bypassList; }
-            set { _bypassList = value; }
+            set
+            {
+                if (value is null)
+                    _bypassList = Array.Empty<NetProxyBypassItem>();
+
+                _bypassList = value;
+            }
         }
 
         #endregion
