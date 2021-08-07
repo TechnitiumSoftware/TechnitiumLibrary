@@ -48,20 +48,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region constructors
 
-        public NameServerAddress(NameServerAddress nameServer, DnsTransportProtocol protocol)
-        {
-            _protocol = protocol;
-            _originalAddress = nameServer._originalAddress;
-
-            _dohEndPoint = nameServer._dohEndPoint;
-            _domainEndPoint = nameServer._domainEndPoint;
-            _ipEndPoint = nameServer._ipEndPoint;
-
-            _ipEndPointExpires = nameServer._ipEndPointExpires;
-            _ipEndPointExpiresOn = nameServer._ipEndPointExpiresOn;
-
-            ValidateProtocol();
-        }
+        private NameServerAddress()
+        { }
 
         public NameServerAddress(Uri dohEndPoint, DnsTransportProtocol protocol = DnsTransportProtocol.Https)
         {
@@ -447,6 +435,69 @@ namespace TechnitiumLibrary.Net.Dns
         #endregion
 
         #region public
+
+        public NameServerAddress ChangeProtocol(DnsTransportProtocol protocol)
+        {
+            NameServerAddress nsAddress = new NameServerAddress();
+
+            switch (protocol)
+            {
+                case DnsTransportProtocol.Udp:
+                case DnsTransportProtocol.Tcp:
+                    if ((_dohEndPoint is not null) && !IPAddress.TryParse(_dohEndPoint.Host, out _))
+                        nsAddress._domainEndPoint = new DomainEndPoint(_dohEndPoint.Host, 53);
+                    else if (_domainEndPoint is not null)
+                        nsAddress._domainEndPoint = new DomainEndPoint(_domainEndPoint.Address, 53);
+
+                    if ((_dohEndPoint is not null) && IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address1))
+                        nsAddress._ipEndPoint = new IPEndPoint(address1, 53);
+                    else if (_ipEndPoint is not null)
+                        nsAddress._ipEndPoint = new IPEndPoint(_ipEndPoint.Address, 53);
+
+                    break;
+
+                case DnsTransportProtocol.Tls:
+                    if ((_dohEndPoint is not null) && !IPAddress.TryParse(_dohEndPoint.Host, out _))
+                        nsAddress._domainEndPoint = new DomainEndPoint(_dohEndPoint.Host, 853);
+                    else if (_domainEndPoint is not null)
+                        nsAddress._domainEndPoint = new DomainEndPoint(_domainEndPoint.Address, 853);
+
+                    if ((_dohEndPoint is not null) && IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address2))
+                        nsAddress._ipEndPoint = new IPEndPoint(address2, 853);
+                    else if (_ipEndPoint is not null)
+                        nsAddress._ipEndPoint = new IPEndPoint(_ipEndPoint.Address, 853);
+
+                    break;
+
+                case DnsTransportProtocol.Https:
+                case DnsTransportProtocol.HttpsJson:
+                    if (_dohEndPoint is not null)
+                        nsAddress._dohEndPoint = _dohEndPoint;
+                    else if (_domainEndPoint is not null)
+                        nsAddress._dohEndPoint = new Uri("https://" + _domainEndPoint.Address + "/dns-query");
+                    else if (_ipEndPoint is not null)
+                        nsAddress._dohEndPoint = new Uri("https://" + (_ipEndPoint.Address.AddressFamily == AddressFamily.InterNetworkV6 ? "[" + _ipEndPoint.Address.ToString() + "]" : _ipEndPoint.Address.ToString()) + "/dns-query");
+
+                    if ((_dohEndPoint is not null) && IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address3))
+                        nsAddress._ipEndPoint = new IPEndPoint(address3, 443);
+                    else if (_ipEndPoint is not null)
+                        nsAddress._ipEndPoint = new IPEndPoint(_ipEndPoint.Address, 443);
+
+                    break;
+
+                default:
+                    throw new NotSupportedException("DNS transport protocol is not supported: " + protocol.ToString());
+            }
+
+            nsAddress._protocol = protocol;
+            nsAddress._originalAddress = nsAddress.ToString();
+            nsAddress._ipEndPointExpires = _ipEndPointExpires;
+            nsAddress._ipEndPointExpiresOn = _ipEndPointExpiresOn;
+
+            nsAddress.ValidateProtocol();
+
+            return nsAddress;
+        }
 
         public async Task ResolveIPAddressAsync(IDnsClient dnsClient, bool preferIPv6 = false)
         {
