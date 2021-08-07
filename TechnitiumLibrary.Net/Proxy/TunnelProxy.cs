@@ -127,6 +127,20 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #endregion
 
+        #region static
+
+        public static async Task<TunnelProxy> CreateTunnelProxyAsync(EndPoint remoteEP, bool enableSsl, bool ignoreCertificateErrors)
+        {
+            IPEndPoint ep = await remoteEP.GetIPEndPointAsync();
+
+            Socket socket = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            await socket.ConnectAsync(ep);
+
+            return new TunnelProxy(socket, remoteEP, enableSsl, ignoreCertificateErrors);
+        }
+
+        #endregion
+
         #region private
 
         private async Task AcceptTunnelConnectionAsync()
