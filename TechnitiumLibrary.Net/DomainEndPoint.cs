@@ -41,10 +41,10 @@ namespace TechnitiumLibrary.Net
             if (address == null)
                 throw new ArgumentNullException(nameof(address));
 
-            DnsClient.IsDomainNameValid(address, true);
-
             if (IPAddress.TryParse(address, out _))
                 throw new ArgumentException("Address must be a domain name: " + address, nameof(address));
+
+            DnsClient.IsDomainNameValid(address, true);
 
             _address = address;
             _port = port;
