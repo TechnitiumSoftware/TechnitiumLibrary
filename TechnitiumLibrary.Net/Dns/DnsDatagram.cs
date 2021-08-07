@@ -73,6 +73,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         DnsDatagramMetadata _metadata;
         int _size = -1;
+        byte[] _parsedDatagramUnsigned;
 
         ushort _ID;
 
@@ -259,6 +260,25 @@ namespace TechnitiumLibrary.Net.Dns
 
             datagram._size = Convert.ToInt32(s.Position);
 
+            if (datagram.IsSigned)
+            {
+                //get unsigned datagram for TSIG verification
+                DnsResourceRecord tsigRecord = datagram._additional[datagram._additional.Count - 1];
+                byte[] buffer = new byte[tsigRecord.DatagramOffset];
+
+                s.Position = 0;
+                s.ReadBytes(buffer, 0, buffer.Length);
+                s.Position = datagram._size;
+
+                byte[] originalARCOUNT = ConvertUInt16NetworkOrder(Convert.ToUInt16(ARCOUNT - 1));
+                Buffer.BlockCopy(originalARCOUNT, 0, buffer, 10, 2);
+
+                byte[] originalID = ConvertUInt16NetworkOrder((tsigRecord.RDATA as DnsTSIGRecord).OriginalID);
+                Buffer.BlockCopy(originalID, 0, buffer, 0, 2);
+
+                datagram._parsedDatagramUnsigned = buffer;
+            }
+
             return datagram;
         }
 
@@ -401,6 +421,13 @@ namespace TechnitiumLibrary.Net.Dns
             byte[] b = BitConverter.GetBytes(value);
             Array.Reverse(b);
             s.Write(b, 0, 2);
+        }
+
+        internal static byte[] ConvertUInt16NetworkOrder(ushort value)
+        {
+            byte[] b = BitConverter.GetBytes(value);
+            Array.Reverse(b);
+            return b;
         }
 
         internal static uint ReadUInt32NetworkOrder(Stream s)
@@ -921,60 +948,16 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new InvalidOperationException("Cannot verify this datagram: datagram must be a request.");
 
             if (!IsSigned)
-            {
-                //datagram not signed
-                unsignedRequest = null;
-
-                //unsigned error response
-                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuthorized, _question);
-
-                return false;
-            }
-
-            IReadOnlyList<DnsResourceRecord> additional;
-
-            if (_additional.Count == 1)
-            {
-                additional = Array.Empty<DnsResourceRecord>();
-            }
-            else
-            {
-                List<DnsResourceRecord> list = new List<DnsResourceRecord>(_additional.Count - 1);
-
-                for (int i = 0; i < _additional.Count - 1; i++)
-                {
-                    DnsResourceRecord record = _additional[i];
-
-                    if (record.Type == DnsResourceRecordType.TSIG)
-                    {
-                        //contains extra TSIG
-                        unsignedRequest = null;
-
-                        //unsigned error response
-                        errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.FormatError, _question);
-
-                        return false;
-                    }
-
-                    list.Add(record);
-                }
-
-                additional = list;
-            }
+                throw new InvalidOperationException("Cannot verify this datagram: datagram is not signed.");
 
             DnsResourceRecord tsigRecord = _additional[_additional.Count - 1];
             DnsTSIGRecord tsig = tsigRecord.RDATA as DnsTSIGRecord;
-
-            //get unsigned datagram
-            unsignedRequest = new DnsDatagram(tsig.OriginalID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, _answer, _authority, additional);
-            unsignedRequest._metadata = _metadata;
-            unsignedRequest.Tag = Tag;
 
             //verify
             ushort expectedMacSize = GetMACSize(tsig.AlgorithmName);
 
             //Key Check
-            if ((expectedMacSize == ushort.MinValue) || !keys.TryGetValue(tsigRecord.Name.ToLower(), out string sharedSecret))
+            if ((expectedMacSize == ushort.MinValue) || (keys is null) || !keys.TryGetValue(tsigRecord.Name.ToLower(), out string sharedSecret))
             {
                 unsignedRequest = null;
 
@@ -997,7 +980,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return false;
             }
 
-            byte[] computedMac = unsignedRequest.ComputeRequestMAC(tsigRecord.Name, tsig.AlgorithmName, tsig.TimeSigned, tsig.Fudge, tsig.Error, tsig.OtherData, sharedSecret, tsig.MAC.Length);
+            byte[] computedMac = ComputeRequestMAC(tsigRecord.Name, tsig.AlgorithmName, tsig.TimeSigned, tsig.Fudge, tsig.Error, tsig.OtherData, sharedSecret, tsig.MAC.Length);
             if (!BinaryNumber.Equals(computedMac, tsig.MAC))
             {
                 unsignedRequest = null;
@@ -1039,11 +1022,46 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             //return
+            IReadOnlyList<DnsResourceRecord> additional;
+
+            if (_additional.Count == 1)
+            {
+                additional = Array.Empty<DnsResourceRecord>();
+            }
+            else
+            {
+                List<DnsResourceRecord> list = new List<DnsResourceRecord>(_additional.Count - 1);
+
+                for (int i = 0; i < _additional.Count - 1; i++)
+                {
+                    DnsResourceRecord record = _additional[i];
+
+                    if (record.Type == DnsResourceRecordType.TSIG)
+                    {
+                        //contains extra TSIG
+                        unsignedRequest = null;
+
+                        //unsigned error response
+                        errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.FormatError, _question);
+
+                        return false;
+                    }
+
+                    list.Add(record);
+                }
+
+                additional = list;
+            }
+
+            unsignedRequest = new DnsDatagram(tsig.OriginalID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, _answer, _authority, additional);
+            unsignedRequest._metadata = _metadata;
+            unsignedRequest.Tag = Tag;
+
             errorResponse = null;
             return true;
         }
 
-        public DnsDatagram SignResponse(DnsDatagram signedRequest, IReadOnlyDictionary<string, string> keys, DnsTsigError error)
+        public DnsDatagram SignResponse(DnsDatagram signedRequest, IReadOnlyDictionary<string, string> keys, DnsTsigError error = DnsTsigError.NoError)
         {
             if (!IsResponse)
                 throw new InvalidOperationException("Cannot sign this datagram: datagram must be a response.");
@@ -1154,7 +1172,7 @@ namespace TechnitiumLibrary.Net.Dns
             return signedDatagram;
         }
 
-        public bool VerifySignedResponse(DnsDatagram signedRequest, string keyName, string sharedSecret, out DnsDatagram unsignedResponse, out DnsResponseCode rCode, out DnsTsigError error)
+        public bool VerifySignedResponse(DnsDatagram signedRequest, string keyName, string sharedSecret, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error)
         {
             if (!IsResponse)
                 throw new InvalidOperationException("Cannot verify this datagram: datagram must be a response.");
@@ -1163,11 +1181,102 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 //datagram not signed; discard it
                 unsignedResponse = null;
+                requestFailed = false;
                 rCode = DnsResponseCode.FormatError;
                 error = DnsTsigError.NoError;
                 return false;
             }
 
+            DnsResourceRecord tsigRecord = _additional[_additional.Count - 1];
+            DnsTSIGRecord tsig = tsigRecord.RDATA as DnsTSIGRecord;
+
+            //verify
+            ushort expectedMacSize = GetMACSize(tsig.AlgorithmName);
+
+            //Key Check
+            if ((expectedMacSize == ushort.MinValue) || !tsigRecord.Name.Equals(keyName, StringComparison.OrdinalIgnoreCase))
+            {
+                unsignedResponse = null;
+                requestFailed = false;
+                rCode = DnsResponseCode.NotAuthorized;
+                error = DnsTsigError.BADKEY;
+                return false;
+            }
+
+            //check unsigned TSIG response
+            if (tsig.MAC.Length == 0)
+            {
+                switch (_RCODE)
+                {
+                    case DnsResponseCode.FormatError:
+                    case DnsResponseCode.NotAuthorized:
+                        unsignedResponse = null;
+                        requestFailed = true;
+                        rCode = _RCODE;
+                        error = tsig.Error;
+                        return false;
+                }
+            }
+
+            //MAC Check
+            if ((tsig.MAC.Length > expectedMacSize) || (tsig.MAC.Length < Math.Max(10, expectedMacSize / 2)))
+            {
+                unsignedResponse = null;
+                requestFailed = false;
+                rCode = DnsResponseCode.FormatError;
+                error = DnsTsigError.NoError;
+                return false;
+            }
+
+            DnsResourceRecord requestTsigRecord = signedRequest._additional[signedRequest._additional.Count - 1];
+
+            byte[] computedMac = ComputeResponseMAC(requestTsigRecord, tsigRecord.Name, tsig.AlgorithmName, tsig.TimeSigned, tsig.Fudge, tsig.Error, tsig.OtherData, sharedSecret, tsig.MAC.Length);
+            if (!BinaryNumber.Equals(computedMac, tsig.MAC))
+            {
+                unsignedResponse = null;
+                requestFailed = false;
+                rCode = DnsResponseCode.NotAuthorized;
+                error = DnsTsigError.BADSIG;
+                return false;
+            }
+
+            //check signed TSIG response
+            switch (_RCODE)
+            {
+                case DnsResponseCode.FormatError:
+                case DnsResponseCode.NotAuthorized:
+                    unsignedResponse = null;
+                    requestFailed = true;
+                    rCode = _RCODE;
+                    error = tsig.Error;
+                    return false;
+            }
+
+            //Check time values
+            DateTime utcNow = DateTime.UtcNow;
+            DateTime startTime = DateTime.UnixEpoch.AddSeconds(tsig.TimeSigned - tsig.Fudge);
+            DateTime endTime = DateTime.UnixEpoch.AddSeconds(tsig.TimeSigned + tsig.Fudge);
+
+            if ((utcNow < startTime) || (utcNow > endTime))
+            {
+                unsignedResponse = null;
+                requestFailed = false;
+                rCode = DnsResponseCode.NotAuthorized;
+                error = DnsTsigError.BADTIME;
+                return false;
+            }
+
+            //Check truncation policy
+            if (tsig.MAC.Length < expectedMacSize)
+            {
+                unsignedResponse = null;
+                requestFailed = false;
+                rCode = DnsResponseCode.NotAuthorized;
+                error = DnsTsigError.BADTRUNC;
+                return false;
+            }
+
+            //get unsigned datagram
             IReadOnlyList<DnsResourceRecord> additional;
 
             if (_additional.Count == 1)
@@ -1186,6 +1295,7 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         //contains extra TSIG
                         unsignedResponse = null;
+                        requestFailed = false;
                         rCode = DnsResponseCode.FormatError;
                         error = DnsTsigError.NoError;
                         return false;
@@ -1197,67 +1307,9 @@ namespace TechnitiumLibrary.Net.Dns
                 additional = list;
             }
 
-            DnsResourceRecord tsigRecord = _additional[_additional.Count - 1];
-            DnsTSIGRecord tsig = tsigRecord.RDATA as DnsTSIGRecord;
-
-            //get unsigned datagram
             unsignedResponse = new DnsDatagram(tsig.OriginalID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, _answer, _authority, additional);
             unsignedResponse._metadata = _metadata;
             unsignedResponse.Tag = Tag;
-
-            //verify
-            ushort expectedMacSize = GetMACSize(tsig.AlgorithmName);
-
-            //Key Check
-            if ((expectedMacSize == ushort.MinValue) || !tsigRecord.Name.Equals(keyName, StringComparison.OrdinalIgnoreCase))
-            {
-                unsignedResponse = null;
-                rCode = DnsResponseCode.NotAuthorized;
-                error = DnsTsigError.BADKEY;
-                return false;
-            }
-
-            //MAC Check
-            if ((tsig.MAC.Length > expectedMacSize) || (tsig.MAC.Length < Math.Max(10, expectedMacSize / 2)))
-            {
-                unsignedResponse = null;
-                rCode = DnsResponseCode.FormatError;
-                error = DnsTsigError.NoError;
-                return false;
-            }
-
-            DnsResourceRecord requestTsigRecord = signedRequest._additional[signedRequest._additional.Count - 1];
-
-            byte[] computedMac = unsignedResponse.ComputeResponseMAC(requestTsigRecord, tsigRecord.Name, tsig.AlgorithmName, tsig.TimeSigned, tsig.Fudge, tsig.Error, tsig.OtherData, sharedSecret, tsig.MAC.Length);
-            if (!BinaryNumber.Equals(computedMac, tsig.MAC))
-            {
-                unsignedResponse = null;
-                rCode = DnsResponseCode.NotAuthorized;
-                error = DnsTsigError.BADSIG;
-                return false;
-            }
-
-            //Check time values
-            DateTime utcNow = DateTime.UtcNow;
-            DateTime startTime = DateTime.UnixEpoch.AddSeconds(tsig.TimeSigned - tsig.Fudge);
-            DateTime endTime = DateTime.UnixEpoch.AddSeconds(tsig.TimeSigned + tsig.Fudge);
-
-            if ((utcNow < startTime) || (utcNow > endTime))
-            {
-                unsignedResponse = null;
-                rCode = DnsResponseCode.NotAuthorized;
-                error = DnsTsigError.BADTIME;
-                return false;
-            }
-
-            //Check truncation policy
-            if (tsig.MAC.Length < expectedMacSize)
-            {
-                unsignedResponse = null;
-                rCode = DnsResponseCode.NotAuthorized;
-                error = DnsTsigError.BADTRUNC;
-                return false;
-            }
 
             //verify next messages
             if (_nextDatagram is not null)
@@ -1269,16 +1321,64 @@ namespace TechnitiumLibrary.Net.Dns
 
                 while (current is not null)
                 {
+                    dnsMessages.Add(current);
+
                     if (!current.IsSigned)
                     {
-                        dnsMessages.Add(current);
-
                         if (dnsMessages.Count < 100)
                             continue; //MUST accept up to 99 intermediary messages without a TSIG
 
                         unsignedResponse = null;
+                        requestFailed = false;
                         rCode = DnsResponseCode.FormatError;
                         error = DnsTsigError.NoError;
+                        return false;
+                    }
+
+                    DnsResourceRecord currentTsigRecord = current._additional[current._additional.Count - 1];
+                    DnsTSIGRecord currentTsig = currentTsigRecord.RDATA as DnsTSIGRecord;
+
+                    //verify
+                    //MAC Check
+                    if ((currentTsig.MAC.Length > expectedMacSize) || (currentTsig.MAC.Length < Math.Max(10, expectedMacSize / 2)))
+                    {
+                        unsignedResponse = null;
+                        requestFailed = false;
+                        rCode = DnsResponseCode.FormatError;
+                        error = DnsTsigError.NoError;
+                        return false;
+                    }
+
+                    byte[] currentComputedMac = ComputeXfrResponseMAC(priorTsig, dnsMessages, currentTsig.TimeSigned, currentTsig.Fudge, sharedSecret, currentTsig.MAC.Length);
+                    if (!BinaryNumber.Equals(currentComputedMac, currentTsig.MAC))
+                    {
+                        unsignedResponse = null;
+                        requestFailed = false;
+                        rCode = DnsResponseCode.NotAuthorized;
+                        error = DnsTsigError.BADSIG;
+                        return false;
+                    }
+
+                    //Check time values
+                    DateTime currentStartTime = DateTime.UnixEpoch.AddSeconds(currentTsig.TimeSigned - currentTsig.Fudge);
+                    DateTime currentEndTime = DateTime.UnixEpoch.AddSeconds(currentTsig.TimeSigned + currentTsig.Fudge);
+
+                    if ((utcNow < currentStartTime) || (utcNow > currentEndTime))
+                    {
+                        unsignedResponse = null;
+                        requestFailed = false;
+                        rCode = DnsResponseCode.NotAuthorized;
+                        error = DnsTsigError.BADTIME;
+                        return false;
+                    }
+
+                    //Check truncation policy
+                    if (currentTsig.MAC.Length < expectedMacSize)
+                    {
+                        unsignedResponse = null;
+                        requestFailed = false;
+                        rCode = DnsResponseCode.NotAuthorized;
+                        error = DnsTsigError.BADTRUNC;
                         return false;
                     }
 
@@ -1300,6 +1400,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 //contains extra TSIG
                                 unsignedResponse = null;
+                                requestFailed = false;
                                 rCode = DnsResponseCode.FormatError;
                                 error = DnsTsigError.NoError;
                                 return false;
@@ -1311,51 +1412,7 @@ namespace TechnitiumLibrary.Net.Dns
                         currentAdditional = list;
                     }
 
-                    DnsResourceRecord currentTsigRecord = current._additional[current._additional.Count - 1];
-                    DnsTSIGRecord currentTsig = currentTsigRecord.RDATA as DnsTSIGRecord;
-
                     DnsDatagram unsignedCurrentResponse = new DnsDatagram(currentTsig.OriginalID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, current._question, current._answer, current._authority, currentAdditional);
-                    dnsMessages.Add(unsignedCurrentResponse);
-
-                    //verify
-                    //MAC Check
-                    if ((currentTsig.MAC.Length > expectedMacSize) || (currentTsig.MAC.Length < Math.Max(10, expectedMacSize / 2)))
-                    {
-                        unsignedResponse = null;
-                        rCode = DnsResponseCode.FormatError;
-                        error = DnsTsigError.NoError;
-                        return false;
-                    }
-
-                    byte[] currentComputedMac = ComputeXfrResponseMAC(priorTsig, dnsMessages, currentTsig.TimeSigned, currentTsig.Fudge, sharedSecret, currentTsig.MAC.Length);
-                    if (!BinaryNumber.Equals(currentComputedMac, currentTsig.MAC))
-                    {
-                        unsignedResponse = null;
-                        rCode = DnsResponseCode.NotAuthorized;
-                        error = DnsTsigError.BADSIG;
-                        return false;
-                    }
-
-                    //Check time values
-                    DateTime currentStartTime = DateTime.UnixEpoch.AddSeconds(currentTsig.TimeSigned - currentTsig.Fudge);
-                    DateTime currentEndTime = DateTime.UnixEpoch.AddSeconds(currentTsig.TimeSigned + currentTsig.Fudge);
-
-                    if ((utcNow < currentStartTime) || (utcNow > currentEndTime))
-                    {
-                        unsignedResponse = null;
-                        rCode = DnsResponseCode.NotAuthorized;
-                        error = DnsTsigError.BADTIME;
-                        return false;
-                    }
-
-                    //Check truncation policy
-                    if (currentTsig.MAC.Length < expectedMacSize)
-                    {
-                        unsignedResponse = null;
-                        rCode = DnsResponseCode.NotAuthorized;
-                        error = DnsTsigError.BADTRUNC;
-                        return false;
-                    }
 
                     unsignedPrior._nextDatagram = unsignedCurrentResponse;
                     unsignedPrior = unsignedCurrentResponse;
@@ -1368,6 +1425,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     //last message was unsigned
                     unsignedResponse = null;
+                    requestFailed = false;
                     rCode = DnsResponseCode.FormatError;
                     error = DnsTsigError.NoError;
                     return false;
@@ -1375,6 +1433,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             //return
+            requestFailed = false;
             rCode = DnsResponseCode.NoError;
             error = DnsTsigError.NoError;
             return true;
@@ -1416,7 +1475,20 @@ namespace TechnitiumLibrary.Net.Dns
             using (MemoryStream mS = new MemoryStream(256))
             {
                 //write DNS Message (request)
-                WriteTo(mS);
+                if (_parsedDatagramUnsigned is null)
+                {
+                    if (IsSigned)
+                        throw new InvalidOperationException();
+
+                    WriteTo(mS); //client created request
+                }
+                else
+                {
+                    if (!IsSigned)
+                        throw new InvalidOperationException();
+
+                    mS.Write(_parsedDatagramUnsigned, 0, _parsedDatagramUnsigned.Length); //server received request
+                }
 
                 //write TSIG Variables (request)
                 SerializeDomainName(keyName.ToLower(), mS); //NAME
@@ -1446,7 +1518,20 @@ namespace TechnitiumLibrary.Net.Dns
                 mS.Write(requestTsig.MAC);
 
                 //write DNS Message (response)
-                WriteTo(mS);
+                if (_parsedDatagramUnsigned is null)
+                {
+                    if (IsSigned)
+                        throw new InvalidOperationException();
+
+                    WriteTo(mS); //server created response
+                }
+                else
+                {
+                    if (!IsSigned)
+                        throw new InvalidOperationException();
+
+                    mS.Write(_parsedDatagramUnsigned, 0, _parsedDatagramUnsigned.Length); //client received response
+                }
 
                 //write TSIG Variables (response)
                 SerializeDomainName(keyName.ToLower(), mS); //NAME
@@ -1474,8 +1559,23 @@ namespace TechnitiumLibrary.Net.Dns
                 mS.Write(priorTsig.MAC);
 
                 //write DNS Messages (any unsigned messages since the last TSIG)
-                foreach (DnsDatagram unsignedMessage in dnsMessages)
-                    unsignedMessage.WriteTo(mS);
+                foreach (DnsDatagram dnsMessage in dnsMessages)
+                {
+                    if (dnsMessage._parsedDatagramUnsigned is null)
+                    {
+                        if (dnsMessage.IsSigned)
+                            throw new InvalidOperationException();
+
+                        dnsMessage.WriteTo(mS); //server created response
+                    }
+                    else
+                    {
+                        if (!dnsMessage.IsSigned)
+                            throw new InvalidOperationException();
+
+                        mS.Write(dnsMessage._parsedDatagramUnsigned, 0, dnsMessage._parsedDatagramUnsigned.Length); //client received response
+                    }
+                }
 
                 //write TSIG Timers (current message)
                 WriteUInt48NetworkOrder(timeSigned, mS); //Time Signed
@@ -1606,7 +1706,7 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
 
                 default:
-                    throw new NotSupportedException("TSIG HMAC algorithm is not supported: " + algorithmName);
+                    throw new NotSupportedException("TSIG algorithm is not supported: " + algorithmName);
             }
 
             if ((truncationLength > 0) && (truncationLength < mac.Length))
@@ -1698,6 +1798,18 @@ namespace TechnitiumLibrary.Net.Dns
                     return tsig.Error;
 
                 return DnsTsigError.NoError;
+            }
+        }
+
+        [IgnoreDataMember]
+        public string TsigKeyName
+        {
+            get
+            {
+                if ((_additional.Count > 0) && (_additional[_additional.Count - 1].Type == DnsResourceRecordType.TSIG))
+                    return _additional[_additional.Count - 1].Name;
+
+                return null;
             }
         }
 
