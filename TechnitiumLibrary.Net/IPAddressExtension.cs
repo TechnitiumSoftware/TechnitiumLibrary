@@ -96,33 +96,33 @@ namespace TechnitiumLibrary.Net
             return subnetMaskWidth;
         }
 
-        public static IPAddress GetSubnetMask(int subnetMaskWidth)
+        public static IPAddress GetSubnetMask(int prefixLength)
         {
-            if (subnetMaskWidth > 32)
-                throw new ArgumentOutOfRangeException(nameof(subnetMaskWidth), "Invalid subnet mask width.");
+            if (prefixLength > 32)
+                throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid prefix length.");
 
-            byte[] subnetMaskBuffer = BitConverter.GetBytes(0xFFFFFFFFu << (32 - subnetMaskWidth));
+            byte[] subnetMaskBuffer = BitConverter.GetBytes(0xFFFFFFFFu << (32 - prefixLength));
             Array.Reverse(subnetMaskBuffer);
 
             return new IPAddress(subnetMaskBuffer);
         }
 
-        public static IPAddress GetNetworkAddress(this IPAddress address, int subnetMaskWidth)
+        public static IPAddress GetNetworkAddress(this IPAddress address, int prefixLength)
         {
             switch (address.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
                     {
-                        if (subnetMaskWidth == 32)
+                        if (prefixLength == 32)
                             return address;
 
-                        if (subnetMaskWidth > 32)
-                            throw new ArgumentOutOfRangeException(nameof(subnetMaskWidth), "Invalid subnet mask width.");
+                        if (prefixLength > 32)
+                            throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid prefix length.");
 
                         byte[] addressBytes = address.GetAddressBytes();
                         byte[] networkAddress = new byte[4];
-                        int copyBytes = subnetMaskWidth / 8;
-                        int balanceBits = subnetMaskWidth - (copyBytes * 8);
+                        int copyBytes = prefixLength / 8;
+                        int balanceBits = prefixLength - (copyBytes * 8);
 
                         Buffer.BlockCopy(addressBytes, 0, networkAddress, 0, copyBytes);
 
@@ -134,16 +134,16 @@ namespace TechnitiumLibrary.Net
 
                 case AddressFamily.InterNetworkV6:
                     {
-                        if (subnetMaskWidth == 128)
+                        if (prefixLength == 128)
                             return address;
 
-                        if (subnetMaskWidth > 128)
-                            throw new ArgumentOutOfRangeException(nameof(subnetMaskWidth), "Invalid subnet mask width.");
+                        if (prefixLength > 128)
+                            throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid prefix length.");
 
                         byte[] addressBytes = address.GetAddressBytes();
                         byte[] networkAddress = new byte[16];
-                        int copyBytes = subnetMaskWidth / 8;
-                        int balanceBits = subnetMaskWidth - (copyBytes * 8);
+                        int copyBytes = prefixLength / 8;
+                        int balanceBits = prefixLength - (copyBytes * 8);
 
                         Buffer.BlockCopy(addressBytes, 0, networkAddress, 0, copyBytes);
 
