@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Mail;
 using System.Net.Security;
-using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -39,6 +38,7 @@ namespace TechnitiumLibrary.Net.Mail
 
         readonly static RandomNumberGenerator _rng = new RNGCryptoServiceProvider();
         readonly static RemoteCertificateValidationCallback _existingServerCertificateValidationCallback;
+        static bool _ignoreCertificateErrorsForProxy;
 
         readonly static FieldInfo _localHostName = typeof(SmtpClient).GetField("_clientDomain", BindingFlags.Instance | BindingFlags.NonPublic);
         IDnsClient _dnsClient;
@@ -106,8 +106,7 @@ namespace TechnitiumLibrary.Net.Mail
 
         private static bool ServerCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-            SmtpClientEx smtpClient = sender as SmtpClientEx;
-            if (smtpClient != null)
+            if (sender is SmtpClientEx smtpClient)
             {
                 if (smtpClient._ignoreCertificateErrors)
                     return true;
@@ -118,27 +117,33 @@ namespace TechnitiumLibrary.Net.Mail
                         return true;
 
                     case SslPolicyErrors.RemoteCertificateNameMismatch:
-                        if (smtpClient._proxy == null)
-                            return false;
-
-                        X509Certificate2 cert = certificate as X509Certificate2;
-                        if (cert == null)
-                            cert = new X509Certificate2(certificate);
-
-                        return cert.GetNameInfo(X509NameType.DnsFromAlternativeName, false).Equals(smtpClient._host, StringComparison.OrdinalIgnoreCase);
+                        return smtpClient._proxy != null; //trusting name mismatch when proxy is set
 
                     default:
                         return false;
                 }
             }
-            else if (_existingServerCertificateValidationCallback != null)
+
+            if (sender is SslStream sslStream && IPAddress.TryParse(sslStream.TargetHostName, out IPAddress address) && IPAddress.IsLoopback(address))
             {
+                if (_ignoreCertificateErrorsForProxy)
+                    return true;
+
+                switch (sslPolicyErrors)
+                {
+                    case SslPolicyErrors.None:
+                    case SslPolicyErrors.RemoteCertificateNameMismatch: //trusting name mismatch for loopback tunnel proxy
+                        return true;
+
+                    default:
+                        return false;
+                }
+            }
+
+            if (_existingServerCertificateValidationCallback != null)
                 return _existingServerCertificateValidationCallback(sender, certificate, chain, sslPolicyErrors);
-            }
-            else
-            {
-                return sslPolicyErrors == SslPolicyErrors.None;
-            }
+
+            return sslPolicyErrors == SslPolicyErrors.None;
         }
 
         #endregion
@@ -191,19 +196,11 @@ namespace TechnitiumLibrary.Net.Mail
                     if (_dnsClient == null)
                         _dnsClient = new DnsClient() { Proxy = _proxy };
 
-                    IReadOnlyList<string> mxAddresses = await Dns.DnsClient.ResolveMXAsync(_dnsClient, message.To[0].Host, true);
-                    if (mxAddresses.Count > 0)
-                    {
-                        host = mxAddresses[0];
-                    }
+                    IReadOnlyList<string> mxDomains = await Dns.DnsClient.ResolveMXAsync(_dnsClient, message.To[0].Host);
+                    if (mxDomains.Count > 0)
+                        host = mxDomains[0];
                     else
-                    {
-                        IReadOnlyList<IPAddress> addresses = await Dns.DnsClient.ResolveIPAsync(_dnsClient, message.To[0].Host);
-                        if (addresses.Count == 0)
-                            throw new SocketException((int)SocketError.HostNotFound);
-
-                        host = addresses[0].ToString();
-                    }
+                        host = message.To[0].Host;
 
                     _port = 25;
                     Credentials = null;
@@ -211,22 +208,9 @@ namespace TechnitiumLibrary.Net.Mail
 
                 if (_proxy == null)
                 {
-                    if (!IPAddress.TryParse(host, out IPAddress hostIP))
-                    {
-                        //resolve host using IDnsClient
-                        if (_dnsClient == null)
-                            _dnsClient = new DnsClient() { Proxy = _proxy };
-
-                        IReadOnlyList<IPAddress> addresses = await Dns.DnsClient.ResolveIPAsync(_dnsClient, host);
-                        if (addresses.Count == 0)
-                            throw new SocketException((int)SocketError.HostNotFound);
-
-                        hostIP = addresses[0];
-                    }
-
                     if (_smtpOverTls)
                     {
-                        IPEndPoint remoteEP = new IPEndPoint(hostIP, _port);
+                        EndPoint remoteEP = EndPointExtension.GetEndPoint(host, _port);
 
                         if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
                         {
@@ -235,19 +219,14 @@ namespace TechnitiumLibrary.Net.Mail
                         }
 
                         if ((_tunnelProxy == null) || _tunnelProxy.IsBroken)
-                        {
-                            Socket socket = new Socket(remoteEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                            await socket.ConnectAsync(remoteEP);
-
-                            _tunnelProxy = new TunnelProxy(socket, remoteEP, _smtpOverTls, _ignoreCertificateErrors);
-                        }
+                            _tunnelProxy = await TunnelProxy.CreateTunnelProxyAsync(remoteEP, true, _ignoreCertificateErrors);
 
                         base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
                         base.Port = _tunnelProxy.TunnelEndPoint.Port;
                     }
                     else
                     {
-                        base.Host = hostIP.ToString();
+                        base.Host = host;
                         base.Port = _port;
                     }
 
@@ -336,6 +315,12 @@ namespace TechnitiumLibrary.Net.Mail
         {
             get { return _ignoreCertificateErrors; }
             set { _ignoreCertificateErrors = value; }
+        }
+
+        public static bool IgnoreCertificateErrorsForProxy
+        {
+            get { return _ignoreCertificateErrorsForProxy; }
+            set { _ignoreCertificateErrorsForProxy = value; }
         }
 
         #endregion
