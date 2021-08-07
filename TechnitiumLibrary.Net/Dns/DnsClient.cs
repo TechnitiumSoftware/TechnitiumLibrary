@@ -1704,7 +1704,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
                     if ((_proxy is not null) && (server.Protocol == DnsTransportProtocol.Udp) && !_proxy.IsBypassed(server.EndPoint) && !await _proxy.IsUdpAvailableAsync())
-                        server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
+                        server = server.ChangeProtocol(DnsTransportProtocol.Tcp);
 
                     asyncRequest.SetRandomIdentifier();
 
@@ -1721,7 +1721,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 if ((asyncRequest.Question.Count > 0) && (asyncRequest.Question[0].Type == DnsResourceRecordType.AXFR))
                                 {
                                     //use TCP for AXFR
-                                    server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
+                                    server = server.ChangeProtocol(DnsTransportProtocol.Tcp);
                                 }
                                 else if (_randomizeName)
                                 {
@@ -1740,7 +1740,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         if (server.Protocol == DnsTransportProtocol.Udp)
                                         {
-                                            server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
+                                            server = server.ChangeProtocol(DnsTransportProtocol.Tcp);
 
                                             if (_randomizeName)
                                             {
@@ -1781,7 +1781,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             if (server.Protocol == DnsTransportProtocol.Udp)
                                             {
                                                 //unexpected large UDP response was received; switch protocols
-                                                server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
+                                                server = server.ChangeProtocol(DnsTransportProtocol.Tcp);
 
                                                 if (_randomizeName)
                                                 {
@@ -1809,7 +1809,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     if (server.Protocol == DnsTransportProtocol.Udp)
                                     {
                                         //TCP fallback mechanism to use for any response validation failures
-                                        server = new NameServerAddress(server, DnsTransportProtocol.Tcp);
+                                        server = server.ChangeProtocol(DnsTransportProtocol.Tcp);
 
                                         if (_randomizeName)
                                         {
@@ -1954,12 +1954,34 @@ namespace TechnitiumLibrary.Net.Dns
                 return InternalCachedResolveQueryAsync(request.Question[0]);
         }
 
+        public async Task<DnsDatagram> ResolveAsync(DnsDatagram request, string tsigKeyName, string sharedSecret, string algorithmName, ushort fudge = 300)
+        {
+            request.SetRandomIdentifier();
+            DnsDatagram signedRequest = request.SignRequest(tsigKeyName, sharedSecret, algorithmName, fudge);
+
+            DnsDatagram signedResponse = await InternalResolveAsync(signedRequest, false);
+            if (!signedResponse.VerifySignedResponse(signedRequest, tsigKeyName, sharedSecret, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error))
+            {
+                if (requestFailed)
+                    throw new DnsClientTsigRequestFailedException(rCode, error);
+                else
+                    throw new DnsClientTsigResponseVerificationException(rCode, error);
+            }
+
+            return unsignedResponse;
+        }
+
         public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question)
         {
             if (_cache is null)
-                return InternalResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }), true);
+                return InternalResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }), false);
             else
                 return InternalCachedResolveQueryAsync(question);
+        }
+
+        public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question, string tsigKeyName, string sharedSecret, string algorithmName, ushort fudge = 300)
+        {
+            return ResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }), tsigKeyName, sharedSecret, algorithmName, fudge);
         }
 
         public Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type)
@@ -1968,6 +1990,14 @@ namespace TechnitiumLibrary.Net.Dns
                 return ResolveAsync(new DnsQuestionRecord(address, DnsClass.IN));
             else
                 return ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN));
+        }
+
+        public Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type, string tsigKeyName, string sharedSecret, string algorithmName, ushort fudge = 300)
+        {
+            if ((type == DnsResourceRecordType.PTR) && IPAddress.TryParse(domain, out IPAddress address))
+                return ResolveAsync(new DnsQuestionRecord(address, DnsClass.IN), tsigKeyName, sharedSecret, algorithmName, fudge);
+            else
+                return ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN), tsigKeyName, sharedSecret, algorithmName, fudge);
         }
 
         public Task<IReadOnlyList<string>> ResolveMXAsync(string domain, bool resolveIP = false, bool preferIPv6 = false)
