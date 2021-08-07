@@ -141,6 +141,7 @@ namespace TechnitiumLibrary.Net.Dns
         uint _ttl;
         readonly DnsResourceRecordData _data;
 
+        readonly int _datagramOffset;
         bool _setExpiry = false;
         DateTime _ttlExpires;
         DateTime _serveStaleTtlExpires;
@@ -162,6 +163,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsResourceRecord(Stream s)
         {
+            _datagramOffset = Convert.ToInt32(s.Position);
+
             _name = DnsDatagram.DeserializeDomainName(s);
             _type = (DnsResourceRecordType)DnsDatagram.ReadUInt16NetworkOrder(s);
             _class = (DnsClass)DnsDatagram.ReadUInt16NetworkOrder(s);
@@ -458,15 +461,15 @@ namespace TechnitiumLibrary.Net.Dns
         {
             int value;
 
-            value = this._name.CompareTo(other._name);
+            value = _name.CompareTo(other._name);
             if (value != 0)
                 return value;
 
-            value = this._type.CompareTo(other._type);
+            value = _type.CompareTo(other._type);
             if (value != 0)
                 return value;
 
-            return this._ttl.CompareTo(other._ttl);
+            return _ttl.CompareTo(other._ttl);
         }
 
         public override string ToString()
@@ -570,6 +573,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsResourceRecordData RDATA
         { get { return _data; } }
+
+        [IgnoreDataMember]
+        public int DatagramOffset
+        { get { return _datagramOffset; } }
 
         [IgnoreDataMember]
         public ushort UncompressedLength
