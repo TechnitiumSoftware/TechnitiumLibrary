@@ -453,27 +453,21 @@ namespace TechnitiumLibrary.Net.Dns
                     else
                     {
                         //answer response with authority
-                        switch (response.RCODE)
+
+                        //dont add a negative cache entry for NXDOMAIN due to misconfigured name servers. let the resolver try again with the last CNAME and confirm NXDOMAIN
+                        if (response.RCODE != DnsResponseCode.NxDomain)
                         {
-                            case DnsResponseCode.NoError:
-                            case DnsResponseCode.NxDomain:
-                                //dont add a negative cache entry
-                                break;
-
-                            default:
-                                DnsResourceRecord lastAnswer = response.Answer[response.Answer.Count - 1];
-                                if (lastAnswer.Type == DnsResourceRecordType.CNAME)
+                            DnsResourceRecord lastAnswer = response.Answer[response.Answer.Count - 1];
+                            if (lastAnswer.Type == DnsResourceRecordType.CNAME)
+                            {
+                                foreach (DnsQuestionRecord question in response.Question)
                                 {
-                                    foreach (DnsQuestionRecord question in response.Question)
-                                    {
-                                        DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsSpecialCacheRecord(response));
-                                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                                    DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsSpecialCacheRecord(response));
+                                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                                        InternalCacheRecords(new DnsResourceRecord[] { record });
-                                    }
+                                    InternalCacheRecords(new DnsResourceRecord[] { record });
                                 }
-
-                                break;
+                            }
                         }
                     }
                 }
