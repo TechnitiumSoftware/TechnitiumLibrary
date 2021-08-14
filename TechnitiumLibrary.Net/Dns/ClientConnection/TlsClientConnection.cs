@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -27,6 +28,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
     public class TlsClientConnection : TcpClientConnection
     {
+        #region variables
+
+        static readonly List<SslApplicationProtocol> _alpn = new List<SslApplicationProtocol>() { new SslApplicationProtocol("dot") };
+
+        #endregion
+
         #region constructor
 
         public TlsClientConnection(NameServerAddress server, NetProxy proxy)
@@ -40,7 +47,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         protected override async Task<Stream> GetNetworkStreamAsync(Socket socket)
         {
             SslStream tlsStream = new SslStream(new NetworkStream(socket, true));
-            await tlsStream.AuthenticateAsClientAsync(_server.Host);
+            await tlsStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions() { TargetHost = _server.Host, ApplicationProtocols = _alpn });
 
             return tlsStream;
         }
