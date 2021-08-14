@@ -27,6 +27,7 @@ using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
 {
+    //Negative Caching of DNS Queries (DNS NCACHE) https://datatracker.ietf.org/doc/html/rfc2308
     public class DnsCache : IDnsCache
     {
         #region variables
@@ -453,13 +454,12 @@ namespace TechnitiumLibrary.Net.Dns
                     else
                     {
                         //answer response with authority
-
-                        //dont add a negative cache entry for NXDOMAIN due to misconfigured name servers. let the resolver try again with the last CNAME and confirm NXDOMAIN
-                        if (response.RCODE != DnsResponseCode.NxDomain)
+                        DnsResourceRecord lastAnswer = response.Answer[response.Answer.Count - 1];
+                        if (lastAnswer.Type == DnsResourceRecordType.CNAME)
                         {
-                            DnsResourceRecord lastAnswer = response.Answer[response.Answer.Count - 1];
-                            if (lastAnswer.Type == DnsResourceRecordType.CNAME)
+                            if ((response.RCODE != DnsResponseCode.NxDomain) || (response.Answer.Count == 1))
                             {
+                                //negative cache only when RCODE is not NXDOMAIN or when RCODE is NXDOMAIN and there is only 1 CNAME in answer
                                 foreach (DnsQuestionRecord question in response.Question)
                                 {
                                     DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, (firstAuthority.RDATA as DnsSOARecord).Minimum, new DnsSpecialCacheRecord(response));
