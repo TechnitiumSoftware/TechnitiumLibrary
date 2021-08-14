@@ -499,14 +499,13 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     DateTime utcNow = DateTime.UtcNow;
 
-                    if (Convert.ToInt32((_serveStaleTtlExpires - utcNow).TotalSeconds) < 1)
+                    if (utcNow > _serveStaleTtlExpires)
                         return 0u;
 
-                    int ttl = Convert.ToInt32((_ttlExpires - utcNow).TotalSeconds);
-                    if (ttl < 1)
-                        return 30u;
+                    if (utcNow > _ttlExpires)
+                        return 30u; //stale TTL
 
-                    return Convert.ToUInt32(ttl);
+                    return Convert.ToUInt32((_ttlExpires - utcNow).TotalSeconds);
                 }
 
                 return _ttl;
@@ -519,16 +518,7 @@ namespace TechnitiumLibrary.Net.Dns
             get
             {
                 if (_setExpiry)
-                {
-                    DateTime utcNow = DateTime.UtcNow;
-
-                    if (Convert.ToInt32((_serveStaleTtlExpires - utcNow).TotalSeconds) < 1)
-                        return true;
-
-                    int ttl = Convert.ToInt32((_ttlExpires - utcNow).TotalSeconds);
-
-                    return ttl < 1;
-                }
+                    return DateTime.UtcNow > _ttlExpires;
 
                 return false;
             }
@@ -538,29 +528,22 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get
             {
-                int ttl;
-
                 if (_setExpiry)
                 {
                     DateTime utcNow = DateTime.UtcNow;
+                    int ttl;
 
-                    if (Convert.ToInt32((_serveStaleTtlExpires - utcNow).TotalSeconds) < 1)
-                    {
+                    if (utcNow > _ttlExpires)
                         ttl = 0;
-                    }
                     else
-                    {
                         ttl = Convert.ToInt32((_ttlExpires - utcNow).TotalSeconds);
-                        if (ttl < 1)
-                            ttl = 0;
-                    }
+
+                    return ttl + " (" + WebUtilities.GetFormattedTime(ttl) + ")";
                 }
                 else
                 {
-                    ttl = Convert.ToInt32(_ttl);
+                    return _ttl + " (" + WebUtilities.GetFormattedTime((int)_ttl) + ")";
                 }
-
-                return ttl + " (" + WebUtilities.GetFormattedTime(ttl) + ")";
             }
         }
 
