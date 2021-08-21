@@ -287,7 +287,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
+        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
         {
             if (cache is null)
                 cache = new DnsCache();
@@ -296,6 +296,28 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 question = question.Clone(); //clone question so that original object is not affected
                 question.ZoneCut = ""; //enable QNAME minimization by setting zone cut to <root>
+            }
+
+            //ns revalidation
+            Dictionary<string, IReadOnlyList<NameServerAddress>> nsRevalidationTasks = null;
+
+            if (asyncNsRevalidation)
+                nsRevalidationTasks = new Dictionary<string, IReadOnlyList<NameServerAddress>>();
+
+            void DoNsRevalidation()
+            {
+                if (!asyncNsRevalidation || nsRevalidationTasks.Count == 0)
+                    return;
+
+                _ = Task.Factory.StartNew(async delegate ()
+                {
+                    List<Task> tasks = new List<Task>(nsRevalidationTasks.Count);
+
+                    foreach (KeyValuePair<string, IReadOnlyList<NameServerAddress>> entry in nsRevalidationTasks)
+                        tasks.Add(RevalidateNameServers(entry.Key, entry.Value, cache, proxy, preferIPv6, randomizeName, qnameMinimization, retries, timeout));
+
+                    await Task.WhenAll(tasks);
+                }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             }
 
             //main stack
@@ -382,6 +404,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         if (resolverStack.Count == 0)
                                         {
+                                            DoNsRevalidation();
                                             return cacheResponse;
                                         }
                                         else
@@ -413,6 +436,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             if (resolverStack.Count == 0)
                                             {
+                                                DoNsRevalidation();
                                                 return cacheResponse;
                                             }
                                             else
@@ -486,6 +510,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         //both answer and authority sections are empty
                                         if (resolverStack.Count == 0)
                                         {
+                                            DoNsRevalidation();
                                             return cacheResponse;
                                         }
                                         else
@@ -504,6 +529,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     if (resolverStack.Count == 0)
                                     {
+                                        DoNsRevalidation();
                                         return cacheResponse;
                                     }
                                     else
@@ -598,7 +624,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         try
                         {
-                            response = await client.InternalResolveAsync(request, qnameMinimization);
+                            response = await client.InternalResolveAsync(request, qnameMinimization, cache);
                         }
                         catch (DnsClientResponseValidationException ex)
                         {
@@ -682,6 +708,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                         if (resolverStack.Count == 0)
                                         {
+                                            DoNsRevalidation();
                                             return response;
                                         }
                                         else
@@ -739,6 +766,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             //no entry for given type
                                             if (resolverStack.Count == 0)
                                             {
+                                                DoNsRevalidation();
                                                 return response;
                                             }
                                             else
@@ -772,6 +800,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     //empty response from authoritative name server
                                                     if (resolverStack.Count == 0)
                                                     {
+                                                        DoNsRevalidation();
                                                         return response;
                                                     }
                                                     else
@@ -793,6 +822,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 if (resolverStack.Count == 0)
                                                 {
                                                     //cannot proceed forever; return what we have and stop
+                                                    DoNsRevalidation();
                                                     return response;
                                                 }
                                                 else
@@ -815,13 +845,19 @@ namespace TechnitiumLibrary.Net.Dns
                                                 if (preferIPv6)
                                                     nextNameServers.Sort();
 
-                                                if (question.ZoneCut is not null)
-                                                    question.ZoneCut = response.Authority[0].Name;
+                                                string newZoneCut = response.Authority[0].Name;
 
-                                                zoneCut = response.Authority[0].Name;
+                                                if (question.ZoneCut is not null)
+                                                    question.ZoneCut = newZoneCut;
+
+                                                zoneCut = newZoneCut;
                                                 nameServers = nextNameServers;
                                                 hopCount++;
                                                 lastResponse = null; //reset last response for current zone cut
+
+                                                //add to NS revalidation task list
+                                                if (asyncNsRevalidation)
+                                                    nsRevalidationTasks.TryAdd(zoneCut.ToLower(), nextNameServers);
 
                                                 goto resolverLoop;
                                             }
@@ -882,6 +918,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                     if (resolverStack.Count == 0)
                                     {
+                                        DoNsRevalidation();
                                         return response;
                                     }
                                     else
@@ -931,10 +968,12 @@ namespace TechnitiumLibrary.Net.Dns
                     //no successfull response was received from any of the name servers
                     if (resolverStack.Count == 0)
                     {
+                        DoNsRevalidation();
+
                         if (lastResponse is not null)
                         {
                             if (lastResponse.Question[0].Equals(question))
-                                return lastResponse; //return the last response
+                                return lastResponse;
                         }
 
                         string strNameServers = null;
@@ -969,30 +1008,30 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
+        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             return ResolveQueryAsync(question, delegate (DnsQuestionRecord q)
             {
-                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, randomizeName, qnameMinimization, retries, timeout, maxStackCount);
+                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, randomizeName, qnameMinimization, asyncNsRevalidation, retries, timeout, maxStackCount);
             });
         }
 
-        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
+        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, qnameMinimization, retries, timeout, maxStackCount));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, qnameMinimization, asyncNsRevalidation, retries, timeout, maxStackCount));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, qnameMinimization, retries, timeout, maxStackCount));
+            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, qnameMinimization, asyncNsRevalidation, retries, timeout, maxStackCount));
         }
 
         public static async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(IDnsClient dnsClient, string domain, bool preferIPv6 = false)
@@ -1022,7 +1061,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return mxEntries;
 
             //resolve IP addresses
-            List<string> mxAddresses = new List<string>();
+            List<string> mxAddresses = new List<string>(preferIPv6 ? mxEntries.Count * 2 : mxEntries.Count);
 
             //check glue records
             foreach (string mxEntry in mxEntries)
@@ -1081,7 +1120,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (response.Answer.Count == 0)
                         return Array.Empty<IPAddress>();
 
-                    List<IPAddress> ipAddresses = new List<IPAddress>();
+                    List<IPAddress> ipAddresses = new List<IPAddress>(response.Answer.Count);
 
                     foreach (DnsResourceRecord record in response.Answer)
                     {
@@ -1120,7 +1159,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (response.Answer.Count == 0)
                         return Array.Empty<IPAddress>();
 
-                    List<IPAddress> ipAddresses = new List<IPAddress>();
+                    List<IPAddress> ipAddresses = new List<IPAddress>(response.Answer.Count);
 
                     foreach (DnsResourceRecord record in response.Answer)
                     {
@@ -1159,7 +1198,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (response.Answer.Count == 0)
                         return Array.Empty<string>();
 
-                    List<string> txtRecords = new List<string>();
+                    List<string> txtRecords = new List<string>(response.Answer.Count);
 
                     foreach (DnsResourceRecord record in response.Answer)
                     {
@@ -1196,9 +1235,9 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 case DnsResponseCode.NoError:
                     if (response.Answer.Count == 0)
-                        return null;
+                        return Array.Empty<string>();
 
-                    List<string> values = new List<string>();
+                    List<string> values = new List<string>(response.Answer.Count);
 
                     foreach (DnsResourceRecord record in response.Answer)
                     {
@@ -1217,10 +1256,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    if (values.Count > 0)
-                        return values;
-
-                    return null;
+                    return values;
 
                 case DnsResponseCode.NxDomain:
                     throw new NameErrorDnsClientException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
@@ -1240,7 +1276,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (response.Answer.Count == 0)
                         return Array.Empty<string>();
 
-                    List<DnsMXRecord> mxRecords = new List<DnsMXRecord>();
+                    List<DnsMXRecord> mxRecords = new List<DnsMXRecord>(response.Answer.Count);
 
                     foreach (DnsResourceRecord record in response.Answer)
                     {
@@ -1532,6 +1568,52 @@ namespace TechnitiumLibrary.Net.Dns
             return response;
         }
 
+        private static async Task RevalidateNameServers(string zoneCut, IReadOnlyList<NameServerAddress> parentSideNameServers, IDnsCache cache, NetProxy proxy, bool preferIPv6, bool randomizeName, bool qnameMinimization, int retries, int timeout)
+        {
+            //Delegation Revalidation by DNS Resolvers
+            //https://datatracker.ietf.org/doc/draft-ietf-dnsop-ns-revalidation/
+
+            //select only name server addresses that have their IPEndPoint resolved to avoid additional recursive resolution
+            List<NameServerAddress> nameServers = new List<NameServerAddress>(parentSideNameServers.Count);
+
+            foreach (NameServerAddress nameServer in parentSideNameServers)
+            {
+                if (nameServer.IsIPEndPointStale)
+                    continue;
+
+                nameServers.Add(nameServer);
+            }
+
+            DnsClient client = new DnsClient(nameServers);
+            client._proxy = proxy;
+            client._preferIPv6 = preferIPv6;
+            client._randomizeName = randomizeName;
+            client._retries = retries;
+            client._timeout = timeout;
+            client._concurrency = 1;
+
+            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(zoneCut, DnsResourceRecordType.NS, DnsClass.IN) });
+            DnsDatagram response;
+
+            try
+            {
+                response = await client.InternalResolveAsync(request, qnameMinimization, cache);
+            }
+            catch
+            {
+                //ignore failures in resolution
+                return;
+            }
+
+            //sanitize response
+            response = SanitizeResponseAnswer(response, zoneCut); //sanitize answer section
+            response = SanitizeResponseAuthority(response, zoneCut); //sanitize authority section
+
+            //cache authoritative NS records from response
+            if (response.Answer.Count > 0)
+                cache.CacheResponse(response);
+        }
+
         private static async Task<DnsDatagram> ResolveQueryAsync(DnsQuestionRecord question, Func<DnsQuestionRecord, Task<DnsDatagram>> resolveAsync)
         {
             DnsDatagram response = await resolveAsync(question);
@@ -1619,7 +1701,7 @@ namespace TechnitiumLibrary.Net.Dns
             return finalResponse;
         }
 
-        private async Task<DnsDatagram> InternalResolveAsync(DnsDatagram request, bool qnameMinimization)
+        private async Task<DnsDatagram> InternalResolveAsync(DnsDatagram request, bool qnameMinimization, IDnsCache nsResolveCache)
         {
             //get servers
             IReadOnlyList<NameServerAddress> servers;
@@ -1645,7 +1727,6 @@ namespace TechnitiumLibrary.Net.Dns
             //init parameters
             object nextServerLock = new object();
             int nextServerIndex = 0;
-            IDnsCache dnsCache = null;
 
             NameServerAddress GetNextServer()
             {
@@ -1655,8 +1736,8 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         NameServerAddress server = servers[nextServerIndex++];
 
-                        if ((dnsCache is null) && server.IsIPEndPointStale && (_proxy is null))
-                            dnsCache = new DnsCache();
+                        if ((nsResolveCache is null) && server.IsIPEndPointStale && (_proxy is null))
+                            nsResolveCache = new DnsCache();
 
                         return server;
                     }
@@ -1693,7 +1774,7 @@ namespace TechnitiumLibrary.Net.Dns
                         //recursive resolve name server via root servers when proxy is null else let proxy resolve it
                         try
                         {
-                            await server.RecursiveResolveIPAddressAsync(dnsCache, null, _preferIPv6, _randomizeName, qnameMinimization, _retries, _timeout);
+                            await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _preferIPv6, _randomizeName, qnameMinimization, _retries, _timeout);
                         }
                         catch (Exception ex)
                         {
@@ -1936,7 +2017,7 @@ namespace TechnitiumLibrary.Net.Dns
                         return cacheResponse;
                 }
 
-                DnsDatagram newResponse = await InternalResolveAsync(newRequest, false);
+                DnsDatagram newResponse = await InternalResolveAsync(newRequest, false, _cache);
                 _cache.CacheResponse(newResponse);
                 return newResponse;
             });
@@ -1949,7 +2030,7 @@ namespace TechnitiumLibrary.Net.Dns
         public Task<DnsDatagram> ResolveAsync(DnsDatagram request)
         {
             if ((_cache is null) || (request.Question.Count != 1))
-                return InternalResolveAsync(request, false);
+                return InternalResolveAsync(request, false, null);
             else
                 return InternalCachedResolveQueryAsync(request.Question[0]);
         }
@@ -1959,7 +2040,7 @@ namespace TechnitiumLibrary.Net.Dns
             request.SetRandomIdentifier();
             DnsDatagram signedRequest = request.SignRequest(key, fudge);
 
-            DnsDatagram signedResponse = await InternalResolveAsync(signedRequest, false);
+            DnsDatagram signedResponse = await InternalResolveAsync(signedRequest, false, null);
             if (!signedResponse.VerifySignedResponse(signedRequest, key, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error))
             {
                 if (requestFailed)
@@ -1974,7 +2055,7 @@ namespace TechnitiumLibrary.Net.Dns
         public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question)
         {
             if (_cache is null)
-                return InternalResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }), false);
+                return InternalResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }), false, null);
             else
                 return InternalCachedResolveQueryAsync(question);
         }
