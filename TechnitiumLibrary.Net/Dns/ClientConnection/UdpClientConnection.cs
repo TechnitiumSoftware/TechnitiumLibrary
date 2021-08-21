@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     stopwatch.Start();
 
-                    bufferSize = await socket.UdpQueryAsync(new ArraySegment<byte>(buffer, 0, bufferSize), buffer, _server.EndPoint, timeout, retries, false, cancellationToken);
+                    bufferSize = await socket.UdpQueryAsync(new ArraySegment<byte>(buffer, 0, bufferSize), buffer, _server.IPEndPoint, timeout, retries, false, cancellationToken);
 
                     stopwatch.Stop();
                 }
