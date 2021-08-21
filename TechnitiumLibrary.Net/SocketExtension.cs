@@ -86,7 +86,7 @@ namespace TechnitiumLibrary.Net
             socket.EndConnect(result);
         }
 
-        public static async Task<int> UdpQueryAsync(this Socket socket, ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
+        public static async Task<int> UdpQueryAsync(this Socket socket, ArraySegment<byte> request, ArraySegment<byte> response, IPEndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
             Task<SocketReceiveFromResult> recvTask = null;
             EndPoint epAny = GetEndPointAnyFor(remoteEP.AddressFamily);
