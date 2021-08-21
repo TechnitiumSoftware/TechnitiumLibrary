@@ -530,7 +530,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (serverIPs.Count == 0)
                 throw new DnsClientException("No IP address was found for name server: " + domain);
 
-            _ipEndPoint = new IPEndPoint(serverIPs[0], this.Port);
+            _ipEndPoint = new IPEndPoint(serverIPs[0], Port);
             _ipEndPointExpires = true;
             _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
         }
@@ -551,21 +551,21 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (domain == "localhost")
             {
-                _ipEndPoint = new IPEndPoint((preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback), this.Port);
+                _ipEndPoint = new IPEndPoint(preferIPv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback, Port);
                 return;
             }
 
             if (IPAddress.TryParse(domain, out IPAddress address))
             {
-                _ipEndPoint = new IPEndPoint(address, this.Port);
+                _ipEndPoint = new IPEndPoint(address, Port);
                 return;
             }
 
             IPEndPoint ipEndPoint = null;
 
-            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, randomizeName, qnameMinimization, retries, timeout);
+            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, randomizeName, qnameMinimization, false, retries, timeout);
             if (addresses.Count > 0)
-                ipEndPoint = new IPEndPoint(addresses[0], this.Port);
+                ipEndPoint = new IPEndPoint(addresses[0], Port);
 
             if (ipEndPoint == null)
                 throw new DnsClientException("No IP address was found for name server: " + domain);
@@ -582,7 +582,7 @@ namespace TechnitiumLibrary.Net.Dns
                 try
                 {
                     IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await dnsClient.ResolveAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN)));
-                    if (ptrDomains != null)
+                    if (ptrDomains.Count > 0)
                         _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
                 catch
@@ -596,8 +596,8 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 try
                 {
-                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, qnameMinimization, retries, timeout));
-                    if (ptrDomains != null)
+                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, randomizeName, qnameMinimization, false, retries, timeout));
+                    if (ptrDomains.Count > 0)
                         _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
                 catch
@@ -631,13 +631,13 @@ namespace TechnitiumLibrary.Net.Dns
 
         public int CompareTo(NameServerAddress other)
         {
-            if ((this._ipEndPoint == null) || (other._ipEndPoint == null))
+            if ((_ipEndPoint == null) || (other._ipEndPoint == null))
                 return 0;
 
-            if ((this._ipEndPoint.AddressFamily == AddressFamily.InterNetwork) && (other._ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
+            if ((_ipEndPoint.AddressFamily == AddressFamily.InterNetwork) && (other._ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
                 return 1;
 
-            if ((this._ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6) && (other._ipEndPoint.AddressFamily == AddressFamily.InterNetwork))
+            if ((_ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6) && (other._ipEndPoint.AddressFamily == AddressFamily.InterNetwork))
                 return -1;
 
             return 0;
