@@ -475,6 +475,9 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     if (response.Answer.Count == 0)
                     {
+                        //response is probably referral response
+                        bool isReferralResponse = true;
+
                         foreach (DnsQuestionRecord question in response.Question)
                         {
                             foreach (DnsResourceRecord authority in response.Authority)
@@ -486,48 +489,46 @@ namespace TechnitiumLibrary.Net.Dns
                                     record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                                     InternalCacheRecords(new DnsResourceRecord[] { record });
+                                    isReferralResponse = false;
                                     break;
                                 }
                             }
                         }
-                    }
 
-                    //cache and glue suitable NS records
-                    foreach (DnsQuestionRecord question in response.Question)
-                    {
-                        if ((question.Type == DnsResourceRecordType.NS) && (response.Answer.Count > 0))
-                            continue; //prevent overwriting NS records in answer section
-
-                        foreach (DnsResourceRecord authority in response.Authority)
+                        if (isReferralResponse)
                         {
-                            if (authority.Type != DnsResourceRecordType.NS)
-                                continue;
-
-                            cachableRecords.Add(authority);
-
-                            //add glue from additional section
-                            string nsDomain = (authority.RDATA as DnsNSRecord).NameServer;
-
-                            foreach (DnsResourceRecord additional in response.Additional)
+                            //cache and glue suitable NS records
+                            foreach (DnsResourceRecord authority in response.Authority)
                             {
-                                if (nsDomain.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                if (authority.Type != DnsResourceRecordType.NS)
+                                    continue;
+
+                                cachableRecords.Add(authority);
+
+                                //add glue from additional section
+                                string nsDomain = (authority.RDATA as DnsNSRecord).NameServer;
+
+                                foreach (DnsResourceRecord additional in response.Additional)
                                 {
-                                    switch (additional.Type)
+                                    if (nsDomain.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
                                     {
-                                        case DnsResourceRecordType.A:
-                                            if (IPAddress.IsLoopback((additional.RDATA as DnsARecord).Address))
-                                                continue;
+                                        switch (additional.Type)
+                                        {
+                                            case DnsResourceRecordType.A:
+                                                if (IPAddress.IsLoopback((additional.RDATA as DnsARecord).Address))
+                                                    continue;
 
-                                            break;
+                                                break;
 
-                                        case DnsResourceRecordType.AAAA:
-                                            if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecord).Address))
-                                                continue;
+                                            case DnsResourceRecordType.AAAA:
+                                                if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecord).Address))
+                                                    continue;
 
-                                            break;
+                                                break;
+                                        }
+
+                                        AddGlueRecordTo(authority, additional);
                                     }
-
-                                    AddGlueRecordTo(authority, additional);
                                 }
                             }
                         }
