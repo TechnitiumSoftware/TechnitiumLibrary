@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -61,9 +61,9 @@ namespace TechnitiumLibrary.Net.BitTorrent
             int responseLength;
 
             if (_proxy == null)
-                responseLength = await udpSocket.UdpQueryAsync(request, response, await trackerEP.GetIPEndPointAsync(), TIMEOUT, 3, true);
+                responseLength = await udpSocket.UdpQueryAsync(request, response, (IPEndPoint)trackerEP, TIMEOUT, 3, true);
             else
-                responseLength = await proxyHandler.UdpQueryAsync(request, response, await trackerEP.GetIPEndPointAsync(), TIMEOUT, 3, true);
+                responseLength = await proxyHandler.UdpQueryAsync(request, response, trackerEP, TIMEOUT, 3, true);
 
             //check response length
             if (responseLength < 16)
@@ -143,9 +143,9 @@ namespace TechnitiumLibrary.Net.BitTorrent
             int bytesReceived;
 
             if (_proxy == null)
-                bytesReceived = await udpSocket.UdpQueryAsync(request, buffer, await trackerEP.GetIPEndPointAsync(), TIMEOUT, 3, true);
+                bytesReceived = await udpSocket.UdpQueryAsync(request, buffer, (IPEndPoint)trackerEP, TIMEOUT, 3, true);
             else
-                bytesReceived = await proxyHandler.UdpQueryAsync(request, buffer, await trackerEP.GetIPEndPointAsync(), TIMEOUT, 3, true);
+                bytesReceived = await proxyHandler.UdpQueryAsync(request, buffer, trackerEP, TIMEOUT, 3, true);
 
             //check response length
             if (bytesReceived < 20)
