@@ -206,11 +206,11 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             if (IsBypassed(remoteEP))
             {
-                IPEndPoint hostEP = await remoteEP.GetIPEndPointAsync();
+                IPEndPoint ep = await remoteEP.GetIPEndPointAsync();
 
-                using (Socket socket = new Socket(hostEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
+                using (Socket socket = new Socket(ep.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
                 {
-                    return await socket.UdpQueryAsync(request, response, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
+                    return await socket.UdpQueryAsync(request, response, ep, timeout, retries, expBackoffTimeout, cancellationToken);
                 }
             }
 
