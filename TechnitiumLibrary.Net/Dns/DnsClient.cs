@@ -24,6 +24,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
@@ -331,6 +332,26 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram lastResponse = null;
             Exception lastException = null;
 
+            void PushStack(string nextNsDomain)
+            {
+                resolverStack.Push(new ResolverData(question, zoneCut, nameServers, nameServerIndex, hopCount, lastResponse, lastException));
+
+                if (preferIPv6)
+                    question = new DnsQuestionRecord(nextNsDomain, DnsResourceRecordType.AAAA, question.Class);
+                else
+                    question = new DnsQuestionRecord(nextNsDomain, DnsResourceRecordType.A, question.Class);
+
+                if (qnameMinimization)
+                    question.ZoneCut = ""; //enable QNAME minimization by setting zone cut to <root>
+
+                zoneCut = null; //find zone cut in stack loop
+                nameServers = null;
+                nameServerIndex = 0;
+                hopCount = 0;
+                lastResponse = null;
+                lastException = null;
+            }
+
             void PopStack()
             {
                 ResolverData data = resolverStack.Pop();
@@ -501,6 +522,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                 zoneCut = cacheResponse.Authority[0].Name;
                                                 nameServers = cacheNameServers;
+                                                nameServerIndex = 0;
                                                 lastResponse = null;
                                             }
                                         }
@@ -560,6 +582,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         zoneCut = "";
                         nameServers = nameServersCopy;
+                        nameServerIndex = 0;
                         lastResponse = null;
                     }
                     else
@@ -569,41 +592,23 @@ namespace TechnitiumLibrary.Net.Dns
 
                         zoneCut = "";
                         nameServers = nameServersCopy;
+                        nameServerIndex = 0;
                         lastResponse = null;
                     }
                 }
 
                 while (true) //resolver loop
                 {
-                    //copy and reset stack name server index since its one time use only after stack pop
-                    int i = nameServerIndex;
-                    nameServerIndex = 0;
-
                     //query name servers one by one
-                    for (; i < nameServers.Count; i++) //try next server loop
+                    for (; nameServerIndex < nameServers.Count; nameServerIndex++) //try next server loop
                     {
-                        NameServerAddress nameServer = nameServers[i];
+                        NameServerAddress nameServer = nameServers[nameServerIndex];
 
                         if (nameServer.IPEndPoint is null)
                         {
                             if (proxy is null)
                             {
-                                resolverStack.Push(new ResolverData(question, zoneCut, nameServers, i, hopCount, lastResponse, lastException));
-
-                                if (preferIPv6)
-                                    question = new DnsQuestionRecord(nameServer.Host, DnsResourceRecordType.AAAA, question.Class);
-                                else
-                                    question = new DnsQuestionRecord(nameServer.Host, DnsResourceRecordType.A, question.Class);
-
-                                if (qnameMinimization)
-                                    question.ZoneCut = ""; //enable QNAME minimization by setting zone cut to <root>
-
-                                zoneCut = null; //find zone cut in stack loop
-                                nameServers = null;
-                                nameServerIndex = 0;
-                                hopCount = 0;
-                                lastResponse = null;
-                                lastException = null;
+                                PushStack(nameServer.Host);
                                 goto stackLoop;
                             }
                         }
@@ -640,7 +645,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         //disable QNAME minimization and query again to current server to get correct type response
                                         question.ZoneCut = null;
-                                        i--;
+                                        nameServerIndex--;
                                         continue;
                                     }
                                 }
@@ -648,7 +653,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     //use minimized name as zone cut and query again to current server to move to next label
                                     question.ZoneCut = question.MinimizedName;
-                                    i--;
+                                    nameServerIndex--;
                                     continue;
                                 }
                             }
@@ -689,7 +694,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             {
                                                 //disable QNAME minimization and query again to current server to get correct type response
                                                 question.ZoneCut = null;
-                                                i--;
+                                                nameServerIndex--;
                                                 continue;
                                             }
                                         }
@@ -697,7 +702,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             //disable QNAME minimization and query again to current server
                                             question.ZoneCut = null;
-                                            i--;
+                                            nameServerIndex--;
                                             continue;
                                         }
                                         else
@@ -750,7 +755,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     {
                                                         //disable QNAME minimization and query again to current server to get correct type response
                                                         question.ZoneCut = null;
-                                                        i--;
+                                                        nameServerIndex--;
                                                         continue;
                                                     }
                                                 }
@@ -758,7 +763,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 {
                                                     //use minimized name as zone cut and query again to current server to move to next label
                                                     question.ZoneCut = question.MinimizedName;
-                                                    i--;
+                                                    nameServerIndex--;
                                                     continue;
                                                 }
                                             }
@@ -776,7 +781,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     question = new DnsQuestionRecord(question.Name, DnsResourceRecordType.A, question.Class);
 
                                                     //try same server again with AAAA query
-                                                    i--;
+                                                    nameServerIndex--;
                                                     continue;
                                                 }
                                                 else
@@ -852,6 +857,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                 zoneCut = newZoneCut;
                                                 nameServers = nextNameServers;
+                                                nameServerIndex = 0;
                                                 hopCount++;
                                                 lastResponse = null; //reset last response for current zone cut
 
@@ -881,7 +887,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 {
                                                     //disable QNAME minimization and query again to current server to get correct type response
                                                     question.ZoneCut = null;
-                                                    i--;
+                                                    nameServerIndex--;
                                                     continue;
                                                 }
                                             }
@@ -889,7 +895,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             {
                                                 //use minimized name as zone cut and query again to current server to move to next label
                                                 question.ZoneCut = question.MinimizedName;
-                                                i--;
+                                                nameServerIndex--;
                                                 continue;
                                             }
                                         }
@@ -911,7 +917,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             //disable QNAME minimization and query again to current server to confirm full name response
                                             question.ZoneCut = null;
-                                            i--;
+                                            nameServerIndex--;
                                             continue;
                                         }
                                     }
@@ -946,7 +952,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             {
                                                 //disable QNAME minimization and query again to current server to get correct type response
                                                 question.ZoneCut = null;
-                                                i--;
+                                                nameServerIndex--;
                                                 continue;
                                             }
                                         }
@@ -954,7 +960,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             //use minimized name as zone cut and query again to current server to move to next label
                                             question.ZoneCut = question.MinimizedName;
-                                            i--;
+                                            nameServerIndex--;
                                             continue;
                                         }
                                     }
@@ -1584,6 +1590,9 @@ namespace TechnitiumLibrary.Net.Dns
                 nameServers.Add(nameServer);
             }
 
+            if (nameServers.Count == 0)
+                return; //no name servers with EPs available
+
             DnsClient client = new DnsClient(nameServers);
             client._proxy = proxy;
             client._preferIPv6 = preferIPv6;
@@ -1764,7 +1773,7 @@ namespace TechnitiumLibrary.Net.Dns
                             return lastResponse;
 
                         if (lastException is not null)
-                            throw lastException;
+                            ExceptionDispatchInfo.Capture(lastException).Throw();
 
                         throw new DnsClientException("DnsClient failed to resolve the request: no response from name servers.");
                     }
@@ -1955,7 +1964,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 return lastResponse; //return last response since it was returned by a task that ran to completion
 
                             if (lastException is not null)
-                                throw lastException;
+                                ExceptionDispatchInfo.Capture(lastException).Throw();
 
                             throw new DnsClientException("DnsClient failed to resolve the request: request timed out.");
                         }
