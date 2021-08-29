@@ -85,7 +85,15 @@ namespace TechnitiumLibrary.Net
         {
             string[] network = cidr.Split(new char[] { '/' }, 2);
 
-            if ((network.Length != 2) || !IPAddress.TryParse(network[0], out IPAddress address) || !int.TryParse(network[1], out int prefixLength) || (prefixLength < 0))
+            if (!IPAddress.TryParse(network[0], out IPAddress address))
+            {
+                networkAddress = null;
+                return false;
+            }
+
+            int prefixLength = -1;
+
+            if ((network.Length > 1) && (!int.TryParse(network[1], out prefixLength) || (prefixLength < 0)))
             {
                 networkAddress = null;
                 return false;
@@ -94,7 +102,11 @@ namespace TechnitiumLibrary.Net
             switch (address.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    if (prefixLength > 32)
+                    if (prefixLength == -1)
+                    {
+                        prefixLength = 32;
+                    }
+                    else if (prefixLength > 32)
                     {
                         networkAddress = null;
                         return false;
@@ -103,7 +115,11 @@ namespace TechnitiumLibrary.Net
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    if (prefixLength > 128)
+                    if (prefixLength == -1)
+                    {
+                        prefixLength = 128;
+                    }
+                    else if (prefixLength > 128)
                     {
                         networkAddress = null;
                         return false;
