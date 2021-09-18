@@ -362,6 +362,28 @@ namespace TechnitiumLibrary.Net.Dns
             return groupedByDomainRecords;
         }
 
+        public static bool IsRRSetExpired(IReadOnlyCollection<DnsResourceRecord> records, bool serveStale)
+        {
+            foreach (DnsResourceRecord record in records)
+            {
+                if (record.IsExpired(serveStale))
+                    return true;
+            }
+
+            return false;
+        }
+
+        public static bool IsRRSetStale(IReadOnlyCollection<DnsResourceRecord> records)
+        {
+            foreach (DnsResourceRecord record in records)
+            {
+                if (record.IsStale)
+                    return true;
+            }
+
+            return false;
+        }
+
         #endregion
 
         #region internal
