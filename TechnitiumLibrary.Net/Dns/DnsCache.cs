@@ -732,52 +732,30 @@ namespace TechnitiumLibrary.Net.Dns
 
             #region private
 
-            private static IReadOnlyList<DnsResourceRecord> FilterExpiredRecords(DnsResourceRecordType type, IReadOnlyList<DnsResourceRecord> records, bool filterSpecialCacheRecords)
+            private static IReadOnlyList<DnsResourceRecord> ValidateRRSet(DnsResourceRecordType type, IReadOnlyList<DnsResourceRecord> records, bool checkForSpecialCacheRecord)
             {
-                if (records.Count == 1)
-                {
-                    DnsResourceRecord record = records[0];
-
-                    if (record.IsStale)
-                        return Array.Empty<DnsResourceRecord>(); //record is stale
-
-                    if (filterSpecialCacheRecords)
-                    {
-                        if (record.RDATA is DnsSpecialCacheRecord)
-                            return Array.Empty<DnsResourceRecord>(); //special cache record
-                    }
-
-                    return records;
-                }
-
-                List<DnsResourceRecord> newRecords = new List<DnsResourceRecord>(records.Count);
-
                 foreach (DnsResourceRecord record in records)
                 {
                     if (record.IsStale)
-                        continue; //record is stale
+                        return Array.Empty<DnsResourceRecord>(); //RR Set is stale
 
-                    if (filterSpecialCacheRecords)
-                    {
-                        if (record.RDATA is DnsSpecialCacheRecord)
-                            continue; //special cache record
-                    }
-
-                    newRecords.Add(record);
+                    if (checkForSpecialCacheRecord && (record.RDATA is DnsSpecialCacheRecord))
+                        return Array.Empty<DnsResourceRecord>(); //RR Set is special cache record
                 }
 
-                if (newRecords.Count > 1)
+                if (records.Count > 1)
                 {
                     switch (type)
                     {
                         case DnsResourceRecordType.A:
                         case DnsResourceRecordType.AAAA:
+                            List<DnsResourceRecord> newRecords = new List<DnsResourceRecord>(records);
                             newRecords.Shuffle(); //shuffle records to allow load balancing
-                            break;
+                            return newRecords;
                     }
                 }
 
-                return newRecords;
+                return records;
             }
 
             #endregion
@@ -791,7 +769,7 @@ namespace TechnitiumLibrary.Net.Dns
                     //call trying to cache failure record
                     if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
                     {
-                        if ((existingRecords.Count > 0) && !(existingRecords[0].RDATA is DnsSpecialCacheRecord existingSplRecord && existingSplRecord.IsFailure) && !existingRecords[0].IsStale)
+                        if ((existingRecords.Count > 0) && !(existingRecords[0].RDATA is DnsSpecialCacheRecord existingSplRecord && existingSplRecord.IsFailure) && !DnsResourceRecord.IsRRSetStale(existingRecords))
                             return; //skip to avoid overwriting a useful record with a failure record
                     }
                 }
@@ -799,15 +777,15 @@ namespace TechnitiumLibrary.Net.Dns
                 _entries[type] = records;
             }
 
-            public IReadOnlyList<DnsResourceRecord> QueryRecords(DnsResourceRecordType type, bool filterSpecialCacheRecords)
+            public IReadOnlyList<DnsResourceRecord> QueryRecords(DnsResourceRecordType type, bool checkForSpecialCacheRecord)
             {
                 if (_entries.TryGetValue(DnsResourceRecordType.CNAME, out IReadOnlyList<DnsResourceRecord> existingCNAMERecords))
                 {
-                    IReadOnlyList<DnsResourceRecord> filteredRecords = FilterExpiredRecords(type, existingCNAMERecords, filterSpecialCacheRecords);
-                    if (filteredRecords.Count > 0)
+                    IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(type, existingCNAMERecords, checkForSpecialCacheRecord);
+                    if (rrset.Count > 0)
                     {
-                        if ((type == DnsResourceRecordType.CNAME) || (filteredRecords[0].RDATA is DnsCNAMERecord))
-                            return filteredRecords;
+                        if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecord))
+                            return rrset;
                     }
                 }
 
@@ -816,13 +794,13 @@ namespace TechnitiumLibrary.Net.Dns
                     List<DnsResourceRecord> anyRecords = new List<DnsResourceRecord>();
 
                     foreach (KeyValuePair<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> entry in _entries)
-                        anyRecords.AddRange(entry.Value);
+                        anyRecords.AddRange(ValidateRRSet(type, entry.Value, true));
 
-                    return FilterExpiredRecords(type, anyRecords, true);
+                    return anyRecords;
                 }
 
                 if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
-                    return FilterExpiredRecords(type, existingRecords, filterSpecialCacheRecords);
+                    return ValidateRRSet(type, existingRecords, checkForSpecialCacheRecord);
 
                 return Array.Empty<DnsResourceRecord>();
             }
@@ -831,44 +809,8 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 foreach (KeyValuePair<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> entry in _entries)
                 {
-                    bool isExpired = false;
-
-                    foreach (DnsResourceRecord record in entry.Value)
-                    {
-                        if (record.IsStale)
-                        {
-                            //record expired
-                            isExpired = true;
-                            break;
-                        }
-                    }
-
-                    if (isExpired)
-                    {
-                        List<DnsResourceRecord> newRecords = null;
-
-                        foreach (DnsResourceRecord record in entry.Value)
-                        {
-                            if (record.IsStale)
-                                continue; //record expired, skip it
-
-                            if (newRecords is null)
-                                newRecords = new List<DnsResourceRecord>(entry.Value.Count);
-
-                            newRecords.Add(record);
-                        }
-
-                        if (newRecords is null)
-                        {
-                            //all records expired; remove entry
-                            _entries.TryRemove(entry.Key, out _);
-                        }
-                        else
-                        {
-                            //try update entry with non-expired records
-                            _entries.TryUpdate(entry.Key, newRecords, entry.Value);
-                        }
-                    }
+                    if (DnsResourceRecord.IsRRSetStale(entry.Value))
+                        _entries.TryRemove(entry.Key, out _); //RR Set is expired; remove entry
                 }
             }
 
