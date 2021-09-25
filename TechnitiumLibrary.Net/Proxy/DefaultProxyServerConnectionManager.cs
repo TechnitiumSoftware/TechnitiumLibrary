@@ -26,6 +26,13 @@ namespace TechnitiumLibrary.Net.Proxy
 {
     public class DefaultProxyServerConnectionManager : IProxyServerConnectionManager
     {
+        #region variables
+
+        protected const int SOL_SOCKET = 1;
+        protected const int SO_BINDTODEVICE = 25;
+
+        #endregion
+
         #region public
 
         public virtual async Task<Socket> ConnectAsync(EndPoint remoteEP)
@@ -114,13 +121,17 @@ namespace TechnitiumLibrary.Net.Proxy
                 }
             }
 
-            public BindHandler(IPEndPoint bindEP)
+            public BindHandler(IPEndPoint bindEP, byte[] bindToInterfaceName = null)
             {
                 switch (bindEP.AddressFamily)
                 {
                     case AddressFamily.InterNetwork:
                     case AddressFamily.InterNetworkV6:
                         _socket = new Socket(bindEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+                        if (bindToInterfaceName is not null)
+                            _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, bindToInterfaceName);
+
                         _socket.Bind(bindEP);
                         _socket.Listen(1);
                         _socket.NoDelay = true;
@@ -199,9 +210,13 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region constructor
 
-            public UdpSocketHandler(EndPoint bindEP)
+            public UdpSocketHandler(EndPoint bindEP, byte[] bindToInterfaceName = null)
             {
                 _socket = new Socket(bindEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+
+                if (bindToInterfaceName is not null)
+                    _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, bindToInterfaceName);
+
                 _socket.Bind(bindEP);
             }
 
