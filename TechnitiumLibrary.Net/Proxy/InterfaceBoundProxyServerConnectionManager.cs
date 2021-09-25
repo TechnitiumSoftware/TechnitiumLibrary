@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,7 +19,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
@@ -28,50 +30,43 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        readonly IPEndPoint _bindIpv4EP;
-        readonly IPEndPoint _bindIpv6EP;
+        readonly IPEndPoint _bindEP;
+        readonly byte[] _bindToInterfaceName;
 
         #endregion
 
         #region constructor
 
-        public InterfaceBoundProxyServerConnectionManager(IPAddress bindIpv4Address = null, IPAddress bindIpv6Address = null)
+        public InterfaceBoundProxyServerConnectionManager(IPAddress bindAddress)
         {
-            if (Environment.OSVersion.Platform != PlatformID.Win32NT)
-                throw new PlatformNotSupportedException();
+            _bindEP = new IPEndPoint(bindAddress, 0);
 
-            if ((bindIpv4Address == null) && (bindIpv6Address == null))
-                throw new ArgumentNullException("At least one bind address must be specified.");
-
-            if (bindIpv4Address != null)
-                _bindIpv4EP = new IPEndPoint(bindIpv4Address, 0);
-
-            if (bindIpv6Address != null)
-                _bindIpv6EP = new IPEndPoint(bindIpv6Address, 0);
-        }
-
-        #endregion
-
-        #region private
-
-        private IPEndPoint GetBindEP(AddressFamily family)
-        {
-            switch (family)
+            switch (Environment.OSVersion.Platform)
             {
-                case AddressFamily.InterNetwork:
-                    if (_bindIpv4EP == null)
-                        throw new SocketException((int)SocketError.NetworkUnreachable);
+                case PlatformID.Win32NT:
+                    break;
 
-                    return _bindIpv4EP;
+                case PlatformID.Unix:
+                    //find interface names
+                    foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
+                    {
+                        foreach (UnicastIPAddressInformation ip in nic.GetIPProperties().UnicastAddresses)
+                        {
+                            if (ip.Address.Equals(bindAddress))
+                            {
+                                _bindToInterfaceName = Encoding.ASCII.GetBytes(nic.Name);
+                                break;
+                            }
+                        }
 
-                case AddressFamily.InterNetworkV6:
-                    if (_bindIpv6EP == null)
-                        throw new SocketException((int)SocketError.NetworkUnreachable);
+                        if (_bindToInterfaceName is not null)
+                            break;
+                    }
 
-                    return _bindIpv6EP;
+                    break;
 
                 default:
-                    throw new NotSupportedException();
+                    throw new PlatformNotSupportedException();
             }
         }
 
@@ -82,22 +77,17 @@ namespace TechnitiumLibrary.Net.Proxy
         public override async Task<Socket> ConnectAsync(EndPoint remoteEP)
         {
             if (remoteEP.AddressFamily == AddressFamily.Unspecified)
-            {
-                AddressFamily family;
+                remoteEP = await remoteEP.GetIPEndPointAsync(_bindEP.AddressFamily);
 
-                if (_bindIpv6EP == null)
-                    family = AddressFamily.InterNetwork;
-                else
-                    family = AddressFamily.InterNetworkV6;
-
-                remoteEP = await remoteEP.GetIPEndPointAsync(family);
-            }
-
-            IPEndPoint bindEP = GetBindEP(remoteEP.AddressFamily);
+            if (_bindEP.AddressFamily != remoteEP.AddressFamily)
+                throw new SocketException((int)SocketError.NetworkUnreachable);
 
             Socket socket = new Socket(remoteEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-            socket.Bind(bindEP);
+            if (_bindToInterfaceName is not null)
+                socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _bindToInterfaceName);
+
+            socket.Bind(_bindEP);
 
             await socket.ConnectAsync(remoteEP);
 
@@ -108,15 +98,19 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public override Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
         {
-            IPEndPoint bindEP = GetBindEP(family);
-            IProxyServerBindHandler bindHandler = new BindHandler(bindEP);
+            if (_bindEP.AddressFamily != family)
+                throw new SocketException((int)SocketError.NetworkUnreachable);
+
+            IProxyServerBindHandler bindHandler = new BindHandler(_bindEP, _bindToInterfaceName);
             return Task.FromResult(bindHandler);
         }
 
         public override Task<IProxyServerUdpAssociateHandler> GetUdpAssociateHandlerAsync(EndPoint localEP)
         {
-            IPEndPoint bindEP = GetBindEP(localEP.AddressFamily);
-            IProxyServerUdpAssociateHandler udpHandler = new UdpSocketHandler(bindEP);
+            if (_bindEP.AddressFamily != localEP.AddressFamily)
+                throw new SocketException((int)SocketError.NetworkUnreachable);
+
+            IProxyServerUdpAssociateHandler udpHandler = new UdpSocketHandler(_bindEP, _bindToInterfaceName);
             return Task.FromResult(udpHandler);
         }
 
@@ -125,7 +119,7 @@ namespace TechnitiumLibrary.Net.Proxy
         #region properties
 
         public IPAddress BindAddress
-        { get { return _bindIpv4EP.Address; } }
+        { get { return _bindEP.Address; } }
 
         #endregion
     }
