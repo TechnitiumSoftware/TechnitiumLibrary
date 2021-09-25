@@ -40,11 +40,13 @@ namespace TechnitiumLibrary.Net.Proxy
 
         static readonly RandomNumberGenerator _rng = RandomNumberGenerator.Create();
 
-        readonly IReadOnlyList<IProxyServerConnectionManager> _connectionManagers;
+        readonly IReadOnlyList<IProxyServerConnectionManager> _ipv4ConnectionManagers;
+        readonly IReadOnlyList<IProxyServerConnectionManager> _ipv6ConnectionManagers;
         readonly IReadOnlyCollection<EndPoint> _connectivityCheckEPs;
         readonly bool _redundancyOnly;
 
-        IReadOnlyList<IProxyServerConnectionManager> _workingConnectionManagers;
+        IReadOnlyList<IProxyServerConnectionManager> _workingIpv4ConnectionManagers;
+        IReadOnlyList<IProxyServerConnectionManager> _workingIpv6ConnectionManagers;
 
         readonly Timer _networkCheckTimer;
         const int NETWORK_CHECK_TIMER_INITIAL_INTERVAL = 1000;
@@ -55,57 +57,88 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region constructor
 
-        public LoadBalancingProxyServerConnectionManager(IReadOnlyList<IProxyServerConnectionManager> connectionManagers, IReadOnlyCollection<EndPoint> connectivityCheckEPs = null, bool redundancyOnly = false)
+        public LoadBalancingProxyServerConnectionManager(IReadOnlyList<IProxyServerConnectionManager> ipv4ConnectionManagers, IReadOnlyList<IProxyServerConnectionManager> ipv6ConnectionManagers, IReadOnlyCollection<EndPoint> connectivityCheckEPs = null, bool redundancyOnly = false)
         {
-            _connectionManagers = connectionManagers;
+            _ipv4ConnectionManagers = ipv4ConnectionManagers;
+            _ipv6ConnectionManagers = ipv6ConnectionManagers;
             _connectivityCheckEPs = connectivityCheckEPs;
             _redundancyOnly = redundancyOnly;
 
             if (_connectivityCheckEPs == null)
                 _connectivityCheckEPs = new EndPoint[] { new DomainEndPoint("www.google.com", 443), new DomainEndPoint("www.microsoft.com", 443) };
 
-            _workingConnectionManagers = _connectionManagers;
+            _workingIpv4ConnectionManagers = _ipv4ConnectionManagers;
+            _workingIpv6ConnectionManagers = _ipv6ConnectionManagers;
 
             _networkCheckTimer = new Timer(async delegate (object state)
             {
                 try
                 {
                     //filter out working connection managers from available connection managers
-                    List<Task<IProxyServerConnectionManager>> tasks = new List<Task<IProxyServerConnectionManager>>();
+                    List<Task<IProxyServerConnectionManager>> ipv4Tasks = new List<Task<IProxyServerConnectionManager>>();
+                    List<Task<IProxyServerConnectionManager>> ipv6Tasks = new List<Task<IProxyServerConnectionManager>>();
 
-                    foreach (IProxyServerConnectionManager connectionManager in _connectionManagers)
-                        tasks.Add(CheckConnectivityAsync(connectionManager));
+                    foreach (IProxyServerConnectionManager connectionManager in _ipv4ConnectionManagers)
+                        ipv4Tasks.Add(CheckConnectivityAsync(connectionManager));
 
-                    IProxyServerConnectionManager[] results = await Task.WhenAll(tasks);
-                    List<IProxyServerConnectionManager> workingConnectionManagers = new List<IProxyServerConnectionManager>();
+                    foreach (IProxyServerConnectionManager connectionManager in _ipv6ConnectionManagers)
+                        ipv6Tasks.Add(CheckConnectivityAsync(connectionManager));
+
+                    IProxyServerConnectionManager[] ipv4Results = await Task.WhenAll(ipv4Tasks);
+                    IProxyServerConnectionManager[] ipv6Results = await Task.WhenAll(ipv6Tasks);
+
+                    List<IProxyServerConnectionManager> workingIpv4ConnectionManagers = new List<IProxyServerConnectionManager>();
+                    List<IProxyServerConnectionManager> workingIpv6ConnectionManagers = new List<IProxyServerConnectionManager>();
 
                     if (_redundancyOnly)
                     {
-                        foreach (IProxyServerConnectionManager connectionManager in _connectionManagers)
+                        foreach (IProxyServerConnectionManager connectionManager in _ipv4ConnectionManagers)
                         {
-                            foreach (IProxyServerConnectionManager result in results)
+                            foreach (IProxyServerConnectionManager result in ipv4Results)
                             {
                                 if (ReferenceEquals(connectionManager, result))
                                 {
-                                    workingConnectionManagers.Add(result);
+                                    workingIpv4ConnectionManagers.Add(result);
                                     break;
                                 }
                             }
 
-                            if (workingConnectionManagers.Count > 0)
+                            if (workingIpv4ConnectionManagers.Count > 0)
+                                break;
+                        }
+
+                        foreach (IProxyServerConnectionManager connectionManager in _ipv6ConnectionManagers)
+                        {
+                            foreach (IProxyServerConnectionManager result in ipv6Results)
+                            {
+                                if (ReferenceEquals(connectionManager, result))
+                                {
+                                    workingIpv6ConnectionManagers.Add(result);
+                                    break;
+                                }
+                            }
+
+                            if (workingIpv6ConnectionManagers.Count > 0)
                                 break;
                         }
                     }
                     else
                     {
-                        foreach (IProxyServerConnectionManager result in results)
+                        foreach (IProxyServerConnectionManager result in ipv4Results)
                         {
-                            if (result != null)
-                                workingConnectionManagers.Add(result);
+                            if (result is not null)
+                                workingIpv4ConnectionManagers.Add(result);
+                        }
+
+                        foreach (IProxyServerConnectionManager result in ipv6Results)
+                        {
+                            if (result is not null)
+                                workingIpv6ConnectionManagers.Add(result);
                         }
                     }
 
-                    _workingConnectionManagers = workingConnectionManagers;
+                    _workingIpv4ConnectionManagers = workingIpv4ConnectionManagers;
+                    _workingIpv6ConnectionManagers = workingIpv6ConnectionManagers;
                 }
                 catch (Exception ex)
                 {
@@ -186,10 +219,25 @@ namespace TechnitiumLibrary.Net.Proxy
             return null;
         }
 
-        private IProxyServerConnectionManager GetConnectionManager()
+        private IProxyServerConnectionManager GetConnectionManager(AddressFamily family)
         {
-            IReadOnlyList<IProxyServerConnectionManager> workingConnectionManagers = _workingConnectionManagers;
-            if ((workingConnectionManagers == null) || (workingConnectionManagers.Count == 0))
+            IReadOnlyList<IProxyServerConnectionManager> workingConnectionManagers;
+
+            switch (family)
+            {
+                case AddressFamily.InterNetwork:
+                    workingConnectionManagers = _workingIpv4ConnectionManagers;
+                    break;
+
+                case AddressFamily.InterNetworkV6:
+                    workingConnectionManagers = _workingIpv6ConnectionManagers;
+                    break;
+
+                default:
+                    throw new NotSupportedException();
+            }
+
+            if (workingConnectionManagers.Count == 0)
                 throw new SocketException((int)SocketError.NetworkUnreachable);
 
             if ((workingConnectionManagers.Count == 1) || _redundancyOnly)
@@ -202,19 +250,34 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public Task<Socket> ConnectAsync(EndPoint remoteEP)
+        public async Task<Socket> ConnectAsync(EndPoint remoteEP)
         {
-            return GetConnectionManager().ConnectAsync(remoteEP);
+            if (remoteEP.AddressFamily == AddressFamily.Unspecified)
+            {
+                bool ipv4Available = _workingIpv4ConnectionManagers.Count > 0;
+                bool ipv6Available = _workingIpv6ConnectionManagers.Count > 0;
+
+                if (ipv4Available && ipv6Available)
+                    remoteEP = await remoteEP.GetIPEndPointAsync();
+                else if (ipv4Available)
+                    remoteEP = await remoteEP.GetIPEndPointAsync(AddressFamily.InterNetwork);
+                else if (ipv6Available)
+                    remoteEP = await remoteEP.GetIPEndPointAsync(AddressFamily.InterNetworkV6);
+                else
+                    throw new SocketException((int)SocketError.NetworkUnreachable);
+            }
+
+            return await GetConnectionManager(remoteEP.AddressFamily).ConnectAsync(remoteEP);
         }
 
         public Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
         {
-            return GetConnectionManager().GetBindHandlerAsync(family);
+            return GetConnectionManager(family).GetBindHandlerAsync(family);
         }
 
         public Task<IProxyServerUdpAssociateHandler> GetUdpAssociateHandlerAsync(EndPoint localEP)
         {
-            return GetConnectionManager().GetUdpAssociateHandlerAsync(localEP);
+            return GetConnectionManager(localEP.AddressFamily).GetUdpAssociateHandlerAsync(localEP);
         }
 
         #endregion
