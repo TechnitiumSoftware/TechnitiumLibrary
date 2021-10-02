@@ -10,7 +10,6 @@
 
   <PropertyGroup>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <Authors>Shreyas Zare</Authors>
     <Company>Technitium</Company>
     <Product>Technitium Library</Product>
@@ -19,7 +18,7 @@
     <RepositoryType></RepositoryType>
     <Description>.NET 5</Description>
     <PackageId>TechnitiumLibrary.Net</PackageId>
-    <Version>5.7</Version>
+    <Version>5.8</Version>
   </PropertyGroup>
 
   <ItemGroup>
