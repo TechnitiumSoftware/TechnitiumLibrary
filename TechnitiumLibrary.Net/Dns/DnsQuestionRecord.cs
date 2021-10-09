@@ -53,9 +53,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region constructor
 
-        public DnsQuestionRecord(string name, DnsResourceRecordType type, DnsClass @class)
+        public DnsQuestionRecord(string name, DnsResourceRecordType type, DnsClass @class, bool validateName = true)
         {
-            DnsClient.IsDomainNameValid(name, true);
+            if (validateName)
+                DnsClient.IsDomainNameValid(name, true);
 
             _name = name;
             _type = type;
