@@ -648,10 +648,14 @@ namespace TechnitiumLibrary.Net.Dns
             #region protected
 
             protected override void Parse(Stream s)
-            { }
+            {
+                throw new InvalidOperationException();
+            }
 
             protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
-            { }
+            {
+                throw new InvalidOperationException();
+            }
 
             #endregion
 
