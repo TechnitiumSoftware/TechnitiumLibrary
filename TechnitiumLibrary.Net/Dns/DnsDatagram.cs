@@ -544,8 +544,14 @@ namespace TechnitiumLibrary.Net.Dns
                     short Offset = BitConverter.ToInt16(new byte[] { (byte)secondByte, (byte)(labelLength & 0x3F) }, 0);
                     long CurrentPosition = s.Position;
                     s.Position = Offset;
-                    domain.Append(DeserializeDomainName(s, maxDepth - 1, ignoreMissingNullTermination));
-                    domain.Append('.');
+
+                    string domainSuffix = DeserializeDomainName(s, maxDepth - 1, ignoreMissingNullTermination);
+                    if (domainSuffix.Length > 0)
+                    {
+                        domain.Append(domainSuffix);
+                        domain.Append('.');
+                    }
+
                     s.Position = CurrentPosition;
                     break;
                 }
