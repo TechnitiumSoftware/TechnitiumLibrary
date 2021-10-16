@@ -614,7 +614,11 @@ namespace TechnitiumLibrary.Net.Dns
             return datagram;
         }
 
-        internal DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer, IReadOnlyList<DnsResourceRecord> authority)
+        #endregion
+
+        #region public
+
+        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer, IReadOnlyList<DnsResourceRecord> authority)
         {
             if (answer == null)
                 answer = _answer;
@@ -629,10 +633,6 @@ namespace TechnitiumLibrary.Net.Dns
 
             return datagram;
         }
-
-        #endregion
-
-        #region public
 
         public void SetMetadata(NameServerAddress server = null, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, double rtt = 0.0)
         {
