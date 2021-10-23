@@ -18,7 +18,7 @@
     <RepositoryType></RepositoryType>
     <Description>.NET 5</Description>
     <PackageId>TechnitiumLibrary.Net</PackageId>
-    <Version>5.8</Version>
+    <Version>5.9</Version>
   </PropertyGroup>
 
   <ItemGroup>
