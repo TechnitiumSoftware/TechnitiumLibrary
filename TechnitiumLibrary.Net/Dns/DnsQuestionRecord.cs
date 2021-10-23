@@ -29,10 +29,10 @@ using System.Text;
 namespace TechnitiumLibrary.Net.Dns
 {
     //DNS Query Name Minimisation to Improve Privacy
-    //https://tools.ietf.org/html/draft-ietf-dnsop-rfc7816bis-04
+    //https://datatracker.ietf.org/doc/html/draft-ietf-dnsop-rfc7816bis-04
 
     //Use of Bit 0x20 in DNS Labels to Improve Transaction Identity
-    //https://tools.ietf.org/html/draft-vixie-dnsext-dns0x20-00
+    //https://datatracker.ietf.org/doc/html/draft-vixie-dnsext-dns0x20-00
 
     public class DnsQuestionRecord
     {
