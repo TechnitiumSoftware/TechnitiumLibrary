@@ -617,14 +617,26 @@ namespace TechnitiumLibrary.Net.Dns
             string value;
 
             if (_dohEndPoint != null)
+            {
                 value = _dohEndPoint.AbsoluteUri;
+            }
             else if (_domainEndPoint != null)
-                value = _domainEndPoint.ToString();
+            {
+                if (_domainEndPoint.Port == 53)
+                    value = _domainEndPoint.Address;
+                else
+                    value = _domainEndPoint.ToString();
+            }
             else
-                return _ipEndPoint.ToString();
+            {
+                if (_ipEndPoint.Port == 53)
+                    return _ipEndPoint.Address.ToString();
+                else
+                    return _ipEndPoint.ToString();
+            }
 
             if (_ipEndPoint != null)
-                value += " (" + _ipEndPoint.ToString() + ")";
+                value += " (" + _ipEndPoint.Address.ToString() + ")";
 
             return value;
         }
