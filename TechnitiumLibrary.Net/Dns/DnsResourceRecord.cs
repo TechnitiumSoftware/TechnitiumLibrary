@@ -216,6 +216,10 @@ namespace TechnitiumLibrary.Net.Dns
                     _data = new DnsDNAMERecord(s);
                     break;
 
+                case DnsResourceRecordType.OPT:
+                    _data = new DnsOPTRecord(s);
+                    break;
+
                 case DnsResourceRecordType.CAA:
                     _data = new DnsCAARecord(s);
                     break;
@@ -293,6 +297,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                 case DnsResourceRecordType.DNAME:
                     _data = new DnsDNAMERecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.OPT:
+                    _data = new DnsOPTRecord(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.CAA:
