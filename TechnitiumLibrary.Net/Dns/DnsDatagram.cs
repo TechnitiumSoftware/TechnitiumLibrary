@@ -37,7 +37,8 @@ namespace TechnitiumLibrary.Net.Dns
         InverseQuery = 1,
         ServerStatusRequest = 2,
         Notify = 4,
-        Update = 5
+        Update = 5,
+        DnsStatefulOperations = 6
     }
 
     public enum DnsResponseCode : ushort
