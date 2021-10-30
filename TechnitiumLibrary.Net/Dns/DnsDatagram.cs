@@ -40,7 +40,7 @@ namespace TechnitiumLibrary.Net.Dns
         Update = 5
     }
 
-    public enum DnsResponseCode : byte
+    public enum DnsResponseCode : ushort
     {
         NoError = 0,
         FormatError = 1,
@@ -53,13 +53,7 @@ namespace TechnitiumLibrary.Net.Dns
         NXRRSet = 8,
         NotAuthorized = 9,
         NotZone = 10,
-        BADSIG = 16,
-        BADKEY = 17,
-        BADTIME = 18,
-        BADMODE = 19,
-        BADNAME = 20,
-        BADALG = 21,
-        BADTRUNC = 22,
+        BADVERS = 16,
         BADCOOKIE = 23
     }
 
@@ -67,11 +61,14 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
+        public const ushort EDNS_DEFAULT_UDP_PAYLOAD_SIZE = 1232;
+
         const int MAX_XFR_RESPONSE_SIZE = 16384; //since the compressed name pointer offset can only address 16384 bytes in datagram
 
         readonly static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
 
         DnsDatagramMetadata _metadata;
+        DnsDatagramEdns _edns;
         int _size = -1;
         byte[] _parsedDatagramUnsigned;
 
@@ -104,7 +101,7 @@ namespace TechnitiumLibrary.Net.Dns
         private DnsDatagram()
         { }
 
-        public DnsDatagram(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, IReadOnlyList<DnsQuestionRecord> question, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
+        public DnsDatagram(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, IReadOnlyList<DnsQuestionRecord> question, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null, ushort udpPayloadSize = ushort.MinValue)
         {
             _ID = ID;
 
@@ -148,7 +145,43 @@ namespace TechnitiumLibrary.Net.Dns
                 _authority = Array.Empty<DnsResourceRecord>();
 
             if (_additional is null)
-                _additional = Array.Empty<DnsResourceRecord>();
+            {
+                if (udpPayloadSize < 512)
+                {
+                    _additional = Array.Empty<DnsResourceRecord>();
+                }
+                else
+                {
+                    _additional = new DnsResourceRecord[] { DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE) };
+                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, EDnsHeaderFlags.None);
+                }
+            }
+            else if (_additional.Count > 0)
+            {
+                if (udpPayloadSize < 512)
+                {
+                    _edns = DnsDatagramEdns.ReadOPTFrom(_additional, RCODE);
+                }
+                else
+                {
+                    DnsResourceRecord[] newAdditional = new DnsResourceRecord[_additional.Count + 1];
+
+                    for (int i = 0; i < _additional.Count; i++)
+                    {
+                        DnsResourceRecord record = _additional[i];
+
+                        if (record.Type == DnsResourceRecordType.OPT)
+                            throw new InvalidOperationException("DnsDatagram already contains an OPT record.");
+
+                        newAdditional[i] = record;
+                    }
+
+                    newAdditional[_additional.Count] = DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE);
+
+                    _additional = newAdditional;
+                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, EDnsHeaderFlags.None);
+                }
+            }
         }
 
         #endregion
@@ -278,6 +311,8 @@ namespace TechnitiumLibrary.Net.Dns
 
                 datagram._parsedDatagramUnsigned = buffer;
             }
+
+            datagram._edns = DnsDatagramEdns.ReadOPTFrom(datagram._additional, datagram._RCODE);
 
             return datagram;
         }
@@ -609,6 +644,7 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, clonedQuestion, _answer, _authority, _additional);
 
             datagram._metadata = _metadata;
+            datagram._edns = _edns;
             datagram.Tag = Tag;
 
             return datagram;
@@ -618,17 +654,28 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer, IReadOnlyList<DnsResourceRecord> authority)
+        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer, IReadOnlyList<DnsResourceRecord> authority, IReadOnlyList<DnsResourceRecord> additional)
         {
-            if (answer == null)
+            if (answer is null)
                 answer = _answer;
 
-            if (authority == null)
+            if (authority is null)
                 authority = _authority;
 
-            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, authority, _additional);
+            if (additional is null)
+                additional = _additional;
+
+            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, authority, additional);
 
             datagram._metadata = _metadata;
+
+            if (additional is null)
+                datagram._edns = _edns;
+            else if (additional.Count == 0)
+                datagram._edns = null;
+            else
+                datagram._edns = DnsDatagramEdns.ReadOPTFrom(additional, _RCODE);
+
             datagram.Tag = Tag;
 
             return datagram;
@@ -662,7 +709,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             WriteUInt16NetworkOrder(_ID, s);
             s.WriteByte(Convert.ToByte((_QR << 7) | ((byte)_OPCODE << 3) | (_AA << 2) | (_TC << 1) | _RD));
-            s.WriteByte(Convert.ToByte((_RA << 7) | (_Z << 6) | (_AD << 5) | (_CD << 4) | (byte)_RCODE));
+            s.WriteByte(Convert.ToByte((_RA << 7) | (_Z << 6) | (_AD << 5) | (_CD << 4) | (byte)((int)_RCODE & 0xf)));
             WriteUInt16NetworkOrder(Convert.ToUInt16(_question.Count), s);
             WriteUInt16NetworkOrder(Convert.ToUInt16(_answer.Count), s);
             WriteUInt16NetworkOrder(Convert.ToUInt16(_authority.Count), s);
@@ -1731,6 +1778,9 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsDatagramMetadata Metadata
         { get { return _metadata; } }
 
+        public DnsDatagramEdns EDNS
+        { get { return _edns; } }
+
         public ushort Identifier
         { get { return _ID; } }
 
@@ -1762,7 +1812,15 @@ namespace TechnitiumLibrary.Net.Dns
         { get { return _CD == 1; } }
 
         public DnsResponseCode RCODE
-        { get { return _RCODE; } }
+        {
+            get
+            {
+                if (_edns is not null)
+                    return _edns.ExtendedRCODE;
+
+                return _RCODE;
+            }
+        }
 
         public int QDCOUNT
         { get { return _question.Count; } }
