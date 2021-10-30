@@ -42,7 +42,15 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout, int retries, CancellationToken cancellationToken)
         {
             //serialize request
-            byte[] buffer = new byte[512];
+            byte[] buffer;
+
+            if (request.EDNS is null)
+                buffer = new byte[512];
+            else if (request.EDNS.UdpPayloadSize > 4096)
+                buffer = new byte[4096];
+            else
+                buffer = new byte[request.EDNS.UdpPayloadSize];
+
             MemoryStream bufferStream = new MemoryStream(buffer);
 
             try
@@ -51,7 +59,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
             catch (NotSupportedException)
             {
-                throw new DnsClientException("DnsClient cannot send request of more than 512 bytes with UDP protocol.");
+                throw new DnsClientException("DnsClient cannot send the request: request exceeds the UDP payload size limit of " + buffer.Length + " bytes.");
             }
 
             int bufferSize = (int)bufferStream.Position;
