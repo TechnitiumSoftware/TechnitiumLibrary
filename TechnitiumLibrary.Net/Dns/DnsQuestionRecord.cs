@@ -25,6 +25,7 @@ using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Text;
+using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
 {

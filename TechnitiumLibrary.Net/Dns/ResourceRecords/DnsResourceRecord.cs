@@ -21,9 +21,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
-using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
-namespace TechnitiumLibrary.Net.Dns
+namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
     public enum DnsResourceRecordType : ushort
     {
