@@ -89,17 +89,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsTSIGRecord(dynamic jsonResourceRecord)
         {
-            _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
-
-            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
-
-            _algorithmName = parts[0];
-            _timeSigned = ulong.Parse(parts[1]);
-            _fudge = ushort.Parse(parts[2]);
-            _mac = Convert.FromBase64String(parts[3]);
-            _originalID = ushort.Parse(parts[4]);
-            _error = (DnsTsigError)ushort.Parse(parts[5]);
-            _otherData = Convert.FromBase64String(parts[6]);
+            throw new NotSupportedException();
         }
 
         #endregion
