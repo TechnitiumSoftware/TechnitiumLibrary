@@ -146,7 +146,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         [IgnoreDataMember]
         public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(2 + 2 + 2 + _target.Length + 2); } }
+        { get { return Convert.ToUInt16(2 + 2 + 2 + DnsDatagram.GetSerializeDomainNameLength(_target)); } }
 
         #endregion
     }
