@@ -141,7 +141,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_algorithm != other._algorithm)
                     return false;
 
-                if (!BinaryNumber.Equals(_publicKey, other._publicKey))
+                if (!BinaryNumber.Equals(_publicKey.RawPublicKey, other._publicKey.RawPublicKey))
                     return false;
 
                 return true;
@@ -152,12 +152,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_flags, _protocol, _algorithm, _publicKey);
+            return HashCode.Combine(_flags, _protocol, _algorithm, _publicKey.RawPublicKey);
         }
 
         public override string ToString()
         {
-            return (ushort)_flags + " " + _protocol + " " + (byte)_algorithm + " ( " + Convert.ToBase64String(_publicKey.PublicKey) + " )";
+            return (ushort)_flags + " " + _protocol + " " + (byte)_algorithm + " ( " + Convert.ToBase64String(_publicKey.RawPublicKey) + " )";
         }
 
         #endregion
@@ -178,7 +178,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         [IgnoreDataMember]
         public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(2 + 1 + 1 + _publicKey.PublicKey.Length); } }
+        { get { return Convert.ToUInt16(2 + 1 + 1 + _publicKey.RawPublicKey.Length); } }
 
         #endregion
     }
@@ -187,7 +187,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        protected byte[] _publicKey;
+        protected byte[] _rawPublicKey;
 
         #endregion
 
@@ -196,16 +196,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         protected DnssecPublicKey()
         { }
 
-        protected DnssecPublicKey(byte[] publicKey)
+        protected DnssecPublicKey(byte[] rawPublicKey)
         {
-            _publicKey = publicKey;
+            _rawPublicKey = rawPublicKey;
         }
 
         #endregion
 
         #region static
 
-        public static DnssecPublicKey Parse(DnssecAlgorithm algorithm, byte[] publicKey)
+        public static DnssecPublicKey Parse(DnssecAlgorithm algorithm, byte[] rawPublicKey)
         {
             switch (algorithm)
             {
@@ -213,10 +213,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnssecAlgorithm.RSA_SHA1:
                 case DnssecAlgorithm.RSA_SHA256:
                 case DnssecAlgorithm.RSA_SHA512:
-                    return new DnssecRsaPublicKey(publicKey);
+                    return new DnssecRsaPublicKey(rawPublicKey);
 
                 default:
-                    return new DnssecPublicKey(publicKey);
+                    return new DnssecPublicKey(rawPublicKey);
             }
         }
 
@@ -226,7 +226,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public void WriteTo(Stream s)
         {
-            s.Write(_publicKey);
+            s.Write(_rawPublicKey);
         }
 
         public override bool Equals(object obj)
@@ -238,27 +238,27 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return true;
 
             if (obj is DnssecPublicKey other)
-                return BinaryNumber.Equals(_publicKey, other._publicKey);
+                return BinaryNumber.Equals(_rawPublicKey, other._rawPublicKey);
 
             return false;
         }
 
         public override int GetHashCode()
         {
-            return _publicKey.GetHashCode();
+            return _rawPublicKey.GetHashCode();
         }
 
         public override string ToString()
         {
-            return Convert.ToBase64String(_publicKey);
+            return Convert.ToBase64String(_rawPublicKey);
         }
 
         #endregion
 
         #region properties
 
-        public byte[] PublicKey
-        { get { return _publicKey; } }
+        public byte[] RawPublicKey
+        { get { return _rawPublicKey; } }
 
         #endregion
     }
@@ -279,51 +279,51 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             if (_rsaPublicKey.Exponent.Length < 256)
             {
-                _publicKey = new byte[1 + _rsaPublicKey.Exponent.Length + _rsaPublicKey.Modulus.Length];
-                _publicKey[0] = (byte)_rsaPublicKey.Exponent.Length;
-                Buffer.BlockCopy(_rsaPublicKey.Exponent, 0, _publicKey, 1, _rsaPublicKey.Exponent.Length);
-                Buffer.BlockCopy(_rsaPublicKey.Modulus, 0, _publicKey, 1 + _rsaPublicKey.Exponent.Length, _rsaPublicKey.Modulus.Length);
+                _rawPublicKey = new byte[1 + _rsaPublicKey.Exponent.Length + _rsaPublicKey.Modulus.Length];
+                _rawPublicKey[0] = (byte)_rsaPublicKey.Exponent.Length;
+                Buffer.BlockCopy(_rsaPublicKey.Exponent, 0, _rawPublicKey, 1, _rsaPublicKey.Exponent.Length);
+                Buffer.BlockCopy(_rsaPublicKey.Modulus, 0, _rawPublicKey, 1 + _rsaPublicKey.Exponent.Length, _rsaPublicKey.Modulus.Length);
             }
             else
             {
                 byte[] bufferExponentLength = BitConverter.GetBytes(Convert.ToUInt16(_rsaPublicKey.Exponent.Length));
                 Array.Reverse(bufferExponentLength);
 
-                _publicKey = new byte[3 + _rsaPublicKey.Exponent.Length + _rsaPublicKey.Modulus.Length];
-                Buffer.BlockCopy(bufferExponentLength, 0, _publicKey, 1, 2);
-                Buffer.BlockCopy(_rsaPublicKey.Exponent, 0, _publicKey, 3, _rsaPublicKey.Exponent.Length);
-                Buffer.BlockCopy(_rsaPublicKey.Modulus, 0, _publicKey, 3 + _rsaPublicKey.Exponent.Length, _rsaPublicKey.Modulus.Length);
+                _rawPublicKey = new byte[3 + _rsaPublicKey.Exponent.Length + _rsaPublicKey.Modulus.Length];
+                Buffer.BlockCopy(bufferExponentLength, 0, _rawPublicKey, 1, 2);
+                Buffer.BlockCopy(_rsaPublicKey.Exponent, 0, _rawPublicKey, 3, _rsaPublicKey.Exponent.Length);
+                Buffer.BlockCopy(_rsaPublicKey.Modulus, 0, _rawPublicKey, 3 + _rsaPublicKey.Exponent.Length, _rsaPublicKey.Modulus.Length);
             }
         }
 
-        public DnssecRsaPublicKey(byte[] publicKey)
-            : base(publicKey)
+        public DnssecRsaPublicKey(byte[] rawPublicKey)
+            : base(rawPublicKey)
         {
-            if (_publicKey[0] == 0)
+            if (_rawPublicKey[0] == 0)
             {
                 byte[] bufferExponentLength = new byte[2];
-                Buffer.BlockCopy(_publicKey, 1, bufferExponentLength, 0, 2);
+                Buffer.BlockCopy(_rawPublicKey, 1, bufferExponentLength, 0, 2);
                 Array.Reverse(bufferExponentLength);
 
                 int exponentLength = BitConverter.ToUInt16(bufferExponentLength, 0);
-                int modulusLength = _publicKey.Length - exponentLength - 3;
+                int modulusLength = _rawPublicKey.Length - exponentLength - 3;
 
                 _rsaPublicKey.Exponent = new byte[exponentLength];
                 _rsaPublicKey.Modulus = new byte[modulusLength];
 
-                Buffer.BlockCopy(_publicKey, 3, _rsaPublicKey.Exponent, 0, exponentLength);
-                Buffer.BlockCopy(_publicKey, 3 + exponentLength, _rsaPublicKey.Modulus, 0, modulusLength);
+                Buffer.BlockCopy(_rawPublicKey, 3, _rsaPublicKey.Exponent, 0, exponentLength);
+                Buffer.BlockCopy(_rawPublicKey, 3 + exponentLength, _rsaPublicKey.Modulus, 0, modulusLength);
             }
             else
             {
-                int exponentLength = _publicKey[0];
-                int modulusLength = _publicKey.Length - exponentLength - 1;
+                int exponentLength = _rawPublicKey[0];
+                int modulusLength = _rawPublicKey.Length - exponentLength - 1;
 
                 _rsaPublicKey.Exponent = new byte[exponentLength];
                 _rsaPublicKey.Modulus = new byte[modulusLength];
 
-                Buffer.BlockCopy(_publicKey, 1, _rsaPublicKey.Exponent, 0, exponentLength);
-                Buffer.BlockCopy(_publicKey, 1 + exponentLength, _rsaPublicKey.Modulus, 0, modulusLength);
+                Buffer.BlockCopy(_rawPublicKey, 1, _rsaPublicKey.Exponent, 0, exponentLength);
+                Buffer.BlockCopy(_rawPublicKey, 1 + exponentLength, _rsaPublicKey.Modulus, 0, modulusLength);
             }
         }
 
