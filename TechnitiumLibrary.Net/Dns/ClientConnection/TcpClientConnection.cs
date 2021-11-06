@@ -26,6 +26,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Dns.ResourceRecords;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
