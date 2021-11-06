@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,6 +25,26 @@ namespace TechnitiumLibrary.IO
 {
     public static class StreamExtension
     {
+        public static byte ReadByteValue(this Stream s)
+        {
+            byte[] buffer = new byte[1];
+
+            if (s.Read(buffer) < 1)
+                throw new EndOfStreamException();
+
+            return buffer[0];
+        }
+
+        public static async Task<byte> ReadByteValueAsync(this Stream s)
+        {
+            byte[] buffer = new byte[1];
+
+            if ((await s.ReadAsync(buffer)) < 1)
+                throw new EndOfStreamException();
+
+            return buffer[0];
+        }
+
         public static void ReadBytes(this Stream s, byte[] buffer, int offset, int count)
         {
             int bytesRead;
