@@ -155,8 +155,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnssecDigestType DigestType
         { get { return _digestType; } }
 
-        public byte[] Digest
+        [IgnoreDataMember]
+        public byte[] DigestValue
         { get { return _digest; } }
+
+        public string Digest
+        { get { return BitConverter.ToString(_digest).Replace("-", ""); } }
 
         [IgnoreDataMember]
         public override ushort UncompressedLength
