@@ -71,8 +71,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void Parse(Stream s)
         {
-            _cpu = Encoding.ASCII.GetString(s.ReadBytes(s.ReadByte()));
-            _os = Encoding.ASCII.GetString(s.ReadBytes(s.ReadByte()));
+            _cpu = Encoding.ASCII.GetString(s.ReadBytes(s.ReadByteValue()));
+            _os = Encoding.ASCII.GetString(s.ReadBytes(s.ReadByteValue()));
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
