@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region protected
 
-        protected override void Parse(Stream s)
+        protected override void ReadRecordData(Stream s)
         {
             using (BinaryReader bR = new BinaryReader(s, Encoding.UTF8, true))
             {

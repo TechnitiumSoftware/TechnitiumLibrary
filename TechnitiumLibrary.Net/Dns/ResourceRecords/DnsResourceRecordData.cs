@@ -43,14 +43,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _rdLength = DnsDatagram.ReadUInt16NetworkOrder(s);
 
             //read RDATA
-            Parse(s);
+            ReadRecordData(s);
         }
 
         #endregion
 
         #region protected
 
-        protected abstract void Parse(Stream s);
+        protected abstract void ReadRecordData(Stream s);
 
         protected abstract void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries);
 

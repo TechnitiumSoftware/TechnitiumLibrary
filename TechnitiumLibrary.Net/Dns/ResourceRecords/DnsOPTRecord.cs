@@ -60,7 +60,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region protected
 
-        protected override void Parse(Stream s)
+        protected override void ReadRecordData(Stream s)
         {
             List<EDnsOption> options = null;
             int bytesRead = 0;

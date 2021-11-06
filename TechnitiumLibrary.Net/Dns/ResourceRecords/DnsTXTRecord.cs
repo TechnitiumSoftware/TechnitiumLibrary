@@ -58,7 +58,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region protected
 
-        protected override void Parse(Stream s)
+        protected override void ReadRecordData(Stream s)
         {
             _serializedData = s.ReadBytes(_rdLength);
 

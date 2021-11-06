@@ -96,7 +96,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region protected
 
-        protected override void Parse(Stream s)
+        protected override void ReadRecordData(Stream s)
         {
             _algorithmName = DnsDatagram.DeserializeDomainName(s);
             _timeSigned = DnsDatagram.ReadUInt48NetworkOrder(s);

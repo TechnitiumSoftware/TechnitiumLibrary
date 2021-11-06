@@ -71,7 +71,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region protected
 
-        protected override void Parse(Stream s)
+        protected override void ReadRecordData(Stream s)
         {
             _typeCovered = (DnsResourceRecordType)DnsDatagram.ReadUInt16NetworkOrder(s);
             _algorithm = (DnssecAlgorithm)s.ReadByteValue();

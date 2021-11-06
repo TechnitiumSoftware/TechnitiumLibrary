@@ -647,7 +647,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             #region protected
 
-            protected override void Parse(Stream s)
+            protected override void ReadRecordData(Stream s)
             {
                 throw new InvalidOperationException();
             }
