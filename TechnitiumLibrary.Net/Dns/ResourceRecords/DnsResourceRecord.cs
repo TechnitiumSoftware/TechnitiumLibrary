@@ -219,6 +219,22 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     _data = new DnsOPTRecord(s);
                     break;
 
+                case DnsResourceRecordType.DS:
+                    _data = new DnsDSRecord(s);
+                    break;
+
+                case DnsResourceRecordType.RRSIG:
+                    _data = new DnsRRSIGRecord(s);
+                    break;
+
+                case DnsResourceRecordType.NSEC:
+                    _data = new DnsNSECRecord(s);
+                    break;
+
+                case DnsResourceRecordType.DNSKEY:
+                    _data = new DnsDNSKEYRecord(s);
+                    break;
+
                 case DnsResourceRecordType.CAA:
                     _data = new DnsCAARecord(s);
                     break;
@@ -300,6 +316,22 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnsResourceRecordType.OPT:
                     _data = new DnsOPTRecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.DS:
+                    _data = new DnsDSRecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.RRSIG:
+                    _data = new DnsRRSIGRecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.NSEC:
+                    _data = new DnsNSECRecord(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.DNSKEY:
+                    _data = new DnsDNSKEYRecord(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.CAA:
