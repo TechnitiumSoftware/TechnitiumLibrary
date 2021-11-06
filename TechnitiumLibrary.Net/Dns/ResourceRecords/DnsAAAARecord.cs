@@ -32,7 +32,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         IPAddress _address;
 
-        byte[] _serializedAddress;
+        byte[] _serializedData;
 
         #endregion
 
@@ -63,16 +63,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void Parse(Stream s)
         {
-            _serializedAddress = s.ReadBytes(16);
-            _address = new IPAddress(_serializedAddress);
+            _serializedData = s.ReadBytes(16);
+            _address = new IPAddress(_serializedData);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            if (_serializedAddress == null)
-                _serializedAddress = _address.GetAddressBytes();
+            if (_serializedData is null)
+                _serializedData = _address.GetAddressBytes();
 
-            s.Write(_serializedAddress);
+            s.Write(_serializedData);
         }
 
         #endregion
