@@ -1895,7 +1895,29 @@ namespace TechnitiumLibrary.Net.Dns
                                             if ((server.Protocol == DnsTransportProtocol.Udp) && (asyncRequest.EDNS is not null))
                                             {
                                                 //EDNS udp request timed out; disable EDNS and retry the request
-                                                asyncRequest = asyncRequest.Clone(null, null, Array.Empty<DnsResourceRecord>());
+
+                                                IReadOnlyList<DnsResourceRecord> newAdditional;
+
+                                                if (asyncRequest.Additional.Count == 1)
+                                                {
+                                                    newAdditional = Array.Empty<DnsResourceRecord>();
+                                                }
+                                                else
+                                                {
+                                                    List<DnsResourceRecord> newAdditionalList = new List<DnsResourceRecord>(asyncRequest.Additional.Count - 1);
+
+                                                    foreach (DnsResourceRecord record in asyncRequest.Additional)
+                                                    {
+                                                        if (record.Type == DnsResourceRecordType.OPT)
+                                                            continue;
+
+                                                        newAdditionalList.Add(record);
+                                                    }
+
+                                                    newAdditional = newAdditionalList;
+                                                }
+
+                                                asyncRequest = asyncRequest.Clone(null, null, newAdditional);
 
                                                 lastException = ex;
                                                 retryRequest = true;
