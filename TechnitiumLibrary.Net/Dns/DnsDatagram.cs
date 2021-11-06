@@ -102,7 +102,7 @@ namespace TechnitiumLibrary.Net.Dns
         private DnsDatagram()
         { }
 
-        public DnsDatagram(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, IReadOnlyList<DnsQuestionRecord> question, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null, ushort udpPayloadSize = ushort.MinValue)
+        public DnsDatagram(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, IReadOnlyList<DnsQuestionRecord> question, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null, ushort udpPayloadSize = ushort.MinValue, EDnsHeaderFlags ednsFlags = EDnsHeaderFlags.None)
         {
             _ID = ID;
 
@@ -153,8 +153,8 @@ namespace TechnitiumLibrary.Net.Dns
                 }
                 else
                 {
-                    _additional = new DnsResourceRecord[] { DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE) };
-                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, EDnsHeaderFlags.None);
+                    _additional = new DnsResourceRecord[] { DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags) };
+                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, ednsFlags);
                 }
             }
             else if (_additional.Count > 0)
@@ -177,10 +177,10 @@ namespace TechnitiumLibrary.Net.Dns
                         newAdditional[i] = record;
                     }
 
-                    newAdditional[_additional.Count] = DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE);
+                    newAdditional[_additional.Count] = DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags);
 
                     _additional = newAdditional;
-                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, EDnsHeaderFlags.None);
+                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, ednsFlags);
                 }
             }
         }
