@@ -32,6 +32,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         string _text;
 
+        byte[] _serializedData;
+
         #endregion
 
         #region constructor
@@ -58,42 +60,57 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void Parse(Stream s)
         {
-            int bytesRead = 0;
-            int length;
+            _serializedData = s.ReadBytes(_rdLength);
 
-            while (bytesRead < _rdLength)
+            using (MemoryStream mS = new MemoryStream(_serializedData))
             {
-                length = s.ReadByte();
-                if (length < 0)
-                    throw new EndOfStreamException();
+                int bytesRead = 0;
+                int length;
 
-                if (_text == null)
-                    _text = Encoding.ASCII.GetString(s.ReadBytes(length));
-                else
-                    _text += Encoding.ASCII.GetString(s.ReadBytes(length));
+                while (bytesRead < _rdLength)
+                {
+                    length = mS.ReadByte();
+                    if (length < 0)
+                        throw new EndOfStreamException();
 
-                bytesRead += length + 1;
+                    if (_text == null)
+                        _text = Encoding.ASCII.GetString(mS.ReadBytes(length));
+                    else
+                        _text += Encoding.ASCII.GetString(mS.ReadBytes(length));
+
+                    bytesRead += length + 1;
+                }
             }
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            byte[] data = Encoding.ASCII.GetBytes(_text);
-            int offset = 0;
-            int length;
-
-            do
+            if (_serializedData is null)
             {
-                length = data.Length - offset;
-                if (length > 255)
-                    length = 255;
+                using (MemoryStream mS = new MemoryStream())
+                {
+                    byte[] data = Encoding.ASCII.GetBytes(_text);
+                    int offset = 0;
+                    int length;
 
-                s.WriteByte(Convert.ToByte(length));
-                s.Write(data, offset, length);
+                    do
+                    {
+                        length = data.Length - offset;
+                        if (length > 255)
+                            length = 255;
 
-                offset += length;
+                        mS.WriteByte(Convert.ToByte(length));
+                        mS.Write(data, offset, length);
+
+                        offset += length;
+                    }
+                    while (offset < data.Length);
+
+                    _serializedData = mS.ToArray();
+                }
             }
-            while (offset < data.Length);
+
+            s.Write(_serializedData);
         }
 
         #endregion
