@@ -615,6 +615,14 @@ namespace TechnitiumLibrary.Net.Dns
             return domain.ToString();
         }
 
+        public static int GetSerializeDomainNameLength(string domain)
+        {
+            if (domain.Length == 0)
+                return 1;
+
+            return domain.Length + 2;
+        }
+
         internal static string EncodeCharacterString(string value)
         {
             if (value.Contains(" ") || value.Contains("\t"))
@@ -655,7 +663,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer, IReadOnlyList<DnsResourceRecord> authority, IReadOnlyList<DnsResourceRecord> additional)
+        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
         {
             if (answer is null)
                 answer = _answer;
@@ -676,6 +684,8 @@ namespace TechnitiumLibrary.Net.Dns
                 datagram._edns = null;
             else
                 datagram._edns = DnsDatagramEdns.ReadOPTFrom(additional, _RCODE);
+
+            datagram._nextDatagram = _nextDatagram;
 
             datagram.Tag = Tag;
 
