@@ -1507,7 +1507,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     for (int j = 0; j <= i; j++)
                                         newAnswers.Add(response.Answer[j]);
 
-                                    return response.Clone(newAnswers, null, null);
+                                    return response.Clone(newAnswers);
                                 }
 
                                 qName = domain;
@@ -1529,7 +1529,7 @@ namespace TechnitiumLibrary.Net.Dns
                     for (int j = 0; j < i; j++)
                         newAnswers.Add(response.Answer[j]);
 
-                    return response.Clone(newAnswers, null, null);
+                    return response.Clone(newAnswers);
                 }
             }
 
@@ -1568,7 +1568,7 @@ namespace TechnitiumLibrary.Net.Dns
                             newAuthority.Add(authority);
                     }
 
-                    return response.Clone(null, newAuthority, null);
+                    return response.Clone(null, newAuthority);
                 }
             }
 
