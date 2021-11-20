@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
+using System.Text;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -32,7 +33,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         string _nextDomainName;
         IReadOnlyList<DnsResourceRecordType> _types;
 
-        byte[] _serializedData;
+        byte[] _rData;
 
         #endregion
 
@@ -51,6 +52,61 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsNSECRecord(dynamic jsonResourceRecord)
         {
             throw new NotSupportedException();
+        }
+
+        #endregion
+
+        #region static
+
+        public static int CanonicalComparison(string domain1, string domain2)
+        {
+            string[] labels1 = domain1.ToLower().Split('.');
+            string[] labels2 = domain2.ToLower().Split('.');
+
+            int minLength = labels1.Length;
+
+            if (labels2.Length < minLength)
+                minLength = labels2.Length;
+
+            for (int i = 0; i < minLength; i++)
+            {
+                int value = CanonicalComparison(Encoding.ASCII.GetBytes(labels1[labels1.Length - 1 - i]), Encoding.ASCII.GetBytes(labels2[labels2.Length - 1 - i]));
+                if (value != 0)
+                    return value;
+            }
+
+            if (labels1.Length < labels2.Length)
+                return -1;
+
+            if (labels1.Length > labels2.Length)
+                return 1;
+
+            return 0;
+        }
+
+        public static int CanonicalComparison(byte[] x, byte[] y)
+        {
+            int minLength = x.Length;
+
+            if (y.Length < minLength)
+                minLength = y.Length;
+
+            for (int i = 0; i < minLength; i++)
+            {
+                if (x[i] < y[i])
+                    return -1;
+
+                if (x[i] > y[i])
+                    return 1;
+            }
+
+            if (x.Length < y.Length)
+                return -1;
+
+            if (x.Length > y.Length)
+                return 1;
+
+            return 0;
         }
 
         #endregion
@@ -96,13 +152,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _types = types;
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            if (_serializedData is null)
+            if (_rData is null)
             {
                 using (MemoryStream mS = new MemoryStream())
                 {
-                    DnsDatagram.SerializeDomainName(_nextDomainName, mS);
+                    DnsDatagram.SerializeDomainName(canonicalForm ? _nextDomainName.ToLower() : _nextDomainName, mS);
 
                     byte[] windowBlockSurvey = new byte[256];
 
@@ -145,11 +201,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         }
                     }
 
-                    _serializedData = mS.ToArray();
+                    _rData = mS.ToArray();
                 }
             }
 
-            s.Write(_serializedData);
+            s.Write(_rData);
         }
 
         #endregion
