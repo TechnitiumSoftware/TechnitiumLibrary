@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
+using System.Security.Cryptography;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -39,7 +40,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         string _signersName;
         byte[] _signature;
 
-        byte[] _serializedData;
+        byte[] _rData;
 
         #endregion
 
@@ -84,32 +85,126 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _signature = s.ReadBytes(_rdLength - 2 - 1 - 1 - 4 - 4 - 4 - 2 - DnsDatagram.GetSerializeDomainNameLength(_signersName));
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            if (_serializedData is null)
+            if (_rData is null)
             {
-                using (MemoryStream mS = new MemoryStream())
+                using (MemoryStream mS = new MemoryStream(2 + 1 + 1 + 4 + 4 + 4 + 2 + DnsDatagram.GetSerializeDomainNameLength(_signersName) + _signature.Length))
                 {
-                    DnsDatagram.WriteUInt16NetworkOrder((ushort)_typeCovered, mS);
-                    mS.WriteByte((byte)_algorithm);
-                    mS.WriteByte(_labels);
-                    DnsDatagram.WriteUInt32NetworkOrder(_originalTtl, mS);
-                    DnsDatagram.WriteUInt32NetworkOrder(_signatureExpiration, mS);
-                    DnsDatagram.WriteUInt32NetworkOrder(_signatureInception, mS);
-                    DnsDatagram.WriteUInt16NetworkOrder(_keyTag, mS);
-                    DnsDatagram.SerializeDomainName(_signersName, mS);
-                    mS.Write(_signature);
+                    WriteTo(mS, canonicalForm);
 
-                    _serializedData = mS.ToArray();
+                    _rData = mS.ToArray();
                 }
             }
 
-            s.Write(_serializedData);
+            s.Write(_rData);
+        }
+
+        #endregion
+
+        #region private
+
+        private void WriteTo(Stream s, bool canonicalForm)
+        {
+            DnsDatagram.WriteUInt16NetworkOrder((ushort)_typeCovered, s);
+            s.WriteByte((byte)_algorithm);
+            s.WriteByte(_labels);
+            DnsDatagram.WriteUInt32NetworkOrder(_originalTtl, s);
+            DnsDatagram.WriteUInt32NetworkOrder(_signatureExpiration, s);
+            DnsDatagram.WriteUInt32NetworkOrder(_signatureInception, s);
+            DnsDatagram.WriteUInt16NetworkOrder(_keyTag, s);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _signersName.ToLower() : _signersName, s);
+
+            if (!canonicalForm)
+                s.Write(_signature);
         }
 
         #endregion
 
         #region public
+
+        public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> answer, IReadOnlyList<DnsResourceRecord> dnsKeys)
+        {
+            using (MemoryStream mS = new MemoryStream(512))
+            {
+                //RRSIG_RDATA
+                WriteTo(mS, true);
+
+                //RR(i) = owner | type | class | TTL | RDATA length | RDATA
+                List<byte[]> rrBufferList = new List<byte[]>(answer.Count);
+
+                //select and serialize records
+                using (MemoryStream rrBuffer = new MemoryStream(512))
+                {
+                    foreach (DnsResourceRecord record in answer)
+                    {
+                        if (record.Type == _typeCovered)
+                        {
+                            record.WriteTo(rrBuffer, null, true, _originalTtl);
+                            rrBufferList.Add(rrBuffer.ToArray());
+
+                            rrBuffer.Position = 0;
+                        }
+                    }
+                }
+
+                //Canonical RR Ordering
+                rrBufferList.Sort(DnsNSECRecord.CanonicalComparison);
+
+                //write into main buffer
+                foreach (byte[] buffer in rrBufferList)
+                    mS.Write(buffer);
+
+                //verify
+                HashAlgorithmName hashAlgorithm;
+
+                switch (_algorithm)
+                {
+                    case DnssecAlgorithm.RSA_MD5:
+                        hashAlgorithm = HashAlgorithmName.MD5;
+                        break;
+
+                    case DnssecAlgorithm.DSA_SHA1:
+                    case DnssecAlgorithm.RSA_SHA1:
+                        hashAlgorithm = HashAlgorithmName.SHA1;
+                        break;
+
+                    case DnssecAlgorithm.RSA_SHA256:
+                    case DnssecAlgorithm.ECDSA_P256_SHA256:
+                        hashAlgorithm = HashAlgorithmName.SHA256;
+                        break;
+
+                    case DnssecAlgorithm.ECDSA_P384_SHA384:
+                        hashAlgorithm = HashAlgorithmName.SHA384;
+                        break;
+
+                    case DnssecAlgorithm.RSA_SHA512:
+                        hashAlgorithm = HashAlgorithmName.SHA512;
+                        break;
+
+                    default:
+                        throw new NotSupportedException("Hash algorithm is not supported: " + _algorithm.ToString());
+                }
+
+                foreach (DnsResourceRecord record in dnsKeys)
+                {
+                    if (record.Type == DnsResourceRecordType.DNSKEY)
+                    {
+                        DnsDNSKEYRecord dnsKey = record.RDATA as DnsDNSKEYRecord;
+
+                        if (dnsKey.Flags.HasFlag(DnsDnsKeyFlag.ZoneKey) && (dnsKey.Protocol == 3) && (dnsKey.ComputedKeyTag == _keyTag))
+                        {
+                            mS.Position = 0; //reset position before use
+
+                            if (dnsKey.PublicKey.IsSignatureValid(mS, _signature, hashAlgorithm))
+                                return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
+        }
 
         public override bool Equals(object obj)
         {
