@@ -56,7 +56,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
 
             _httpClient.DefaultRequestHeaders.Add("accept", "application/dns-json");
-            _httpClient.DefaultRequestHeaders.Add("host", _server.DnsOverHttpEndPoint.Host + ":" + _server.DnsOverHttpEndPoint.Port);
+
+            if (_server.DnsOverHttpEndPoint.IsDefaultPort)
+                _httpClient.DefaultRequestHeaders.Add("host", _server.DnsOverHttpEndPoint.Host);
+            else
+                _httpClient.DefaultRequestHeaders.Add("host", _server.DnsOverHttpEndPoint.Host + ":" + _server.DnsOverHttpEndPoint.Port);
+
             _httpClient.DefaultRequestHeaders.Add("user-agent", "DoH client");
         }
 
