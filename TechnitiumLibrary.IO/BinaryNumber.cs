@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -107,16 +107,7 @@ namespace TechnitiumLibrary.IO
 
         public static BinaryNumber Parse(string value)
         {
-            if ((value.Length & 1) == 1)
-                throw new ArgumentException("Value length must be a multiple of 2.");
-
-            int len = value.Length;
-            byte[] output = new byte[len / 2];
-
-            for (int i = 0; i < len; i += 2)
-                output[i / 2] = Convert.ToByte(value.Substring(i, 2), 16);
-
-            return new BinaryNumber(output);
+            return new BinaryNumber(Convert.FromHexString(value));
         }
 
         #endregion
@@ -170,7 +161,7 @@ namespace TechnitiumLibrary.IO
 
         public override string ToString()
         {
-            return BitConverter.ToString(_value).Replace("-", "").ToLower();
+            return Convert.ToHexString(_value).ToLower();
         }
 
         public void WriteTo(Stream s)
