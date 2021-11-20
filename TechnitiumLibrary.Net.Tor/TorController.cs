@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -140,7 +140,7 @@ namespace TechnitiumLibrary.Net.Tor
                     byte[] buffer = new byte[32];
                     _rnd.GetBytes(buffer);
 
-                    password = BitConverter.ToString(buffer).Replace("-", "").ToLower();
+                    password = Convert.ToHexString(buffer).ToLower();
                 }
 
                 string dataDir = Path.Combine(Path.GetDirectoryName(_torExecutableFilePath), "data");

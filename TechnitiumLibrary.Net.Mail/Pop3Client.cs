@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -147,7 +147,7 @@ namespace TechnitiumLibrary.Net.Mail
             if (_preferSecureAuth && secureAuthAvailable)
             {
                 string timestamp = response.Substring(i, j - i + 1);
-                string digest = BitConverter.ToString(HashAlgorithm.Create("MD5").ComputeHash(Encoding.ASCII.GetBytes(timestamp + _password))).Replace("-", "").ToLower();
+                string digest = Convert.ToHexString(HashAlgorithm.Create("MD5").ComputeHash(Encoding.ASCII.GetBytes(timestamp + _password))).ToLower();
 
                 _sW.WriteLine("APOP " + _username + " " + digest);
                 response = _sR.ReadLine();

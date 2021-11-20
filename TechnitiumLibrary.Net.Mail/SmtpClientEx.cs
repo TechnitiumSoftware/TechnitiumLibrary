@@ -155,7 +155,7 @@ namespace TechnitiumLibrary.Net.Mail
             byte[] buffer = new byte[4];
             _rng.GetBytes(buffer);
 
-            LocalHostName = BitConverter.ToString(buffer).Replace("-", "");
+            LocalHostName = Convert.ToHexString(buffer);
         }
 
         public new void Send(string from, string recipients, string subject, string body)
