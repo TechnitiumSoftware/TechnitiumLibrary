@@ -75,12 +75,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _target = DnsDatagram.DeserializeDomainName(s);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
             DnsDatagram.WriteUInt16NetworkOrder(_priority, s);
             DnsDatagram.WriteUInt16NetworkOrder(_weight, s);
             DnsDatagram.WriteUInt16NetworkOrder(_port, s);
-            DnsDatagram.SerializeDomainName(_target, s, null); //no compression for domain name as per RFC
+            DnsDatagram.SerializeDomainName(canonicalForm ? _target.ToLower() : _target, s, null); //no compression for domain name as per RFC
         }
 
         #endregion

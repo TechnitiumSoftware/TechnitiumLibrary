@@ -112,9 +112,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _otherData = s.ReadBytes(otherLen);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            DnsDatagram.SerializeDomainName(_algorithmName, s); //MUST NOT be compressed
+            DnsDatagram.SerializeDomainName(canonicalForm ? _algorithmName.ToLower() : _algorithmName, s); //MUST NOT be compressed
             DnsDatagram.WriteUInt48NetworkOrder(_timeSigned, s);
             DnsDatagram.WriteUInt16NetworkOrder(_fudge, s);
 

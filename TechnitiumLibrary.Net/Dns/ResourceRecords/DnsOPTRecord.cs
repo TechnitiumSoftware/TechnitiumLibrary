@@ -80,7 +80,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _options = options;
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
             foreach (EDnsOption option in _options)
                 option.WriteTo(s);

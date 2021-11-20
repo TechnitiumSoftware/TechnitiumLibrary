@@ -67,10 +67,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _exchange = DnsDatagram.DeserializeDomainName(s);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
             DnsDatagram.WriteUInt16NetworkOrder(_preference, s);
-            DnsDatagram.SerializeDomainName(_exchange, s, domainEntries);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _exchange.ToLower() : _exchange, s, domainEntries);
         }
 
         #endregion

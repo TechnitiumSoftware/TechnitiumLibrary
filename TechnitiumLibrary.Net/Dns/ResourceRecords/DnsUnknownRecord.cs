@@ -61,7 +61,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _data = s.ReadBytes(_rdLength);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
             s.Write(_data, 0, _data.Length);
         }

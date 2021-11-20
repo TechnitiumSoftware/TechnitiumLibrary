@@ -82,7 +82,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _nameServer = new NameServerAddress(_forwarder, _protocol);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
             s.WriteByte((byte)_protocol);
 

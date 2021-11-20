@@ -101,10 +101,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _minimum = DnsDatagram.ReadUInt32NetworkOrder(s);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            DnsDatagram.SerializeDomainName(_primaryNameServer, s, domainEntries);
-            DnsDatagram.SerializeDomainName(_responsiblePerson, s, domainEntries);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _primaryNameServer.ToLower() : _primaryNameServer, s, domainEntries);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _responsiblePerson.ToLower() : _responsiblePerson, s, domainEntries);
             DnsDatagram.WriteUInt32NetworkOrder(_serial, s);
             DnsDatagram.WriteUInt32NetworkOrder(_refresh, s);
             DnsDatagram.WriteUInt32NetworkOrder(_retry, s);

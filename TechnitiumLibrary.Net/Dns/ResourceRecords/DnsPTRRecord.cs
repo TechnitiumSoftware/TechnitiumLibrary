@@ -61,9 +61,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _domain = DnsDatagram.DeserializeDomainName(s);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            DnsDatagram.SerializeDomainName(_domain, s, domainEntries);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _domain.ToLower() : _domain, s, domainEntries);
         }
 
         #endregion

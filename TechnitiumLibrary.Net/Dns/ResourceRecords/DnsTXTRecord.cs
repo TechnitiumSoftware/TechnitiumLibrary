@@ -32,7 +32,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         string _text;
 
-        byte[] _serializedData;
+        byte[] _rData;
 
         #endregion
 
@@ -60,9 +60,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _serializedData = s.ReadBytes(_rdLength);
+            _rData = s.ReadBytes(_rdLength);
 
-            using (MemoryStream mS = new MemoryStream(_serializedData))
+            using (MemoryStream mS = new MemoryStream(_rData))
             {
                 int bytesRead = 0;
                 int length;
@@ -83,9 +83,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            if (_serializedData is null)
+            if (_rData is null)
             {
                 using (MemoryStream mS = new MemoryStream())
                 {
@@ -106,11 +106,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     }
                     while (offset < data.Length);
 
-                    _serializedData = mS.ToArray();
+                    _rData = mS.ToArray();
                 }
             }
 
-            s.Write(_serializedData);
+            s.Write(_rData);
         }
 
         #endregion

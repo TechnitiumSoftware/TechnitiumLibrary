@@ -75,7 +75,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _os = Encoding.ASCII.GetString(s.ReadBytes(s.ReadByteValue()));
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
             s.WriteByte(Convert.ToByte(_cpu.Length));
             s.Write(Encoding.ASCII.GetBytes(_cpu));
