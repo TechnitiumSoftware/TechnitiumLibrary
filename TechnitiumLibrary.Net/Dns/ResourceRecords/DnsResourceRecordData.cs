@@ -52,7 +52,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected abstract void ReadRecordData(Stream s);
 
-        protected abstract void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries);
+        protected abstract void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm);
 
         #endregion
 
@@ -65,12 +65,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public void WriteTo(Stream s)
-        {
-            WriteTo(s, null);
-        }
-
-        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
+        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
             long originalPosition = s.Position;
 
@@ -78,7 +73,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             s.Position += 2;
 
             //write RDATA
-            WriteRecordData(s, domainEntries);
+            WriteRecordData(s, domainEntries, canonicalForm);
 
             long finalPosition = s.Position;
 
