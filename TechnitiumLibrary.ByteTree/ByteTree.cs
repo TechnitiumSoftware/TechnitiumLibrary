@@ -673,7 +673,7 @@ namespace TechnitiumLibrary.ByteTree
 
             public override string ToString()
             {
-                return BitConverter.ToString(_key).Replace("-", "").ToLower() + ": " + _value.ToString();
+                return Convert.ToHexString(_key).ToLower() + ": " + _value.ToString();
             }
 
             #endregion
