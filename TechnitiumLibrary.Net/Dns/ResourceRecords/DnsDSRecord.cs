@@ -27,6 +27,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
     public enum DnssecDigestType : byte
     {
+        Unknown = 0,
         SHA1 = 1,
         SHA256 = 2,
         GOST_R_34_11_94 = 3,
@@ -42,7 +43,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         DnssecDigestType _digestType;
         byte[] _digest;
 
-        byte[] _serializedData;
+        byte[] _rData;
 
         #endregion
 
@@ -71,9 +72,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _serializedData = s.ReadBytes(_rdLength);
+            _rData = s.ReadBytes(_rdLength);
 
-            using (MemoryStream mS = new MemoryStream(_serializedData))
+            using (MemoryStream mS = new MemoryStream(_rData))
             {
                 _keyTag = DnsDatagram.ReadUInt16NetworkOrder(mS);
                 _algorithm = (DnssecAlgorithm)mS.ReadByteValue();
@@ -82,22 +83,22 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            if (_serializedData is null)
+            if (_rData is null)
             {
-                using (MemoryStream mS = new MemoryStream())
+                using (MemoryStream mS = new MemoryStream(2 + 1 + 1 + _digest.Length))
                 {
                     DnsDatagram.WriteUInt16NetworkOrder(_keyTag, mS);
                     mS.WriteByte((byte)_algorithm);
                     mS.WriteByte((byte)_digestType);
                     mS.Write(_digest);
 
-                    _serializedData = mS.ToArray();
+                    _rData = mS.ToArray();
                 }
             }
 
-            s.Write(_serializedData);
+            s.Write(_rData);
         }
 
         #endregion
@@ -139,7 +140,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _keyTag + " " + (byte)_algorithm + " " + (byte)_digestType + " ( " + BitConverter.ToString(_digest).Replace("-", "") + " )";
+            return _keyTag + " " + (byte)_algorithm + " " + (byte)_digestType + " ( " + Convert.ToHexString(_digest) + " )";
         }
 
         #endregion
@@ -160,7 +161,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         { get { return _digest; } }
 
         public string Digest
-        { get { return BitConverter.ToString(_digest).Replace("-", ""); } }
+        { get { return Convert.ToHexString(_digest); } }
 
         [IgnoreDataMember]
         public override ushort UncompressedLength
