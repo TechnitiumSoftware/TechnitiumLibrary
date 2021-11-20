@@ -30,11 +30,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     public enum DnsDnsKeyFlag : ushort
     {
         ZoneKey = 0x100,
-        SecureEntryPoint = 0x1
+        SecureEntryPoint = 0x1,
+        Revoke = 0x80
     }
 
     public enum DnssecAlgorithm : byte
     {
+        Unknown = 0,
         RSA_MD5 = 1,
         DSA_SHA1 = 3,
         RSA_SHA1 = 5,
@@ -60,7 +62,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         DnssecAlgorithm _algorithm;
         DnssecPublicKey _publicKey;
 
-        byte[] _serializedData;
+        ushort _computedKeyTag;
+
+        byte[] _rData;
 
         #endregion
 
@@ -72,6 +76,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _protocol = protocol;
             _algorithm = algorithm;
             _publicKey = publicKey;
+
+            Serialize();
+            ComputeKeyTag();
         }
 
         public DnsDNSKEYRecord(Stream s)
@@ -85,42 +92,126 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region private
+
+        private void Serialize()
+        {
+            using (MemoryStream mS = new MemoryStream())
+            {
+                DnsDatagram.WriteUInt16NetworkOrder((ushort)_flags, mS);
+                mS.WriteByte(_protocol);
+                mS.WriteByte((byte)_algorithm);
+                _publicKey.WriteTo(mS);
+
+                _rData = mS.ToArray();
+            }
+        }
+
+        private void ComputeKeyTag()
+        {
+            switch (_algorithm)
+            {
+                case DnssecAlgorithm.RSA_MD5:
+                    byte[] buffer = new byte[2];
+                    Buffer.BlockCopy(_publicKey.RawPublicKey, _publicKey.RawPublicKey.Length - 3, buffer, 0, 2);
+                    Array.Reverse(buffer);
+                    _computedKeyTag = BitConverter.ToUInt16(buffer);
+                    break;
+
+                default:
+                    uint ac = 0;
+
+                    for (int i = 0; i < _rData.Length; i++)
+                    {
+                        if ((i & 1) > 0)
+                            ac += _rData[i];
+                        else
+                            ac += (uint)(_rData[i] << 8);
+                    }
+
+                    ac += (ac >> 16) & 0xFFFF;
+
+                    _computedKeyTag = (ushort)(ac & 0xFFFFu);
+                    break;
+            }
+        }
+
+        #endregion
+
         #region protected
 
         protected override void ReadRecordData(Stream s)
         {
-            _serializedData = s.ReadBytes(_rdLength);
+            _rData = s.ReadBytes(_rdLength);
 
-            using (MemoryStream mS = new MemoryStream(_serializedData))
+            using (MemoryStream mS = new MemoryStream(_rData))
             {
                 _flags = (DnsDnsKeyFlag)DnsDatagram.ReadUInt16NetworkOrder(mS);
                 _protocol = mS.ReadByteValue();
                 _algorithm = (DnssecAlgorithm)mS.ReadByteValue();
                 _publicKey = DnssecPublicKey.Parse(_algorithm, mS.ReadBytes(_rdLength - 2 - 1 - 1));
             }
+
+            ComputeKeyTag();
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            if (_serializedData is null)
-            {
-                using (MemoryStream mS = new MemoryStream())
-                {
-                    DnsDatagram.WriteUInt16NetworkOrder((ushort)_flags, mS);
-                    mS.WriteByte(_protocol);
-                    mS.WriteByte((byte)_algorithm);
-                    _publicKey.WriteTo(s);
-
-                    _serializedData = mS.ToArray();
-                }
-            }
-
-            s.Write(_serializedData);
+            s.Write(_rData);
         }
 
         #endregion
 
         #region public
+
+        public byte[] ComputeDigest(string ownerName)
+        {
+            using (MemoryStream mS = new MemoryStream(DnsDatagram.GetSerializeDomainNameLength(ownerName) + _rData.Length))
+            {
+                DnsDatagram.SerializeDomainName(ownerName.ToLower(), mS);
+                mS.Write(_rData);
+
+                mS.Position = 0;
+
+                switch (_algorithm)
+                {
+                    case DnssecAlgorithm.RSA_MD5:
+                        using (HashAlgorithm hashAlgo = MD5.Create())
+                        {
+                            return hashAlgo.ComputeHash(mS);
+                        }
+
+                    case DnssecAlgorithm.DSA_SHA1:
+                    case DnssecAlgorithm.RSA_SHA1:
+                        using (HashAlgorithm hashAlgo = SHA1.Create())
+                        {
+                            return hashAlgo.ComputeHash(mS);
+                        }
+
+                    case DnssecAlgorithm.RSA_SHA256:
+                    case DnssecAlgorithm.ECDSA_P256_SHA256:
+                        using (HashAlgorithm hashAlgo = SHA256.Create())
+                        {
+                            return hashAlgo.ComputeHash(mS);
+                        }
+
+                    case DnssecAlgorithm.ECDSA_P384_SHA384:
+                        using (HashAlgorithm hashAlgo = SHA384.Create())
+                        {
+                            return hashAlgo.ComputeHash(mS);
+                        }
+
+                    case DnssecAlgorithm.RSA_SHA512:
+                        using (HashAlgorithm hashAlgo = SHA512.Create())
+                        {
+                            return hashAlgo.ComputeHash(mS);
+                        }
+
+                    default:
+                        throw new NotSupportedException("Hash algorithm is not supported: " + _algorithm.ToString());
+                }
+            }
+        }
 
         public override bool Equals(object obj)
         {
@@ -177,6 +268,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         { get { return _publicKey; } }
 
         [IgnoreDataMember]
+        public ushort ComputedKeyTag
+        { get { return _computedKeyTag; } }
+
+        [IgnoreDataMember]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + 1 + 1 + _publicKey.RawPublicKey.Length); } }
 
@@ -223,6 +318,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #endregion
 
         #region public
+
+        public virtual bool IsSignatureValid(Stream data, byte[] signature, HashAlgorithmName hashAlgorithm)
+        {
+            throw new NotSupportedException("DNSSEC algorithm is not supported.");
+        }
 
         public void WriteTo(Stream s)
         {
@@ -330,6 +430,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #endregion
 
         #region public
+
+        public override bool IsSignatureValid(Stream data, byte[] signature, HashAlgorithmName hashAlgorithm)
+        {
+            using (RSA rsa = RSA.Create(_rsaPublicKey))
+            {
+                return rsa.VerifyData(data, signature, hashAlgorithm, RSASignaturePadding.Pkcs1);
+            }
+        }
 
         public override string ToString()
         {
