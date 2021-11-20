@@ -77,7 +77,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 bytesRead += 4 + option.Data.Length;
             }
 
-            _options = options;
+            if (options is null)
+                _options = Array.Empty<EDnsOption>();
+            else
+                _options = options;
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
