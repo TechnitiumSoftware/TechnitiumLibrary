@@ -470,19 +470,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return IsStale;
         }
 
-        public void WriteTo(Stream s)
-        {
-            WriteTo(s, null);
-        }
-
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(_name, s, domainEntries);
+            WriteTo(s, domainEntries, false, TtlValue);
+        }
+
+        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm, uint originalTtl)
+        {
+            DnsDatagram.SerializeDomainName(canonicalForm ? _name.ToLower() : _name, s, domainEntries);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
-            DnsDatagram.WriteUInt32NetworkOrder(TtlValue, s);
+            DnsDatagram.WriteUInt32NetworkOrder(originalTtl, s);
 
-            _data.WriteTo(s, domainEntries);
+            _data.WriteTo(s, domainEntries, canonicalForm);
         }
 
         public override bool Equals(object obj)
