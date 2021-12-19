@@ -112,7 +112,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }
 
-                return new HttpRequestMessage(HttpMethod.Get, queryUri.AbsoluteUri + "?name=" + request.Question[0].Name + "&type=" + Convert.ToString((int)request.Question[0].Type));
+                return new HttpRequestMessage(HttpMethod.Get, queryUri.AbsoluteUri + "?name=" + (request.Question[0].Name.Length == 0 ? "." : request.Question[0].Name) + "&type=" + Convert.ToString((int)request.Question[0].Type) + "&do=" + ((request.EDNS is not null) && request.EDNS.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK)));
             }
 
             //DoH JSON format request 
@@ -148,7 +148,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 string responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
 
                 //parse response
-                DnsDatagram response = DnsDatagram.ReadFromJson(JsonConvert.DeserializeObject(responseJson), responseJson.Length);
+                DnsDatagram response = DnsDatagram.ReadFromJson(JsonConvert.DeserializeObject(responseJson), responseJson.Length, request.EDNS);
 
                 response.SetIdentifier(request.Identifier);
                 response.SetMetadata(_server, _protocol, stopwatch.Elapsed.TotalMilliseconds);
