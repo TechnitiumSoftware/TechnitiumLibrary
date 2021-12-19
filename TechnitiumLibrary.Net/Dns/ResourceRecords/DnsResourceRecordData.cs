@@ -61,11 +61,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         internal virtual void NormalizeName()
         { }
 
+        internal void WriteCanonicalRecordData(Stream s)
+        {
+            WriteRecordData(s, null, true);
+        }
+
         #endregion
 
         #region public
 
-        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
             long originalPosition = s.Position;
 
@@ -73,7 +78,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             s.Position += 2;
 
             //write RDATA
-            WriteRecordData(s, domainEntries, canonicalForm);
+            WriteRecordData(s, domainEntries, false);
 
             long finalPosition = s.Position;
 
