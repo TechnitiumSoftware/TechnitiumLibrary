@@ -176,7 +176,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _algorithmName + " " + _timeSigned + " " + _fudge + " " + Convert.ToBase64String(_mac) + " " + _originalID + " " + _error + " " + Convert.ToBase64String(_otherData);
+            return _algorithmName + ". " + _timeSigned + " " + _fudge + " " + Convert.ToBase64String(_mac) + " " + _originalID + " " + _error + " " + Convert.ToBase64String(_otherData);
         }
 
         #endregion
