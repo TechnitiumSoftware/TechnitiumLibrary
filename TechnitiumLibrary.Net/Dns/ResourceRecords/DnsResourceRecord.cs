@@ -130,6 +130,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         ANY = 255
     }
 
+    public enum DnssecStatus
+    {
+        Unknown = 0,
+        Disabled = 1,
+        Secure = 2,
+        Insecure = 3,
+        Bogus = 4,
+        Indeterminate = 5
+    }
+
     public sealed class DnsResourceRecord : IComparable<DnsResourceRecord>
     {
         #region variables
@@ -144,6 +154,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         bool _setExpiry = false;
         DateTime _ttlExpires;
         DateTime _serveStaleTtlExpires;
+        DnssecStatus _dnssecStatus;
 
         #endregion
 
@@ -233,6 +244,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnsResourceRecordType.DNSKEY:
                     _data = new DnsDNSKEYRecord(s);
+                    break;
+
+                case DnsResourceRecordType.NSEC3:
+                    _data = new DnsNSEC3Record(s);
+                    break;
+
+                case DnsResourceRecordType.NSEC3PARAM:
+                    _data = new DnsNSEC3PARAMRecord(s);
                     break;
 
                 case DnsResourceRecordType.CAA:
@@ -334,6 +353,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     _data = new DnsDNSKEYRecord(jsonResourceRecord);
                     break;
 
+                case DnsResourceRecordType.NSEC3:
+                    _data = new DnsNSEC3Record(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.NSEC3PARAM:
+                    _data = new DnsNSEC3PARAMRecord(jsonResourceRecord);
+                    break;
+
                 case DnsResourceRecordType.CAA:
                     _data = new DnsCAARecord(jsonResourceRecord);
                     break;
@@ -433,6 +460,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _data.NormalizeName();
         }
 
+        internal void SetDnssecStatus(DnssecStatus dnssecStatus, bool force = false)
+        {
+            if ((_dnssecStatus == DnssecStatus.Unknown) || force)
+                _dnssecStatus = dnssecStatus;
+        }
+
+        internal void FixNameForNSEC(string wildcardName)
+        {
+            if (_type != DnsResourceRecordType.NSEC)
+                throw new InvalidOperationException();
+
+            _name = wildcardName;
+        }
+
         #endregion
 
         #region public
@@ -470,19 +511,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return IsStale;
         }
 
-        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
+        public void WriteTo(Stream s)
         {
-            WriteTo(s, domainEntries, false, TtlValue);
+            WriteTo(s, null);
         }
 
-        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm, uint originalTtl)
+        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            DnsDatagram.SerializeDomainName(canonicalForm ? _name.ToLower() : _name, s, domainEntries);
+            DnsDatagram.SerializeDomainName(_name, s, domainEntries);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
-            DnsDatagram.WriteUInt32NetworkOrder(originalTtl, s);
+            DnsDatagram.WriteUInt32NetworkOrder(TtlValue, s);
 
-            _data.WriteTo(s, domainEntries, canonicalForm);
+            _data.WriteTo(s, domainEntries);
         }
 
         public override bool Equals(object obj)
@@ -628,6 +669,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         [IgnoreDataMember]
         public object Tag { get; set; }
+
+        public DnssecStatus DnssecStatus
+        { get { return _dnssecStatus; } }
 
         #endregion
     }
