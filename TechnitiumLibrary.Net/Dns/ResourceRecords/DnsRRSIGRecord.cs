@@ -100,24 +100,48 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             throw new InvalidOperationException();
         }
 
+        public static bool IsWildcard(DnsResourceRecord rrsigRecord, out string nextCloserName)
+        {
+            if (rrsigRecord.RDATA is DnsRRSIGRecord rrsig)
+            {
+                if (GetLabelCount(rrsigRecord.Name) > rrsig._labels)
+                {
+                    nextCloserName = GetTrimmedDomain(rrsigRecord.Name, rrsig._labels + 1);
+                    return true;
+                }
+                else
+                {
+                    nextCloserName = null;
+                    return false;
+                }
+            }
+
+            throw new InvalidOperationException();
+        }
+
         #endregion
 
         #region private
 
         private static string GetWildcardDomain(string domain, int labelCount)
         {
+            return "*." + GetTrimmedDomain(domain, labelCount);
+        }
+
+        private static string GetTrimmedDomain(string domain, int labelCount)
+        {
             string[] labels = domain.Split('.');
-            string wildcard = null;
+            string nextCloserName = null;
 
             for (int i = 0; i < labelCount; i++)
             {
-                if (wildcard is null)
-                    wildcard = labels[labels.Length - 1 - i];
+                if (nextCloserName is null)
+                    nextCloserName = labels[labels.Length - 1 - i];
                 else
-                    wildcard = labels[labels.Length - 1 - i] + "." + wildcard;
+                    nextCloserName = labels[labels.Length - 1 - i] + "." + nextCloserName;
             }
 
-            return "*." + wildcard;
+            return nextCloserName;
         }
 
         private static int GetLabelCount(string domain)
@@ -206,6 +230,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (SignatureInception > DateTime.UtcNow)
                 return DnssecSignatureStatus.Bogus;
 
+            HashAlgorithmName hashAlgorithm;
+            byte[] hash;
+
             using (MemoryStream mS = new MemoryStream(512))
             {
                 //RRSIG_RDATA
@@ -259,10 +286,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         rdataPart = rrBuffer.ToArray();
                         rrBuffer.SetLength(0);
 
-                        //serialize owner | type | class | TTL | RDATA length
+                        //serialize owner name | type | class | Original TTL | RDATA length
                         DnsDatagram.SerializeDomainName(name, rrBuffer);
-                        DnsDatagram.WriteUInt16NetworkOrder((ushort)records[0].Type, rrBuffer);
-                        DnsDatagram.WriteUInt16NetworkOrder((ushort)records[0].Class, rrBuffer);
+                        DnsDatagram.WriteUInt16NetworkOrder((ushort)record.Type, rrBuffer);
+                        DnsDatagram.WriteUInt16NetworkOrder((ushort)record.Class, rrBuffer);
                         DnsDatagram.WriteUInt32NetworkOrder(_originalTtl, rrBuffer);
                         DnsDatagram.WriteUInt16NetworkOrder(Convert.ToUInt16(rdataPart.Length), rrBuffer);
 
@@ -279,16 +306,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 //write sorted RR into main buffer
                 foreach (SerializedResourceRecord rr in rrList)
-                {
                     rr.WriteTo(mS);
-                }
 
-                //verify
-                HashAlgorithmName hashAlgorithm;
+                mS.Position = 0;
 
+                //hash
                 switch (_algorithm)
                 {
                     case DnssecAlgorithm.RSAMD5:
+                        using (HashAlgorithm hashAlgo = MD5.Create())
+                        {
+                            hash = hashAlgo.ComputeHash(mS);
+                        }
+
                         hashAlgorithm = HashAlgorithmName.MD5;
                         break;
 
@@ -296,84 +326,102 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     case DnssecAlgorithm.RSASHA1:
                     case DnssecAlgorithm.DSA_NSEC3_SHA1:
                     case DnssecAlgorithm.RSASHA1_NSEC3_SHA1:
+                        using (HashAlgorithm hashAlgo = SHA1.Create())
+                        {
+                            hash = hashAlgo.ComputeHash(mS);
+                        }
+
                         hashAlgorithm = HashAlgorithmName.SHA1;
                         break;
 
                     case DnssecAlgorithm.RSASHA256:
                     case DnssecAlgorithm.ECDSAP256SHA256:
+                        using (HashAlgorithm hashAlgo = SHA256.Create())
+                        {
+                            hash = hashAlgo.ComputeHash(mS);
+                        }
+
                         hashAlgorithm = HashAlgorithmName.SHA256;
                         break;
 
                     case DnssecAlgorithm.ECDSAP384SHA384:
+                        using (HashAlgorithm hashAlgo = SHA384.Create())
+                        {
+                            hash = hashAlgo.ComputeHash(mS);
+                        }
+
                         hashAlgorithm = HashAlgorithmName.SHA384;
                         break;
 
                     case DnssecAlgorithm.RSASHA512:
+                        using (HashAlgorithm hashAlgo = SHA512.Create())
+                        {
+                            hash = hashAlgo.ComputeHash(mS);
+                        }
+
                         hashAlgorithm = HashAlgorithmName.SHA512;
                         break;
 
                     default:
                         throw new NotSupportedException("DNSSEC hash algorithm is not supported: " + _algorithm.ToString());
                 }
+            }
 
-                bool isBogus = false;
+            bool isBogus = false;
 
-                foreach (DnsResourceRecord dnsKeyRecord in dnsKeyRecords)
+            foreach (DnsResourceRecord dnsKeyRecord in dnsKeyRecords)
+            {
+                if (dnsKeyRecord.Type != DnsResourceRecordType.DNSKEY)
+                    continue;
+
+                //The RRSIG RR's Signer's Name, Algorithm, and Key Tag fields MUST match the owner name, algorithm, and key tag for some DNSKEY RR in the zone's apex DNSKEY RRset.
+                if (!dnsKeyRecord.Name.Equals(_signersName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                DnsDNSKEYRecord dnsKey = dnsKeyRecord.RDATA as DnsDNSKEYRecord;
+
+                if (dnsKey.Protocol != 3)
+                    continue;
+
+                if ((dnsKey.Algorithm != _algorithm) || !dnsKey.PublicKey.IsAlgorithmSupported)
+                    continue;
+
+                if (dnsKey.ComputedKeyTag != _keyTag)
+                    continue;
+
+                //The matching DNSKEY RR MUST be present in the zone's apex DNSKEY RRset, and MUST have the Zone Flag bit (DNSKEY RDATA Flag bit 7) set.
+                if (dnsKey.Flags.HasFlag(DnsDnsKeyFlag.ZoneKey))
                 {
-                    if (dnsKeyRecord.Type != DnsResourceRecordType.DNSKEY)
-                        continue;
+                    if (dnsKey.Flags.HasFlag(DnsDnsKeyFlag.Revoke) && (_typeCovered != DnsResourceRecordType.DNSKEY))
+                        continue; //rfc5011: the resolver MUST consider this key permanently invalid for all purposes except for validating the revocation.
 
-                    //The RRSIG RR's Signer's Name, Algorithm, and Key Tag fields MUST match the owner name, algorithm, and key tag for some DNSKEY RR in the zone's apex DNSKEY RRset.
-                    if (!dnsKeyRecord.Name.Equals(_signersName, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    DnsDNSKEYRecord dnsKey = dnsKeyRecord.RDATA as DnsDNSKEYRecord;
-
-                    if (dnsKey.Protocol != 3)
-                        continue;
-
-                    if ((dnsKey.Algorithm != _algorithm) || !dnsKey.PublicKey.IsAlgorithmSupported)
-                        continue;
-
-                    if (dnsKey.ComputedKeyTag != _keyTag)
-                        continue;
-
-                    //The matching DNSKEY RR MUST be present in the zone's apex DNSKEY RRset, and MUST have the Zone Flag bit (DNSKEY RDATA Flag bit 7) set.
-                    if (dnsKey.Flags.HasFlag(DnsDnsKeyFlag.ZoneKey))
+                    if (dnsKey.PublicKey.IsSignatureValid(hash, _signature, hashAlgorithm))
                     {
-                        if (dnsKey.Flags.HasFlag(DnsDnsKeyFlag.Revoke) && (_typeCovered != DnsResourceRecordType.DNSKEY))
-                            continue; //rfc5011: the resolver MUST consider this key permanently invalid for all purposes except for validating the revocation.
-
-                        mS.Position = 0; //reset position before use
-
-                        if (dnsKey.PublicKey.IsSignatureValid(mS, _signature, hashAlgorithm))
+                        foreach (DnsResourceRecord validatedRecord in records)
                         {
-                            foreach (DnsResourceRecord validatedRecord in records)
-                            {
-                                if (validatedRecord.Type == _typeCovered)
-                                    validatedRecord.SetDnssecStatus(DnssecStatus.Secure);
-                            }
-
-                            return DnssecSignatureStatus.Valid;
+                            if (validatedRecord.Type == _typeCovered)
+                                validatedRecord.SetDnssecStatus(DnssecStatus.Secure);
                         }
 
-                        isBogus = true;
-                    }
-                }
-
-                if (isBogus)
-                {
-                    foreach (DnsResourceRecord validatedRecord in records)
-                    {
-                        if (validatedRecord.Type == _typeCovered)
-                            validatedRecord.SetDnssecStatus(DnssecStatus.Bogus);
+                        return DnssecSignatureStatus.Valid;
                     }
 
-                    return DnssecSignatureStatus.Bogus;
+                    isBogus = true;
                 }
-
-                return DnssecSignatureStatus.NoDnsKey;
             }
+
+            if (isBogus)
+            {
+                foreach (DnsResourceRecord validatedRecord in records)
+                {
+                    if (validatedRecord.Type == _typeCovered)
+                        validatedRecord.SetDnssecStatus(DnssecStatus.Bogus);
+                }
+
+                return DnssecSignatureStatus.Bogus;
+            }
+
+            return DnssecSignatureStatus.NoDnsKey;
         }
 
         public override bool Equals(object obj)
