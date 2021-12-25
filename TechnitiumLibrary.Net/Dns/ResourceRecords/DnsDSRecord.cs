@@ -95,6 +95,39 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return false;
         }
 
+        private bool IsAlgorithmSupported()
+        {
+            switch (_algorithm)
+            {
+                //case DnssecAlgorithm.RSAMD5: depricated
+                case DnssecAlgorithm.RSASHA1:
+                case DnssecAlgorithm.RSASHA256:
+                case DnssecAlgorithm.RSASHA512:
+                case DnssecAlgorithm.RSASHA1_NSEC3_SHA1:
+                case DnssecAlgorithm.ECDSAP256SHA256:
+                case DnssecAlgorithm.ECDSAP384SHA384:
+                    //supported algorithm
+                    break;
+
+                default:
+                    return false;
+            }
+
+            switch (_digestType)
+            {
+                case DnssecDigestType.SHA1:
+                case DnssecDigestType.SHA256:
+                case DnssecDigestType.SHA384:
+                    //supported digest algorithm
+                    break;
+
+                default:
+                    return false;
+            }
+
+            return true;
+        }
+
         #endregion
 
         #region private
@@ -137,39 +170,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #endregion
 
         #region public
-
-        public bool IsAlgorithmSupported()
-        {
-            switch (_algorithm)
-            {
-                case DnssecAlgorithm.RSAMD5:
-                case DnssecAlgorithm.RSASHA1:
-                case DnssecAlgorithm.RSASHA256:
-                case DnssecAlgorithm.RSASHA512:
-                case DnssecAlgorithm.RSASHA1_NSEC3_SHA1:
-                case DnssecAlgorithm.ECDSAP256SHA256:
-                case DnssecAlgorithm.ECDSAP384SHA384:
-                    //supported algorithm
-                    break;
-
-                default:
-                    return false;
-            }
-
-            switch (_digestType)
-            {
-                case DnssecDigestType.SHA1:
-                case DnssecDigestType.SHA256:
-                case DnssecDigestType.SHA384:
-                    //supported digest algorithm
-                    break;
-
-                default:
-                    return false;
-            }
-
-            return true;
-        }
 
         public override bool Equals(object obj)
         {
