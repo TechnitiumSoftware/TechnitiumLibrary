@@ -70,6 +70,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
+        public void WriteTo(Stream s)
+        {
+            WriteTo(s, null);
+        }
+
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
             long originalPosition = s.Position;
