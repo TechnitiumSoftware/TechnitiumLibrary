@@ -3066,6 +3066,15 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        private async Task<DnsDatagram> InternalNoDnssecResolveAsync(DnsDatagram request)
+        {
+            DnsDatagram response = await InternalResolveAsync(request);
+
+            response.SetDnssecStatusForAllRecords(DnssecStatus.Disabled);
+
+            return response;
+        }
+
         private async Task<DnsDatagram> InternalDnssecResolveAsync(DnsQuestionRecord question)
         {
             IDnsCache cache;
@@ -3098,7 +3107,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if (_dnssecValidation)
                     newResponse = await InternalDnssecResolveAsync(q);
                 else
-                    newResponse = await InternalResolveAsync(newRequest);
+                    newResponse = await InternalNoDnssecResolveAsync(newRequest);
 
                 _cache.CacheResponse(newResponse);
                 return newResponse;
@@ -3134,7 +3143,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return InternalDnssecResolveAsync(request.Question[0]);
             }
 
-            return InternalResolveAsync(request);
+            return InternalNoDnssecResolveAsync(request);
         }
 
         public async Task<DnsDatagram> ResolveAsync(DnsDatagram request, TsigKey key, ushort fudge = 300)
@@ -3142,7 +3151,7 @@ namespace TechnitiumLibrary.Net.Dns
             request.SetRandomIdentifier();
             DnsDatagram signedRequest = request.SignRequest(key, fudge);
 
-            DnsDatagram signedResponse = await InternalResolveAsync(signedRequest);
+            DnsDatagram signedResponse = await InternalNoDnssecResolveAsync(signedRequest);
             if (!signedResponse.VerifySignedResponse(signedRequest, key, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error))
             {
                 if (requestFailed)
@@ -3162,7 +3171,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (_dnssecValidation)
                 return InternalDnssecResolveAsync(question);
 
-            return InternalResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize));
+            return InternalNoDnssecResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize));
         }
 
         public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question, TsigKey key, ushort fudge = 300)
