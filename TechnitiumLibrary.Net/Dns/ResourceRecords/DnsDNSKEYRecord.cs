@@ -209,7 +209,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         break;
 
                     default:
-                        return false; //hash not supported
+                        throw new NotSupportedException("DNSSEC DS digest type hash algorithm is not supported: " + ds.DigestType.ToString());
                 }
             }
 
@@ -327,7 +327,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public virtual bool IsSignatureValid(Stream data, byte[] signature, HashAlgorithmName hashAlgorithm)
+        public virtual bool IsSignatureValid(byte[] hash, byte[] signature, HashAlgorithmName hashAlgorithm)
         {
             throw new NotSupportedException("DNSSEC algorithm is not supported.");
         }
@@ -443,11 +443,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool IsSignatureValid(Stream data, byte[] signature, HashAlgorithmName hashAlgorithm)
+        public override bool IsSignatureValid(byte[] hash, byte[] signature, HashAlgorithmName hashAlgorithm)
         {
             using (RSA rsa = RSA.Create(_rsaPublicKey))
             {
-                return rsa.VerifyData(data, signature, hashAlgorithm, RSASignaturePadding.Pkcs1);
+                return rsa.VerifyHash(hash, signature, hashAlgorithm, RSASignaturePadding.Pkcs1);
             }
         }
 
@@ -544,11 +544,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool IsSignatureValid(Stream data, byte[] signature, HashAlgorithmName hashAlgorithm)
+        public override bool IsSignatureValid(byte[] hash, byte[] signature, HashAlgorithmName hashAlgorithm)
         {
             using (ECDsa ecdsa = ECDsa.Create(_ecdsaPublicKey))
             {
-                return ecdsa.VerifyData(data, signature, hashAlgorithm, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+                return ecdsa.VerifyHash(hash, signature, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
             }
         }
 
