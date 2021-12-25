@@ -23,6 +23,6 @@ namespace TechnitiumLibrary.Net.Dns
     {
         DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false);
 
-        void CacheResponse(DnsDatagram response);
+        void CacheResponse(DnsDatagram response, bool isDnssecBadCache = false);
     }
 }
