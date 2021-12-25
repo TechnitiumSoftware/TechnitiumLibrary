@@ -21,7 +21,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 
-namespace TechnitiumLibrary.IO
+namespace TechnitiumLibrary
 {
     public class BinaryNumber : IEquatable<BinaryNumber>, IComparable<BinaryNumber>
     {
@@ -39,13 +39,12 @@ namespace TechnitiumLibrary.IO
         }
 
         public BinaryNumber(Stream s)
-        {
-            int length = s.ReadByte();
-            if (length < 0)
-                throw new EndOfStreamException();
+            : this(new BinaryReader(s))
+        { }
 
-            _value = new byte[length];
-            s.ReadBytes(_value, 0, length);
+        public BinaryNumber(BinaryReader bR)
+        {
+            _value = bR.ReadBytes(bR.Read7BitEncodedInt());
         }
 
         #endregion

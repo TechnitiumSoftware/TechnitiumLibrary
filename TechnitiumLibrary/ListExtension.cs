@@ -21,7 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 
-namespace TechnitiumLibrary.IO
+namespace TechnitiumLibrary
 {
     public static class ListExtension
     {

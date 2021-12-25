@@ -23,7 +23,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TechnitiumLibrary.IO
+namespace TechnitiumLibrary
 {
     public class IndependentTaskScheduler : TaskScheduler
     {

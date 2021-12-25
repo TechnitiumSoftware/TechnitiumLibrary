@@ -21,7 +21,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TechnitiumLibrary.IO
+namespace TechnitiumLibrary
 {
     public static class TaskExtension
     {
