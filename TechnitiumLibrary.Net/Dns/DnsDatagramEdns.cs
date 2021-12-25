@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -50,6 +49,9 @@ namespace TechnitiumLibrary.Net.Dns
             _extendedRCODE = extendedRCODE;
             _version = version;
             _flags = flags;
+
+            if (_udpPayloadSize < 512)
+                _udpPayloadSize = 512;
         }
 
         #endregion
@@ -93,12 +95,8 @@ namespace TechnitiumLibrary.Net.Dns
         public byte Version
         { get { return _version; } }
 
-        [IgnoreDataMember]
         public EDnsHeaderFlags Flags
         { get { return _flags; } }
-
-        public bool DNSSEC_OK
-        { get { return _flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK); } }
 
         #endregion
     }
