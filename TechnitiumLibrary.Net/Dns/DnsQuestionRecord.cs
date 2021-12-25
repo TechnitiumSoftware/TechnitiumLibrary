@@ -271,10 +271,15 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get
             {
-                if (_type == DnsResourceRecordType.AAAA)
-                    return DnsResourceRecordType.AAAA;
+                switch (_type)
+                {
+                    case DnsResourceRecordType.DS:
+                    case DnsResourceRecordType.AAAA:
+                        return _type;
 
-                return DnsResourceRecordType.A;
+                    default:
+                        return DnsResourceRecordType.A;
+                }
             }
         }
 
