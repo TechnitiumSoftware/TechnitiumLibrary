@@ -70,6 +70,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         DnsDatagramMetadata _metadata;
         DnsDatagramEdns _edns;
+
         int _size = -1;
         byte[] _parsedDatagramUnsigned;
 
@@ -340,7 +341,7 @@ namespace TechnitiumLibrary.Net.Dns
             return ReadFrom(sharedBuffer);
         }
 
-        public static DnsDatagram ReadFromJson(dynamic jsonResponse, int size)
+        public static DnsDatagram ReadFromJson(dynamic jsonResponse, int size, DnsDatagramEdns requestEdns)
         {
             DnsDatagram datagram = new DnsDatagram();
 
@@ -434,6 +435,9 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             datagram._size = size;
+
+            if (requestEdns is not null)
+                datagram._edns = new DnsDatagramEdns(requestEdns.UdpPayloadSize, datagram._RCODE, 0, requestEdns.Flags);
 
             return datagram;
         }
@@ -711,6 +715,76 @@ namespace TechnitiumLibrary.Net.Dns
             _rnd.GetBytes(buffer);
 
             _ID = BitConverter.ToUInt16(buffer);
+        }
+
+        public void SetDnssecStatusForAllRecords(DnssecStatus dnssecStatus)
+        {
+            foreach (DnsResourceRecord record in _answer)
+                record.SetDnssecStatus(dnssecStatus);
+
+            foreach (DnsResourceRecord record in _authority)
+                record.SetDnssecStatus(dnssecStatus);
+
+            foreach (DnsResourceRecord record in _additional)
+                record.SetDnssecStatus(dnssecStatus);
+        }
+
+        public DnsResourceRecord GetLastAnswerRecord()
+        {
+            if (_question.Count == 0)
+                return null;
+
+            DnsQuestionRecord question = _question[0];
+            DnsResourceRecord lastAnswer = null;
+            string name = question.Name;
+
+            foreach (DnsResourceRecord record in _answer)
+            {
+                if (!record.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (record.Type == question.Type)
+                {
+                    lastAnswer = record;
+                }
+                else if (record.Type == DnsResourceRecordType.CNAME)
+                {
+                    lastAnswer = record;
+                    name = (record.RDATA as DnsCNAMERecord).Domain;
+                }
+            }
+
+            return lastAnswer;
+        }
+
+        public bool IsFirstAuthoritySOA()
+        {
+            DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
+            return (firstAuthority is not null) && (firstAuthority.Type == DnsResourceRecordType.SOA);
+        }
+
+        public DnsResourceRecordType FindFirstAuthorityType()
+        {
+            DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
+            if (firstAuthority is null)
+                return DnsResourceRecordType.Unknown;
+
+            return firstAuthority.Type;
+        }
+
+        public DnsResourceRecord FindFirstAuthorityRecord()
+        {
+            foreach (DnsResourceRecord record in _authority)
+            {
+                switch (record.Type)
+                {
+                    case DnsResourceRecordType.SOA:
+                    case DnsResourceRecordType.NS:
+                        return record;
+                }
+            }
+
+            return null;
         }
 
         public void WriteTo(Stream s)
