@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -27,7 +28,7 @@ using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
-using TechnitiumLibrary.IO;
+using System.Xml;
 using TechnitiumLibrary.Net.Dns.ClientConnection;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 using TechnitiumLibrary.Net.Proxy;
@@ -50,6 +51,8 @@ namespace TechnitiumLibrary.Net.Dns
         readonly static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv4;
         readonly static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv6;
 
+        readonly static IReadOnlyList<DnsResourceRecord> ROOT_TRUST_ANCHORS;
+
         const int MAX_DELEGATION_HOPS = 16;
         internal const int MAX_CNAME_HOPS = 16;
 
@@ -57,9 +60,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         IDnsCache _cache;
         NetProxy _proxy;
-        bool _preferIPv6 = false;
+        bool _preferIPv6;
         ushort _udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE;
         bool _randomizeName;
+        bool _dnssecValidation;
         int _retries = 2;
         int _timeout = 2000;
         int _concurrency = 2;
@@ -149,6 +153,79 @@ namespace TechnitiumLibrary.Net.Dns
             catch
             { }
 
+            try
+            {
+                string rootTrustXmlFile = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "root-anchors.xml");
+
+                XmlDocument rootTrustXml = new XmlDocument();
+                rootTrustXml.Load(rootTrustXmlFile);
+
+                XmlNamespaceManager nsMgr = new XmlNamespaceManager(rootTrustXml.NameTable);
+                XmlNodeList nodeList = rootTrustXml.SelectNodes("//TrustAnchor/KeyDigest", nsMgr);
+
+                const string dateFormat = "yyyy-MM-ddTHH:mm:sszzz";
+                List<DnsResourceRecord> rootTrustAnchors = new List<DnsResourceRecord>();
+
+                foreach (XmlNode keyDigestNode in nodeList)
+                {
+                    DateTime validFrom = DateTime.MinValue;
+                    DateTime validUntil = DateTime.MinValue;
+
+                    foreach (XmlAttribute attribute in keyDigestNode.Attributes)
+                    {
+                        switch (attribute.Name)
+                        {
+                            case "validFrom":
+                                validFrom = DateTime.ParseExact(attribute.Value, dateFormat, CultureInfo.CurrentCulture);
+                                break;
+
+                            case "validUntil":
+                                validUntil = DateTime.ParseExact(attribute.Value, dateFormat, CultureInfo.CurrentCulture);
+                                break;
+                        }
+                    }
+
+                    if ((validFrom != DateTime.MinValue) && (validFrom > DateTime.UtcNow))
+                        continue;
+
+                    if ((validUntil != DateTime.MinValue) && (validUntil < DateTime.UtcNow))
+                        continue;
+
+                    ushort keyTag = 0;
+                    DnssecAlgorithm algorithm = DnssecAlgorithm.Unknown;
+                    DnssecDigestType digestType = DnssecDigestType.Unknown;
+                    string digest = null;
+
+                    foreach (XmlNode childNode in keyDigestNode.ChildNodes)
+                    {
+                        switch (childNode.Name.ToLower())
+                        {
+                            case "keytag":
+                                keyTag = ushort.Parse(childNode.InnerText);
+                                break;
+
+                            case "algorithm":
+                                algorithm = (DnssecAlgorithm)byte.Parse(childNode.InnerText);
+                                break;
+
+                            case "digesttype":
+                                digestType = (DnssecDigestType)byte.Parse(childNode.InnerText);
+                                break;
+
+                            case "digest":
+                                digest = childNode.InnerText;
+                                break;
+                        }
+                    }
+
+                    rootTrustAnchors.Add(new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecord(keyTag, algorithm, digestType, Convert.FromHexString(digest))));
+                }
+
+                ROOT_TRUST_ANCHORS = rootTrustAnchors;
+            }
+            catch
+            { }
+
             if (ROOT_NAME_SERVERS_IPv4 is null)
             {
                 ROOT_NAME_SERVERS_IPv4 = new NameServerAddress[]
@@ -186,6 +263,14 @@ namespace TechnitiumLibrary.Net.Dns
                     new NameServerAddress("k.root-servers.net", IPAddress.Parse("2001:7fd::1")), //RIPE NCC
                     new NameServerAddress("l.root-servers.net", IPAddress.Parse("2001:500:9f::42")), //ICANN
                     new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")) //WIDE Project
+                };
+            }
+
+            if (ROOT_TRUST_ANCHORS is null)
+            {
+                ROOT_TRUST_ANCHORS = new DnsResourceRecord[]
+                {
+                    new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN,0, new DnsDSRecord(20326, DnssecAlgorithm.RSASHA256, DnssecDigestType.SHA256, Convert.FromHexString("E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D")))
                 };
             }
         }
@@ -289,8 +374,11 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
+        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
         {
+            if ((udpPayloadSize < 512) && dnssecValidation)
+                throw new ArgumentOutOfRangeException(nameof(UdpPayloadSize), "EDNS cannot be disabled by setting UDP payload size to less than 512 when DNSSEC validation is enabled.");
+
             if (cache is null)
                 cache = new DnsCache();
 
@@ -306,7 +394,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (asyncNsRevalidation)
                 nsRevalidationTasks = new Dictionary<string, IReadOnlyList<NameServerAddress>>();
 
-            void DoNsRevalidation()
+            void TriggerNsRevalidation()
             {
                 if (!asyncNsRevalidation || nsRevalidationTasks.Count == 0)
                     return;
@@ -316,7 +404,7 @@ namespace TechnitiumLibrary.Net.Dns
                     List<Task> tasks = new List<Task>(nsRevalidationTasks.Count);
 
                     foreach (KeyValuePair<string, IReadOnlyList<NameServerAddress>> entry in nsRevalidationTasks)
-                        tasks.Add(RevalidateNameServers(entry.Key, entry.Value, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, retries, timeout));
+                        tasks.Add(RevalidateNameServers(entry.Key, entry.Value, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, retries, timeout));
 
                     await Task.WhenAll(tasks);
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
@@ -327,25 +415,26 @@ namespace TechnitiumLibrary.Net.Dns
 
             //current stack variables
             string zoneCut = null;
+            EDnsHeaderFlags ednsFlags = dnssecValidation ? EDnsHeaderFlags.DNSSEC_OK : EDnsHeaderFlags.None;
+            IReadOnlyList<DnsResourceRecord> lastDSRecords = dnssecValidation ? ROOT_TRUST_ANCHORS : null;
             IList<NameServerAddress> nameServers = null;
             int nameServerIndex = 0;
             int hopCount = 0;
             DnsDatagram lastResponse = null;
             Exception lastException = null;
 
-            void PushStack(string nextNsDomain)
+            void PushStack(string nextQName, DnsResourceRecordType nextQType)
             {
-                resolverStack.Push(new ResolverData(question, zoneCut, nameServers, nameServerIndex, hopCount, lastResponse, lastException));
+                resolverStack.Push(new ResolverData(question, zoneCut, ednsFlags, lastDSRecords, nameServers, nameServerIndex, hopCount, lastResponse, lastException));
 
-                if (preferIPv6)
-                    question = new DnsQuestionRecord(nextNsDomain, DnsResourceRecordType.AAAA, question.Class);
-                else
-                    question = new DnsQuestionRecord(nextNsDomain, DnsResourceRecordType.A, question.Class);
+                question = new DnsQuestionRecord(nextQName, nextQType, question.Class);
 
                 if (qnameMinimization)
                     question.ZoneCut = ""; //enable QNAME minimization by setting zone cut to <root>
 
                 zoneCut = null; //find zone cut in stack loop
+                ednsFlags = dnssecValidation ? EDnsHeaderFlags.DNSSEC_OK : EDnsHeaderFlags.None;
+                lastDSRecords = dnssecValidation ? ROOT_TRUST_ANCHORS : null;
                 nameServers = null;
                 nameServerIndex = 0;
                 hopCount = 0;
@@ -359,6 +448,8 @@ namespace TechnitiumLibrary.Net.Dns
 
                 question = data.Question;
                 zoneCut = data.ZoneCut;
+                ednsFlags = data.EDnsFlags;
+                lastDSRecords = data.LastDSRecords;
                 nameServers = data.NameServers;
                 nameServerIndex = data.NameServerIndex;
                 hopCount = data.HopCount;
@@ -414,8 +505,8 @@ namespace TechnitiumLibrary.Net.Dns
 
                 //query cache
                 {
-                    DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question });
-                    DnsDatagram cacheResponse = cache.Query(request, false, true);
+                    DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, ednsFlags);
+                    DnsDatagram cacheResponse = cache.Query(cacheRequest, false, true);
                     if (cacheResponse is not null)
                     {
                         switch (cacheResponse.RCODE)
@@ -426,7 +517,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         if (resolverStack.Count == 0)
                                         {
-                                            DoNsRevalidation();
+                                            TriggerNsRevalidation();
                                             return cacheResponse;
                                         }
                                         else
@@ -443,6 +534,24 @@ namespace TechnitiumLibrary.Net.Dns
                                                     nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsARecord).Address, nameServers[nameServerIndex].Port));
                                                     break;
 
+                                                case DnsResourceRecordType.DS:
+                                                    if (!TryGetDSFromResponse(cacheResponse, cacheResponse.Question[0].Name, out IReadOnlyList<DnsResourceRecord> cacheDSRecords))
+                                                        throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name, cacheResponse);
+
+                                                    if (cacheDSRecords is null)
+                                                    {
+                                                        //zone is unsigned
+                                                        //removing DNSSEC_OK flag
+                                                        ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                        lastDSRecords = null;
+                                                    }
+                                                    else if (cacheDSRecords.Count > 0)
+                                                    {
+                                                        lastDSRecords = cacheDSRecords;
+                                                    }
+
+                                                    break;
+
                                                 default:
                                                     //didnt find IP for current name server
                                                     nameServerIndex++; //increment to skip current name server
@@ -454,11 +563,13 @@ namespace TechnitiumLibrary.Net.Dns
                                     }
                                     else if (cacheResponse.Authority.Count > 0)
                                     {
-                                        if (cacheResponse.Authority[0].Type == DnsResourceRecordType.SOA)
+                                        DnsResourceRecord firstAuthority = cacheResponse.FindFirstAuthorityRecord();
+
+                                        if ((firstAuthority is not null) && (firstAuthority.Type == DnsResourceRecordType.SOA))
                                         {
                                             if (resolverStack.Count == 0)
                                             {
-                                                DoNsRevalidation();
+                                                TriggerNsRevalidation();
                                                 return cacheResponse;
                                             }
                                             else
@@ -471,26 +582,68 @@ namespace TechnitiumLibrary.Net.Dns
                                                 }
                                                 else
                                                 {
-                                                    //didnt find IP for current name server
-                                                    //pop and try next name server
+                                                    //NO DATA - domain does not resolve 
                                                     PopStack();
-                                                    nameServerIndex++; //increment to skip current name server
-                                                                       //proceed to resolver loop
+
+                                                    switch (cacheResponse.Question[0].Type)
+                                                    {
+                                                        case DnsResourceRecordType.A:
+                                                        case DnsResourceRecordType.AAAA:
+                                                            //didnt find IP for current name server; try next name server
+                                                            nameServerIndex++; //increment to skip current name server
+                                                            break;
+
+                                                        case DnsResourceRecordType.DS:
+                                                            //DS does not exists so the zone is unsigned
+                                                            //removing DNSSEC_OK flag
+                                                            ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                            lastDSRecords = null;
+                                                            break;
+                                                    }
+
+                                                    //proceed to resolver loop
                                                 }
                                             }
                                         }
                                         else
                                         {
-                                            List<NameServerAddress> cacheNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6);
-                                            if (cacheNameServers.Count > 0)
-                                                InspectCacheNameServersForLoops(cacheNameServers);
+                                            string nextZoneCut = null;
+                                            EDnsHeaderFlags nextEdnsFlags = ednsFlags;
+                                            IReadOnlyList<DnsResourceRecord> nextDSRecords = lastDSRecords;
+                                            List<NameServerAddress> nextNameServers = null;
 
-                                            if (cacheNameServers.Count == 0)
+                                            nextNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6);
+                                            InspectCacheNameServersForLoops(nextNameServers);
+
+                                            if (nextNameServers.Count > 0)
                                             {
+                                                //found name servers from response
+                                                nextZoneCut = firstAuthority.Name;
+
+                                                if (ednsFlags.HasFlag(EDnsHeaderFlags.DNSSEC_OK) && TryGetDSFromResponse(cacheResponse, nextZoneCut, out IReadOnlyList<DnsResourceRecord> cacheDsRecords))
+                                                {
+                                                    //get DS records from response
+                                                    if (cacheDsRecords is null)
+                                                    {
+                                                        //removing DNSSEC_OK flag
+                                                        nextEdnsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                        nextDSRecords = null;
+                                                    }
+                                                    else if (cacheDsRecords.Count > 0)
+                                                    {
+                                                        //found DS records in cache
+                                                        nextDSRecords = cacheDsRecords;
+                                                    }
+                                                }
+                                            }
+
+                                            if (nextNameServers.Count == 0)
+                                            {
+                                                //didnt find NS from response
                                                 //find name servers with glue from cache for closest parent zone
                                                 string currentDomain = question.Name;
 
-                                                do
+                                                while (true)
                                                 {
                                                     //get parent domain
                                                     int i = currentDomain.IndexOf('.');
@@ -499,30 +652,38 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                     currentDomain = currentDomain.Substring(i + 1);
 
-                                                    //find name servers with glue
+                                                    //find name servers with glue; cannot find DS with this query
                                                     DnsDatagram cachedNsResponse = cache.Query(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }), false, true);
-                                                    if (cachedNsResponse is not null)
+                                                    if (cachedNsResponse is null)
+                                                        continue;
+
+                                                    nextNameServers = NameServerAddress.GetNameServersFromResponse(cachedNsResponse, preferIPv6);
+                                                    InspectCacheNameServersForLoops(nextNameServers);
+
+                                                    if (nextNameServers.Count > 0)
                                                     {
-                                                        cacheNameServers = NameServerAddress.GetNameServersFromResponse(cachedNsResponse, preferIPv6);
-                                                        if (cacheNameServers.Count > 0)
-                                                            InspectCacheNameServersForLoops(cacheNameServers);
+                                                        //found NS for parent from cache
+                                                        nextZoneCut = currentDomain;
+                                                        break;
                                                     }
                                                 }
-                                                while (cacheNameServers.Count == 0);
                                             }
 
-                                            if (cacheNameServers.Count > 0)
+                                            if (nextNameServers.Count > 0)
                                             {
-                                                cacheNameServers.Shuffle();
+                                                //found NS and/or DS (or proof of no DS)
+                                                nextNameServers.Shuffle();
 
                                                 if (preferIPv6)
-                                                    cacheNameServers.Sort();
+                                                    nextNameServers.Sort();
 
                                                 if (question.ZoneCut is not null)
-                                                    question.ZoneCut = cacheResponse.Authority[0].Name;
+                                                    question.ZoneCut = nextZoneCut;
 
-                                                zoneCut = cacheResponse.Authority[0].Name;
-                                                nameServers = cacheNameServers;
+                                                zoneCut = nextZoneCut;
+                                                ednsFlags = nextEdnsFlags;
+                                                lastDSRecords = nextDSRecords;
+                                                nameServers = nextNameServers;
                                                 nameServerIndex = 0;
                                                 lastResponse = null;
                                             }
@@ -533,35 +694,92 @@ namespace TechnitiumLibrary.Net.Dns
                                         //both answer and authority sections are empty
                                         if (resolverStack.Count == 0)
                                         {
-                                            DoNsRevalidation();
+                                            TriggerNsRevalidation();
                                             return cacheResponse;
                                         }
                                         else
                                         {
-                                            //current name server domain doesnt resolve
-                                            //pop and try next name server
+                                            //domain does not resolve
                                             PopStack();
-                                            nameServerIndex++; //increment to skip current name server
-                                                               //proceed to resolver loop
+
+                                            switch (cacheResponse.Question[0].Type)
+                                            {
+                                                case DnsResourceRecordType.A:
+                                                case DnsResourceRecordType.AAAA:
+                                                    //current name server domain does not resolve
+                                                    nameServerIndex++; //increment to skip current name server
+                                                    break;
+
+                                                case DnsResourceRecordType.DS:
+                                                    //DS does not resolve so cannot proceed
+                                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name, cacheResponse);
+                                            }
+
+                                            //proceed to resolver loop
                                         }
                                     }
                                 }
                                 break;
 
-                            default:
+                            case DnsResponseCode.NxDomain:
                                 {
                                     if (resolverStack.Count == 0)
                                     {
-                                        DoNsRevalidation();
+                                        TriggerNsRevalidation();
                                         return cacheResponse;
                                     }
                                     else
                                     {
-                                        //current name server domain doesnt resolve/exists
-                                        //pop and try next name server
+                                        //domain does not exists
                                         PopStack();
-                                        nameServerIndex++; //increment to skip current name server
-                                                           //proceed to resolver loop
+
+                                        switch (cacheResponse.Question[0].Type)
+                                        {
+                                            case DnsResourceRecordType.A:
+                                            case DnsResourceRecordType.AAAA:
+                                                //current name server domain does not exists
+                                                nameServerIndex++; //increment to skip current name server
+                                                break;
+
+                                            case DnsResourceRecordType.DS:
+                                                //DS does not exists so the zone is unsigned
+                                                //removing DNSSEC_OK flag
+                                                ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                lastDSRecords = null;
+                                                break;
+                                        }
+
+                                        //proceed to resolver loop
+                                        break;
+                                    }
+                                }
+
+                            default:
+                                {
+                                    if (resolverStack.Count == 0)
+                                    {
+                                        TriggerNsRevalidation();
+                                        return cacheResponse;
+                                    }
+                                    else
+                                    {
+                                        //domain does not resolve
+                                        PopStack();
+
+                                        switch (cacheResponse.Question[0].Type)
+                                        {
+                                            case DnsResourceRecordType.A:
+                                            case DnsResourceRecordType.AAAA:
+                                                //current name server domain does not resolve; try next name server
+                                                nameServerIndex++; //increment to skip current name server
+                                                break;
+
+                                            case DnsResourceRecordType.DS:
+                                                //DS does not resolve so cannot proceed
+                                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name, cacheResponse);
+                                        }
+
+                                        //proceed to resolver loop
                                         break;
                                     }
                                 }
@@ -572,34 +790,42 @@ namespace TechnitiumLibrary.Net.Dns
                 if ((nameServers is null) || (nameServers.Count == 0))
                 {
                     //create copy of root name servers array so that the values in original array are not messed due to shuffling feature
+                    IList<NameServerAddress> nameServersCopy;
+
                     if (preferIPv6)
                     {
-                        List<NameServerAddress> nameServersCopy = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv6.Count + ROOT_NAME_SERVERS_IPv4.Count);
+                        List<NameServerAddress> nameServersList = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv6.Count + ROOT_NAME_SERVERS_IPv4.Count);
 
-                        nameServersCopy.AddRange(ROOT_NAME_SERVERS_IPv6);
-                        nameServersCopy.AddRange(ROOT_NAME_SERVERS_IPv4);
-                        nameServersCopy.Shuffle();
-                        nameServersCopy.Sort();
+                        nameServersList.AddRange(ROOT_NAME_SERVERS_IPv6);
+                        nameServersList.AddRange(ROOT_NAME_SERVERS_IPv4);
+                        nameServersList.Shuffle();
+                        nameServersList.Sort();
 
-                        zoneCut = "";
-                        nameServers = nameServersCopy;
-                        nameServerIndex = 0;
-                        lastResponse = null;
+                        nameServersCopy = nameServersList;
                     }
                     else
                     {
-                        List<NameServerAddress> nameServersCopy = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv4);
-                        nameServersCopy.Shuffle();
+                        List<NameServerAddress> nameServersList = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv4);
+                        nameServersList.Shuffle();
 
-                        zoneCut = "";
-                        nameServers = nameServersCopy;
-                        nameServerIndex = 0;
-                        lastResponse = null;
+                        nameServersCopy = nameServersList;
                     }
+
+                    zoneCut = "";
+                    nameServers = nameServersCopy;
+                    nameServerIndex = 0;
+                    lastResponse = null;
                 }
 
                 while (true) //resolver loop
                 {
+                    if ((lastDSRecords is not null) && !lastDSRecords[0].Name.Equals(zoneCut))
+                    {
+                        //find the DS for current zone cut recursively in next stack
+                        PushStack(zoneCut, DnsResourceRecordType.DS);
+                        goto stackLoop;
+                    }
+
                     //query name servers one by one
                     for (; nameServerIndex < nameServers.Count; nameServerIndex++) //try next server loop
                     {
@@ -609,7 +835,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             if (proxy is null)
                             {
-                                PushStack(nameServer.Host);
+                                PushStack(nameServer.Host, preferIPv6 ? DnsResourceRecordType.AAAA : DnsResourceRecordType.A);
                                 goto stackLoop;
                             }
                         }
@@ -619,18 +845,46 @@ namespace TechnitiumLibrary.Net.Dns
                             continue; //try next name server
                         }
 
-                        DnsClient client = new DnsClient(nameServer);
-                        client._proxy = proxy;
-                        client._randomizeName = randomizeName;
-                        client._retries = retries;
-                        client._timeout = timeout;
+                        DnsClient dnsClient = new DnsClient(nameServer);
+                        dnsClient._proxy = proxy;
+                        dnsClient._randomizeName = randomizeName;
+                        dnsClient._retries = retries;
+                        dnsClient._timeout = timeout;
 
-                        DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize);
+                        DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, ednsFlags);
                         DnsDatagram response;
 
                         try
                         {
-                            response = await client.InternalResolveAsync(request, qnameMinimization, cache);
+                            response = await dnsClient.InternalResolveAsync(request);
+
+                            if (ednsFlags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
+                            {
+                                if ((response.EDNS is null) || !response.EDNS.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
+                                {
+                                    //name server is not security aware
+                                    continue; //try next name server
+                                }
+
+                                //dnssec validate response
+                                await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize);
+                            }
+                            else if (dnssecValidation)
+                            {
+                                //set insecure status
+                                response.SetDnssecStatusForAllRecords(DnssecStatus.Insecure);
+                            }
+                            else
+                            {
+                                //dnssec validation is disabled
+                                response.SetDnssecStatusForAllRecords(DnssecStatus.Disabled);
+                            }
+                        }
+                        catch (DnsClientResponseDnssecValidationException ex)
+                        {
+                            //dnssec validation failed
+                            lastException = ex;
+                            continue; //try next name server
                         }
                         catch (DnsClientResponseValidationException ex)
                         {
@@ -638,7 +892,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
                                 {
-                                    if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA))
+                                    if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA) || (question.Type == DnsResourceRecordType.DS))
                                     {
                                         //domain wont resolve
                                     }
@@ -687,9 +941,9 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         if (response.Answer[0].Name.Equals(question.Name, StringComparison.OrdinalIgnoreCase) || (response.Answer[0].Type == DnsResourceRecordType.DNAME)) //checking for DNAME since response was sanitized
                                         {
-                                            if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA))
+                                            if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA) || (question.Type == DnsResourceRecordType.DS))
                                             {
-                                                //found answer as QNAME minimization uses A or AAAA type queries
+                                                //found answer as QNAME minimization uses A, AAAA, or DS type queries
                                             }
                                             else if (question.ZoneCut is not null)
                                             {
@@ -714,7 +968,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                         if (resolverStack.Count == 0)
                                         {
-                                            DoNsRevalidation();
+                                            TriggerNsRevalidation();
                                             return response;
                                         }
                                         else
@@ -731,6 +985,23 @@ namespace TechnitiumLibrary.Net.Dns
                                                     nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsARecord).Address, nameServers[nameServerIndex].Port));
                                                     break;
 
+                                                case DnsResourceRecordType.DS:
+                                                    if (!TryGetDSFromResponse(response, response.Question[0].Name, out IReadOnlyList<DnsResourceRecord> dsRecords))
+                                                        throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + response.Question[0].Name, response);
+
+                                                    if (dsRecords is null)
+                                                    {
+                                                        //zone is unsigned
+                                                        ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                        lastDSRecords = null;
+                                                    }
+                                                    else if (dsRecords.Count > 0)
+                                                    {
+                                                        lastDSRecords = dsRecords;
+                                                    }
+
+                                                    break;
+
                                                 default:
                                                     //didnt find IP for current name server
                                                     nameServerIndex++; //increment to skip current name server
@@ -742,13 +1013,23 @@ namespace TechnitiumLibrary.Net.Dns
                                     }
                                     else if (response.Authority.Count > 0)
                                     {
-                                        if (response.Authority[0].Type == DnsResourceRecordType.SOA)
+                                        DnsResourceRecord firstAuthority = response.FindFirstAuthorityRecord();
+
+                                        if (firstAuthority.Type == DnsResourceRecordType.SOA)
                                         {
+                                            if (ednsFlags.HasFlag(EDnsHeaderFlags.DNSSEC_OK) && (firstAuthority.DnssecStatus == DnssecStatus.Insecure))
+                                            {
+                                                //found the current zone as unsigned since SOA status is insecure so disable DNSSEC validation
+                                                //removing DNSSEC_OK flag
+                                                ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                lastDSRecords = null;
+                                            }
+
                                             if (question.ZoneCut is not null)
                                             {
                                                 if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
                                                 {
-                                                    if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA))
+                                                    if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA) || (question.Type == DnsResourceRecordType.DS))
                                                     {
                                                         //record does not exists
                                                     }
@@ -769,10 +1050,10 @@ namespace TechnitiumLibrary.Net.Dns
                                                 }
                                             }
 
-                                            //no entry for given type
+                                            //NO DATA - no entry for given type
                                             if (resolverStack.Count == 0)
                                             {
-                                                DoNsRevalidation();
+                                                TriggerNsRevalidation();
                                                 return response;
                                             }
                                             else
@@ -787,10 +1068,24 @@ namespace TechnitiumLibrary.Net.Dns
                                                 }
                                                 else
                                                 {
-                                                    //didnt find IP for current name server
-                                                    //pop and try next name server
+                                                    //NO DATA - domain does not resolve 
                                                     PopStack();
-                                                    nameServerIndex++; //increment to skip current name server
+
+                                                    switch (response.Question[0].Type)
+                                                    {
+                                                        case DnsResourceRecordType.A:
+                                                        case DnsResourceRecordType.AAAA:
+                                                            //didnt find IP for current name server; try next name server
+                                                            nameServerIndex++; //increment to skip current name server
+                                                            break;
+
+                                                        case DnsResourceRecordType.DS:
+                                                            //DS does not exists so the zone is unsigned
+                                                            //removing DNSSEC_OK flag
+                                                            ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                            lastDSRecords = null;
+                                                            break;
+                                                    }
 
                                                     goto resolverLoop;
                                                 }
@@ -806,7 +1101,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     //empty response from authoritative name server
                                                     if (resolverStack.Count == 0)
                                                     {
-                                                        DoNsRevalidation();
+                                                        TriggerNsRevalidation();
                                                         return response;
                                                     }
                                                     else
@@ -828,7 +1123,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 if (resolverStack.Count == 0)
                                                 {
                                                     //cannot proceed forever; return what we have and stop
-                                                    DoNsRevalidation();
+                                                    TriggerNsRevalidation();
                                                     return response;
                                                 }
                                                 else
@@ -844,19 +1139,47 @@ namespace TechnitiumLibrary.Net.Dns
 
                                             //get next hop name servers
                                             List<NameServerAddress> nextNameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6);
+
                                             if (nextNameServers.Count > 0)
                                             {
+                                                string nextZoneCut = firstAuthority.Name;
+
+                                                EDnsHeaderFlags nextEdnsFlags = ednsFlags;
+                                                IReadOnlyList<DnsResourceRecord> nextDSRecords = lastDSRecords;
+
+                                                if (ednsFlags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
+                                                {
+                                                    if (!TryGetDSFromResponse(response, nextZoneCut, out IReadOnlyList<DnsResourceRecord> dsRecords))
+                                                    {
+                                                        //current name server didnt return DS that was expected; try next server
+                                                        //continue for loop to next name server since current name server may be misconfigured
+                                                        continue;
+                                                    }
+
+                                                    if (dsRecords is null)
+                                                    {
+                                                        //next zone cut is validated to be unsigned
+                                                        //removing DNSSEC_OK flag
+                                                        nextEdnsFlags = ednsFlags & (EDnsHeaderFlags)0x7FFF;
+                                                        nextDSRecords = null;
+                                                    }
+                                                    else if (dsRecords.Count > 0)
+                                                    {
+                                                        nextDSRecords = dsRecords;
+                                                    }
+                                                }
+
                                                 nextNameServers.Shuffle();
 
                                                 if (preferIPv6)
                                                     nextNameServers.Sort();
 
-                                                string newZoneCut = response.Authority[0].Name;
-
                                                 if (question.ZoneCut is not null)
-                                                    question.ZoneCut = newZoneCut;
+                                                    question.ZoneCut = nextZoneCut;
 
-                                                zoneCut = newZoneCut;
+                                                zoneCut = nextZoneCut;
+                                                ednsFlags = nextEdnsFlags;
+                                                lastDSRecords = nextDSRecords;
                                                 nameServers = nextNameServers;
                                                 nameServerIndex = 0;
                                                 hopCount++;
@@ -880,7 +1203,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
                                             {
-                                                if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA))
+                                                if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA) || (question.Type == DnsResourceRecordType.DS))
                                                 {
                                                     //record does not exists
                                                 }
@@ -925,15 +1248,29 @@ namespace TechnitiumLibrary.Net.Dns
 
                                     if (resolverStack.Count == 0)
                                     {
-                                        DoNsRevalidation();
+                                        TriggerNsRevalidation();
                                         return response;
                                     }
                                     else
                                     {
-                                        //current name server domain doesnt exists
-                                        //pop and try next name server
+                                        //domain does not exists
                                         PopStack();
-                                        nameServerIndex++; //increment to skip current name server
+
+                                        switch (response.Question[0].Type)
+                                        {
+                                            case DnsResourceRecordType.A:
+                                            case DnsResourceRecordType.AAAA:
+                                                //current name server domain does not exists
+                                                nameServerIndex++; //increment to skip current name server
+                                                break;
+
+                                            case DnsResourceRecordType.DS:
+                                                //DS does not exists so the zone is unsigned
+                                                //removing DNSSEC_OK flag
+                                                ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                lastDSRecords = null;
+                                                break;
+                                        }
 
                                         goto resolverLoop;
                                     }
@@ -945,7 +1282,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
                                         {
-                                            if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA))
+                                            if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA) || (question.Type == DnsResourceRecordType.DS))
                                             {
                                                 //domain wont resolve
                                             }
@@ -975,7 +1312,7 @@ namespace TechnitiumLibrary.Net.Dns
                     //no successfull response was received from any of the name servers
                     if (resolverStack.Count == 0)
                     {
-                        DoNsRevalidation();
+                        TriggerNsRevalidation();
 
                         if (lastResponse is not null)
                         {
@@ -993,19 +1330,42 @@ namespace TechnitiumLibrary.Net.Dns
                                 strNameServers += ", " + nameServer.ToString();
                         }
 
-                        //cache this as failure
-                        cache.CacheResponse(new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question }));
+                        if (lastException is DnsClientResponseDnssecValidationException ex && (ex.Response.Question.Count > 0) && ex.Response.Question[0].Equals(question))
+                        {
+                            //cache as bad cache
+                            cache.CacheResponse(ex.Response, true);
+                        }
+                        else
+                        {
+                            //cache as failure
+                            cache.CacheResponse(new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question }));
+                        }
 
                         throw new DnsClientException("DnsClient recursive resolution failed: no response from name servers [" + strNameServers + "]", lastException);
                     }
                     else
                     {
-                        //didnt find IP for current name server
-                        //pop and try next name server
+                        DnsQuestionRecord lastQuestion = question;
                         PopStack();
-                        nameServerIndex++; //increment to skip current name server
 
-                        //goto resolverLoop;
+                        switch (lastQuestion.Type)
+                        {
+                            case DnsResourceRecordType.A:
+                            case DnsResourceRecordType.AAAA:
+                                //current name server domain does not resolve; try next name server
+                                nameServerIndex++; //increment to skip current name server
+                                break;
+
+                            case DnsResourceRecordType.DS:
+                                //DS does not resolve so cannot proceed
+
+                                //cache as failure
+                                cache.CacheResponse(new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question }));
+
+                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + lastQuestion.Name, null);
+                        }
+
+                        //proceed to resolver loop
                     }
 
                     resolverLoop:;
@@ -1015,30 +1375,30 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
+        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             return ResolveQueryAsync(question, delegate (DnsQuestionRecord q)
             {
-                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, retries, timeout, maxStackCount);
+                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount);
             });
         }
 
-        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
+        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, retries, timeout, maxStackCount));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, retries, timeout, maxStackCount));
+            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount));
         }
 
         public static async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(IDnsClient dnsClient, string domain, bool preferIPv6 = false)
@@ -1480,6 +1840,649 @@ namespace TechnitiumLibrary.Net.Dns
             return word;
         }
 
+        private static async Task DnssecValidateResponseAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize)
+        {
+            //find current DNSKEY
+            IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords = await GetDnsKeyForAsync(lastDSRecords, dnsClient, cache, udpPayloadSize);
+
+            string lastDSOwnerName = lastDSRecords[0].Name;
+            DnsClass @class = response.Question[0].Class;
+            List<DnsResourceRecord> allDnsKeyRecords = new List<DnsResourceRecord>(4);
+            List<string> unsignedZones = null;
+
+            //add current dns key
+            allDnsKeyRecords.AddRange(currentDnsKeyRecords);
+
+            //find signer's names for verification
+            List<string> signersNames = new List<string>();
+
+            FindSignersNames(response, signersNames);
+
+            //find DNSKEYs for all signers that are sub domain names for last DS record owner name
+            foreach (string signersName in signersNames)
+            {
+                if (!signersName.Equals(lastDSOwnerName, StringComparison.OrdinalIgnoreCase) && (signersName.EndsWith("." + lastDSOwnerName, StringComparison.OrdinalIgnoreCase) || (lastDSOwnerName.Length == 0)))
+                {
+                    //signer's name is a subdomain for last DS record owner name
+                    //find DNSKEY
+                    IReadOnlyList<DnsResourceRecord> dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize);
+                    if (dnsKeyRecords is null)
+                    {
+                        if (unsignedZones is null)
+                            unsignedZones = new List<string>(2);
+
+                        unsignedZones.Add(signersName);
+                    }
+                    else
+                    {
+                        allDnsKeyRecords.AddRange(dnsKeyRecords);
+                    }
+                }
+            }
+
+            //verify signature for all records in response
+            DnssecValidateSignature(response, allDnsKeyRecords, unsignedZones);
+
+            //validate proofs for response
+            switch (response.RCODE)
+            {
+                case DnsResponseCode.NoError:
+                    if (response.Answer.Count > 0)
+                    {
+                        foreach (DnsResourceRecord record in response.Answer)
+                        {
+                            if (record.Type != DnsResourceRecordType.RRSIG)
+                                continue;
+
+                            if (DnsRRSIGRecord.IsWildcard(record, out string nextCloserName))
+                            {
+                                //For every wildcard expansion, we need to prove that the expansion was allowed.
+
+                                //validate wildcard
+                                DnssecProofOfNonExistence proofOfNonExistence = GetValidatedProofOfNonExistence(response.Authority, record.Name, (record.RDATA as DnsRRSIGRecord).TypeCovered, true, nextCloserName);
+                                switch (proofOfNonExistence)
+                                {
+                                    case DnssecProofOfNonExistence.OptOut:
+                                    case DnssecProofOfNonExistence.NxDomain:
+                                        //record does not exists so wildcard is valid
+                                        break;
+
+                                    default:
+                                        throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + record.Name + "/" + record.Type, response);
+                                }
+                            }
+                        }
+                    }
+                    else if (response.Authority.Count > 0)
+                    {
+                        DnsQuestionRecord question = response.Question[0];
+                        DnsResourceRecord firstAuthority = response.FindFirstAuthorityRecord();
+
+                        switch (firstAuthority.Type)
+                        {
+                            case DnsResourceRecordType.SOA:
+                                {
+                                    //NO DATA
+
+                                    if (IsDomainUnsigned(question.Name, unsignedZones))
+                                        break;
+
+                                    DnssecProofOfNonExistence proofOfNonExistence = GetValidatedProofOfNonExistence(response.Authority, question.Name, question.Type);
+                                    switch (proofOfNonExistence)
+                                    {
+                                        case DnssecProofOfNonExistence.OptOut:
+                                        case DnssecProofOfNonExistence.NoData:
+                                        case DnssecProofOfNonExistence.InsecureDelegation: //proves no DS record exists
+                                        case DnssecProofOfNonExistence.NxDomain: //proves NO DATA due to empty non terminal (ENT) caused by qname minimization
+                                            //no data for the type was found
+                                            break;
+
+                                        default:
+                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
+                                    }
+                                }
+                                break;
+
+                            case DnsResourceRecordType.NS:
+                                {
+                                    //validate if DS records are really missing
+                                    DnssecProofOfNonExistence proofOfNonExistence = GetValidatedProofOfNonExistence(response.Authority, question.Name, DnsResourceRecordType.DS);
+                                    switch (proofOfNonExistence)
+                                    {
+                                        case DnssecProofOfNonExistence.InsecureDelegation:
+                                        case DnssecProofOfNonExistence.OptOut:
+                                        case DnssecProofOfNonExistence.NoData:
+                                            //proved that DS is missing and the zone is unsigned
+                                            //mark NS records as Insecure as a signal to identify the unsigned zone cut
+                                            foreach (DnsResourceRecord record in response.Authority)
+                                            {
+                                                if (record.Type == DnsResourceRecordType.NS)
+                                                    record.SetDnssecStatus(DnssecStatus.Insecure, true);
+                                            }
+
+                                            break;
+                                    }
+                                }
+                                break;
+
+                            default:
+                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
+                        }
+                    }
+
+                    break;
+
+                case DnsResponseCode.NxDomain:
+                    {
+                        DnsQuestionRecord question = response.Question[0];
+
+                        if (IsDomainUnsigned(question.Name, unsignedZones))
+                            break;
+
+                        DnssecProofOfNonExistence proofOfNonExistence = GetValidatedProofOfNonExistence(response.Authority, question.Name, question.Type);
+                        switch (proofOfNonExistence)
+                        {
+                            case DnssecProofOfNonExistence.OptOut:
+                            case DnssecProofOfNonExistence.NxDomain:
+                                //domain does not exists or could not prove it exists due to opt-opt
+                                break;
+
+                            default:
+                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (NX Domain) for owner name: " + question.Name, response);
+                        }
+                    }
+                    break;
+            }
+        }
+
+        private static void DnssecValidateSignature(DnsDatagram response, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones)
+        {
+            //verify signature for all records in response
+            if (response.Answer.Count > 0)
+                DnssecValidateSignature(response, response.Answer, dnsKeyRecords, unsignedZones, false, false);
+
+            if (response.Authority.Count > 0)
+                DnssecValidateSignature(response, response.Authority, dnsKeyRecords, unsignedZones, true, false);
+
+            if (response.Additional.Count > 1) //OPT record always exists
+                DnssecValidateSignature(response, response.Additional, dnsKeyRecords, unsignedZones, false, true);
+
+            //update all record status
+            response.SetDnssecStatusForAllRecords(DnssecStatus.Indeterminate);
+        }
+
+        private static void DnssecValidateSignature(DnsDatagram response, IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones, bool isAuthoritySection, bool isAdditionalSection)
+        {
+            Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> groupedRecords = DnsResourceRecord.GroupRecords(records);
+
+            foreach (KeyValuePair<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> groupedRecord in groupedRecords)
+            {
+                string ownerName = groupedRecord.Key;
+                Dictionary<DnsResourceRecordType, List<DnsResourceRecord>> rrsets = groupedRecord.Value;
+
+                if (IsDomainUnsigned(ownerName, unsignedZones))
+                {
+                    foreach (KeyValuePair<DnsResourceRecordType, List<DnsResourceRecord>> rrset in rrsets)
+                        foreach (DnsResourceRecord record in rrset.Value)
+                            record.SetDnssecStatus(DnssecStatus.Insecure);
+
+                    continue;
+                }
+
+                foreach (KeyValuePair<DnsResourceRecordType, List<DnsResourceRecord>> rrset in rrsets)
+                {
+                    DnsResourceRecordType rrsetType = rrset.Key;
+
+                    switch (rrsetType)
+                    {
+                        case DnsResourceRecordType.RRSIG:
+                            continue;
+
+                        case DnsResourceRecordType.OPT:
+                            foreach (DnsResourceRecord record in rrset.Value)
+                                record.SetDnssecStatus(DnssecStatus.Indeterminate);
+
+                            continue;
+                    }
+
+                    if (isAuthoritySection && (response.Answer.Count == 0) && (rrsetType == DnsResourceRecordType.NS))
+                    {
+                        //referrer NS records are never signed
+
+                        foreach (DnsResourceRecord record in rrset.Value)
+                            record.SetDnssecStatus(DnssecStatus.Indeterminate);
+
+                        continue;
+                    }
+
+                    DnsClass rrsetClass = rrset.Value[0].Class;
+                    bool foundValidSignature = false;
+                    bool isSignatureInvalid = false;
+
+                    //find RRSIG for current RRSET
+                    foreach (DnsResourceRecord rrsigRecord in records)
+                    {
+                        if (rrsigRecord.Type != DnsResourceRecordType.RRSIG)
+                            continue;
+
+                        //The RRSIG RR and the RRset MUST have the same owner name and the same class.
+                        if (rrsigRecord.Name.Equals(ownerName, StringComparison.OrdinalIgnoreCase) && (rrsigRecord.Class == rrsetClass))
+                        {
+                            DnsRRSIGRecord rrsig = rrsigRecord.RDATA as DnsRRSIGRecord;
+
+                            //The RRSIG RR's Signer's Name field MUST be the name of the zone that contains the RRset.
+                            if ((rrsig.SignersName.Length > 0) && !ownerName.Equals(rrsig.SignersName, StringComparison.OrdinalIgnoreCase) && !ownerName.EndsWith("." + rrsig.SignersName, StringComparison.OrdinalIgnoreCase))
+                                continue;
+
+                            //The RRSIG RR's Type Covered field MUST equal the RRset's type.
+                            if (rrsig.TypeCovered != rrsetType)
+                                continue;
+
+                            //validate records
+                            DnssecSignatureStatus signatureStatus = rrsig.IsSignatureValid(rrset.Value, dnsKeyRecords);
+                            switch (signatureStatus)
+                            {
+                                case DnssecSignatureStatus.Valid:
+                                    foundValidSignature = true;
+                                    rrsigRecord.SetDnssecStatus(DnssecStatus.Secure);
+                                    break;
+
+                                case DnssecSignatureStatus.Bogus:
+                                    isSignatureInvalid = true;
+                                    rrsigRecord.SetDnssecStatus(DnssecStatus.Bogus);
+                                    break;
+
+                                case DnssecSignatureStatus.NoDnsKey:
+                                    rrsigRecord.SetDnssecStatus(DnssecStatus.Indeterminate);
+                                    break;
+
+                                default:
+                                    throw new InvalidOperationException();
+                            }
+                        }
+                    }
+
+                    if (!foundValidSignature)
+                    {
+                        if (isSignatureInvalid)
+                        {
+                            //RRSIG with invalid signature
+
+                            foreach (DnsResourceRecord record in rrset.Value)
+                                record.SetDnssecStatus(DnssecStatus.Bogus);
+
+                            if (!isAdditionalSection)
+                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to invalid signature for owner name: " + ownerName + "/" + rrsetType, response);
+                        }
+                        else
+                        {
+                            //missing RRSIG for the RRSet
+
+                            if ((rrsetType == DnsResourceRecordType.CNAME) && rrsets.TryGetValue(DnsResourceRecordType.DNAME, out List<DnsResourceRecord> dnameRRset))
+                            {
+                                //check if CNAME was synthesized from DNAME
+                                DnsResourceRecord cnameRecord = rrset.Value[0];
+                                DnsResourceRecord dnameRecord = dnameRRset[0];
+
+                                string synthesizedCNAME = (dnameRecord.RDATA as DnsDNAMERecord).Substitute(cnameRecord.Name, dnameRecord.Name);
+                                string CNAME = (cnameRecord.RDATA as DnsCNAMERecord).Domain;
+
+                                if (synthesizedCNAME.Equals(CNAME, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    //found CNAME synthesized from DNAME
+                                    cnameRecord.SetDnssecStatus(DnssecStatus.Secure);
+
+                                    continue; //continue to next rrset
+                                }
+                            }
+
+                            foreach (DnsResourceRecord record in rrset.Value)
+                                record.SetDnssecStatus(DnssecStatus.Indeterminate);
+
+                            if (!isAuthoritySection && !isAdditionalSection)
+                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing RRSIG for owner name: " + ownerName + "/" + rrsetType, response);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static async Task<IReadOnlyList<DnsResourceRecord>> FindDnsKeyForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize)
+        {
+            string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
+
+            if (ownerName.Equals(dnsKeyOwnerName) || ((dnsKeyOwnerName.Length > 0) && !ownerName.EndsWith("." + dnsKeyOwnerName)))
+                throw new InvalidOperationException();
+
+            string[] labels = ownerName.Split('.');
+            string nextDomain = null;
+
+            for (int i = 0; i < labels.Length; i++)
+            {
+                if (nextDomain is null)
+                    nextDomain = labels[labels.Length - 1 - i];
+                else
+                    nextDomain = labels[labels.Length - 1 - i] + "." + nextDomain;
+
+                if (nextDomain.Length <= dnsKeyOwnerName.Length)
+                    continue; //continue till current DNSKEY domain name
+
+                //find DS
+                IReadOnlyList<DnsResourceRecord> nextDSRecords = await GetDSForAsync(nextDomain, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize);
+
+                if (nextDSRecords is null)
+                {
+                    //zone is validated to be unsigned
+                    return null;
+                }
+                else if (nextDSRecords.Count > 0)
+                {
+                    //get next DNSKEY
+                    currentDnsKeyRecords = await GetDnsKeyForAsync(nextDSRecords, dnsClient, cache, udpPayloadSize);
+                }
+                else
+                {
+                    //NO DATA; must be a subdomain so next DNSKEY remains same
+                }
+            }
+
+            return currentDnsKeyRecords;
+        }
+
+        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDnsKeyForAsync(IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize)
+        {
+            DnsResourceRecord lastDSRecord = lastDSRecords[0];
+            DnsQuestionRecord dnsKeyQuestion = new DnsQuestionRecord(lastDSRecord.Name, DnsResourceRecordType.DNSKEY, lastDSRecord.Class);
+            DnsDatagram dnsKeyRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { dnsKeyQuestion }, null, null, null, udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK);
+
+            //query cache
+            DnsDatagram cachedDnsKeyResponse = QueryCache(cache, dnsKeyRequest);
+            if (cachedDnsKeyResponse is not null)
+                return cachedDnsKeyResponse.Answer; //found in cache
+
+            //query name server
+            DnsDatagram dnsKeyResponse = await dnsClient.InternalResolveAsync(dnsKeyRequest);
+            if (dnsKeyResponse.Answer.Count == 0)
+                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DNSKEY records for owner name: " + dnsKeyQuestion.Name, dnsKeyResponse);
+
+            //validate DNSKEY using DS digest
+            bool foundValidDnsKey = false;
+
+            foreach (DnsResourceRecord dnsKeyRecord in dnsKeyResponse.Answer)
+            {
+                if (dnsKeyRecord.Type != DnsResourceRecordType.DNSKEY)
+                    continue;
+
+                DnsDNSKEYRecord dnsKey = dnsKeyRecord.RDATA as DnsDNSKEYRecord;
+
+                foreach (DnsResourceRecord dsRecord in lastDSRecords)
+                {
+                    if (!dsRecord.Name.Equals(dnsKeyQuestion.Name, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    DnsDSRecord ds = dsRecord.RDATA as DnsDSRecord;
+
+                    if ((ds.KeyTag == dnsKey.ComputedKeyTag) && (ds.Algorithm == dnsKey.Algorithm) && dnsKey.IsDnsKeyValid(dnsKeyRecord.Name, ds))
+                    {
+                        foundValidDnsKey = true;
+                        break;
+                    }
+                }
+
+                if (foundValidDnsKey)
+                    break;
+            }
+
+            if (!foundValidDnsKey)
+                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find a valid DNSKEY record for owner name: " + dnsKeyQuestion.Name, dnsKeyResponse);
+
+            //validate signature for DNSKEY response
+            DnssecValidateSignature(dnsKeyResponse, dnsKeyResponse.Answer, null);
+
+            cache.CacheResponse(dnsKeyResponse);
+
+            return dnsKeyResponse.Answer;
+        }
+
+        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDSForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize)
+        {
+            string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
+
+            if (ownerName.Equals(dnsKeyOwnerName) || ((dnsKeyOwnerName.Length > 0) && !ownerName.EndsWith("." + dnsKeyOwnerName)))
+                throw new InvalidOperationException();
+
+            DnsQuestionRecord dsQuestion = new DnsQuestionRecord(ownerName, DnsResourceRecordType.DS, @class);
+            DnsDatagram dsRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { dsQuestion }, null, null, null, udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK);
+
+            //query cache
+            DnsDatagram dsCacheResponse = QueryCache(cache, dsRequest);
+            if ((dsCacheResponse is not null) && TryGetDSFromResponse(dsCacheResponse, ownerName, out IReadOnlyList<DnsResourceRecord> cacheDSRecords))
+                return cacheDSRecords;
+
+            //query dns server
+            DnsDatagram dsResponse = await dnsClient.InternalResolveAsync(dsRequest);
+
+            DnssecValidateSignature(dsResponse, currentDnsKeyRecords, null);
+
+            cache.CacheResponse(dsResponse);
+
+            if (TryGetDSFromResponse(dsResponse, ownerName, out IReadOnlyList<DnsResourceRecord> dsRecords))
+                return dsRecords;
+
+            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + ownerName, dsResponse);
+        }
+
+        private static bool TryGetDSFromResponse(DnsDatagram response, string ownerName, out IReadOnlyList<DnsResourceRecord> dsRecords)
+        {
+            switch (response.RCODE)
+            {
+                case DnsResponseCode.NxDomain:
+                    //NX Domain was already validated
+                    dsRecords = null;
+                    return true;
+
+                case DnsResponseCode.NoError:
+                    if (response.Question[0].Type == DnsResourceRecordType.DS)
+                    {
+                        //DS query response
+                        if (response.Answer.Count > 0)
+                        {
+                            dsRecords = GetFilterdDSRecords(response.Answer, ownerName);
+                            if (dsRecords.Count > 0)
+                            {
+                                if (!DnsDSRecord.IsAlgorithmSupported(dsRecords))
+                                {
+                                    //If the validator does not support any of the algorithms listed in an
+                                    //authenticated DS RRset, then the resolver has no supported
+                                    //authentication path leading from the parent to the child.  The
+                                    //resolver should treat this case as it would the case of an
+                                    //authenticated NSEC RRset proving that no DS RRset exists, as
+                                    //described above.
+
+                                    dsRecords = null;
+                                }
+
+                                return true;
+                            }
+                        }
+                        else if (response.Authority.Count > 0)
+                        {
+                            //validate if DS records are really missing
+                            DnssecProofOfNonExistence proofOfNonExistence = GetValidatedProofOfNonExistence(response.Authority, ownerName, DnsResourceRecordType.DS);
+                            switch (proofOfNonExistence)
+                            {
+                                case DnssecProofOfNonExistence.InsecureDelegation:
+                                case DnssecProofOfNonExistence.OptOut:
+                                    //proved that DS is missing and the zone is unsigned
+                                    dsRecords = null;
+                                    return true;
+
+                                case DnssecProofOfNonExistence.NoData:
+                                    //NO DATA; must be a sub domain
+                                    dsRecords = Array.Empty<DnsResourceRecord>();
+                                    return true;
+                            }
+
+                            //check if response is from dnssec validated unsigned zone
+                            DnsResourceRecord firstAuthority = response.FindFirstAuthorityRecord();
+                            if ((firstAuthority is not null) && (firstAuthority.Type == DnsResourceRecordType.SOA) && (firstAuthority.DnssecStatus == DnssecStatus.Insecure))
+                            {
+                                //NO DATA; zone is unsigned
+                                dsRecords = null;
+                                return true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        //referral response
+                        DnsResourceRecord firstAuthority = response.FindFirstAuthorityRecord();
+                        if ((firstAuthority is not null) && (firstAuthority.Type == DnsResourceRecordType.NS) && (firstAuthority.DnssecStatus == DnssecStatus.Insecure))
+                        {
+                            //referral response is from unsigned zone
+                            dsRecords = null;
+                            return true;
+                        }
+
+                        dsRecords = GetFilterdDSRecords(response.Authority, ownerName);
+                        if (dsRecords.Count > 0)
+                        {
+                            if (!DnsDSRecord.IsAlgorithmSupported(dsRecords))
+                            {
+                                //If the validator does not support any of the algorithms listed in an
+                                //authenticated DS RRset, then the resolver has no supported
+                                //authentication path leading from the parent to the child.  The
+                                //resolver should treat this case as it would the case of an
+                                //authenticated NSEC RRset proving that no DS RRset exists, as
+                                //described above.
+
+                                dsRecords = null;
+                            }
+
+                            return true;
+                        }
+
+                        //validate if DS records are really missing
+                        DnssecProofOfNonExistence proofOfNonExistence = GetValidatedProofOfNonExistence(response.Authority, ownerName, DnsResourceRecordType.DS);
+                        switch (proofOfNonExistence)
+                        {
+                            case DnssecProofOfNonExistence.InsecureDelegation:
+                            case DnssecProofOfNonExistence.OptOut:
+                                //proved that DS is missing and the zone is unsigned
+                                dsRecords = null;
+                                return true;
+
+                            case DnssecProofOfNonExistence.NoData:
+                                //NO DATA; must be a sub domain
+                                dsRecords = Array.Empty<DnsResourceRecord>();
+                                return true;
+                        }
+                    }
+                    break;
+            }
+
+            //could not find DS records or proof of non-existence
+            dsRecords = null;
+            return false;
+        }
+
+        private static IReadOnlyList<DnsResourceRecord> GetFilterdDSRecords(IReadOnlyList<DnsResourceRecord> records, string ownerName)
+        {
+            List<DnsResourceRecord> dsRecords = new List<DnsResourceRecord>(2);
+
+            foreach (DnsResourceRecord record in records)
+            {
+                if ((record.Type == DnsResourceRecordType.DS) && (record.DnssecStatus == DnssecStatus.Secure) && record.Name.Equals(ownerName, StringComparison.OrdinalIgnoreCase))
+                    dsRecords.Add(record);
+            }
+
+            return dsRecords;
+        }
+
+        private static DnssecProofOfNonExistence GetValidatedProofOfNonExistence(IReadOnlyList<DnsResourceRecord> records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation = false, string wildcardNextCloserName = null)
+        {
+            foreach (DnsResourceRecord record in records)
+            {
+                if (record.Type == DnsResourceRecordType.NSEC)
+                    return DnsNSECRecord.GetValidatedProofOfNonExistence(records, domain, type, wildcardAnswerValidation);
+
+                if (record.Type == DnsResourceRecordType.NSEC3)
+                    return DnsNSEC3Record.GetValidatedProofOfNonExistence(records, domain, type, wildcardAnswerValidation, wildcardNextCloserName);
+            }
+
+            return DnssecProofOfNonExistence.NoProof;
+        }
+
+        private static void FindSignersNames(DnsDatagram response, List<string> signersNames)
+        {
+            FindSignersNames(response.Answer, signersNames, false, false);
+            FindSignersNames(response.Authority, signersNames, true, false);
+            FindSignersNames(response.Additional, signersNames, false, true);
+        }
+
+        private static void FindSignersNames(IReadOnlyList<DnsResourceRecord> records, List<string> signersNames, bool isAuthoritySection, bool isAdditionalSection)
+        {
+            foreach (DnsResourceRecord record in records)
+            {
+                switch (record.Type)
+                {
+                    case DnsResourceRecordType.RRSIG:
+                    case DnsResourceRecordType.OPT:
+                        continue;
+                }
+
+                bool isRecordCovered = false;
+
+                foreach (DnsResourceRecord rrsigRecord in records)
+                {
+                    if ((rrsigRecord.Type == DnsResourceRecordType.RRSIG) && rrsigRecord.Name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        DnsRRSIGRecord rrsig = rrsigRecord.RDATA as DnsRRSIGRecord;
+
+                        if (rrsig.TypeCovered == record.Type)
+                        {
+                            string signersName = rrsig.SignersName;
+
+                            if (!signersNames.Contains(signersName))
+                                signersNames.Add(signersName);
+
+                            isRecordCovered = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!isRecordCovered)
+                {
+                    if (isAdditionalSection || (isAuthoritySection && record.Type == DnsResourceRecordType.NS))
+                    {
+                        //ignore record
+                    }
+                    else
+                    {
+                        string signersName = record.Name;
+
+                        if (!signersNames.Contains(signersName))
+                            signersNames.Add(signersName);
+                    }
+                }
+            }
+        }
+
+        private static bool IsDomainUnsigned(string domain, IReadOnlyList<string> unsignedZones)
+        {
+            if (unsignedZones is null)
+                return false;
+
+            foreach (string unsignedZone in unsignedZones)
+            {
+                if (domain.Equals(unsignedZone, StringComparison.OrdinalIgnoreCase) || domain.EndsWith("." + unsignedZone, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
         private static DnsDatagram SanitizeResponseAnswer(DnsDatagram response, string zoneCut)
         {
             string qName = response.Question[0].Name;
@@ -1497,20 +2500,11 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 string domain = (answer.RDATA as DnsCNAMERecord).Domain;
 
-                                if (!domain.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !domain.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase))
+                                if (domain.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || domain.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase))
                                 {
-                                    //domain is not inside zone cut
-                                    //truncate answer upto current RR
-
-                                    List<DnsResourceRecord> newAnswers = new List<DnsResourceRecord>(i + 1);
-
-                                    for (int j = 0; j <= i; j++)
-                                        newAnswers.Add(response.Answer[j]);
-
-                                    return response.Clone(newAnswers);
+                                    //CNAME domain is inside zone cut
+                                    qName = domain;
                                 }
-
-                                qName = domain;
                             }
                             break;
                     }
@@ -1546,26 +2540,35 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (response.Authority.Count > 0)
             {
-                bool authorityNotInZoneCut = false;
+                bool authorityNotInZoneCutOrDnssecIndeterminate = false;
                 string zoneCutEnd = "." + zoneCut;
 
                 foreach (DnsResourceRecord authority in response.Authority)
                 {
                     if (!authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
                     {
-                        authorityNotInZoneCut = true;
+                        authorityNotInZoneCutOrDnssecIndeterminate = true;
+                        break;
+                    }
+
+                    if ((authority.Type != DnsResourceRecordType.NS) && (authority.DnssecStatus == DnssecStatus.Indeterminate))
+                    {
+                        authorityNotInZoneCutOrDnssecIndeterminate = true;
                         break;
                     }
                 }
 
-                if (authorityNotInZoneCut)
+                if (authorityNotInZoneCutOrDnssecIndeterminate)
                 {
                     List<DnsResourceRecord> newAuthority = new List<DnsResourceRecord>(response.Authority.Count);
 
                     foreach (DnsResourceRecord authority in response.Authority)
                     {
                         if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
-                            newAuthority.Add(authority);
+                        {
+                            if ((authority.Type == DnsResourceRecordType.NS) || (authority.DnssecStatus != DnssecStatus.Indeterminate))
+                                newAuthority.Add(authority);
+                        }
                     }
 
                     return response.Clone(null, newAuthority);
@@ -1575,7 +2578,7 @@ namespace TechnitiumLibrary.Net.Dns
             return response;
         }
 
-        private static async Task RevalidateNameServers(string zoneCut, IReadOnlyList<NameServerAddress> parentSideNameServers, IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool randomizeName, bool qnameMinimization, int retries, int timeout)
+        private static async Task RevalidateNameServers(string zoneCut, IReadOnlyList<NameServerAddress> parentSideNameServers, IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool randomizeName, int retries, int timeout)
         {
             //Delegation Revalidation by DNS Resolvers
             //https://datatracker.ietf.org/doc/draft-ietf-dnsop-ns-revalidation/
@@ -1607,7 +2610,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             try
             {
-                response = await client.InternalResolveAsync(request, qnameMinimization, cache);
+                response = await client.InternalResolveAsync(request);
             }
             catch
             {
@@ -1633,9 +2636,9 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (response.Answer.Count > 0)
             {
-                DnsResourceRecord lastRR = response.Answer[response.Answer.Count - 1];
+                DnsResourceRecord lastAnswer = response.GetLastAnswerRecord();
 
-                if ((lastRR.Type != question.Type) && (lastRR.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
+                if ((lastAnswer.Type != question.Type) && (lastAnswer.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
                 {
                     List<DnsResourceRecord> responseAnswer = new List<DnsResourceRecord>();
                     responseAnswer.AddRange(response.Answer);
@@ -1645,7 +2648,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     do
                     {
-                        DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class);
+                        DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class);
 
                         lastResponse = await resolveAsync(cnameQuestion);
 
@@ -1654,20 +2657,22 @@ namespace TechnitiumLibrary.Net.Dns
 
                         responseAnswer.AddRange(lastResponse.Answer);
 
-                        lastRR = lastResponse.Answer[lastResponse.Answer.Count - 1];
+                        lastAnswer = lastResponse.GetLastAnswerRecord();
 
-                        if (lastRR.Type == question.Type)
+                        if (lastAnswer.Type == question.Type)
                             break;
 
-                        if (lastRR.Type != DnsResourceRecordType.CNAME)
-                            throw new DnsClientException("Invalid response received from DNS server.");
+                        if (lastAnswer.Type != DnsResourceRecordType.CNAME)
+                            throw new DnsClientException("Invalid response received from DNS server: was expecting CNAME but received " + lastAnswer.Type.ToString());
                     }
                     while (++queryCount < MAX_CNAME_HOPS);
 
-                    if ((lastResponse.Authority.Count > 0) && (lastResponse.Authority[0].Type == DnsResourceRecordType.SOA))
-                        authority = lastResponse.Authority;
-
-                    if (response.Authority.Count == 0)
+                    if (lastResponse.Authority.Count > 0)
+                    {
+                        if (lastResponse.IsFirstAuthoritySOA())
+                            authority = lastResponse.Authority;
+                    }
+                    else
                     {
                         switch (question.Type)
                         {
@@ -1688,10 +2693,12 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            if ((response.Authority.Count > 0) && (response.Authority[0].Type == DnsResourceRecordType.SOA))
-                authority = response.Authority;
-
-            if (response.Authority.Count == 0)
+            if (response.Authority.Count > 0)
+            {
+                if (response.IsFirstAuthoritySOA())
+                    authority = response.Authority;
+            }
+            else
             {
                 switch (question.Type)
                 {
@@ -1711,7 +2718,7 @@ namespace TechnitiumLibrary.Net.Dns
             return finalResponse;
         }
 
-        private async Task<DnsDatagram> InternalResolveAsync(DnsDatagram request, bool qnameMinimization, IDnsCache nsResolveCache)
+        private async Task<DnsDatagram> InternalResolveAsync(DnsDatagram request)
         {
             //get servers
             IReadOnlyList<NameServerAddress> servers;
@@ -1737,6 +2744,7 @@ namespace TechnitiumLibrary.Net.Dns
             //init parameters
             object nextServerLock = new object();
             int nextServerIndex = 0;
+            IDnsCache nsResolveCache = null;
 
             NameServerAddress GetNextServer()
             {
@@ -1747,7 +2755,12 @@ namespace TechnitiumLibrary.Net.Dns
                         NameServerAddress server = servers[nextServerIndex++];
 
                         if ((nsResolveCache is null) && server.IsIPEndPointStale && (_proxy is null))
-                            nsResolveCache = new DnsCache();
+                        {
+                            if (_cache is null)
+                                nsResolveCache = new DnsCache();
+                            else
+                                nsResolveCache = _cache;
+                        }
 
                         return server;
                     }
@@ -1784,7 +2797,7 @@ namespace TechnitiumLibrary.Net.Dns
                         //recursive resolve name server via root servers when proxy is null else let proxy resolve it
                         try
                         {
-                            await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _preferIPv6, _udpPayloadSize, _randomizeName, qnameMinimization, _retries, _timeout);
+                            await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _preferIPv6, _udpPayloadSize, _randomizeName, _retries, _timeout);
                         }
                         catch (Exception ex)
                         {
@@ -1892,7 +2905,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             break;
 
                                         case SocketError.TimedOut:
-                                            if ((server.Protocol == DnsTransportProtocol.Udp) && (asyncRequest.EDNS is not null))
+                                            if ((server.Protocol == DnsTransportProtocol.Udp) && (asyncRequest.EDNS is not null) && !asyncRequest.EDNS.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
                                             {
                                                 //EDNS udp request timed out; disable EDNS and retry the request
 
@@ -2053,23 +3066,55 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        private async Task<DnsDatagram> InternalDnssecResolveAsync(DnsQuestionRecord question)
+        {
+            IDnsCache cache;
+
+            if (_cache is null)
+                cache = new DnsCache();
+            else
+                cache = _cache;
+
+            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK);
+            DnsDatagram response = await InternalResolveAsync(request);
+
+            await DnssecValidateResponseAsync(response, ROOT_TRUST_ANCHORS, this, cache, _udpPayloadSize);
+
+            return response;
+        }
+
         private async Task<DnsDatagram> InternalCachedResolveQueryAsync(DnsQuestionRecord question)
         {
             return await ResolveQueryAsync(question, async delegate (DnsQuestionRecord q)
             {
                 DnsDatagram newRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { q }, null, null, null, _udpPayloadSize);
 
-                DnsDatagram cacheResponse = _cache.Query(newRequest);
+                DnsDatagram cacheResponse = QueryCache(_cache, newRequest);
                 if (cacheResponse is not null)
-                {
-                    if ((cacheResponse.RCODE != DnsResponseCode.NoError) || (cacheResponse.Answer.Count > 0) || (cacheResponse.Authority.Count == 0) || (cacheResponse.Authority[0].Type == DnsResourceRecordType.SOA))
-                        return cacheResponse;
-                }
+                    return cacheResponse;
 
-                DnsDatagram newResponse = await InternalResolveAsync(newRequest, false, _cache);
+                DnsDatagram newResponse;
+
+                if (_dnssecValidation)
+                    newResponse = await InternalDnssecResolveAsync(q);
+                else
+                    newResponse = await InternalResolveAsync(newRequest);
+
                 _cache.CacheResponse(newResponse);
                 return newResponse;
             });
+        }
+
+        private static DnsDatagram QueryCache(IDnsCache cache, DnsDatagram request)
+        {
+            DnsDatagram cacheResponse = cache.Query(request);
+            if (cacheResponse is not null)
+            {
+                if ((cacheResponse.RCODE != DnsResponseCode.NoError) || (cacheResponse.Answer.Count > 0) || (cacheResponse.Authority.Count == 0) || cacheResponse.IsFirstAuthoritySOA())
+                    return cacheResponse;
+            }
+
+            return null;
         }
 
         #endregion
@@ -2078,10 +3123,18 @@ namespace TechnitiumLibrary.Net.Dns
 
         public Task<DnsDatagram> ResolveAsync(DnsDatagram request)
         {
-            if ((_cache is null) || (request.Question.Count != 1))
-                return InternalResolveAsync(request, false, null);
-            else
+            if ((_cache is not null) && (request.Question.Count == 1))
                 return InternalCachedResolveQueryAsync(request.Question[0]);
+
+            if (_dnssecValidation)
+            {
+                if (request.Question.Count != 1)
+                    throw new ArgumentException("Request must have exactly one question record.", nameof(request));
+
+                return InternalDnssecResolveAsync(request.Question[0]);
+            }
+
+            return InternalResolveAsync(request);
         }
 
         public async Task<DnsDatagram> ResolveAsync(DnsDatagram request, TsigKey key, ushort fudge = 300)
@@ -2089,7 +3142,7 @@ namespace TechnitiumLibrary.Net.Dns
             request.SetRandomIdentifier();
             DnsDatagram signedRequest = request.SignRequest(key, fudge);
 
-            DnsDatagram signedResponse = await InternalResolveAsync(signedRequest, false, null);
+            DnsDatagram signedResponse = await InternalResolveAsync(signedRequest);
             if (!signedResponse.VerifySignedResponse(signedRequest, key, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error))
             {
                 if (requestFailed)
@@ -2103,10 +3156,13 @@ namespace TechnitiumLibrary.Net.Dns
 
         public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question)
         {
-            if (_cache is null)
-                return InternalResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize), false, null);
-            else
+            if (_cache is not null)
                 return InternalCachedResolveQueryAsync(question);
+
+            if (_dnssecValidation)
+                return InternalDnssecResolveAsync(question);
+
+            return InternalResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize));
         }
 
         public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question, TsigKey key, ushort fudge = 300)
@@ -2175,10 +3231,22 @@ namespace TechnitiumLibrary.Net.Dns
             set { _preferIPv6 = value; }
         }
 
+        public ushort UdpPayloadSize
+        {
+            get { return _udpPayloadSize; }
+            set { _udpPayloadSize = value; }
+        }
+
         public bool RandomizeName
         {
             get { return _randomizeName; }
             set { _randomizeName = value; }
+        }
+
+        public bool DnssecValidation
+        {
+            get { return _dnssecValidation; }
+            set { _dnssecValidation = value; }
         }
 
         public int Retries
@@ -2199,28 +3267,26 @@ namespace TechnitiumLibrary.Net.Dns
             set { _concurrency = value; }
         }
 
-        public ushort UdpPayloadSize
-        {
-            get { return _udpPayloadSize; }
-            set { _udpPayloadSize = value; }
-        }
-
         #endregion
 
         class ResolverData
         {
             public readonly DnsQuestionRecord Question;
             public readonly string ZoneCut;
+            public readonly EDnsHeaderFlags EDnsFlags;
+            public readonly IReadOnlyList<DnsResourceRecord> LastDSRecords;
             public readonly IList<NameServerAddress> NameServers;
             public readonly int NameServerIndex;
             public readonly int HopCount;
             public readonly DnsDatagram LastResponse;
             public readonly Exception LastException;
 
-            public ResolverData(DnsQuestionRecord question, string zoneCut, IList<NameServerAddress> nameServers, int nameServerIndex, int hopCount, DnsDatagram lastResponse, Exception lastException)
+            public ResolverData(DnsQuestionRecord question, string zoneCut, EDnsHeaderFlags ednsFlags, IReadOnlyList<DnsResourceRecord> lastDSRecords, IList<NameServerAddress> nameServers, int nameServerIndex, int hopCount, DnsDatagram lastResponse, Exception lastException)
             {
                 Question = question;
                 ZoneCut = zoneCut;
+                EDnsFlags = ednsFlags;
+                LastDSRecords = lastDSRecords;
                 NameServers = nameServers;
                 NameServerIndex = nameServerIndex;
                 HopCount = hopCount;
