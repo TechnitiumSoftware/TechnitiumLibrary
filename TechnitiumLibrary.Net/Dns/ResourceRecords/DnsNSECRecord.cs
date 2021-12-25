@@ -91,7 +91,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region private
 
-        internal static DnssecProofOfNonExistence GetValidatedProofOfNonExistence(IReadOnlyList<DnsResourceRecord> nsecRecords, string domain, DnsResourceRecordType type)
+        internal static DnssecProofOfNonExistence GetValidatedProofOfNonExistence(IReadOnlyList<DnsResourceRecord> nsecRecords, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation)
         {
             bool foundProofOfCover = false;
             string wildcardDomain = null;
@@ -120,6 +120,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     //check if the NSEC is an "ancestor delegation"
                     if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation && domain.EndsWith("." + record.Name, StringComparison.OrdinalIgnoreCase))
                         continue; //cannot prove with ancestor delegation NSEC; try next NSEC
+
+                    if (nsec._nextDomainName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase))
+                        return DnssecProofOfNonExistence.NoData; //domain is empty non terminal (ENT) so proves NO DATA
+
+                    if (wildcardAnswerValidation)
+                        return DnssecProofOfNonExistence.NxDomain; //since wildcard was already validated; the domain does not exists
 
                     foundProofOfCover = true;
                     wildcardDomain = GetWildcardFor(record.Name, nsec._nextDomainName);
