@@ -561,13 +561,22 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public int CompareTo(DnsResourceRecord other)
         {
-            int value;
+            //Compare names, starting from tld, moving left
+            var thisSplit = _name.Split('.');
+            var otherSplit = other._name.Split('.');
+            for (int i = 1; i <= Math.Min(thisSplit.Length, otherSplit.Length); i++)
+            {
+                if (thisSplit[^i] == "*")
+                    return -1;
+                if (otherSplit[^i] == "*")
+                    return 1;
 
-            value = _name.CompareTo(other._name);
-            if (value != 0)
-                return value;
+                var compare = thisSplit[^i].CompareTo(otherSplit[^i]);
+                if (compare != 0)
+                    return compare;
+            }
 
-            value = _type.CompareTo(other._type);
+            int value = _type.CompareTo(other._type);
             if (value != 0)
                 return value;
 
