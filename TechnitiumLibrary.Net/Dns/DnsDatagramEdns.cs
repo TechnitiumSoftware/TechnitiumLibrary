@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using TechnitiumLibrary.Net.Dns.EDnsOptions;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -38,20 +39,25 @@ namespace TechnitiumLibrary.Net.Dns
         readonly DnsResponseCode _extendedRCODE;
         readonly byte _version;
         readonly EDnsHeaderFlags _flags;
+        readonly IReadOnlyList<EDnsOption> _options;
 
         #endregion
 
         #region constructor
 
-        public DnsDatagramEdns(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags)
+        public DnsDatagramEdns(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption> options)
         {
             _udpPayloadSize = udpPayloadSize;
             _extendedRCODE = extendedRCODE;
             _version = version;
             _flags = flags;
+            _options = options;
 
             if (_udpPayloadSize < 512)
                 _udpPayloadSize = 512;
+
+            if (_options is null)
+                _options = Array.Empty<EDnsOption>();
         }
 
         #endregion
@@ -74,12 +80,19 @@ namespace TechnitiumLibrary.Net.Dns
             if (opt is null)
                 return null;
 
-            return new DnsDatagramEdns((ushort)opt.Class, (DnsResponseCode)(((opt.OriginalTtlValue & 0xff000000u) >> 20) | ((uint)RCODE & 0xfu)), (byte)((opt.OriginalTtlValue >> 16) & 0xffu), (EDnsHeaderFlags)(opt.OriginalTtlValue & 0xffffu));
+            return new DnsDatagramEdns((ushort)opt.Class, (DnsResponseCode)(((opt.OriginalTtlValue & 0xff000000u) >> 20) | ((uint)RCODE & 0xfu)), (byte)((opt.OriginalTtlValue >> 16) & 0xffu), (EDnsHeaderFlags)(opt.OriginalTtlValue & 0xffffu), (opt.RDATA as DnsOPTRecord).Options);
         }
 
-        public static DnsResourceRecord GetOPTFor(ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, DnsResponseCode extendedRCODE = DnsResponseCode.NoError, byte version = 0, EDnsHeaderFlags flags = EDnsHeaderFlags.None)
+        public static DnsResourceRecord GetOPTFor(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption> options)
         {
-            return new DnsResourceRecord("", DnsResourceRecordType.OPT, (DnsClass)udpPayloadSize, ((((uint)extendedRCODE) & 0x00000ff0u) << 20) | (((uint)version) << 16) | ((uint)flags), DnsOPTRecord.Empty);
+            DnsOPTRecord opt;
+
+            if ((options is null) || (options.Count == 0))
+                opt = DnsOPTRecord.Empty;
+            else
+                opt = new DnsOPTRecord(options);
+
+            return new DnsResourceRecord("", DnsResourceRecordType.OPT, (DnsClass)udpPayloadSize, ((((uint)extendedRCODE) & 0x00000ff0u) << 20) | (((uint)version) << 16) | ((uint)flags), opt);
         }
 
         #endregion
@@ -97,6 +110,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         public EDnsHeaderFlags Flags
         { get { return _flags; } }
+
+        public IReadOnlyList<EDnsOption> Options
+        { get { return _options; } }
 
         #endregion
     }
