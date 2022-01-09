@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -550,6 +550,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 return ecdsa.VerifyHash(hash, signature, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
             }
+        }
+
+        public override string ToString()
+        {
+            return Convert.ToBase64String(_ecdsaPublicKey.Q.X) + " " + Convert.ToBase64String(_ecdsaPublicKey.Q.Y);
         }
 
         #endregion
