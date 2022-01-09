@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -391,7 +391,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region static
 
-        public static Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> GroupRecords(IReadOnlyCollection<DnsResourceRecord> records)
+        public static Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> GroupRecords(IReadOnlyCollection<DnsResourceRecord> records, bool deduplicate = false)
         {
             Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> groupedByDomainRecords = new Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>>();
 
@@ -422,7 +422,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     groupedByTypeRecords.Add(record.Type, groupedRecords);
                 }
 
-                groupedRecords.Add(record);
+                if (deduplicate)
+                {
+                    if (!groupedRecords.Contains(record))
+                        groupedRecords.Add(record);
+                }
+                else
+                {
+                    groupedRecords.Add(record);
+                }
             }
 
             return groupedByDomainRecords;
@@ -665,7 +673,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         [IgnoreDataMember]
         public ushort UncompressedLength
-        { get { return Convert.ToUInt16(_name.Length + 2 + 2 + 2 + 4 + 2 + _data.UncompressedLength); } }
+        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_name) + 2 + 2 + 4 + 2 + _data.UncompressedLength); } }
 
         [IgnoreDataMember]
         public object Tag { get; set; }
