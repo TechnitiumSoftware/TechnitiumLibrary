@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Dns.EDnsOptions;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -70,6 +71,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         DnsDatagramMetadata _metadata;
         DnsDatagramEdns _edns;
+        List<EDnsExtendedDnsErrorOption> _dnsClientExtendedErrors;
 
         int _size = -1;
         byte[] _parsedDatagramUnsigned;
@@ -103,7 +105,7 @@ namespace TechnitiumLibrary.Net.Dns
         private DnsDatagram()
         { }
 
-        public DnsDatagram(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, IReadOnlyList<DnsQuestionRecord> question, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null, ushort udpPayloadSize = ushort.MinValue, EDnsHeaderFlags ednsFlags = EDnsHeaderFlags.None)
+        public DnsDatagram(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, IReadOnlyList<DnsQuestionRecord> question, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null, ushort udpPayloadSize = ushort.MinValue, EDnsHeaderFlags ednsFlags = EDnsHeaderFlags.None, IReadOnlyList<EDnsOption> options = null)
         {
             _ID = ID;
 
@@ -154,11 +156,19 @@ namespace TechnitiumLibrary.Net.Dns
                 }
                 else
                 {
-                    _additional = new DnsResourceRecord[] { DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags) };
-                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, ednsFlags);
+                    _additional = new DnsResourceRecord[] { DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags, options) };
+                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, ednsFlags, options);
                 }
             }
-            else if (_additional.Count > 0)
+            else if (_additional.Count == 0)
+            {
+                if (udpPayloadSize >= 512)
+                {
+                    _additional = new DnsResourceRecord[] { DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags, options) };
+                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, ednsFlags, options);
+                }
+            }
+            else
             {
                 if (udpPayloadSize < 512)
                 {
@@ -178,10 +188,10 @@ namespace TechnitiumLibrary.Net.Dns
                         newAdditional[i] = record;
                     }
 
-                    newAdditional[_additional.Count] = DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags);
+                    newAdditional[_additional.Count] = DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags, options);
 
                     _additional = newAdditional;
-                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, ednsFlags);
+                    _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, ednsFlags, options);
                 }
             }
         }
@@ -437,7 +447,7 @@ namespace TechnitiumLibrary.Net.Dns
             datagram._size = size;
 
             if (requestEdns is not null)
-                datagram._edns = new DnsDatagramEdns(requestEdns.UdpPayloadSize, datagram._RCODE, 0, requestEdns.Flags);
+                datagram._edns = new DnsDatagramEdns(requestEdns.UdpPayloadSize, datagram._RCODE, 0, requestEdns.Flags, null);
 
             return datagram;
         }
@@ -663,6 +673,19 @@ namespace TechnitiumLibrary.Net.Dns
             return datagram;
         }
 
+        internal void AddDnsClientExtendedError(EDnsExtendedDnsErrorCode errorCode, string extraText = null)
+        {
+            AddDnsClientExtendedError(new EDnsExtendedDnsErrorOption(errorCode, extraText));
+        }
+
+        internal void AddDnsClientExtendedError(EDnsExtendedDnsErrorOption dnsError)
+        {
+            if (_dnsClientExtendedErrors is null)
+                _dnsClientExtendedErrors = new List<EDnsExtendedDnsErrorOption>();
+
+            _dnsClientExtendedErrors.Add(dnsError);
+        }
+
         #endregion
 
         #region public
@@ -754,6 +777,9 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
+            if (lastAnswer is null)
+                return _answer[_answer.Count - 1];
+
             return lastAnswer;
         }
 
@@ -783,6 +809,9 @@ namespace TechnitiumLibrary.Net.Dns
                         return record;
                 }
             }
+
+            if (_authority.Count > 0)
+                return _authority[0];
 
             return null;
         }
@@ -1866,6 +1895,17 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsDatagramEdns EDNS
         { get { return _edns; } }
 
+        public IReadOnlyList<EDnsExtendedDnsErrorOption> DnsClientExtendedErrors
+        {
+            get
+            {
+                if (_dnsClientExtendedErrors is null)
+                    return Array.Empty<EDnsExtendedDnsErrorOption>();
+
+                return _dnsClientExtendedErrors;
+            }
+        }
+
         public ushort Identifier
         { get { return _ID; } }
 
@@ -1977,6 +2017,18 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new InvalidOperationException("Cannot overwrite next datagram.");
 
                 _nextDatagram = value;
+            }
+        }
+
+        [IgnoreDataMember]
+        public bool DnssecOk
+        {
+            get
+            {
+                if (_edns is null)
+                    return false;
+
+                return _edns.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK);
             }
         }
 
