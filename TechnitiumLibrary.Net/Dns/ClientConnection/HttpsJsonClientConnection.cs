@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -112,7 +112,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }
 
-                return new HttpRequestMessage(HttpMethod.Get, queryUri.AbsoluteUri + "?name=" + (request.Question[0].Name.Length == 0 ? "." : request.Question[0].Name) + "&type=" + Convert.ToString((int)request.Question[0].Type) + "&do=" + ((request.EDNS is not null) && request.EDNS.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK)));
+                return new HttpRequestMessage(HttpMethod.Get, queryUri.AbsoluteUri + "?name=" + (request.Question[0].Name.Length == 0 ? "." : request.Question[0].Name) + "&type=" + Convert.ToString((int)request.Question[0].Type) + "&do=" + request.DnssecOk);
             }
 
             //DoH JSON format request 
