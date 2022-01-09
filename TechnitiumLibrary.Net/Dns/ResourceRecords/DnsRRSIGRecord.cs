@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,17 +23,10 @@ using System.IO;
 using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Dns.EDnsOptions;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public enum DnssecSignatureStatus
-    {
-        Unknown = 0,
-        Valid = 1,
-        Bogus = 2,
-        NoDnsKey = 3
-    }
-
     public class DnsRRSIGRecord : DnsResourceRecordData
     {
         #region variables
@@ -220,15 +213,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public DnssecSignatureStatus IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords)
+        public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
         {
             //The validator's notion of the current time MUST be less than or equal to the time listed in the RRSIG RR's Expiration field.
             if (SignatureExpiration < DateTime.UtcNow)
-                return DnssecSignatureStatus.Bogus;
+            {
+                extendedDnsErrorCode = EDnsExtendedDnsErrorCode.SignatureExpired;
+                return false;
+            }
 
             //The validator's notion of the current time MUST be greater than or equal to the time listed in the RRSIG RR's Inception field.
             if (SignatureInception > DateTime.UtcNow)
-                return DnssecSignatureStatus.Bogus;
+            {
+                extendedDnsErrorCode = EDnsExtendedDnsErrorCode.SignatureNotYetValid;
+                return false;
+            }
 
             HashAlgorithmName hashAlgorithm;
             byte[] hash;
@@ -265,7 +264,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     else
                     {
                         //the RRSIG RR did not pass the necessary validation checks and MUST NOT be used to authenticate this RRset.
-                        return DnssecSignatureStatus.Bogus;
+                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.RRSIGsMissing;
+                        return false;
                     }
                 }
 
@@ -363,10 +363,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         break;
 
                     default:
-                        throw new NotSupportedException("DNSSEC hash algorithm is not supported: " + _algorithm.ToString());
+                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.DnssecIndeterminate;
+                        return false;
                 }
             }
 
+            bool foundDnsKey = false;
+            bool foundSupportedDnsKeyAlgo = false;
+            bool foundZoneKeyBitSet = false;
             bool isBogus = false;
 
             foreach (DnsResourceRecord dnsKeyRecord in dnsKeyRecords)
@@ -383,10 +387,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (dnsKey.Protocol != 3)
                     continue;
 
-                if ((dnsKey.Algorithm != _algorithm) || !dnsKey.PublicKey.IsAlgorithmSupported)
+                if (dnsKey.Algorithm != _algorithm)
                     continue;
 
                 if (dnsKey.ComputedKeyTag != _keyTag)
+                    continue;
+
+                foundDnsKey = true;
+
+                if (dnsKey.PublicKey.IsAlgorithmSupported)
+                    foundSupportedDnsKeyAlgo = true;
+                else
                     continue;
 
                 //The matching DNSKEY RR MUST be present in the zone's apex DNSKEY RRset, and MUST have the Zone Flag bit (DNSKEY RDATA Flag bit 7) set.
@@ -397,31 +408,43 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     if (dnsKey.PublicKey.IsSignatureValid(hash, _signature, hashAlgorithm))
                     {
-                        foreach (DnsResourceRecord validatedRecord in records)
-                        {
-                            if (validatedRecord.Type == _typeCovered)
-                                validatedRecord.SetDnssecStatus(DnssecStatus.Secure);
-                        }
-
-                        return DnssecSignatureStatus.Valid;
+                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.Other; //no error
+                        return true;
                     }
 
+                    foundZoneKeyBitSet = true;
                     isBogus = true;
                 }
             }
 
             if (isBogus)
             {
-                foreach (DnsResourceRecord validatedRecord in records)
+                extendedDnsErrorCode = EDnsExtendedDnsErrorCode.DnssecBogus;
+                return false;
+            }
+            else
+            {
+                if (foundDnsKey)
                 {
-                    if (validatedRecord.Type == _typeCovered)
-                        validatedRecord.SetDnssecStatus(DnssecStatus.Bogus);
+                    if (foundSupportedDnsKeyAlgo)
+                    {
+                        if (foundZoneKeyBitSet)
+                            extendedDnsErrorCode = EDnsExtendedDnsErrorCode.Other;
+                        else
+                            extendedDnsErrorCode = EDnsExtendedDnsErrorCode.NoZoneKeyBitSet;
+                    }
+                    else
+                    {
+                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm;
+                    }
+                }
+                else
+                {
+                    extendedDnsErrorCode = EDnsExtendedDnsErrorCode.DNSKEYMissing;
                 }
 
-                return DnssecSignatureStatus.Bogus;
+                return false;
             }
-
-            return DnssecSignatureStatus.NoDnsKey;
         }
 
         public override bool Equals(object obj)
