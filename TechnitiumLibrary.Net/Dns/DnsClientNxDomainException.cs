@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2017  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,23 +21,23 @@ using System;
 
 namespace TechnitiumLibrary.Net.Dns
 {
-    public class NameErrorDnsClientException : DnsClientException
+    public class DnsClientNxDomainException : DnsClientException
     {
         #region constructors
 
-        public NameErrorDnsClientException()
+        public DnsClientNxDomainException()
             : base()
         { }
 
-        public NameErrorDnsClientException(string message)
+        public DnsClientNxDomainException(string message)
             : base(message)
         { }
 
-        public NameErrorDnsClientException(string message, Exception innerException)
+        public DnsClientNxDomainException(string message, Exception innerException)
             : base(message, innerException)
         { }
 
-        protected NameErrorDnsClientException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+        protected DnsClientNxDomainException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
             : base(info, context)
         { }
 
