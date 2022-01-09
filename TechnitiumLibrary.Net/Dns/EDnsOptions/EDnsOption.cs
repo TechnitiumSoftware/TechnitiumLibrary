@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.IO;
 using System.Runtime.Serialization;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 {
@@ -51,13 +50,13 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         #region variables
 
         readonly EDnsOptionCode _code;
-        readonly byte[] _data;
+        readonly EDnsOptionData _data;
 
         #endregion
 
         #region constructors
 
-        public EDnsOption(EDnsOptionCode code, byte[] data)
+        public EDnsOption(EDnsOptionCode code, EDnsOptionData data)
         {
             _code = code;
             _data = data;
@@ -66,12 +65,16 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public EDnsOption(Stream s)
         {
             _code = (EDnsOptionCode)DnsDatagram.ReadUInt16NetworkOrder(s);
-            ushort length = DnsDatagram.ReadUInt16NetworkOrder(s);
+            switch (_code)
+            {
+                case EDnsOptionCode.EXTENDED_DNS_ERROR:
+                    _data = new EDnsExtendedDnsErrorOption(s);
+                    break;
 
-            if (length > 0)
-                _data = s.ReadBytes(length);
-            else
-                _data = Array.Empty<byte>();
+                default:
+                    _data = new EDnsUnknownOption(s);
+                    break;
+            }
         }
 
         #endregion
@@ -81,8 +84,8 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public void WriteTo(Stream s)
         {
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_code, s);
-            DnsDatagram.WriteUInt16NetworkOrder((ushort)_data.Length, s);
-            s.Write(_data);
+
+            _data.WriteTo(s);
         }
 
         public override bool Equals(object obj)
@@ -98,10 +101,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
                 if (_code != other._code)
                     return false;
 
-                if (!BinaryNumber.Equals(_data, other._data))
-                    return false;
-
-                return true;
+                return _data.Equals(other._data);
             }
 
             return false;
@@ -112,6 +112,11 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             return HashCode.Combine(_code, _data);
         }
 
+        public override string ToString()
+        {
+            return _code.ToString() + " " + _data.ToString();
+        }
+
         #endregion
 
         #region properties
@@ -119,15 +124,15 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public EDnsOptionCode Code
         { get { return _code; } }
 
-        public ushort Length
-        { get { return (ushort)_data.Length; } }
+        public string Length
+        { get { return _data.Length + " bytes"; } }
 
-        public byte[] Data
+        public EDnsOptionData Data
         { get { return _data; } }
 
         [IgnoreDataMember]
         public ushort UncompressedLength
-        { get { return (ushort)(4 + _data.Length); } }
+        { get { return (ushort)(2 + 2 + _data.UncompressedLength); } }
 
         #endregion
     }
