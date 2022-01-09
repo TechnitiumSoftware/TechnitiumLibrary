@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -81,21 +81,35 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region static
 
-        public static bool IsAlgorithmSupported(IReadOnlyList<DnsResourceRecord> dsRecords)
+        public static bool IsDnssecAlgorithmSupported(IReadOnlyList<DnsResourceRecord> dsRecords)
         {
             foreach (DnsResourceRecord record in dsRecords)
             {
                 if (record.Type != DnsResourceRecordType.DS)
                     throw new InvalidOperationException();
 
-                if ((record.RDATA as DnsDSRecord).IsAlgorithmSupported())
+                if ((record.RDATA as DnsDSRecord).IsDnssecAlgorithmSupported())
                     return true;
             }
 
             return false;
         }
 
-        private bool IsAlgorithmSupported()
+        public static bool IsDigestTypeSupported(IReadOnlyList<DnsResourceRecord> dsRecords)
+        {
+            foreach (DnsResourceRecord record in dsRecords)
+            {
+                if (record.Type != DnsResourceRecordType.DS)
+                    throw new InvalidOperationException();
+
+                if ((record.RDATA as DnsDSRecord).IsDigestTypeSupported())
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool IsDnssecAlgorithmSupported()
         {
             switch (_algorithm)
             {
@@ -106,26 +120,25 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnssecAlgorithm.RSASHA1_NSEC3_SHA1:
                 case DnssecAlgorithm.ECDSAP256SHA256:
                 case DnssecAlgorithm.ECDSAP384SHA384:
-                    //supported algorithm
-                    break;
+                    return true;
 
                 default:
                     return false;
             }
+        }
 
+        private bool IsDigestTypeSupported()
+        {
             switch (_digestType)
             {
                 case DnssecDigestType.SHA1:
                 case DnssecDigestType.SHA256:
                 case DnssecDigestType.SHA384:
-                    //supported digest algorithm
-                    break;
+                    return true;
 
                 default:
                     return false;
             }
-
-            return true;
         }
 
         #endregion
