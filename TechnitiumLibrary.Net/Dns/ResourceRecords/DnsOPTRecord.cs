@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -74,7 +74,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 options.Add(option);
 
-                bytesRead += 4 + option.Data.Length;
+                bytesRead += 2 + 2 + option.Data.Length;
             }
 
             if (options is null)
@@ -122,7 +122,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return string.Empty;
+            string s = null;
+
+            foreach (EDnsOption option in _options)
+            {
+                if (s is null)
+                    s = option.ToString();
+                else
+                    s += ", " + option.ToString();
+            }
+
+            if (s is not null)
+                return s;
+
+            return nameof(DnsOPTRecord);
         }
 
         #endregion
