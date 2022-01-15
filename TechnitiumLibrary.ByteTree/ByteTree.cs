@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -83,6 +83,24 @@ namespace TechnitiumLibrary.ByteTree
             return true;
         }
 
+        protected bool TryGet(TKey key, out TValue value, out Node closestNode)
+        {
+            if (key is null)
+                throw new ArgumentNullException(nameof(key));
+
+            byte[] bKey = ConvertToByteKey(key);
+
+            NodeValue nodeValue = _root.FindNodeValue(bKey, out closestNode);
+            if (nodeValue is null)
+            {
+                value = default;
+                return false;
+            }
+
+            value = nodeValue.Value;
+            return true;
+        }
+
         #endregion
 
         #region public
@@ -145,20 +163,7 @@ namespace TechnitiumLibrary.ByteTree
 
         public bool TryGet(TKey key, out TValue value)
         {
-            if (key is null)
-                throw new ArgumentNullException(nameof(key));
-
-            byte[] bKey = ConvertToByteKey(key);
-
-            NodeValue nodeValue = _root.FindNodeValue(bKey, out _);
-            if (nodeValue is null)
-            {
-                value = default;
-                return false;
-            }
-
-            value = nodeValue.Value;
-            return true;
+            return TryGet(key, out value, out _);
         }
 
         public TValue GetOrAdd(TKey key, Func<TKey, TValue> valueFactory)
