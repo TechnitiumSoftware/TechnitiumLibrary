@@ -2064,7 +2064,12 @@ namespace TechnitiumLibrary.Net.Dns
         {
             //verify signature for all records in response
             if (response.Answer.Count > 0)
+            {
                 DnssecValidateSignature(response, response.Answer, dnsKeyRecords, unsignedZones, false, false);
+
+                if (response.Question[0].Type == DnsResourceRecordType.DNSKEY)
+                    dnsKeyRecords = response.Answer; //use all DNSKEYs for validating authority & additional sections
+            }
 
             if (response.Authority.Count > 0)
                 DnssecValidateSignature(response, response.Authority, dnsKeyRecords, unsignedZones, true, false);
