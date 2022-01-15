@@ -125,7 +125,11 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
-        protected static string GetParentZone(string domain)
+        #endregion
+
+        #region private
+
+        private static string GetParentZone(string domain)
         {
             int i = domain.IndexOf('.');
             if (i > -1)
@@ -134,10 +138,6 @@ namespace TechnitiumLibrary.Net.Dns
             //dont return root zone
             return null;
         }
-
-        #endregion
-
-        #region private
 
         private static void AddGlueRecordTo(DnsResourceRecord record, DnsResourceRecord glueRecord)
         {
@@ -798,7 +798,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     if ((authority.Type == DnsResourceRecordType.NS) && (authority.RDATA as DnsNSRecord).NameServer.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
                                     {
                                         //empty response from authority name server that was queried; dont cache authority section with NS records
-                                        DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response.RCODE, null, null, null, response.EDNS, response.DnsClientExtendedErrors));
+                                        DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response.RCODE, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), response.EDNS, response.DnsClientExtendedErrors));
                                         record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                                         InternalCacheRecords(new DnsResourceRecord[] { record });
