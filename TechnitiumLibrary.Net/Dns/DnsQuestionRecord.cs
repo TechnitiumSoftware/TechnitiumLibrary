@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -139,7 +139,7 @@ namespace TechnitiumLibrary.Net.Dns
             //www.example.com
             //com
 
-            if ((zoneCut != null) && (zoneCut.Length < name.Length))
+            if ((zoneCut is not null) && (name.Length > (zoneCut.Length + 1)))
             {
                 int i = name.LastIndexOf('.', name.Length - zoneCut.Length - 2);
                 if (i < 0)
