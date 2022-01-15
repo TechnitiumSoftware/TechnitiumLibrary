@@ -1156,15 +1156,9 @@ namespace TechnitiumLibrary.Net.Dns
                                                 EDnsHeaderFlags nextEdnsFlags = ednsFlags;
                                                 IReadOnlyList<DnsResourceRecord> nextDSRecords = lastDSRecords;
 
-                                                if (ednsFlags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
+                                                if (ednsFlags.HasFlag(EDnsHeaderFlags.DNSSEC_OK) && TryGetDSFromResponse(response, nextZoneCut, out IReadOnlyList<DnsResourceRecord> dsRecords))
                                                 {
-                                                    if (!TryGetDSFromResponse(response, nextZoneCut, out IReadOnlyList<DnsResourceRecord> dsRecords))
-                                                    {
-                                                        //current name server didnt return DS that was expected; try next server
-                                                        //continue for loop to next name server since current name server may be misconfigured
-                                                        continue;
-                                                    }
-
+                                                    //get DS records from response
                                                     if (dsRecords is null)
                                                     {
                                                         //next zone cut is validated to be unsigned
@@ -1348,18 +1342,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 //response is not for current question; cache its extended errors as failure response
                                 DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
-
-                                foreach (EDnsExtendedDnsErrorOption dnsError in ex.Response.DnsClientExtendedErrors)
-                                    failureResponse.AddDnsClientExtendedError(dnsError);
-
-                                if (ex.Response.EDNS is not null)
-                                {
-                                    foreach (EDnsOption option in ex.Response.EDNS.Options)
-                                    {
-                                        if (option.Code == EDnsOptionCode.EXTENDED_DNS_ERROR)
-                                            failureResponse.AddDnsClientExtendedError(option.Data as EDnsExtendedDnsErrorOption);
-                                    }
-                                }
+                                failureResponse.AddDnsClientExtendedErrorFrom(ex.Response);
 
                                 //cache as failure
                                 cache.CacheResponse(failureResponse);
@@ -1935,7 +1918,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     //signer's name is a subdomain for last DS record owner name
                     //find DNSKEY
-                    IReadOnlyList<DnsResourceRecord> dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize);
+                    IReadOnlyList<DnsResourceRecord> dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, response);
                     if (dnsKeyRecords is null)
                     {
                         if (unsignedZones is null)
@@ -2007,7 +1990,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             case DnssecProofOfNonExistence.NoData:
                                             case DnssecProofOfNonExistence.InsecureDelegation: //proves no DS record exists
                                             case DnssecProofOfNonExistence.NxDomain: //proves NO DATA due to empty non terminal (ENT) caused by qname minimization
-                                                                                     //no data for the type was found
+                                                //no data for the type was found
                                                 break;
 
                                             default:
@@ -2243,7 +2226,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> FindDnsKeyForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> FindDnsKeyForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse)
         {
             string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
 
@@ -2264,7 +2247,7 @@ namespace TechnitiumLibrary.Net.Dns
                     continue; //continue till current DNSKEY domain name
 
                 //find DS
-                IReadOnlyList<DnsResourceRecord> nextDSRecords = await GetDSForAsync(nextDomain, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize);
+                IReadOnlyList<DnsResourceRecord> nextDSRecords = await GetDSForAsync(nextDomain, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, originalResponse);
 
                 if (nextDSRecords is null)
                 {
@@ -2291,7 +2274,7 @@ namespace TechnitiumLibrary.Net.Dns
             DnsQuestionRecord dnsKeyQuestion = new DnsQuestionRecord(lastDSRecord.Name, DnsResourceRecordType.DNSKEY, lastDSRecord.Class);
 
             //query cache without CD & DO flags
-            DnsDatagram cacheDnsKeyRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { dnsKeyQuestion });
+            DnsDatagram cacheDnsKeyRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { dnsKeyQuestion }, null, null, null, udpPayloadSize, EDnsHeaderFlags.None);
             DnsDatagram cacheDnsKeyResponse = QueryCache(cache, cacheDnsKeyRequest);
             if (cacheDnsKeyResponse is not null)
             {
@@ -2312,8 +2295,8 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DNSKEY records for owner name: " + dnsKeyQuestion.Name, dnsKeyResponse);
             }
 
-            //validate DNSKEY using DS digest
-            bool foundValidDnsKey = false;
+            //find valid DNSKEY using DS digest
+            List<DnsResourceRecord> dnsKeyRecords = new List<DnsResourceRecord>(2);
 
             foreach (DnsResourceRecord dnsKeyRecord in dnsKeyResponse.Answer)
             {
@@ -2330,17 +2313,11 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsDSRecord ds = dsRecord.RDATA as DnsDSRecord;
 
                     if ((ds.KeyTag == dnsKey.ComputedKeyTag) && (ds.Algorithm == dnsKey.Algorithm) && dnsKey.IsDnsKeyValid(dnsKeyRecord.Name, ds))
-                    {
-                        foundValidDnsKey = true;
-                        break;
-                    }
+                        dnsKeyRecords.Add(dnsKeyRecord);
                 }
-
-                if (foundValidDnsKey)
-                    break;
             }
 
-            if (!foundValidDnsKey)
+            if (dnsKeyRecords.Count == 0)
             {
                 dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, dnsKeyQuestion.Name);
                 cache.CacheResponse(dnsKeyResponse, true);
@@ -2350,7 +2327,7 @@ namespace TechnitiumLibrary.Net.Dns
             //validate signature for DNSKEY response
             try
             {
-                DnssecValidateSignature(dnsKeyResponse, dnsKeyResponse.Answer, null);
+                DnssecValidateSignature(dnsKeyResponse, dnsKeyRecords, null);
             }
             catch (DnsClientResponseDnssecValidationException ex)
             {
@@ -2363,7 +2340,7 @@ namespace TechnitiumLibrary.Net.Dns
             return dnsKeyResponse.Answer;
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDSForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDSForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse)
         {
             string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
 
@@ -2378,7 +2355,12 @@ namespace TechnitiumLibrary.Net.Dns
             if (cacheDSResponse is not null)
             {
                 if (TryGetDSFromResponse(cacheDSResponse, ownerName, out IReadOnlyList<DnsResourceRecord> cacheDSRecords))
+                {
+                    if (cacheDSRecords is null)
+                        originalResponse.AddDnsClientExtendedErrorFrom(cacheDSResponse);
+
                     return cacheDSRecords;
+                }
 
                 throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + ownerName, cacheDSResponse);
             }
@@ -2400,6 +2382,9 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (TryGetDSFromResponse(dsResponse, ownerName, out IReadOnlyList<DnsResourceRecord> dsRecords))
             {
+                if (dsRecords is null)
+                    originalResponse.AddDnsClientExtendedErrorFrom(dsResponse);
+
                 cache.CacheResponse(dsResponse);
                 return dsRecords;
             }
@@ -3434,18 +3419,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             //response is not for current question; cache its extended errors as failure response
                             DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { q });
-
-                            foreach (EDnsExtendedDnsErrorOption dnsError in ex2.Response.DnsClientExtendedErrors)
-                                failureResponse.AddDnsClientExtendedError(dnsError);
-
-                            if (ex2.Response.EDNS is not null)
-                            {
-                                foreach (EDnsOption option in ex2.Response.EDNS.Options)
-                                {
-                                    if (option.Code == EDnsOptionCode.EXTENDED_DNS_ERROR)
-                                        failureResponse.AddDnsClientExtendedError(option.Data as EDnsExtendedDnsErrorOption);
-                                }
-                            }
+                            failureResponse.AddDnsClientExtendedErrorFrom(ex2.Response);
 
                             //cache as failure
                             _cache.CacheResponse(failureResponse);
