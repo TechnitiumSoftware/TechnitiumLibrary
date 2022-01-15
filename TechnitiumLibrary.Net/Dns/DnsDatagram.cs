@@ -668,6 +668,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             datagram._metadata = _metadata;
             datagram._edns = _edns;
+            datagram._dnsClientExtendedErrors = _dnsClientExtendedErrors;
             datagram.Tag = Tag;
 
             return datagram;
@@ -684,6 +685,26 @@ namespace TechnitiumLibrary.Net.Dns
                 _dnsClientExtendedErrors = new List<EDnsExtendedDnsErrorOption>();
 
             _dnsClientExtendedErrors.Add(dnsError);
+        }
+
+        internal void AddDnsClientExtendedErrorFrom(DnsDatagram datagram)
+        {
+            //copy errors from OPT
+            if (datagram._edns is not null)
+            {
+                foreach (EDnsOption option in datagram._edns.Options)
+                {
+                    if (option.Code == EDnsOptionCode.EXTENDED_DNS_ERROR)
+                        AddDnsClientExtendedError(option.Data as EDnsExtendedDnsErrorOption);
+                }
+            }
+
+            //copy generated errors
+            if (datagram._dnsClientExtendedErrors is not null)
+            {
+                foreach (EDnsExtendedDnsErrorOption dnsError in datagram._dnsClientExtendedErrors)
+                    AddDnsClientExtendedError(dnsError);
+            }
         }
 
         #endregion
@@ -711,6 +732,8 @@ namespace TechnitiumLibrary.Net.Dns
                 datagram._edns = null;
             else
                 datagram._edns = DnsDatagramEdns.ReadOPTFrom(additional, _RCODE);
+
+            datagram._dnsClientExtendedErrors = _dnsClientExtendedErrors;
 
             datagram._nextDatagram = _nextDatagram;
 
