@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
@@ -137,14 +136,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region protected
 
-        protected static async Task<Socket> GetTcpConnectionAsync(EndPoint ep)
+        protected static async Task<Socket> GetTcpConnectionAsync(EndPoint ep, CancellationToken cancellationToken)
         {
             if (ep.AddressFamily == AddressFamily.Unspecified)
                 ep = await ep.GetIPEndPointAsync();
 
             Socket socket = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-            await socket.ConnectAsync(ep);
+            await socket.ConnectAsync(ep, cancellationToken);
 
             socket.NoDelay = true;
 
@@ -184,11 +183,11 @@ namespace TechnitiumLibrary.Net.Proxy
             return false;
         }
 
-        public async Task<bool> IsProxyAccessibleAsync(bool throwException = false, int timeout = 10000)
+        public async Task<bool> IsProxyAccessibleAsync(bool throwException = false, int timeout = 10000, CancellationToken cancellationToken = default)
         {
             try
             {
-                using (Socket socket = await GetTcpConnectionAsync(_proxyEP).WithTimeout(timeout))
+                using (Socket socket = await GetTcpConnectionAsync(_proxyEP, cancellationToken).WithTimeout(timeout))
                 { }
 
                 return true;
@@ -207,20 +206,20 @@ namespace TechnitiumLibrary.Net.Proxy
             return Task.FromResult(false);
         }
 
-        public async Task<Socket> ConnectAsync(string address, int port)
+        public async Task<Socket> ConnectAsync(string address, int port, CancellationToken cancellationToken = default)
         {
-            return await ConnectAsync(EndPointExtension.GetEndPoint(address, port));
+            return await ConnectAsync(EndPointExtension.GetEndPoint(address, port), cancellationToken);
         }
 
-        public async Task<Socket> ConnectAsync(EndPoint remoteEP)
+        public async Task<Socket> ConnectAsync(EndPoint remoteEP, CancellationToken cancellationToken = default)
         {
             if (IsBypassed(remoteEP))
-                return await GetTcpConnectionAsync(remoteEP);
+                return await GetTcpConnectionAsync(remoteEP, cancellationToken);
 
             if (_viaProxy == null)
-                return await ConnectAsync(remoteEP, await GetTcpConnectionAsync(_proxyEP));
+                return await ConnectAsync(remoteEP, await GetTcpConnectionAsync(_proxyEP, cancellationToken));
             else
-                return await ConnectAsync(remoteEP, await _viaProxy.ConnectAsync(_proxyEP));
+                return await ConnectAsync(remoteEP, await _viaProxy.ConnectAsync(_proxyEP, cancellationToken));
         }
 
         public virtual Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
@@ -233,21 +232,20 @@ namespace TechnitiumLibrary.Net.Proxy
             throw new NotSupportedException();
         }
 
-        public Task<TunnelProxy> CreateTunnelProxyAsync(string address, int port, bool enableSsl = false, bool ignoreCertificateErrors = false)
+        public Task<TunnelProxy> CreateTunnelProxyAsync(string address, int port, bool enableSsl = false, bool ignoreCertificateErrors = false, CancellationToken cancellationToken = default)
         {
-            return CreateTunnelProxyAsync(EndPointExtension.GetEndPoint(address, port), enableSsl, ignoreCertificateErrors);
+            return CreateTunnelProxyAsync(EndPointExtension.GetEndPoint(address, port), enableSsl, ignoreCertificateErrors, cancellationToken);
         }
 
-        public async Task<TunnelProxy> CreateTunnelProxyAsync(EndPoint remoteEP, bool enableSsl = false, bool ignoreCertificateErrors = false)
+        public async Task<TunnelProxy> CreateTunnelProxyAsync(EndPoint remoteEP, bool enableSsl = false, bool ignoreCertificateErrors = false, CancellationToken cancellationToken = default)
         {
-            return new TunnelProxy(await ConnectAsync(remoteEP), remoteEP, enableSsl, ignoreCertificateErrors);
+            return new TunnelProxy(await ConnectAsync(remoteEP, cancellationToken), remoteEP, enableSsl, ignoreCertificateErrors);
         }
 
         public virtual Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
-
 
         #endregion
 
