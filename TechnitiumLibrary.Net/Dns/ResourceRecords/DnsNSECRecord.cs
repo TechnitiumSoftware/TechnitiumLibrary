@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -89,108 +89,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
-        #region private
+        #region static
 
-        internal static DnssecProofOfNonExistence GetValidatedProofOfNonExistence(IReadOnlyList<DnsResourceRecord> nsecRecords, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation)
-        {
-            bool foundProofOfCover = false;
-            string wildcardDomain = null;
-
-            foreach (DnsResourceRecord record in nsecRecords)
-            {
-                if (record.Type != DnsResourceRecordType.NSEC)
-                    continue;
-
-                DnsNSECRecord nsec = record.RDATA as DnsNSECRecord;
-
-                if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
-                {
-                    //found proof of existence
-
-                    //check if the NSEC is an "ancestor delegation"
-                    if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation)
-                        continue; //cannot prove with ancestor delegation NSEC; try next NSEC
-
-                    return nsec.GetProofOfNonExistenceFromRecordTypes(type);
-                }
-                else if (IsDomainCovered(record.Name, nsec._nextDomainName, domain))
-                {
-                    //found proof of cover
-
-                    //check if the NSEC is an "ancestor delegation"
-                    if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation && domain.EndsWith("." + record.Name, StringComparison.OrdinalIgnoreCase))
-                        continue; //cannot prove with ancestor delegation NSEC; try next NSEC
-
-                    if (nsec._nextDomainName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase))
-                        return DnssecProofOfNonExistence.NoData; //domain is empty non terminal (ENT) so proves NO DATA
-
-                    if (wildcardAnswerValidation)
-                        return DnssecProofOfNonExistence.NxDomain; //since wildcard was already validated; the domain does not exists
-
-                    foundProofOfCover = true;
-                    wildcardDomain = GetWildcardFor(record.Name, nsec._nextDomainName);
-                    break;
-                }
-            }
-
-            if (!foundProofOfCover)
-                return DnssecProofOfNonExistence.NoProof;
-
-            //found proof of cover; so the domain does not exists but there could be a possibility of wildcard that may exist which also needs to be proved as non-existent
-
-            //find proof for wildcard NXDomain
-            foreach (DnsResourceRecord record in nsecRecords)
-            {
-                if (record.Type != DnsResourceRecordType.NSEC)
-                    continue;
-
-                DnsNSECRecord nsec = record.RDATA as DnsNSECRecord;
-
-                if (record.Name.Equals(wildcardDomain, StringComparison.OrdinalIgnoreCase))
-                {
-                    //found proof of existence for a wildcard domain
-
-                    //check if the NSEC is an "ancestor delegation"
-                    if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation)
-                        continue; //cannot prove with ancestor delegation NSEC; try next NSEC
-
-                    //response failed to prove that the domain does not exists since a wildcard exists
-                    return DnssecProofOfNonExistence.NoProof;
-                }
-                else if (IsDomainCovered(record.Name, nsec._nextDomainName, wildcardDomain))
-                {
-                    //found proof of cover for wildcard domain
-
-                    //check if the NSEC is an "ancestor delegation"
-                    if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation && domain.EndsWith("." + record.Name, StringComparison.OrdinalIgnoreCase))
-                        continue; //cannot prove with ancestor delegation NSEC; try next NSEC
-
-                    //proved that the actual domain does not exists since a wildcard does not exists
-                    return DnssecProofOfNonExistence.NxDomain;
-                }
-            }
-
-            //found no proof
-            return DnssecProofOfNonExistence.NoProof;
-        }
-
-        private DnssecProofOfNonExistence GetProofOfNonExistenceFromRecordTypes(DnsResourceRecordType checkType)
-        {
-            if ((checkType == DnsResourceRecordType.DS) && _isInsecureDelegation)
-                return DnssecProofOfNonExistence.InsecureDelegation;
-
-            //find if record set exists
-            foreach (DnsResourceRecordType type in _types)
-            {
-                if ((type == checkType) || (type == DnsResourceRecordType.CNAME))
-                    return DnssecProofOfNonExistence.RecordSetExists;
-            }
-
-            //found no record set
-            return DnssecProofOfNonExistence.NoData;
-        }
-
-        private static string GetWildcardFor(string ownerName, string nextDomainName)
+        public static string GetWildcardFor(string ownerName, string nextDomainName)
         {
             // abc.xyz.example.com
             // x.y.z.example.com
@@ -229,19 +130,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return wildcard;
         }
 
-        internal static bool IsDomainCovered(string ownerName, string nextDomainName, string domain)
-        {
-            int x = CanonicalComparison(ownerName, domain);
-            int y = CanonicalComparison(nextDomainName, domain);
-            int z = CanonicalComparison(ownerName, nextDomainName);
-
-            if (z < 0)
-                return (x < 0) && (y > 0);
-            else
-                return ((x < 0) && (y < 0)) || ((x > 0) && (y > 0)); //last NSEC
-        }
-
-        internal static int CanonicalComparison(string domain1, string domain2)
+        public static int CanonicalComparison(string domain1, string domain2)
         {
             string[] labels1 = domain1.ToLower().Split('.');
             string[] labels2 = domain2.ToLower().Split('.');
@@ -265,6 +154,121 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return 1;
 
             return 0;
+        }
+
+        #endregion
+
+        #region private
+
+        internal static DnssecProofOfNonExistence GetValidatedProofOfNonExistence(IReadOnlyList<DnsResourceRecord> nsecRecords, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation)
+        {
+            bool foundProofOfCover = false;
+            string wildcardDomain = null;
+
+            foreach (DnsResourceRecord nsecRecord in nsecRecords)
+            {
+                if (nsecRecord.Type != DnsResourceRecordType.NSEC)
+                    continue;
+
+                DnsNSECRecord nsec = nsecRecord.RDATA as DnsNSECRecord;
+
+                if (nsecRecord.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                {
+                    //found proof of existence
+
+                    //check if the NSEC is an "ancestor delegation"
+                    if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation)
+                        continue; //cannot prove with ancestor delegation NSEC; try next NSEC
+
+                    return nsec.GetProofOfNonExistenceFromRecordTypes(type);
+                }
+                else if (IsDomainCovered(nsecRecord.Name, nsec._nextDomainName, domain))
+                {
+                    //found proof of cover
+
+                    //check if the NSEC is an "ancestor delegation"
+                    if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation && domain.EndsWith("." + nsecRecord.Name, StringComparison.OrdinalIgnoreCase))
+                        continue; //cannot prove with ancestor delegation NSEC; try next NSEC
+
+                    if (nsec._nextDomainName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase))
+                        return DnssecProofOfNonExistence.NoData; //domain is empty non terminal (ENT) so proves NO DATA
+
+                    if (wildcardAnswerValidation)
+                        return DnssecProofOfNonExistence.NxDomain; //since wildcard was already validated; the domain does not exists
+
+                    foundProofOfCover = true;
+                    wildcardDomain = GetWildcardFor(nsecRecord.Name, nsec._nextDomainName);
+                    break;
+                }
+            }
+
+            if (!foundProofOfCover)
+                return DnssecProofOfNonExistence.NoProof;
+
+            //found proof of cover; so the domain does not exists but there could be a possibility of wildcard that may exist which also needs to be proved as non-existent
+
+            //find proof for wildcard NXDomain
+            foreach (DnsResourceRecord nsecRecord in nsecRecords)
+            {
+                if (nsecRecord.Type != DnsResourceRecordType.NSEC)
+                    continue;
+
+                DnsNSECRecord nsec = nsecRecord.RDATA as DnsNSECRecord;
+
+                if (nsecRecord.Name.Equals(wildcardDomain, StringComparison.OrdinalIgnoreCase))
+                {
+                    //found proof of existence for a wildcard domain
+
+                    //check if the NSEC is an "ancestor delegation"
+                    if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation)
+                        continue; //cannot prove with ancestor delegation NSEC; try next NSEC
+
+                    //response failed to prove that the domain does not exists since a wildcard exists
+                    return DnssecProofOfNonExistence.NoProof;
+                }
+                else if (IsDomainCovered(nsecRecord.Name, nsec._nextDomainName, wildcardDomain))
+                {
+                    //found proof of cover for wildcard domain
+
+                    //check if the NSEC is an "ancestor delegation"
+                    if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation && domain.EndsWith("." + nsecRecord.Name, StringComparison.OrdinalIgnoreCase))
+                        continue; //cannot prove with ancestor delegation NSEC; try next NSEC
+
+                    //proved that the actual domain does not exists since a wildcard does not exists
+                    return DnssecProofOfNonExistence.NxDomain;
+                }
+            }
+
+            //found no proof
+            return DnssecProofOfNonExistence.NoProof;
+        }
+
+        private DnssecProofOfNonExistence GetProofOfNonExistenceFromRecordTypes(DnsResourceRecordType checkType)
+        {
+            if ((checkType == DnsResourceRecordType.DS) && _isInsecureDelegation)
+                return DnssecProofOfNonExistence.InsecureDelegation;
+
+            //find if record set exists
+            foreach (DnsResourceRecordType type in _types)
+            {
+                if ((type == checkType) || (type == DnsResourceRecordType.CNAME))
+                    return DnssecProofOfNonExistence.RecordSetExists;
+            }
+
+            //found no record set
+            return DnssecProofOfNonExistence.NoData;
+        }
+
+        internal static bool IsDomainCovered(string ownerName, string nextDomainName, string domain)
+        {
+            int x = CanonicalComparison(ownerName, domain);
+            int y = CanonicalComparison(nextDomainName, domain);
+            int z = CanonicalComparison(ownerName, nextDomainName);
+
+            if (z < 0)
+                return (x < 0) && (y > 0);
+            else
+                return ((x < 0) && (y < 0)) || ((x > 0) && (y > 0)); //last NSEC
         }
 
         internal static int CanonicalComparison(byte[] x, byte[] y)
