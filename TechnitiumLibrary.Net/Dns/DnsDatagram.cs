@@ -867,15 +867,15 @@ namespace TechnitiumLibrary.Net.Dns
                 additional.WriteTo(s, domainEntries);
         }
 
-        public async Task WriteToTcpAsync(Stream s)
+        public async Task WriteToTcpAsync(Stream s, CancellationToken cancellationToken = default)
         {
             using (MemoryStream mS = new MemoryStream(4096))
             {
-                await WriteToTcpAsync(s, mS);
+                await WriteToTcpAsync(s, mS, cancellationToken);
             }
         }
 
-        public async Task WriteToTcpAsync(Stream s, MemoryStream sharedBuffer)
+        public async Task WriteToTcpAsync(Stream s, MemoryStream sharedBuffer, CancellationToken cancellationToken = default)
         {
             DnsDatagram current = this;
 
@@ -889,7 +889,7 @@ namespace TechnitiumLibrary.Net.Dns
                 WriteUInt16NetworkOrder(Convert.ToUInt16(sharedBuffer.Length - 2), sharedBuffer);
 
                 sharedBuffer.Position = 0;
-                await sharedBuffer.CopyToAsync(s, Math.Min(4096, (int)sharedBuffer.Length));
+                await sharedBuffer.CopyToAsync(s, Math.Min(4096, (int)sharedBuffer.Length), cancellationToken);
 
                 current = current._nextDatagram;
             }
