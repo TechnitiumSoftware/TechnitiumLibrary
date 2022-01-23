@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,7 +17,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -101,6 +103,28 @@ namespace TechnitiumLibrary.IO
         public static Task WriteAsync(this Stream s, byte[] buffer)
         {
             return s.WriteAsync(buffer, 0, buffer.Length);
+        }
+
+        public static string ReadShortString(this Stream s)
+        {
+            return ReadShortString(s, Encoding.UTF8);
+        }
+
+        public static string ReadShortString(this Stream s, Encoding encoding)
+        {
+            return encoding.GetString(s.ReadBytes(s.ReadByteValue()));
+        }
+
+        public static void WriteShortString(this Stream s, string value)
+        {
+            WriteShortString(s, value, Encoding.UTF8);
+        }
+
+        public static void WriteShortString(this Stream s, string value, Encoding encoding)
+        {
+            byte[] buffer = encoding.GetBytes(value);
+            s.WriteByte(Convert.ToByte(buffer.Length));
+            s.Write(buffer);
         }
 
         public static void CopyTo(this Stream s, Stream destination, int bufferSize, int length)
