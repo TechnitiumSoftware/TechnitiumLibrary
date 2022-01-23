@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
@@ -399,6 +400,10 @@ namespace TechnitiumLibrary.Net.Dns
                 if (authorityRecord.Type == DnsResourceRecordType.NS)
                 {
                     DnsNSRecord nsRecord = (DnsNSRecord)authorityRecord.RDATA;
+
+                    if (IPAddress.TryParse(nsRecord.NameServer, out _))
+                        continue; //skip misconfigured NS record
+
                     IPEndPoint endPoint = null;
 
                     //find ip address of authoritative name server from additional records
@@ -499,7 +504,7 @@ namespace TechnitiumLibrary.Net.Dns
             return nsAddress;
         }
 
-        public async Task ResolveIPAddressAsync(IDnsClient dnsClient, bool preferIPv6 = false)
+        public async Task ResolveIPAddressAsync(IDnsClient dnsClient, bool preferIPv6 = false, CancellationToken cancellationToken = default)
         {
             if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
                 return;
@@ -525,7 +530,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return;
             }
 
-            IReadOnlyList<IPAddress> serverIPs = await DnsClient.ResolveIPAsync(dnsClient, domain, preferIPv6);
+            IReadOnlyList<IPAddress> serverIPs = await DnsClient.ResolveIPAsync(dnsClient, domain, preferIPv6, cancellationToken);
 
             if (serverIPs.Count == 0)
                 throw new DnsClientException("No IP address was found for name server: " + domain);
@@ -535,7 +540,7 @@ namespace TechnitiumLibrary.Net.Dns
             _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
         }
 
-        public async Task RecursiveResolveIPAddressAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, int retries = 2, int timeout = 2000)
+        public async Task RecursiveResolveIPAddressAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, int retries = 2, int timeout = 2000, CancellationToken cancellationToken = default)
         {
             if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
                 return;
@@ -563,7 +568,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             IPEndPoint ipEndPoint = null;
 
-            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, false, retries, timeout);
+            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, false, retries, timeout, 16, cancellationToken);
             if (addresses.Count > 0)
                 ipEndPoint = new IPEndPoint(addresses[0], Port);
 
@@ -575,13 +580,13 @@ namespace TechnitiumLibrary.Net.Dns
             _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
         }
 
-        public async Task ResolveDomainNameAsync(IDnsClient dnsClient)
+        public async Task ResolveDomainNameAsync(IDnsClient dnsClient, CancellationToken cancellationToken = default)
         {
             if (_ipEndPoint != null)
             {
                 try
                 {
-                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await dnsClient.ResolveAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN)));
+                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await dnsClient.ResolveAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cancellationToken));
                     if (ptrDomains.Count > 0)
                         _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
@@ -590,13 +595,13 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public async Task RecursiveResolveDomainNameAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, int retries = 2, int timeout = 2000)
+        public async Task RecursiveResolveDomainNameAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, int retries = 2, int timeout = 2000, CancellationToken cancellationToken = default)
         {
             if (_ipEndPoint != null)
             {
                 try
                 {
-                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, false, retries, timeout));
+                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, false, retries, timeout, 16, cancellationToken));
                     if (ptrDomains.Count > 0)
                         _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
