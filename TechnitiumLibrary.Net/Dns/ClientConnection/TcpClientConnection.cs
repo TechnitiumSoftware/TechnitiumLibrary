@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@ using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -108,7 +107,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region private
 
-        private async Task<Stream> GetConnectionAsync()
+        private async Task<Stream> GetConnectionAsync(CancellationToken cancellationToken)
         {
             if (_tcpStream != null)
                 return _tcpStream;
@@ -118,20 +117,20 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             if (_proxy == null)
             {
                 if (_server.IsIPEndPointStale)
-                    await _server.RecursiveResolveIPAddressAsync();
+                    await _server.RecursiveResolveIPAddressAsync(null, null, false, DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, false, 2, 2000, cancellationToken);
 
                 socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                await socket.ConnectAsync(_server.IPEndPoint);
+                await socket.ConnectAsync(_server.IPEndPoint, cancellationToken);
             }
             else
             {
-                socket = await _proxy.ConnectAsync(_server.EndPoint);
+                socket = await _proxy.ConnectAsync(_server.EndPoint, cancellationToken);
             }
 
             socket.NoDelay = true;
 
             _socket = socket;
-            _tcpStream = await GetNetworkStreamAsync(socket);
+            _tcpStream = await GetNetworkStreamAsync(socket, cancellationToken);
 
             _ = ReadDnsDatagramAsync();
 
@@ -175,7 +174,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
         }
 
-        private async Task<bool> SendDnsDatagramAsync(DnsDatagram request, int timeout, Transaction transaction)
+        private async Task<bool> SendDnsDatagramAsync(DnsDatagram request, int timeout, Transaction transaction, CancellationToken cancellationToken)
         {
             if (!await _sendRequestSemaphore.WaitAsync(timeout))
                 return false; //timed out
@@ -187,10 +186,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     request.SetRandomIdentifier();
 
                 //get connection
-                Stream tcpStream = await GetConnectionAsync();
+                Stream tcpStream = await GetConnectionAsync(cancellationToken);
 
                 //send request
-                await request.WriteToTcpAsync(tcpStream, _sendBuffer);
+                await request.WriteToTcpAsync(tcpStream, _sendBuffer, cancellationToken);
                 tcpStream.Flush();
 
                 return true;
@@ -205,7 +204,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region protected
 
-        protected virtual Task<Stream> GetNetworkStreamAsync(Socket socket)
+        protected virtual Task<Stream> GetNetworkStreamAsync(Socket socket, CancellationToken cancellationToken)
         {
             return Task.FromResult<Stream>(new NetworkStream(socket, true));
         }
@@ -230,7 +229,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     Transaction transaction = new Transaction(request.IsZoneTransfer);
 
-                    Task<bool> sendAsyncTask = SendDnsDatagramAsync(request, timeout, transaction);
+                    Task<bool> sendAsyncTask = SendDnsDatagramAsync(request, timeout, transaction, cancellationToken);
 
                     //wait for request with timeout
                     using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
