@@ -100,7 +100,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if (_proxy == null)
                 {
                     if (_server.IsIPEndPointStale)
-                        await _server.RecursiveResolveIPAddressAsync();
+                        await _server.RecursiveResolveIPAddressAsync(null, null, false, DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, false, 2, 2000, cancellationToken);
 
                     queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
                 }
