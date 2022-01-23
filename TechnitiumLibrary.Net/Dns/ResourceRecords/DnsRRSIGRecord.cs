@@ -124,17 +124,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         private static string GetTrimmedDomain(string domain, int labelCount)
         {
             string[] labels = domain.Split('.');
-            string nextCloserName = null;
+            string trimmedDomain = null;
 
             for (int i = 0; i < labelCount; i++)
             {
-                if (nextCloserName is null)
-                    nextCloserName = labels[labels.Length - 1 - i];
+                if (trimmedDomain is null)
+                    trimmedDomain = labels[labels.Length - 1 - i];
                 else
-                    nextCloserName = labels[labels.Length - 1 - i] + "." + nextCloserName;
+                    trimmedDomain = labels[labels.Length - 1 - i] + "." + trimmedDomain;
             }
 
-            return nextCloserName;
+            return trimmedDomain;
         }
 
         private static int GetLabelCount(string domain)
