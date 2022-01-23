@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -106,6 +106,29 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region static
+
+        public static string GetNextCloserName(string domain, string closestEncloser)
+        {
+            string[] labels = domain.Split('.');
+            string nextCloserName = null;
+
+            for (int i = 0; i < labels.Length; i++)
+            {
+                if (nextCloserName is null)
+                    nextCloserName = labels[labels.Length - 1 - i];
+                else
+                    nextCloserName = labels[labels.Length - 1 - i] + "." + nextCloserName;
+
+                if (nextCloserName.Length > closestEncloser.Length)
+                    break;
+            }
+
+            return nextCloserName;
+        }
+
+        #endregion
+
         #region private
 
         internal static DnssecProofOfNonExistence GetValidatedProofOfNonExistence(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string wildcardNextCloserName)
@@ -133,13 +156,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 string hashedClosestEncloser = null;
 
-                foreach (DnsResourceRecord record in nsec3Records)
+                foreach (DnsResourceRecord nsec3Record in nsec3Records)
                 {
-                    if (record.Type != DnsResourceRecordType.NSEC3)
+                    if (nsec3Record.Type != DnsResourceRecordType.NSEC3)
                         continue;
 
-                    DnsNSEC3Record nsec3 = record.RDATA as DnsNSEC3Record;
-                    string hashedOwnerName = GetHashedOwnerName(record.Name);
+                    DnsNSEC3Record nsec3 = nsec3Record.RDATA as DnsNSEC3Record;
+                    string hashedOwnerName = GetHashedOwnerName(nsec3Record.Name);
 
                     if (hashedClosestEncloser is null)
                         hashedClosestEncloser = nsec3.ComputeHashedOwnerName(closestEncloser);
@@ -177,20 +200,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             bool foundNextCloserNameProof = false;
             string hashedNextCloserName = null;
 
-            foreach (DnsResourceRecord record in nsec3Records)
+            foreach (DnsResourceRecord nsec3Record in nsec3Records)
             {
-                if (record.Type != DnsResourceRecordType.NSEC3)
+                if (nsec3Record.Type != DnsResourceRecordType.NSEC3)
                     continue;
 
-                DnsNSEC3Record nsec3 = record.RDATA as DnsNSEC3Record;
-                string hashedOwnerName = GetHashedOwnerName(record.Name);
+                DnsNSEC3Record nsec3 = nsec3Record.RDATA as DnsNSEC3Record;
+                string hashedOwnerName = GetHashedOwnerName(nsec3Record.Name);
 
                 if (hashedNextCloserName is null)
                     hashedNextCloserName = nsec3.ComputeHashedOwnerName(nextCloserName);
 
                 if (DnsNSECRecord.IsDomainCovered(hashedOwnerName, nsec3._nextHashedOwnerName, hashedNextCloserName))
                 {
-                    //found proof of cover for next closer name
+                    //found proof of cover for hashed next closer name
 
                     //check if the NSEC3 is an "ancestor delegation"
                     if ((type != DnsResourceRecordType.DS) && nsec3._isAncestorDelegation && domain.EndsWith("." + nextCloserName, StringComparison.OrdinalIgnoreCase))
@@ -216,13 +239,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             string wildcardDomain = closestEncloser.Length > 0 ? "*." + closestEncloser : "*";
             string hashedWildcardDomainName = null;
 
-            foreach (DnsResourceRecord record in nsec3Records)
+            foreach (DnsResourceRecord nsec3Record in nsec3Records)
             {
-                if (record.Type != DnsResourceRecordType.NSEC3)
+                if (nsec3Record.Type != DnsResourceRecordType.NSEC3)
                     continue;
 
-                DnsNSEC3Record nsec3 = record.RDATA as DnsNSEC3Record;
-                string hashedOwnerName = GetHashedOwnerName(record.Name);
+                DnsNSEC3Record nsec3 = nsec3Record.RDATA as DnsNSEC3Record;
+                string hashedOwnerName = GetHashedOwnerName(nsec3Record.Name);
 
                 if (hashedWildcardDomainName is null)
                     hashedWildcardDomainName = nsec3.ComputeHashedOwnerName(wildcardDomain);
@@ -308,7 +331,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return Base32.ToBase32HexString(ComputeHashedOwnerName(ownerName, _hashAlgorithm, _iterations, _salt)).ToLower();
         }
 
-        private static byte[] ComputeHashedOwnerName(string ownerName, DnssecNSEC3HashAlgorithm hashAlgorithm, ushort iterations, byte[] salt)
+        internal static byte[] ComputeHashedOwnerName(string ownerName, DnssecNSEC3HashAlgorithm hashAlgorithm, ushort iterations, byte[] salt)
         {
             HashAlgorithm hash;
 
