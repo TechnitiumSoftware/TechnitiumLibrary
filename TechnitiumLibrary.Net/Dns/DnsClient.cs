@@ -376,7 +376,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, bool cleanupResponse = false)
+        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, bool cleanupResponse = false, CancellationToken cancellationToken = default)
         {
             if ((udpPayloadSize < 512) && dnssecValidation)
                 throw new ArgumentOutOfRangeException(nameof(UdpPayloadSize), "EDNS cannot be disabled by setting UDP payload size to less than 512 when DNSSEC validation is enabled.");
@@ -861,12 +861,12 @@ namespace TechnitiumLibrary.Net.Dns
 
                         try
                         {
-                            response = await dnsClient.InternalResolveAsync(request);
+                            response = await dnsClient.InternalResolveAsync(request, cancellationToken);
 
                             if (ednsFlags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
                             {
                                 //dnssec validate response
-                                await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize);
+                                await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken);
                             }
                             else if (dnssecValidation)
                             {
@@ -1428,45 +1428,45 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
+        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, CancellationToken cancellationToken = default)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             return ResolveQueryAsync(question, delegate (DnsQuestionRecord q)
             {
-                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount, true);
+                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount, true, cancellationToken);
             });
         }
 
-        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16)
+        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, CancellationToken cancellationToken = default)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount, cancellationToken));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount));
+            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount, cancellationToken));
         }
 
-        public static async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(IDnsClient dnsClient, string domain, bool preferIPv6 = false)
+        public static async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(IDnsClient dnsClient, string domain, bool preferIPv6 = false, CancellationToken cancellationToken = default)
         {
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN)));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN)));
+            return ParseResponseA(await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
         }
 
-        public static async Task<IReadOnlyList<string>> ResolveMXAsync(IDnsClient dnsClient, string domain, bool resolveIP = false, bool preferIPv6 = false)
+        public static async Task<IReadOnlyList<string>> ResolveMXAsync(IDnsClient dnsClient, string domain, bool resolveIP = false, bool preferIPv6 = false, CancellationToken cancellationToken = default)
         {
             if (IPAddress.TryParse(domain, out _))
             {
@@ -1474,7 +1474,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return new string[] { domain };
             }
 
-            DnsDatagram response = await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.MX, DnsClass.IN));
+            DnsDatagram response = await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.MX, DnsClass.IN), cancellationToken);
             IReadOnlyList<string> mxEntries = ParseResponseMX(response);
 
             if (!resolveIP)
@@ -1517,7 +1517,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     try
                     {
-                        IReadOnlyList<IPAddress> ipList = await ResolveIPAsync(dnsClient, mxEntry, preferIPv6);
+                        IReadOnlyList<IPAddress> ipList = await ResolveIPAsync(dnsClient, mxEntry, preferIPv6, cancellationToken);
 
                         foreach (IPAddress ip in ipList)
                             mxAddresses.Add(ip.ToString());
@@ -1893,10 +1893,10 @@ namespace TechnitiumLibrary.Net.Dns
             return word;
         }
 
-        private static async Task DnssecValidateResponseAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize)
+        private static async Task DnssecValidateResponseAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, CancellationToken cancellationToken)
         {
             //find current DNSKEY
-            IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords = await GetDnsKeyForAsync(lastDSRecords, dnsClient, cache, udpPayloadSize);
+            IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords = await GetDnsKeyForAsync(lastDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken);
 
             string lastDSOwnerName = lastDSRecords[0].Name;
             DnsClass @class = response.Question[0].Class;
@@ -1918,7 +1918,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     //signer's name is a subdomain for last DS record owner name
                     //find DNSKEY
-                    IReadOnlyList<DnsResourceRecord> dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, response);
+                    IReadOnlyList<DnsResourceRecord> dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, response, cancellationToken);
                     if (dnsKeyRecords is null)
                     {
                         if (unsignedZones is null)
@@ -2231,7 +2231,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> FindDnsKeyForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> FindDnsKeyForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse, CancellationToken cancellationToken)
         {
             string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
 
@@ -2252,7 +2252,7 @@ namespace TechnitiumLibrary.Net.Dns
                     continue; //continue till current DNSKEY domain name
 
                 //find DS
-                IReadOnlyList<DnsResourceRecord> nextDSRecords = await GetDSForAsync(nextDomain, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, originalResponse);
+                IReadOnlyList<DnsResourceRecord> nextDSRecords = await GetDSForAsync(nextDomain, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, originalResponse, cancellationToken);
 
                 if (nextDSRecords is null)
                 {
@@ -2262,7 +2262,7 @@ namespace TechnitiumLibrary.Net.Dns
                 else if (nextDSRecords.Count > 0)
                 {
                     //get next DNSKEY
-                    currentDnsKeyRecords = await GetDnsKeyForAsync(nextDSRecords, dnsClient, cache, udpPayloadSize);
+                    currentDnsKeyRecords = await GetDnsKeyForAsync(nextDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken);
                 }
                 else
                 {
@@ -2273,7 +2273,7 @@ namespace TechnitiumLibrary.Net.Dns
             return currentDnsKeyRecords;
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDnsKeyForAsync(IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDnsKeyForAsync(IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, CancellationToken cancellationToken)
         {
             DnsResourceRecord lastDSRecord = lastDSRecords[0];
             DnsQuestionRecord dnsKeyQuestion = new DnsQuestionRecord(lastDSRecord.Name, DnsResourceRecordType.DNSKEY, lastDSRecord.Class);
@@ -2292,7 +2292,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             //query name server
             DnsDatagram dnsKeyRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { dnsKeyQuestion }, null, null, null, udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK);
-            DnsDatagram dnsKeyResponse = await dnsClient.InternalResolveAsync(dnsKeyRequest);
+            DnsDatagram dnsKeyResponse = await dnsClient.InternalResolveAsync(dnsKeyRequest, cancellationToken);
             if (dnsKeyResponse.Answer.Count == 0)
             {
                 dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, dnsKeyQuestion.Name);
@@ -2309,6 +2309,9 @@ namespace TechnitiumLibrary.Net.Dns
                     continue;
 
                 DnsDNSKEYRecord dnsKey = dnsKeyRecord.RDATA as DnsDNSKEYRecord;
+
+                if (dnsKey.Flags.HasFlag(DnsDnsKeyFlag.Revoke))
+                    continue; //cannot use revoked DNSKEY to validate the DNSKEY response
 
                 foreach (DnsResourceRecord dsRecord in lastDSRecords)
                 {
@@ -2345,7 +2348,7 @@ namespace TechnitiumLibrary.Net.Dns
             return dnsKeyResponse.Answer;
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDSForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDSForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse, CancellationToken cancellationToken)
         {
             string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
 
@@ -2372,7 +2375,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             //query dns server
             DnsDatagram dsRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { dsQuestion }, null, null, null, udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK);
-            DnsDatagram dsResponse = await dnsClient.InternalResolveAsync(dsRequest);
+            DnsDatagram dsResponse = await dnsClient.InternalResolveAsync(dsRequest, cancellationToken);
 
             //validate signature for DS response
             try
@@ -2885,14 +2888,14 @@ namespace TechnitiumLibrary.Net.Dns
 
             try
             {
-                response = await dnsClient.InternalResolveAsync(request);
+                response = await dnsClient.InternalResolveAsync(request, CancellationToken.None);
 
                 if (dnssecValidation)
                 {
                     if (lastDSRecords is null)
                         response.SetDnssecStatusForAllRecords(DnssecStatus.Insecure);
                     else
-                        await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize);
+                        await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize, CancellationToken.None);
                 }
                 else
                 {
@@ -2996,7 +2999,7 @@ namespace TechnitiumLibrary.Net.Dns
             return response;
         }
 
-        private async Task<DnsDatagram> InternalResolveAsync(DnsDatagram request)
+        private async Task<DnsDatagram> InternalResolveAsync(DnsDatagram request, CancellationToken cancellationToken)
         {
             //get servers
             IReadOnlyList<NameServerAddress> servers;
@@ -3047,7 +3050,7 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            async Task<DnsDatagram> DoResolveAsync(CancellationToken cancellationToken = default)
+            async Task<DnsDatagram> DoResolveAsync(CancellationToken cancellationToken)
             {
                 DnsDatagram asyncRequest = request.CloneHeadersAndQuestions(); //clone request (headers + question section) so that qname randomization does not pollute request question section and does not cause issue with parallel tasks
                 DnsDatagram lastResponse = null;
@@ -3085,7 +3088,7 @@ namespace TechnitiumLibrary.Net.Dns
                         //recursive resolve name server via root servers when proxy is null else let proxy resolve it
                         try
                         {
-                            await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _preferIPv6, _udpPayloadSize, _randomizeName, _retries, _timeout);
+                            await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _preferIPv6, _udpPayloadSize, _randomizeName, _retries, _timeout, cancellationToken);
                         }
                         catch (Exception ex)
                         {
@@ -3280,92 +3283,95 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 using (CancellationTokenSource cancellationTokenSource = new CancellationTokenSource())
                 {
-                    List<Task> tasks = new List<Task>(concurrency);
-
-                    //start worker tasks
-                    for (int i = 0; i < concurrency; i++)
-                        tasks.Add(Task.Factory.StartNew(delegate () { return DoResolveAsync(cancellationTokenSource.Token); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current).Unwrap());
-
-                    //add delay task
-                    Task delayTask = Task.Delay(_timeout * _retries * (int)Math.Ceiling((double)servers.Count / concurrency), cancellationTokenSource.Token);
-                    tasks.Add(delayTask);
-
-                    //wait for first positive response, or for all tasks to fault, or timeout
-                    DnsDatagram lastResponse = null;
-                    Exception lastException = null;
-
-                    while (true)
+                    using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { cancellationTokenSource.Cancel(); }))
                     {
-                        Task completedTask = await Task.WhenAny(tasks);
+                        List<Task> tasks = new List<Task>(concurrency + 1);
 
-                        if (completedTask == delayTask)
+                        //start worker tasks
+                        for (int i = 0; i < concurrency; i++)
+                            tasks.Add(Task.Factory.StartNew(delegate () { return DoResolveAsync(cancellationTokenSource.Token); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current).Unwrap());
+
+                        //add delay task
+                        Task delayTask = Task.Delay(_timeout * _retries * (int)Math.Ceiling((double)servers.Count / concurrency), cancellationTokenSource.Token);
+                        tasks.Add(delayTask);
+
+                        //wait for first positive response, or for all tasks to fault, or timeout
+                        DnsDatagram lastResponse = null;
+                        Exception lastException = null;
+
+                        while (true)
                         {
-                            cancellationTokenSource.Cancel(); //to stop resolver tasks
+                            Task completedTask = await Task.WhenAny(tasks);
 
-                            if (lastResponse is not null)
-                                return lastResponse; //return last response since it was returned by a task that ran to completion
-
-                            if (lastException is not null)
-                                ExceptionDispatchInfo.Capture(lastException).Throw();
-
-                            throw new DnsClientNoResponseException("DnsClient failed to resolve the request: request timed out.");
-                        }
-
-                        if (completedTask.Status == TaskStatus.RanToCompletion)
-                        {
-                            //resolver task complete
-                            DnsDatagram response = await (completedTask as Task<DnsDatagram>); //await to get response
-
-                            switch (response.RCODE)
+                            if (completedTask == delayTask)
                             {
-                                case DnsResponseCode.NoError:
-                                case DnsResponseCode.NxDomain:
-                                case DnsResponseCode.YXDomain:
-                                    cancellationTokenSource.Cancel(); //to stop delay and other resolver tasks
-                                    return response;
+                                cancellationTokenSource.Cancel(); //to stop resolver tasks
 
-                                default:
-                                    //keep response
-                                    lastResponse = response;
-                                    break;
+                                if (lastResponse is not null)
+                                    return lastResponse; //return last response since it was returned by a task that ran to completion
+
+                                if (lastException is not null)
+                                    ExceptionDispatchInfo.Capture(lastException).Throw();
+
+                                throw new DnsClientNoResponseException("DnsClient failed to resolve the request: request timed out.");
                             }
+
+                            if (completedTask.Status == TaskStatus.RanToCompletion)
+                            {
+                                //resolver task complete
+                                DnsDatagram response = await (completedTask as Task<DnsDatagram>); //await to get response
+
+                                switch (response.RCODE)
+                                {
+                                    case DnsResponseCode.NoError:
+                                    case DnsResponseCode.NxDomain:
+                                    case DnsResponseCode.YXDomain:
+                                        cancellationTokenSource.Cancel(); //to stop delay and other resolver tasks
+                                        return response;
+
+                                    default:
+                                        //keep response
+                                        lastResponse = response;
+                                        break;
+                                }
+                            }
+
+                            if (tasks.Count == 2)
+                            {
+                                //this is the last resolver task
+                                cancellationTokenSource.Cancel(); //to stop delay and other resolver tasks
+
+                                if (lastResponse is not null)
+                                    return lastResponse; //return last response since it was returned by a task that ran to completion
+
+                                return await (completedTask as Task<DnsDatagram>); //await throw error
+                            }
+
+                            tasks.Remove(completedTask);
+                            lastException = completedTask.Exception;
+
+                            if (lastException is AggregateException)
+                                lastException = lastException.InnerException;
                         }
-
-                        if (tasks.Count == 2)
-                        {
-                            //this is the last resolver task
-                            cancellationTokenSource.Cancel(); //to stop delay and other resolver tasks
-
-                            if (lastResponse is not null)
-                                return lastResponse; //return last response since it was returned by a task that ran to completion
-
-                            return await (completedTask as Task<DnsDatagram>); //await throw error
-                        }
-
-                        tasks.Remove(completedTask);
-                        lastException = completedTask.Exception;
-
-                        if (lastException is AggregateException)
-                            lastException = lastException.InnerException;
                     }
                 }
             }
             else
             {
-                return await DoResolveAsync();
+                return await DoResolveAsync(cancellationToken);
             }
         }
 
-        private async Task<DnsDatagram> InternalNoDnssecResolveAsync(DnsDatagram request)
+        private async Task<DnsDatagram> InternalNoDnssecResolveAsync(DnsDatagram request, CancellationToken cancellationToken)
         {
-            DnsDatagram response = await InternalResolveAsync(request);
+            DnsDatagram response = await InternalResolveAsync(request, cancellationToken);
 
             response.SetDnssecStatusForAllRecords(DnssecStatus.Disabled);
 
             return response;
         }
 
-        private async Task<DnsDatagram> InternalDnssecResolveAsync(DnsQuestionRecord question)
+        private async Task<DnsDatagram> InternalDnssecResolveAsync(DnsQuestionRecord question, CancellationToken cancellationToken)
         {
             IDnsCache cache;
 
@@ -3375,14 +3381,14 @@ namespace TechnitiumLibrary.Net.Dns
                 cache = _cache;
 
             DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK);
-            DnsDatagram response = await InternalResolveAsync(request);
+            DnsDatagram response = await InternalResolveAsync(request, cancellationToken);
 
-            await DnssecValidateResponseAsync(response, ROOT_TRUST_ANCHORS, this, cache, _udpPayloadSize);
+            await DnssecValidateResponseAsync(response, ROOT_TRUST_ANCHORS, this, cache, _udpPayloadSize, cancellationToken);
 
             return response;
         }
 
-        private async Task<DnsDatagram> InternalCachedResolveQueryAsync(DnsQuestionRecord question)
+        private async Task<DnsDatagram> InternalCachedResolveQueryAsync(DnsQuestionRecord question, CancellationToken cancellationToken)
         {
             return await ResolveQueryAsync(question, async delegate (DnsQuestionRecord q)
             {
@@ -3397,9 +3403,9 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsDatagram newResponse;
 
                     if (_dnssecValidation)
-                        newResponse = await InternalDnssecResolveAsync(q);
+                        newResponse = await InternalDnssecResolveAsync(q, cancellationToken);
                     else
-                        newResponse = await InternalNoDnssecResolveAsync(newRequest);
+                        newResponse = await InternalNoDnssecResolveAsync(newRequest, cancellationToken);
 
                     if (_conditionalForwardingZoneCut is not null)
                         newResponse = SanitizeResponseAnswer(newResponse, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
@@ -3472,28 +3478,28 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public Task<DnsDatagram> ResolveAsync(DnsDatagram request)
+        public Task<DnsDatagram> ResolveAsync(DnsDatagram request, CancellationToken cancellationToken = default)
         {
             if ((_cache is not null) && (request.Question.Count == 1))
-                return InternalCachedResolveQueryAsync(request.Question[0]);
+                return InternalCachedResolveQueryAsync(request.Question[0], cancellationToken);
 
             if (_dnssecValidation)
             {
                 if (request.Question.Count != 1)
                     throw new ArgumentException("Request must have exactly one question record.", nameof(request));
 
-                return InternalDnssecResolveAsync(request.Question[0]);
+                return InternalDnssecResolveAsync(request.Question[0], cancellationToken);
             }
 
-            return InternalNoDnssecResolveAsync(request);
+            return InternalNoDnssecResolveAsync(request, cancellationToken);
         }
 
-        public async Task<DnsDatagram> ResolveAsync(DnsDatagram request, TsigKey key, ushort fudge = 300)
+        public async Task<DnsDatagram> ResolveAsync(DnsDatagram request, TsigKey key, ushort fudge = 300, CancellationToken cancellationToken = default)
         {
             request.SetRandomIdentifier();
             DnsDatagram signedRequest = request.SignRequest(key, fudge);
 
-            DnsDatagram signedResponse = await InternalNoDnssecResolveAsync(signedRequest);
+            DnsDatagram signedResponse = await InternalNoDnssecResolveAsync(signedRequest, cancellationToken);
             if (!signedResponse.VerifySignedResponse(signedRequest, key, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error))
             {
                 if (requestFailed)
@@ -3505,56 +3511,56 @@ namespace TechnitiumLibrary.Net.Dns
             return unsignedResponse;
         }
 
-        public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question)
+        public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question, CancellationToken cancellationToken = default)
         {
             if (_cache is not null)
-                return InternalCachedResolveQueryAsync(question);
+                return InternalCachedResolveQueryAsync(question, cancellationToken);
 
             if (_dnssecValidation)
-                return InternalDnssecResolveAsync(question);
+                return InternalDnssecResolveAsync(question, cancellationToken);
 
-            return InternalNoDnssecResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize));
+            return InternalNoDnssecResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize), cancellationToken);
         }
 
-        public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question, TsigKey key, ushort fudge = 300)
+        public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question, TsigKey key, ushort fudge = 300, CancellationToken cancellationToken = default)
         {
-            return ResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize), key, fudge);
+            return ResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize), key, fudge, cancellationToken);
         }
 
-        public Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type)
-        {
-            if ((type == DnsResourceRecordType.PTR) && IPAddress.TryParse(domain, out IPAddress address))
-                return ResolveAsync(new DnsQuestionRecord(address, DnsClass.IN));
-            else
-                return ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN));
-        }
-
-        public Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type, TsigKey key, ushort fudge = 300)
+        public Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type, CancellationToken cancellationToken = default)
         {
             if ((type == DnsResourceRecordType.PTR) && IPAddress.TryParse(domain, out IPAddress address))
-                return ResolveAsync(new DnsQuestionRecord(address, DnsClass.IN), key, fudge);
+                return ResolveAsync(new DnsQuestionRecord(address, DnsClass.IN), cancellationToken);
             else
-                return ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN), key, fudge);
+                return ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN), cancellationToken);
         }
 
-        public Task<IReadOnlyList<string>> ResolveMXAsync(string domain, bool resolveIP = false, bool preferIPv6 = false)
+        public Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type, TsigKey key, ushort fudge = 300, CancellationToken cancellationToken = default)
         {
-            return ResolveMXAsync(this, domain, resolveIP, preferIPv6);
+            if ((type == DnsResourceRecordType.PTR) && IPAddress.TryParse(domain, out IPAddress address))
+                return ResolveAsync(new DnsQuestionRecord(address, DnsClass.IN), key, fudge, cancellationToken);
+            else
+                return ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN), key, fudge, cancellationToken);
         }
 
-        public async Task<IReadOnlyList<string>> ResolvePTRAsync(IPAddress ip)
+        public Task<IReadOnlyList<string>> ResolveMXAsync(string domain, bool resolveIP = false, bool preferIPv6 = false, CancellationToken cancellationToken = default)
         {
-            return ParseResponsePTR(await ResolveAsync(new DnsQuestionRecord(ip, DnsClass.IN)));
+            return ResolveMXAsync(this, domain, resolveIP, preferIPv6, cancellationToken);
         }
 
-        public async Task<IReadOnlyList<string>> ResolveTXTAsync(string domain)
+        public async Task<IReadOnlyList<string>> ResolvePTRAsync(IPAddress ip, CancellationToken cancellationToken = default)
         {
-            return ParseResponseTXT(await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.TXT, DnsClass.IN)));
+            return ParseResponsePTR(await ResolveAsync(new DnsQuestionRecord(ip, DnsClass.IN), cancellationToken));
         }
 
-        public Task<IReadOnlyList<IPAddress>> ResolveIPAsync(string domain, bool preferIPv6 = false)
+        public async Task<IReadOnlyList<string>> ResolveTXTAsync(string domain, CancellationToken cancellationToken = default)
         {
-            return ResolveIPAsync(this, domain, preferIPv6);
+            return ParseResponseTXT(await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.TXT, DnsClass.IN), cancellationToken));
+        }
+
+        public Task<IReadOnlyList<IPAddress>> ResolveIPAsync(string domain, bool preferIPv6 = false, CancellationToken cancellationToken = default)
+        {
+            return ResolveIPAsync(this, domain, preferIPv6, cancellationToken);
         }
 
         #endregion
