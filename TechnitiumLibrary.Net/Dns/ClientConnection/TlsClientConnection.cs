@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System.IO;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -37,10 +38,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region protected
 
-        protected override async Task<Stream> GetNetworkStreamAsync(Socket socket)
+        protected override async Task<Stream> GetNetworkStreamAsync(Socket socket, CancellationToken cancellationToken)
         {
             SslStream tlsStream = new SslStream(new NetworkStream(socket, true));
-            await tlsStream.AuthenticateAsClientAsync(_server.Host);
+            await tlsStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions() { TargetHost = _server.Host }, cancellationToken);
 
             return tlsStream;
         }
