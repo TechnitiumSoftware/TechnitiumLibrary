@@ -254,6 +254,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     _data = new DnsNSEC3PARAMRecord(s);
                     break;
 
+                case DnsResourceRecordType.TSIG:
+                    _data = new DnsTSIGRecord(s);
+                    break;
+
                 case DnsResourceRecordType.CAA:
                     _data = new DnsCAARecord(s);
                     break;
@@ -268,10 +272,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnsResourceRecordType.APP:
                     _data = new DnsApplicationRecord(s);
-                    break;
-
-                case DnsResourceRecordType.TSIG:
-                    _data = new DnsTSIGRecord(s);
                     break;
 
                 default:
@@ -361,6 +361,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     _data = new DnsNSEC3PARAMRecord(jsonResourceRecord);
                     break;
 
+                case DnsResourceRecordType.TSIG:
+                    _data = new DnsTSIGRecord(jsonResourceRecord);
+                    break;
+
                 case DnsResourceRecordType.CAA:
                     _data = new DnsCAARecord(jsonResourceRecord);
                     break;
@@ -375,10 +379,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnsResourceRecordType.APP:
                     _data = new DnsApplicationRecord(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.TSIG:
-                    _data = new DnsTSIGRecord(jsonResourceRecord);
                     break;
 
                 default:
