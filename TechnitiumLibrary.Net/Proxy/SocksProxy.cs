@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -223,7 +223,7 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public async Task<SocksProxyBindHandler> BindAsync(AddressFamily family = AddressFamily.InterNetwork)
+        public async Task<SocksProxyBindHandler> BindAsync(AddressFamily family = AddressFamily.InterNetwork, CancellationToken cancellationToken = default)
         {
             EndPoint endPoint;
 
@@ -242,7 +242,7 @@ namespace TechnitiumLibrary.Net.Proxy
             }
 
             //connect to proxy server
-            Socket socket = await GetTcpConnectionAsync(_proxyEP);
+            Socket socket = await GetTcpConnectionAsync(_proxyEP, cancellationToken);
 
             try
             {
@@ -260,24 +260,24 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync()
+        public Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync(CancellationToken cancellationToken = default)
         {
-            return UdpAssociateAsync(new IPEndPoint(IPAddress.Any, 0));
+            return UdpAssociateAsync(new IPEndPoint(IPAddress.Any, 0), cancellationToken);
         }
 
-        public Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync(int localPort)
+        public Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync(int localPort, CancellationToken cancellationToken = default)
         {
-            return UdpAssociateAsync(new IPEndPoint(IPAddress.Any, localPort));
+            return UdpAssociateAsync(new IPEndPoint(IPAddress.Any, localPort), cancellationToken);
         }
 
-        public async Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync(EndPoint localEP)
+        public async Task<SocksProxyUdpAssociateHandler> UdpAssociateAsync(EndPoint localEP, CancellationToken cancellationToken = default)
         {
             //bind local ep
             Socket udpSocket = new Socket(localEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
             udpSocket.Bind(localEP);
 
             //connect to proxy server
-            Socket socket = await GetTcpConnectionAsync(_proxyEP);
+            Socket socket = await GetTcpConnectionAsync(_proxyEP, cancellationToken);
 
             try
             {
