@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -249,7 +249,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public async Task<Socket> ConnectAsync(EndPoint remoteEP)
+        public async Task<Socket> ConnectAsync(EndPoint remoteEP, CancellationToken cancellationToken = default)
         {
             if (remoteEP.AddressFamily == AddressFamily.Unspecified)
             {
@@ -266,7 +266,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     throw new SocketException((int)SocketError.NetworkUnreachable);
             }
 
-            return await GetConnectionManager(remoteEP.AddressFamily).ConnectAsync(remoteEP);
+            return await GetConnectionManager(remoteEP.AddressFamily).ConnectAsync(remoteEP, cancellationToken);
         }
 
         public Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
