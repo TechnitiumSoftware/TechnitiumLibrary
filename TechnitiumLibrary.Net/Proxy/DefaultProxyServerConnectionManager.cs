@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
@@ -35,14 +36,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public virtual async Task<Socket> ConnectAsync(EndPoint remoteEP)
+        public virtual async Task<Socket> ConnectAsync(EndPoint remoteEP, CancellationToken cancellationToken = default)
         {
             if (remoteEP.AddressFamily == AddressFamily.Unspecified)
                 remoteEP = await remoteEP.GetIPEndPointAsync();
 
             Socket socket = new Socket(remoteEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-            await socket.ConnectAsync(remoteEP);
+            await socket.ConnectAsync(remoteEP, cancellationToken);
 
             socket.NoDelay = true;
 
