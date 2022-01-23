@@ -112,6 +112,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
+        public string GetHashedOwnerName(string ownerName)
+        {
+            return Base32.ToBase32HexString(DnsNSEC3Record.ComputeHashedOwnerName(ownerName, _hashAlgorithm, _iterations, _salt)).ToLower();
+        }
+
         public override bool Equals(object obj)
         {
             if (obj is null)
