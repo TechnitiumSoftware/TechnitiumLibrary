@@ -742,6 +742,35 @@ namespace TechnitiumLibrary.Net.Dns
             return datagram;
         }
 
+        public DnsDatagram CloneWithoutEDns()
+        {
+            if (_edns is null)
+                return this;
+
+            IReadOnlyList<DnsResourceRecord> newAdditional;
+
+            if (_additional.Count == 1)
+            {
+                newAdditional = Array.Empty<DnsResourceRecord>();
+            }
+            else
+            {
+                List<DnsResourceRecord> newAdditionalList = new List<DnsResourceRecord>(_additional.Count - 1);
+
+                foreach (DnsResourceRecord record in _additional)
+                {
+                    if (record.Type == DnsResourceRecordType.OPT)
+                        continue;
+
+                    newAdditionalList.Add(record);
+                }
+
+                newAdditional = newAdditionalList;
+            }
+
+            return Clone(null, null, newAdditional);
+        }
+
         public void SetMetadata(NameServerAddress server = null, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, double rtt = 0.0)
         {
             if (_metadata != null)
