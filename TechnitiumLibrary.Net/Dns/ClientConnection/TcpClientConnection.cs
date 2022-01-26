@@ -176,7 +176,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         private async Task<bool> SendDnsDatagramAsync(DnsDatagram request, int timeout, Transaction transaction, CancellationToken cancellationToken)
         {
-            if (!await _sendRequestSemaphore.WaitAsync(timeout))
+            if (!await _sendRequestSemaphore.WaitAsync(timeout, cancellationToken))
                 return false; //timed out
 
             try
