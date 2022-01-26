@@ -2027,6 +2027,13 @@ namespace TechnitiumLibrary.Net.Dns
                                     throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
                             }
                         }
+                        else
+                        {
+                            //empty answer and authority section
+                            DnsQuestionRecord question = response.Question[0];
+                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, question.Name + "/" + question.Type.ToString());
+                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
+                        }
 
                         break;
 
@@ -3162,6 +3169,22 @@ namespace TechnitiumLibrary.Net.Dns
                                                 case DnsResponseCode.YXDomain:
                                                     return response;
 
+                                                case DnsResponseCode.FormatError:
+                                                    if ((response.EDNS is null) && (asyncRequest.EDNS is not null) && !asyncRequest.EDNS.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
+                                                    {
+                                                        //response does not contain EDNS which indicates that the server does not support EDNS
+                                                        //disable EDNS and retry the request
+                                                        asyncRequest = asyncRequest.CloneWithoutEDns();
+
+                                                        retryRequest = true;
+                                                        protocolWasSwitched = false;
+                                                    }
+                                                    else
+                                                    {
+                                                        lastResponse = response;
+                                                    }
+                                                    break;
+
                                                 default:
                                                     lastResponse = response;
                                                     break;
@@ -3200,29 +3223,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             if ((server.Protocol == DnsTransportProtocol.Udp) && (asyncRequest.EDNS is not null) && !asyncRequest.EDNS.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
                                             {
                                                 //EDNS udp request timed out; disable EDNS and retry the request
-
-                                                IReadOnlyList<DnsResourceRecord> newAdditional;
-
-                                                if (asyncRequest.Additional.Count == 1)
-                                                {
-                                                    newAdditional = Array.Empty<DnsResourceRecord>();
-                                                }
-                                                else
-                                                {
-                                                    List<DnsResourceRecord> newAdditionalList = new List<DnsResourceRecord>(asyncRequest.Additional.Count - 1);
-
-                                                    foreach (DnsResourceRecord record in asyncRequest.Additional)
-                                                    {
-                                                        if (record.Type == DnsResourceRecordType.OPT)
-                                                            continue;
-
-                                                        newAdditionalList.Add(record);
-                                                    }
-
-                                                    newAdditional = newAdditionalList;
-                                                }
-
-                                                asyncRequest = asyncRequest.Clone(null, null, newAdditional);
+                                                asyncRequest = asyncRequest.CloneWithoutEDns();
 
                                                 lastException = ex;
                                                 retryRequest = true;
