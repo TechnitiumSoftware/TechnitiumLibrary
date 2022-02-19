@@ -205,12 +205,17 @@ namespace TechnitiumLibrary.ByteTree
 
         public IEnumerator<TValue> GetEnumerator()
         {
-            return new ByteTreeEnumerator(_root);
+            return new ByteTreeEnumerator(_root, false);
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return new ByteTreeEnumerator(_root);
+            return new ByteTreeEnumerator(_root, false);
+        }
+
+        public IEnumerable<TValue> GetReverseEnumerable()
+        {
+            return new ByteTreeReverseEnumerable(_root);
         }
 
         #endregion
@@ -590,6 +595,80 @@ namespace TechnitiumLibrary.ByteTree
                 return null;
             }
 
+            public Node GetLastNodeWithValue()
+            {
+                Node lastNode = null;
+                Node current = this;
+
+                while (true)
+                {
+                    if (current._value is not null)
+                        lastNode = current;
+
+                    if (current._children is null)
+                        break;
+
+                    for (int i = current._children.Length - 1; i > -1; i--)
+                    {
+                        //find child node
+                        Node child = Volatile.Read(ref current._children[i]);
+                        if (child is not null)
+                        {
+                            current = child;
+                            break;
+                        }
+                    }
+                }
+
+                return lastNode;
+            }
+
+            public Node GetPreviousNodeWithValue(int baseDepth)
+            {
+                int k = _k - 1;
+                Node current = _parent;
+
+                while ((current is not null) && (current._depth >= baseDepth))
+                {
+                    if (current._children is not null)
+                    {
+                        //find child node
+                        Node child = null;
+
+                        for (int i = k; i > -1; i--)
+                        {
+                            child = Volatile.Read(ref current._children[i]);
+                            if (child is not null)
+                            {
+                                if (child._children is not null)
+                                    break; //child has further children so check them first
+
+                                if (child._value is not null)
+                                    return child; //child has value so return it
+                            }
+                        }
+
+                        if (child is not null)
+                        {
+                            //make found child as current
+                            k = current._children.Length - 1;
+                            current = child;
+                            continue; //start over
+                        }
+                    }
+
+                    //no child nodes available
+                    if (current._value is not null)
+                        return current; //current node has value so return i
+
+                    //move up to parent node for previous sibling
+                    k = current._k - 1;
+                    current = current._parent;
+                }
+
+                return null;
+            }
+
             #endregion
 
             #region properties
@@ -697,11 +776,44 @@ namespace TechnitiumLibrary.ByteTree
             #endregion
         }
 
+        private sealed class ByteTreeReverseEnumerable : IEnumerable<TValue>
+        {
+            #region variables
+
+            readonly Node _root;
+
+            #endregion
+
+            #region constructor
+
+            public ByteTreeReverseEnumerable(Node root)
+            {
+                _root = root;
+            }
+
+            #endregion
+
+            #region public
+
+            public IEnumerator<TValue> GetEnumerator()
+            {
+                return new ByteTreeEnumerator(_root, true);
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return new ByteTreeEnumerator(_root, true);
+            }
+
+            #endregion
+        }
+
         protected sealed class ByteTreeEnumerator : IEnumerator<TValue>
         {
             #region variables
 
             readonly Node _root;
+            readonly bool _reverse;
 
             Node _current;
             NodeValue _value;
@@ -711,9 +823,10 @@ namespace TechnitiumLibrary.ByteTree
 
             #region constructor
 
-            public ByteTreeEnumerator(Node root)
+            public ByteTreeEnumerator(Node root, bool reverse)
             {
                 _root = root;
+                _reverse = reverse;
             }
 
             #endregion
@@ -761,7 +874,21 @@ namespace TechnitiumLibrary.ByteTree
 
                 if (_current is null)
                 {
-                    _current = _root;
+                    if (_reverse)
+                    {
+                        _current = _root.GetLastNodeWithValue();
+                        if (_current is null)
+                        {
+                            //tree has no data
+                            _value = null;
+                            _finished = true;
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        _current = _root;
+                    }
 
                     NodeValue value = _current.Value;
                     if (value is not null)
@@ -773,7 +900,11 @@ namespace TechnitiumLibrary.ByteTree
 
                 do
                 {
-                    _current = _current.GetNextNodeWithValue(_root.Depth);
+                    if (_reverse)
+                        _current = _current.GetPreviousNodeWithValue(_root.Depth);
+                    else
+                        _current = _current.GetNextNodeWithValue(_root.Depth);
+
                     if (_current is null)
                     {
                         _value = null;
