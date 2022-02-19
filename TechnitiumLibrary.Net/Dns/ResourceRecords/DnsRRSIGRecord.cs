@@ -112,6 +112,186 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             throw new InvalidOperationException();
         }
 
+        public static byte GetLabelCount(string domain)
+        {
+            if (domain.Length == 0)
+                return 0;
+
+            byte count = 0;
+
+            foreach (string label in domain.Split('.'))
+            {
+                if (label == "*")
+                    continue;
+
+                count++;
+            }
+
+            return count;
+        }
+
+        public static bool TryGetRRSetHash(DnsRRSIGRecord rrsigRecord, IReadOnlyList<DnsResourceRecord> records, out byte[] hash, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
+        {
+            using (MemoryStream mS = new MemoryStream(512))
+            {
+                //RRSIG_RDATA
+                rrsigRecord.WriteTo(mS, true);
+
+                //RR(i) = owner | type | class | TTL | RDATA length | RDATA
+
+                string name;
+                {
+                    //The number of labels in the RRset owner name MUST be greater than or equal to the value in the RRSIG RR's Labels field.
+                    byte labelCount = GetLabelCount(records[0].Name);
+
+                    if (rrsigRecord._labels == labelCount)
+                    {
+                        //name = fqdn
+                        name = records[0].Name.ToLower();
+                    }
+                    else if (rrsigRecord._labels < labelCount)
+                    {
+                        //name = "*." | the rightmost rrsig_label labels of the fqdn
+                        name = GetWildcardDomain(records[0].Name, rrsigRecord._labels).ToLower();
+
+                        if (rrsigRecord._typeCovered == DnsResourceRecordType.NSEC)
+                        {
+                            //wildcard NSEC can be abused by an attacker to serve NXDomain or NoData responses
+                            //fix NSEC record owner name to the original wildcard owner name
+                            records[0].FixNameForNSEC(name);
+                        }
+                    }
+                    else
+                    {
+                        //the RRSIG RR did not pass the necessary validation checks and MUST NOT be used to authenticate this RRset.
+                        hash = null;
+                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.RRSIGsMissing;
+                        return false;
+                    }
+                }
+
+                List<SerializedResourceRecord> rrList = new List<SerializedResourceRecord>(records.Count);
+
+                //select and serialize records
+                using (MemoryStream rrBuffer = new MemoryStream(512))
+                {
+                    //serialize RDATA
+                    foreach (DnsResourceRecord record in records)
+                    {
+                        byte[] firstPart;
+                        byte[] rdataPart;
+
+                        //serialize RDATA
+                        record.RDATA.WriteCanonicalRecordData(rrBuffer);
+
+                        rdataPart = rrBuffer.ToArray();
+                        rrBuffer.SetLength(0);
+
+                        //serialize owner name | type | class | Original TTL | RDATA length
+                        DnsDatagram.SerializeDomainName(name, rrBuffer);
+                        DnsDatagram.WriteUInt16NetworkOrder((ushort)record.Type, rrBuffer);
+                        DnsDatagram.WriteUInt16NetworkOrder((ushort)record.Class, rrBuffer);
+                        DnsDatagram.WriteUInt32NetworkOrder(rrsigRecord._originalTtl, rrBuffer);
+                        DnsDatagram.WriteUInt16NetworkOrder(Convert.ToUInt16(rdataPart.Length), rrBuffer);
+
+                        firstPart = rrBuffer.ToArray();
+                        rrBuffer.SetLength(0);
+
+                        //add to list
+                        rrList.Add(new SerializedResourceRecord(firstPart, rdataPart));
+                    }
+                }
+
+                //Canonical RR Ordering by sorting RDATA portion of the canonical form of each RR
+                rrList.Sort();
+
+                //write sorted RR into main buffer
+                foreach (SerializedResourceRecord rr in rrList)
+                    rr.WriteTo(mS);
+
+                mS.Position = 0;
+
+                //hash
+                switch (rrsigRecord._algorithm)
+                {
+                    case DnssecAlgorithm.RSAMD5:
+                        using (HashAlgorithm hashAlgo = MD5.Create())
+                        {
+                            hash = hashAlgo.ComputeHash(mS);
+                        }
+                        break;
+
+                    case DnssecAlgorithm.DSA:
+                    case DnssecAlgorithm.RSASHA1:
+                    case DnssecAlgorithm.DSA_NSEC3_SHA1:
+                    case DnssecAlgorithm.RSASHA1_NSEC3_SHA1:
+                        using (HashAlgorithm hashAlgo = SHA1.Create())
+                        {
+                            hash = hashAlgo.ComputeHash(mS);
+                        }
+                        break;
+
+                    case DnssecAlgorithm.RSASHA256:
+                    case DnssecAlgorithm.ECDSAP256SHA256:
+                        using (HashAlgorithm hashAlgo = SHA256.Create())
+                        {
+                            hash = hashAlgo.ComputeHash(mS);
+                        }
+                        break;
+
+                    case DnssecAlgorithm.ECDSAP384SHA384:
+                        using (HashAlgorithm hashAlgo = SHA384.Create())
+                        {
+                            hash = hashAlgo.ComputeHash(mS);
+                        }
+                        break;
+
+                    case DnssecAlgorithm.RSASHA512:
+                        using (HashAlgorithm hashAlgo = SHA512.Create())
+                        {
+                            hash = hashAlgo.ComputeHash(mS);
+                        }
+                        break;
+
+                    default:
+                        hash = null;
+                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.DnssecIndeterminate;
+                        return false;
+                }
+
+                extendedDnsErrorCode = EDnsExtendedDnsErrorCode.Other;
+                return true;
+            }
+        }
+
+        public static HashAlgorithmName GetHashAlgorithmName(DnssecAlgorithm algorithm)
+        {
+            switch (algorithm)
+            {
+                case DnssecAlgorithm.RSAMD5:
+                    return HashAlgorithmName.MD5;
+
+                case DnssecAlgorithm.DSA:
+                case DnssecAlgorithm.RSASHA1:
+                case DnssecAlgorithm.DSA_NSEC3_SHA1:
+                case DnssecAlgorithm.RSASHA1_NSEC3_SHA1:
+                    return HashAlgorithmName.SHA1;
+
+                case DnssecAlgorithm.RSASHA256:
+                case DnssecAlgorithm.ECDSAP256SHA256:
+                    return HashAlgorithmName.SHA256;
+
+                case DnssecAlgorithm.ECDSAP384SHA384:
+                    return HashAlgorithmName.SHA384;
+
+                case DnssecAlgorithm.RSASHA512:
+                    return HashAlgorithmName.SHA512;
+
+                default:
+                    throw new NotSupportedException("DNSSEC algorithm is not supported: " + algorithm.ToString());
+            }
+        }
+
         #endregion
 
         #region private
@@ -135,24 +315,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
 
             return trimmedDomain;
-        }
-
-        private static int GetLabelCount(string domain)
-        {
-            if (domain.Length == 0)
-                return 0;
-
-            int count = 0;
-
-            foreach (string label in domain.Split('.'))
-            {
-                if (label == "*")
-                    continue;
-
-                count++;
-            }
-
-            return count;
         }
 
         private void Serialize()
@@ -229,144 +391,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return false;
             }
 
-            HashAlgorithmName hashAlgorithm;
-            byte[] hash;
+            if (!TryGetRRSetHash(this, records, out byte[] hash, out extendedDnsErrorCode))
+                return false;
 
-            using (MemoryStream mS = new MemoryStream(512))
-            {
-                //RRSIG_RDATA
-                WriteTo(mS, true);
-
-                //RR(i) = owner | type | class | TTL | RDATA length | RDATA
-
-                string name;
-                {
-                    //The number of labels in the RRset owner name MUST be greater than or equal to the value in the RRSIG RR's Labels field.
-                    int labelCount = GetLabelCount(records[0].Name);
-
-                    if (_labels == labelCount)
-                    {
-                        //name = fqdn
-                        name = records[0].Name.ToLower();
-                    }
-                    else if (_labels < labelCount)
-                    {
-                        //name = "*." | the rightmost rrsig_label labels of the fqdn
-                        name = GetWildcardDomain(records[0].Name, _labels).ToLower();
-
-                        if (_typeCovered == DnsResourceRecordType.NSEC)
-                        {
-                            //wildcard NSEC can be abused by an attacker to serve NXDomain or NoData responses
-                            //fix NSEC record owner name to the original wildcard owner name
-                            records[0].FixNameForNSEC(name);
-                        }
-                    }
-                    else
-                    {
-                        //the RRSIG RR did not pass the necessary validation checks and MUST NOT be used to authenticate this RRset.
-                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.RRSIGsMissing;
-                        return false;
-                    }
-                }
-
-                List<SerializedResourceRecord> rrList = new List<SerializedResourceRecord>(records.Count);
-
-                //select and serialize records
-                using (MemoryStream rrBuffer = new MemoryStream(512))
-                {
-                    //serialize RDATA
-                    foreach (DnsResourceRecord record in records)
-                    {
-                        byte[] firstPart;
-                        byte[] rdataPart;
-
-                        //serialize RDATA
-                        record.RDATA.WriteCanonicalRecordData(rrBuffer);
-
-                        rdataPart = rrBuffer.ToArray();
-                        rrBuffer.SetLength(0);
-
-                        //serialize owner name | type | class | Original TTL | RDATA length
-                        DnsDatagram.SerializeDomainName(name, rrBuffer);
-                        DnsDatagram.WriteUInt16NetworkOrder((ushort)record.Type, rrBuffer);
-                        DnsDatagram.WriteUInt16NetworkOrder((ushort)record.Class, rrBuffer);
-                        DnsDatagram.WriteUInt32NetworkOrder(_originalTtl, rrBuffer);
-                        DnsDatagram.WriteUInt16NetworkOrder(Convert.ToUInt16(rdataPart.Length), rrBuffer);
-
-                        firstPart = rrBuffer.ToArray();
-                        rrBuffer.SetLength(0);
-
-                        //add to list
-                        rrList.Add(new SerializedResourceRecord(firstPart, rdataPart));
-                    }
-                }
-
-                //Canonical RR Ordering by sorting RDATA portion of the canonical form of each RR
-                rrList.Sort();
-
-                //write sorted RR into main buffer
-                foreach (SerializedResourceRecord rr in rrList)
-                    rr.WriteTo(mS);
-
-                mS.Position = 0;
-
-                //hash
-                switch (_algorithm)
-                {
-                    case DnssecAlgorithm.RSAMD5:
-                        using (HashAlgorithm hashAlgo = MD5.Create())
-                        {
-                            hash = hashAlgo.ComputeHash(mS);
-                        }
-
-                        hashAlgorithm = HashAlgorithmName.MD5;
-                        break;
-
-                    case DnssecAlgorithm.DSA:
-                    case DnssecAlgorithm.RSASHA1:
-                    case DnssecAlgorithm.DSA_NSEC3_SHA1:
-                    case DnssecAlgorithm.RSASHA1_NSEC3_SHA1:
-                        using (HashAlgorithm hashAlgo = SHA1.Create())
-                        {
-                            hash = hashAlgo.ComputeHash(mS);
-                        }
-
-                        hashAlgorithm = HashAlgorithmName.SHA1;
-                        break;
-
-                    case DnssecAlgorithm.RSASHA256:
-                    case DnssecAlgorithm.ECDSAP256SHA256:
-                        using (HashAlgorithm hashAlgo = SHA256.Create())
-                        {
-                            hash = hashAlgo.ComputeHash(mS);
-                        }
-
-                        hashAlgorithm = HashAlgorithmName.SHA256;
-                        break;
-
-                    case DnssecAlgorithm.ECDSAP384SHA384:
-                        using (HashAlgorithm hashAlgo = SHA384.Create())
-                        {
-                            hash = hashAlgo.ComputeHash(mS);
-                        }
-
-                        hashAlgorithm = HashAlgorithmName.SHA384;
-                        break;
-
-                    case DnssecAlgorithm.RSASHA512:
-                        using (HashAlgorithm hashAlgo = SHA512.Create())
-                        {
-                            hash = hashAlgo.ComputeHash(mS);
-                        }
-
-                        hashAlgorithm = HashAlgorithmName.SHA512;
-                        break;
-
-                    default:
-                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.DnssecIndeterminate;
-                        return false;
-                }
-            }
+            HashAlgorithmName hashAlgorithm = GetHashAlgorithmName(_algorithm);
 
             bool foundDnsKey = false;
             bool foundSupportedDnsKeyAlgo = false;
