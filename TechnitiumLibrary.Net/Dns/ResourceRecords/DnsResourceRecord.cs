@@ -571,7 +571,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             int value;
 
-            value = _name.CompareTo(other._name);
+            value = DnsNSECRecord.CanonicalComparison(_name, other._name);
             if (value != 0)
                 return value;
 
