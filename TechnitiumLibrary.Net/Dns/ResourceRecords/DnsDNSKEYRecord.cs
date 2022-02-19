@@ -23,6 +23,7 @@ using System.IO;
 using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Dns.Dnssec;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -146,6 +147,41 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
+        private byte[] ComputeDigest(string ownerName, DnssecDigestType digestType)
+        {
+            using (MemoryStream mS = new MemoryStream(DnsDatagram.GetSerializeDomainNameLength(ownerName) + _rData.Length))
+            {
+                DnsDatagram.SerializeDomainName(ownerName.ToLower(), mS);
+                mS.Write(_rData);
+
+                mS.Position = 0;
+
+                switch (digestType)
+                {
+                    case DnssecDigestType.SHA1:
+                        using (HashAlgorithm hashAlgo = SHA1.Create())
+                        {
+                            return hashAlgo.ComputeHash(mS);
+                        }
+
+                    case DnssecDigestType.SHA256:
+                        using (HashAlgorithm hashAlgo = SHA256.Create())
+                        {
+                            return hashAlgo.ComputeHash(mS);
+                        }
+
+                    case DnssecDigestType.SHA384:
+                        using (HashAlgorithm hashAlgo = SHA384.Create())
+                        {
+                            return hashAlgo.ComputeHash(mS);
+                        }
+
+                    default:
+                        throw new NotSupportedException("DNSSEC DS digest type hash algorithm is not supported: " + digestType.ToString());
+                }
+            }
+        }
+
         #endregion
 
         #region protected
@@ -176,44 +212,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public bool IsDnsKeyValid(string ownerName, DnsDSRecord ds)
         {
-            byte[] computedDigest;
-
-            using (MemoryStream mS = new MemoryStream(DnsDatagram.GetSerializeDomainNameLength(ownerName) + _rData.Length))
-            {
-                DnsDatagram.SerializeDomainName(ownerName.ToLower(), mS);
-                mS.Write(_rData);
-
-                mS.Position = 0;
-
-                switch (ds.DigestType)
-                {
-                    case DnssecDigestType.SHA1:
-                        using (HashAlgorithm hashAlgo = SHA1.Create())
-                        {
-                            computedDigest = hashAlgo.ComputeHash(mS);
-                        }
-                        break;
-
-                    case DnssecDigestType.SHA256:
-                        using (HashAlgorithm hashAlgo = SHA256.Create())
-                        {
-                            computedDigest = hashAlgo.ComputeHash(mS);
-                        }
-                        break;
-
-                    case DnssecDigestType.SHA384:
-                        using (HashAlgorithm hashAlgo = SHA384.Create())
-                        {
-                            computedDigest = hashAlgo.ComputeHash(mS);
-                        }
-                        break;
-
-                    default:
-                        throw new NotSupportedException("DNSSEC DS digest type hash algorithm is not supported: " + ds.DigestType.ToString());
-                }
-            }
+            byte[] computedDigest = ComputeDigest(ownerName, ds.DigestType);
 
             return BinaryNumber.Equals(computedDigest, ds.DigestValue);
+        }
+
+        public DnsDSRecord CreateDS(string ownerName, DnssecDigestType digestType)
+        {
+            byte[] computedDigest = ComputeDigest(ownerName, digestType);
+
+            return new DnsDSRecord(_computedKeyTag, _algorithm, digestType, computedDigest);
         }
 
         public override bool Equals(object obj)
@@ -270,303 +278,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnssecPublicKey PublicKey
         { get { return _publicKey; } }
 
-        [IgnoreDataMember]
         public ushort ComputedKeyTag
         { get { return _computedKeyTag; } }
 
         [IgnoreDataMember]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(_rData.Length); } }
-
-        #endregion
-    }
-
-    public class DnssecPublicKey
-    {
-        #region variables
-
-        protected byte[] _rawPublicKey;
-
-        #endregion
-
-        #region constructor
-
-        protected DnssecPublicKey()
-        { }
-
-        protected DnssecPublicKey(byte[] rawPublicKey)
-        {
-            _rawPublicKey = rawPublicKey;
-        }
-
-        #endregion
-
-        #region static
-
-        public static DnssecPublicKey Parse(DnssecAlgorithm algorithm, byte[] rawPublicKey)
-        {
-            switch (algorithm)
-            {
-                case DnssecAlgorithm.RSAMD5:
-                case DnssecAlgorithm.RSASHA1:
-                case DnssecAlgorithm.RSASHA256:
-                case DnssecAlgorithm.RSASHA512:
-                case DnssecAlgorithm.RSASHA1_NSEC3_SHA1:
-                    return new DnssecRsaPublicKey(rawPublicKey);
-
-                case DnssecAlgorithm.ECDSAP256SHA256:
-                case DnssecAlgorithm.ECDSAP384SHA384:
-                    return new DnssecEcdsaPublicKey(rawPublicKey, algorithm);
-
-                default:
-                    return new DnssecPublicKey(rawPublicKey);
-            }
-        }
-
-        #endregion
-
-        #region public
-
-        public virtual bool IsSignatureValid(byte[] hash, byte[] signature, HashAlgorithmName hashAlgorithm)
-        {
-            throw new NotSupportedException("DNSSEC algorithm is not supported.");
-        }
-
-        public void WriteTo(Stream s)
-        {
-            s.Write(_rawPublicKey);
-        }
-
-        public override bool Equals(object obj)
-        {
-            if (obj is null)
-                return false;
-
-            if (ReferenceEquals(this, obj))
-                return true;
-
-            if (obj is DnssecPublicKey other)
-                return BinaryNumber.Equals(_rawPublicKey, other._rawPublicKey);
-
-            return false;
-        }
-
-        public override int GetHashCode()
-        {
-            return _rawPublicKey.GetHashCode();
-        }
-
-        public override string ToString()
-        {
-            return Convert.ToBase64String(_rawPublicKey);
-        }
-
-        #endregion
-
-        #region properties
-
-        public byte[] RawPublicKey
-        { get { return _rawPublicKey; } }
-
-        [IgnoreDataMember]
-        public virtual bool IsAlgorithmSupported
-        { get { return false; } }
-
-        #endregion
-    }
-
-    public class DnssecRsaPublicKey : DnssecPublicKey
-    {
-        #region variables
-
-        readonly RSAParameters _rsaPublicKey;
-
-        #endregion
-
-        #region constructors
-
-        public DnssecRsaPublicKey(RSAParameters rsaPublicKey)
-        {
-            _rsaPublicKey = rsaPublicKey;
-
-            if (_rsaPublicKey.Exponent.Length < 256)
-            {
-                _rawPublicKey = new byte[1 + _rsaPublicKey.Exponent.Length + _rsaPublicKey.Modulus.Length];
-                _rawPublicKey[0] = (byte)_rsaPublicKey.Exponent.Length;
-                Buffer.BlockCopy(_rsaPublicKey.Exponent, 0, _rawPublicKey, 1, _rsaPublicKey.Exponent.Length);
-                Buffer.BlockCopy(_rsaPublicKey.Modulus, 0, _rawPublicKey, 1 + _rsaPublicKey.Exponent.Length, _rsaPublicKey.Modulus.Length);
-            }
-            else
-            {
-                byte[] bufferExponentLength = BitConverter.GetBytes(Convert.ToUInt16(_rsaPublicKey.Exponent.Length));
-                Array.Reverse(bufferExponentLength);
-
-                _rawPublicKey = new byte[3 + _rsaPublicKey.Exponent.Length + _rsaPublicKey.Modulus.Length];
-                Buffer.BlockCopy(bufferExponentLength, 0, _rawPublicKey, 1, 2);
-                Buffer.BlockCopy(_rsaPublicKey.Exponent, 0, _rawPublicKey, 3, _rsaPublicKey.Exponent.Length);
-                Buffer.BlockCopy(_rsaPublicKey.Modulus, 0, _rawPublicKey, 3 + _rsaPublicKey.Exponent.Length, _rsaPublicKey.Modulus.Length);
-            }
-        }
-
-        public DnssecRsaPublicKey(byte[] rawPublicKey)
-            : base(rawPublicKey)
-        {
-            if (_rawPublicKey[0] == 0)
-            {
-                byte[] bufferExponentLength = new byte[2];
-                Buffer.BlockCopy(_rawPublicKey, 1, bufferExponentLength, 0, 2);
-                Array.Reverse(bufferExponentLength);
-
-                int exponentLength = BitConverter.ToUInt16(bufferExponentLength, 0);
-                int modulusLength = _rawPublicKey.Length - exponentLength - 3;
-
-                _rsaPublicKey.Exponent = new byte[exponentLength];
-                _rsaPublicKey.Modulus = new byte[modulusLength];
-
-                Buffer.BlockCopy(_rawPublicKey, 3, _rsaPublicKey.Exponent, 0, exponentLength);
-                Buffer.BlockCopy(_rawPublicKey, 3 + exponentLength, _rsaPublicKey.Modulus, 0, modulusLength);
-            }
-            else
-            {
-                int exponentLength = _rawPublicKey[0];
-                int modulusLength = _rawPublicKey.Length - exponentLength - 1;
-
-                _rsaPublicKey.Exponent = new byte[exponentLength];
-                _rsaPublicKey.Modulus = new byte[modulusLength];
-
-                Buffer.BlockCopy(_rawPublicKey, 1, _rsaPublicKey.Exponent, 0, exponentLength);
-                Buffer.BlockCopy(_rawPublicKey, 1 + exponentLength, _rsaPublicKey.Modulus, 0, modulusLength);
-            }
-        }
-
-        #endregion
-
-        #region public
-
-        public override bool IsSignatureValid(byte[] hash, byte[] signature, HashAlgorithmName hashAlgorithm)
-        {
-            using (RSA rsa = RSA.Create(_rsaPublicKey))
-            {
-                return rsa.VerifyHash(hash, signature, hashAlgorithm, RSASignaturePadding.Pkcs1);
-            }
-        }
-
-        public override string ToString()
-        {
-            return Convert.ToBase64String(_rsaPublicKey.Exponent) + " " + Convert.ToBase64String(_rsaPublicKey.Modulus);
-        }
-
-        #endregion
-
-        #region properties
-
-        public RSAParameters RsaPublicKey
-        { get { return _rsaPublicKey; } }
-
-        [IgnoreDataMember]
-        public override bool IsAlgorithmSupported
-        { get { return true; } }
-
-        #endregion
-    }
-
-    public class DnssecEcdsaPublicKey : DnssecPublicKey
-    {
-        #region variables
-
-        readonly ECParameters _ecdsaPublicKey;
-
-        #endregion
-
-        #region constructors
-
-        public DnssecEcdsaPublicKey(ECParameters ecdsaPublicKey)
-        {
-            _ecdsaPublicKey = ecdsaPublicKey;
-
-            if (_ecdsaPublicKey.Curve.Oid.Value == ECCurve.NamedCurves.nistP256.Oid.Value)
-            {
-                _rawPublicKey = new byte[64];
-
-                Buffer.BlockCopy(_ecdsaPublicKey.Q.X, 0, _rawPublicKey, 0, 32);
-                Buffer.BlockCopy(_ecdsaPublicKey.Q.Y, 0, _rawPublicKey, 32, 32);
-            }
-            else if (_ecdsaPublicKey.Curve.Oid.Value == ECCurve.NamedCurves.nistP384.Oid.Value)
-            {
-                _rawPublicKey = new byte[96];
-
-                Buffer.BlockCopy(_ecdsaPublicKey.Q.X, 0, _rawPublicKey, 0, 48);
-                Buffer.BlockCopy(_ecdsaPublicKey.Q.Y, 0, _rawPublicKey, 48, 48);
-            }
-            else
-            {
-                throw new NotSupportedException("ECDSA algorithm is not supported: " + _ecdsaPublicKey.Curve.Oid.FriendlyName);
-            }
-        }
-
-        public DnssecEcdsaPublicKey(byte[] rawPublicKey, DnssecAlgorithm algorithm)
-            : base(rawPublicKey)
-        {
-            switch (algorithm)
-            {
-                case DnssecAlgorithm.ECDSAP256SHA256:
-                    {
-                        byte[] x = new byte[32];
-                        byte[] y = new byte[32];
-
-                        Buffer.BlockCopy(rawPublicKey, 0, x, 0, 32);
-                        Buffer.BlockCopy(rawPublicKey, 32, y, 0, 32);
-
-                        _ecdsaPublicKey.Curve = ECCurve.NamedCurves.nistP256;
-                        _ecdsaPublicKey.Q = new ECPoint() { X = x, Y = y };
-                    }
-                    break;
-
-                case DnssecAlgorithm.ECDSAP384SHA384:
-                    {
-                        byte[] x = new byte[48];
-                        byte[] y = new byte[48];
-
-                        Buffer.BlockCopy(rawPublicKey, 0, x, 0, 48);
-                        Buffer.BlockCopy(rawPublicKey, 48, y, 0, 48);
-
-                        _ecdsaPublicKey.Curve = ECCurve.NamedCurves.nistP384;
-                        _ecdsaPublicKey.Q = new ECPoint() { X = x, Y = y };
-                    }
-                    break;
-
-                default:
-                    throw new NotSupportedException();
-            }
-        }
-
-        #endregion
-
-        #region public
-
-        public override bool IsSignatureValid(byte[] hash, byte[] signature, HashAlgorithmName hashAlgorithm)
-        {
-            using (ECDsa ecdsa = ECDsa.Create(_ecdsaPublicKey))
-            {
-                return ecdsa.VerifyHash(hash, signature, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
-            }
-        }
-
-        public override string ToString()
-        {
-            return Convert.ToBase64String(_ecdsaPublicKey.Q.X) + " " + Convert.ToBase64String(_ecdsaPublicKey.Q.Y);
-        }
-
-        #endregion
-
-        #region properties
-
-        public ECParameters EcdsaPublicKey
-        { get { return _ecdsaPublicKey; } }
-
-        [IgnoreDataMember]
-        public override bool IsAlgorithmSupported
-        { get { return true; } }
 
         #endregion
     }
