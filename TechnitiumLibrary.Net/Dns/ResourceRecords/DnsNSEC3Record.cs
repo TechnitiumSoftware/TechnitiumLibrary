@@ -127,6 +127,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return nextCloserName;
         }
 
+        public static byte[] GetHashedOwnerNameFrom(string domain)
+        {
+            return Base32.FromBase32HexString(GetHashedOwnerNameBase32HexStringFrom(domain));
+        }
+
         #endregion
 
         #region private
@@ -162,7 +167,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         continue;
 
                     DnsNSEC3Record nsec3 = nsec3Record.RDATA as DnsNSEC3Record;
-                    string hashedOwnerName = GetHashedOwnerName(nsec3Record.Name);
+                    string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
 
                     if (hashedClosestEncloser is null)
                         hashedClosestEncloser = nsec3.ComputeHashedOwnerName(closestEncloser);
@@ -206,7 +211,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     continue;
 
                 DnsNSEC3Record nsec3 = nsec3Record.RDATA as DnsNSEC3Record;
-                string hashedOwnerName = GetHashedOwnerName(nsec3Record.Name);
+                string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
 
                 if (hashedNextCloserName is null)
                     hashedNextCloserName = nsec3.ComputeHashedOwnerName(nextCloserName);
@@ -245,7 +250,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     continue;
 
                 DnsNSEC3Record nsec3 = nsec3Record.RDATA as DnsNSEC3Record;
-                string hashedOwnerName = GetHashedOwnerName(nsec3Record.Name);
+                string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
 
                 if (hashedWildcardDomainName is null)
                     hashedWildcardDomainName = nsec3.ComputeHashedOwnerName(wildcardDomain);
@@ -304,7 +309,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return DnssecProofOfNonExistence.NoData;
         }
 
-        private static string GetHashedOwnerName(string domain)
+        private static string GetHashedOwnerNameBase32HexStringFrom(string domain)
         {
             int i = domain.IndexOf('.');
             if (i < 0)
@@ -324,11 +329,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             //return root zone
             return string.Empty;
-        }
-
-        private string ComputeHashedOwnerName(string ownerName)
-        {
-            return Base32.ToBase32HexString(ComputeHashedOwnerName(ownerName, _hashAlgorithm, _iterations, _salt)).ToLower();
         }
 
         internal static byte[] ComputeHashedOwnerName(string ownerName, DnssecNSEC3HashAlgorithm hashAlgorithm, ushort iterations, byte[] salt)
@@ -389,7 +389,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 _rData = mS.ToArray();
             }
 
-            _nextHashedOwnerName = Base32.ToBase32HexString(_nextHashedOwnerNameValue).ToLower();
+            _nextHashedOwnerName = Base32.ToBase32HexString(_nextHashedOwnerNameValue);
 
             CheckForDelegation();
         }
@@ -445,7 +445,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 _types = DnsNSECRecord.ReadTypeBitMapsFrom(mS, (int)(mS.Length - mS.Position));
             }
 
-            _nextHashedOwnerName = Base32.ToBase32HexString(_nextHashedOwnerNameValue).ToLower();
+            _nextHashedOwnerName = Base32.ToBase32HexString(_nextHashedOwnerNameValue);
 
             CheckForDelegation();
         }
@@ -458,6 +458,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #endregion
 
         #region public
+
+        public string ComputeHashedOwnerName(string ownerName)
+        {
+            return Base32.ToBase32HexString(ComputeHashedOwnerName(ownerName, _hashAlgorithm, _iterations, _salt));
+        }
 
         public override bool Equals(object obj)
         {
