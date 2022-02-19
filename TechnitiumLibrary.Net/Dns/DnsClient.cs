@@ -1497,7 +1497,7 @@ namespace TechnitiumLibrary.Net.Dns
                             case DnsResourceRecordType.A:
                                 if (!preferIPv6)
                                 {
-                                    mxAddresses.Add(((DnsARecord)record.RDATA).Address.ToString());
+                                    mxAddresses.Add((record.RDATA as DnsARecord).Address.ToString());
                                     glueRecordFound = true;
                                 }
                                 break;
@@ -1505,7 +1505,7 @@ namespace TechnitiumLibrary.Net.Dns
                             case DnsResourceRecordType.AAAA:
                                 if (preferIPv6)
                                 {
-                                    mxAddresses.Add(((DnsAAAARecord)record.RDATA).Address.ToString());
+                                    mxAddresses.Add((record.RDATA as DnsAAAARecord).Address.ToString());
                                     glueRecordFound = true;
                                 }
                                 break;
@@ -1549,11 +1549,11 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (record.Type)
                             {
                                 case DnsResourceRecordType.A:
-                                    ipAddresses.Add(((DnsARecord)record.RDATA).Address);
+                                    ipAddresses.Add((record.RDATA as DnsARecord).Address);
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
-                                    domain = ((DnsCNAMERecord)record.RDATA).Domain;
+                                    domain = (record.RDATA as DnsCNAMERecord).Domain;
                                     break;
                             }
                         }
@@ -1588,11 +1588,11 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (record.Type)
                             {
                                 case DnsResourceRecordType.AAAA:
-                                    ipAddresses.Add(((DnsAAAARecord)record.RDATA).Address);
+                                    ipAddresses.Add((record.RDATA as DnsAAAARecord).Address);
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
-                                    domain = ((DnsCNAMERecord)record.RDATA).Domain;
+                                    domain = (record.RDATA as DnsCNAMERecord).Domain;
                                     break;
                             }
                         }
@@ -1627,11 +1627,11 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (record.Type)
                             {
                                 case DnsResourceRecordType.TXT:
-                                    txtRecords.Add(((DnsTXTRecord)record.RDATA).Text);
+                                    txtRecords.Add((record.RDATA as DnsTXTRecord).Text);
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
-                                    domain = ((DnsCNAMERecord)record.RDATA).Domain;
+                                    domain = (record.RDATA as DnsCNAMERecord).Domain;
                                     break;
                             }
                         }
@@ -1666,11 +1666,11 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (record.Type)
                             {
                                 case DnsResourceRecordType.PTR:
-                                    values.Add(((DnsPTRRecord)record.RDATA).Domain);
+                                    values.Add((record.RDATA as DnsPTRRecord).Domain);
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
-                                    domain = ((DnsCNAMERecord)record.RDATA).Domain;
+                                    domain = (record.RDATA as DnsCNAMERecord).Domain;
                                     break;
                             }
                         }
@@ -1705,11 +1705,11 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (record.Type)
                             {
                                 case DnsResourceRecordType.MX:
-                                    mxRecords.Add((DnsMXRecord)record.RDATA);
+                                    mxRecords.Add(record.RDATA as DnsMXRecord);
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
-                                    domain = ((DnsCNAMERecord)record.RDATA).Domain;
+                                    domain = (record.RDATA as DnsCNAMERecord).Domain;
                                     break;
                             }
                         }
@@ -1729,6 +1729,41 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     return Array.Empty<string>();
+
+                case DnsResponseCode.NxDomain:
+                    throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+
+                default:
+                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+            }
+        }
+
+        public static IReadOnlyList<DnsDSRecord> ParseResponseDS(DnsDatagram response)
+        {
+            string domain = response.Question[0].Name;
+
+            switch (response.RCODE)
+            {
+                case DnsResponseCode.NoError:
+                    if (response.Answer.Count == 0)
+                        return Array.Empty<DnsDSRecord>();
+
+                    List<DnsDSRecord> dsRecords = new List<DnsDSRecord>(response.Answer.Count);
+
+                    foreach (DnsResourceRecord record in response.Answer)
+                    {
+                        if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            switch (record.Type)
+                            {
+                                case DnsResourceRecordType.DS:
+                                    dsRecords.Add(record.RDATA as DnsDSRecord);
+                                    break;
+                            }
+                        }
+                    }
+
+                    return dsRecords;
 
                 case DnsResponseCode.NxDomain:
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
@@ -3181,11 +3216,13 @@ namespace TechnitiumLibrary.Net.Dns
                                                     }
                                                     else
                                                     {
+                                                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, response.Metadata.NameServerAddress.ToString() + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
                                                         lastResponse = response;
                                                     }
                                                     break;
 
                                                 default:
+                                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, response.Metadata.NameServerAddress.ToString() + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
                                                     lastResponse = response;
                                                     break;
                                             }
