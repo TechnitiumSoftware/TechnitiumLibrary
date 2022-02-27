@@ -62,35 +62,35 @@ namespace TechnitiumLibrary.ByteTree
 
         protected abstract byte[] ConvertToByteKey(TKey key);
 
-        protected bool TryRemove(TKey key, out TValue value, out Node closestNode)
+        protected bool TryRemove(TKey key, out TValue value, out Node currentNode)
         {
             if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
 
-            NodeValue removedValue = _root.RemoveNodeValue(bKey, out closestNode);
+            NodeValue removedValue = _root.RemoveNodeValue(bKey, out currentNode);
             if (removedValue is null)
             {
                 value = default;
                 return false;
             }
 
-            //by default TryRemove wont call closestNode.CleanThisBranch() so that operations are atomic but will use up memory since stem nodes wont be cleaned up
+            //by default TryRemove wont call currentNode.CleanThisBranch() so that operations are atomic but will use up memory since stem nodes wont be cleaned up
             //override the public method if the implementation requires to save memory and take a chance of remove operation deleting an added NodeValue due to race condition
 
             value = removedValue.Value;
             return true;
         }
 
-        protected bool TryGet(TKey key, out TValue value, out Node closestNode)
+        protected bool TryGet(TKey key, out TValue value, out Node currentNode)
         {
             if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
             byte[] bKey = ConvertToByteKey(key);
 
-            NodeValue nodeValue = _root.FindNodeValue(bKey, out closestNode);
+            NodeValue nodeValue = _root.FindNodeValue(bKey, out currentNode);
             if (nodeValue is null)
             {
                 value = default;
@@ -427,60 +427,60 @@ namespace TechnitiumLibrary.ByteTree
                 while (true);
             }
 
-            public NodeValue FindNodeValue(byte[] key, out Node closestNode)
+            public NodeValue FindNodeValue(byte[] key, out Node currentNode)
             {
-                closestNode = this;
+                currentNode = this;
 
-                while (closestNode._depth < key.Length) //find loop
+                while (currentNode._depth < key.Length) //find loop
                 {
-                    if (closestNode._children is null)
+                    if (currentNode._children is null)
                         break;
 
-                    Node child = Volatile.Read(ref closestNode._children[key[closestNode._depth]]);
+                    Node child = Volatile.Read(ref currentNode._children[key[currentNode._depth]]);
                     if (child is null)
                         return null; //value not found
 
-                    closestNode = child;
+                    currentNode = child;
                 }
 
-                //either closestNode is leaf or key belongs to closestNode
-                NodeValue value = closestNode._value;
+                //either currentNode is leaf or key belongs to currentNode
+                NodeValue value = currentNode._value;
 
-                if ((value is not null) && KeyEquals(closestNode._depth, value.Key, key))
+                if ((value is not null) && KeyEquals(currentNode._depth, value.Key, key))
                     return value; //value found
 
                 return null; //value key does not match
             }
 
-            public NodeValue RemoveNodeValue(byte[] key, out Node closestNode)
+            public NodeValue RemoveNodeValue(byte[] key, out Node currentNode)
             {
-                closestNode = this;
+                currentNode = this;
 
                 do //try again loop
                 {
-                    while (closestNode._depth < key.Length) //find loop
+                    while (currentNode._depth < key.Length) //find loop
                     {
-                        if (closestNode._children is null)
+                        if (currentNode._children is null)
                             break;
 
-                        Node child = Volatile.Read(ref closestNode._children[key[closestNode._depth]]);
+                        Node child = Volatile.Read(ref currentNode._children[key[currentNode._depth]]);
                         if (child is null)
                             return null; //value not found
 
-                        closestNode = child;
+                        currentNode = child;
                     }
 
-                    //either closestNode is leaf or key belongs to closestNode
-                    NodeValue value = closestNode._value;
+                    //either currentNode is leaf or key belongs to currentNode
+                    NodeValue value = currentNode._value;
 
-                    if ((value is not null) && KeyEquals(closestNode._depth, value.Key, key))
+                    if ((value is not null) && KeyEquals(currentNode._depth, value.Key, key))
                     {
                         //value found; remove and return value
-                        if (closestNode._children is null)
+                        if (currentNode._children is null)
                         {
                             //remove leaf node directly from parent
-                            Node originalNode = Interlocked.CompareExchange(ref closestNode._parent._children[closestNode._k], null, closestNode);
-                            if (ReferenceEquals(originalNode, closestNode))
+                            Node originalNode = Interlocked.CompareExchange(ref currentNode._parent._children[currentNode._k], null, currentNode);
+                            if (ReferenceEquals(originalNode, currentNode))
                                 return value; //leaf node removed successfully
 
                             if (originalNode is null)
@@ -491,13 +491,13 @@ namespace TechnitiumLibrary.ByteTree
                             else
                             {
                                 //another thread replaced leaf node with stem node; use new reference and try again in next iteration
-                                closestNode = originalNode;
+                                currentNode = originalNode;
                             }
                         }
                         else
                         {
                             //remove value from stem node
-                            NodeValue originalValue = Interlocked.CompareExchange(ref closestNode._value, null, value);
+                            NodeValue originalValue = Interlocked.CompareExchange(ref currentNode._value, null, value);
                             if (ReferenceEquals(originalValue, value))
                                 return value; //successfully removed stem node value
 
