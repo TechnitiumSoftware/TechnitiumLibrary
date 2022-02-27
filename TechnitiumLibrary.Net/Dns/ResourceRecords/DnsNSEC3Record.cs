@@ -110,6 +110,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static string GetNextCloserName(string domain, string closestEncloser)
         {
+            if (domain.Length <= closestEncloser.Length)
+                throw new InvalidOperationException();
+
             string[] labels = domain.Split('.');
             string nextCloserName = null;
 
@@ -220,10 +223,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 {
                     //found proof of cover for hashed next closer name
 
-                    //check if the NSEC3 is an "ancestor delegation"
-                    if ((type != DnsResourceRecordType.DS) && nsec3._isAncestorDelegation && domain.EndsWith("." + nextCloserName, StringComparison.OrdinalIgnoreCase))
-                        continue; //cannot prove with ancestor delegation NSEC3; try next NSEC3
-
                     if (nsec3._flags.HasFlag(DnssecNSEC3Flags.OptOut))
                         return DnssecProofOfNonExistence.OptOut;
 
@@ -269,10 +268,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 else if (DnsNSECRecord.IsDomainCovered(hashedOwnerName, nsec3._nextHashedOwnerName, hashedWildcardDomainName))
                 {
                     //found proof of cover for wildcard domain
-
-                    //check if the NSEC3 is an "ancestor delegation"
-                    if ((type != DnsResourceRecordType.DS) && nsec3._isAncestorDelegation && domain.EndsWith("." + closestEncloser, StringComparison.OrdinalIgnoreCase))
-                        continue; //cannot prove with ancestor delegation NSEC3; try next NSEC3
 
                     if (nsec3._flags.HasFlag(DnssecNSEC3Flags.OptOut))
                     {
