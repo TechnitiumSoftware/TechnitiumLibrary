@@ -122,7 +122,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             foreach (string label in domain.Split('.'))
             {
                 if (label == "*")
+                {
+                    count = 0; //reset count due to wildcard
                     continue;
+                }
 
                 count++;
             }
