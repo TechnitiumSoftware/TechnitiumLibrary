@@ -39,6 +39,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     //Authenticated Denial of Existence in the DNS 
     //https://datatracker.ietf.org/doc/html/rfc7129
 
+    //Clarifications and Implementation Notes for DNS Security (DNSSEC)
+    //https://datatracker.ietf.org/doc/html/rfc6840
+
     public class DnsNSECRecord : DnsResourceRecordData
     {
         #region variables
@@ -130,6 +133,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return wildcard;
         }
 
+        public static bool IsDomainCovered(string ownerName, string nextDomainName, string domain)
+        {
+            int x = CanonicalComparison(ownerName, domain);
+            int y = CanonicalComparison(nextDomainName, domain);
+            int z = CanonicalComparison(ownerName, nextDomainName);
+
+            if (z < 0)
+                return (x < 0) && (y > 0);
+            else
+                return ((x < 0) && (y < 0)) || ((x > 0) && (y > 0)); //last NSEC
+        }
+
         public static int CanonicalComparison(string domain1, string domain2)
         {
             string[] labels1 = domain1.ToLower().Split('.');
@@ -151,6 +166,31 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return -1;
 
             if (labels1.Length > labels2.Length)
+                return 1;
+
+            return 0;
+        }
+
+        public static int CanonicalComparison(byte[] x, byte[] y)
+        {
+            int minLength = x.Length;
+
+            if (y.Length < minLength)
+                minLength = y.Length;
+
+            for (int i = 0; i < minLength; i++)
+            {
+                if (x[i] < y[i])
+                    return -1;
+
+                if (x[i] > y[i])
+                    return 1;
+            }
+
+            if (x.Length < y.Length)
+                return -1;
+
+            if (x.Length > y.Length)
                 return 1;
 
             return 0;
@@ -186,12 +226,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 {
                     //found proof of cover
 
-                    //check if the NSEC is an "ancestor delegation"
-                    if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation && domain.EndsWith("." + nsecRecord.Name, StringComparison.OrdinalIgnoreCase))
-                        continue; //cannot prove with ancestor delegation NSEC; try next NSEC
-
                     if (nsec._nextDomainName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase))
-                        return DnssecProofOfNonExistence.NoData; //domain is empty non terminal (ENT) so proves NO DATA
+                        return DnssecProofOfNonExistence.NoData; //domain is empty non-terminal (ENT) so proves NO DATA
 
                     if (wildcardAnswerValidation)
                         return DnssecProofOfNonExistence.NxDomain; //since wildcard was already validated; the domain does not exists
@@ -230,10 +266,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 {
                     //found proof of cover for wildcard domain
 
-                    //check if the NSEC is an "ancestor delegation"
-                    if ((type != DnsResourceRecordType.DS) && nsec._isAncestorDelegation && domain.EndsWith("." + nsecRecord.Name, StringComparison.OrdinalIgnoreCase))
-                        continue; //cannot prove with ancestor delegation NSEC; try next NSEC
-
                     //proved that the actual domain does not exists since a wildcard does not exists
                     return DnssecProofOfNonExistence.NxDomain;
                 }
@@ -257,43 +289,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             //found no record set
             return DnssecProofOfNonExistence.NoData;
-        }
-
-        internal static bool IsDomainCovered(string ownerName, string nextDomainName, string domain)
-        {
-            int x = CanonicalComparison(ownerName, domain);
-            int y = CanonicalComparison(nextDomainName, domain);
-            int z = CanonicalComparison(ownerName, nextDomainName);
-
-            if (z < 0)
-                return (x < 0) && (y > 0);
-            else
-                return ((x < 0) && (y < 0)) || ((x > 0) && (y > 0)); //last NSEC
-        }
-
-        internal static int CanonicalComparison(byte[] x, byte[] y)
-        {
-            int minLength = x.Length;
-
-            if (y.Length < minLength)
-                minLength = y.Length;
-
-            for (int i = 0; i < minLength; i++)
-            {
-                if (x[i] < y[i])
-                    return -1;
-
-                if (x[i] > y[i])
-                    return 1;
-            }
-
-            if (x.Length < y.Length)
-                return -1;
-
-            if (x.Length > y.Length)
-                return 1;
-
-            return 0;
         }
 
         internal static IReadOnlyList<DnsResourceRecordType> ReadTypeBitMapsFrom(Stream s, int length)
