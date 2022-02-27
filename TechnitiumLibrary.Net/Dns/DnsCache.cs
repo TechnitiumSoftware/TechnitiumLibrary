@@ -129,7 +129,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region private
 
-        private static string GetParentZone(string domain)
+        internal static string GetParentZone(string domain)
         {
             int i = domain.IndexOf('.');
             if (i > -1)
@@ -1180,10 +1180,15 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 get
                 {
-                    if (_type == DnsSpecialCacheRecordType.BadCache)
-                        return DnsResponseCode.ServerFailure;
+                    switch (_type)
+                    {
+                        case DnsSpecialCacheRecordType.FailureCache:
+                        case DnsSpecialCacheRecordType.BadCache:
+                            return DnsResponseCode.ServerFailure;
 
-                    return _rcode;
+                        default:
+                            return _rcode;
+                    }
                 }
             }
 
