@@ -380,16 +380,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
         {
+            uint utc = Convert.ToUInt32((DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds % uint.MaxValue);
+
             //The validator's notion of the current time MUST be less than or equal to the time listed in the RRSIG RR's Expiration field.
-            if (SignatureExpiration < DateTime.UtcNow)
+            if (DnsSOARecord.IsZoneUpdateAvailable(_signatureExpiration, utc)) //using Serial number arithmetic
             {
+                //utc is greater than expiration; so signature is expired
                 extendedDnsErrorCode = EDnsExtendedDnsErrorCode.SignatureExpired;
                 return false;
             }
 
             //The validator's notion of the current time MUST be greater than or equal to the time listed in the RRSIG RR's Inception field.
-            if (SignatureInception > DateTime.UtcNow)
+            if (DnsSOARecord.IsZoneUpdateAvailable(utc, _signatureInception)) //using Serial number arithmetic
             {
+                //inception is greater than utc; so signature is not yet valid
                 extendedDnsErrorCode = EDnsExtendedDnsErrorCode.SignatureNotYetValid;
                 return false;
             }
