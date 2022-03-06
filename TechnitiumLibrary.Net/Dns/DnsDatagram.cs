@@ -67,7 +67,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         const int MAX_XFR_RESPONSE_SIZE = 16384; //since the compressed name pointer offset can only address 16384 bytes in datagram
 
-        readonly static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+        static readonly RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
 
         DnsDatagramMetadata _metadata;
         DnsDatagramEdns _edns;
@@ -639,7 +639,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal static string EncodeCharacterString(string value)
         {
-            if (value.Contains(" ") || value.Contains("\t"))
+            if (value.Contains(' ') || value.Contains('\t'))
                 value = "\"" + value.Replace("\"", "\\\"") + "\"";
 
             return value;

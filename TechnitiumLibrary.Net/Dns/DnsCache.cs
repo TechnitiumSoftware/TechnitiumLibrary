@@ -1239,7 +1239,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             #region variables
 
-            ConcurrentDictionary<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> _entries;
+            readonly ConcurrentDictionary<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> _entries;
 
             #endregion
 
