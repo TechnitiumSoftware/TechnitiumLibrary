@@ -25,11 +25,11 @@ using TechnitiumLibrary.Net.Dns.EDnsOptions;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsOPTRecord : DnsResourceRecordData
+    public class DnsOPTRecordData : DnsResourceRecordData
     {
         #region variables
 
-        public readonly static DnsOPTRecord Empty = new DnsOPTRecord();
+        public readonly static DnsOPTRecordData Empty = new DnsOPTRecordData();
 
         IReadOnlyList<EDnsOption> _options;
 
@@ -37,21 +37,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructors
 
-        public DnsOPTRecord()
+        public DnsOPTRecordData()
         {
             _options = Array.Empty<EDnsOption>();
         }
 
-        public DnsOPTRecord(IReadOnlyList<EDnsOption> options)
+        public DnsOPTRecordData(IReadOnlyList<EDnsOption> options)
         {
             _options = options;
         }
 
-        public DnsOPTRecord(Stream s)
+        public DnsOPTRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsOPTRecord(dynamic jsonResourceRecord)
+        public DnsOPTRecordData(dynamic jsonResourceRecord)
         {
             throw new NotSupportedException();
         }
@@ -101,7 +101,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsOPTRecord other)
+            if (obj is DnsOPTRecordData other)
             {
                 for (int i = 0; i < _options.Count; i++)
                 {
@@ -135,7 +135,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (s is not null)
                 return s;
 
-            return nameof(DnsOPTRecord);
+            return nameof(DnsOPTRecordData);
         }
 
         #endregion

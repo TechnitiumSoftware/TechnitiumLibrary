@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ using System.Runtime.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsSOARecord : DnsResourceRecordData
+    public class DnsSOARecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -40,7 +40,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsSOARecord(string primaryNameServer, string responsiblePerson, uint serial, uint refresh, uint retry, uint expire, uint minimum)
+        public DnsSOARecordData(string primaryNameServer, string responsiblePerson, uint serial, uint refresh, uint retry, uint expire, uint minimum)
         {
             DnsClient.IsDomainNameValid(primaryNameServer, true);
             DnsClient.IsDomainNameValid(responsiblePerson, true);
@@ -54,11 +54,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _minimum = minimum;
         }
 
-        public DnsSOARecord(Stream s)
+        public DnsSOARecordData(Stream s)
             : base(s)
         { }
 
-        public DnsSOARecord(dynamic jsonResourceRecord)
+        public DnsSOARecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -126,7 +126,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public bool IsZoneUpdateAvailable(DnsSOARecord newRecord)
+        public bool IsZoneUpdateAvailable(DnsSOARecordData newRecord)
         {
             return IsZoneUpdateAvailable(_serial, newRecord._serial);
         }
@@ -139,7 +139,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsSOARecord other)
+            if (obj is DnsSOARecordData other)
             {
                 if (!_primaryNameServer.Equals(other._primaryNameServer, StringComparison.OrdinalIgnoreCase))
                     return false;

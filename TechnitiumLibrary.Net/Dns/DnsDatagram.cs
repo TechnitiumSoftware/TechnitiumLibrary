@@ -318,7 +318,7 @@ namespace TechnitiumLibrary.Net.Dns
                 byte[] originalARCOUNT = ConvertUInt16NetworkOrder(Convert.ToUInt16(ARCOUNT - 1));
                 Buffer.BlockCopy(originalARCOUNT, 0, buffer, 10, 2);
 
-                byte[] originalID = ConvertUInt16NetworkOrder((tsigRecord.RDATA as DnsTSIGRecord).OriginalID);
+                byte[] originalID = ConvertUInt16NetworkOrder((tsigRecord.RDATA as DnsTSIGRecordData).OriginalID);
                 Buffer.BlockCopy(originalID, 0, buffer, 0, 2);
 
                 datagram._parsedDatagramUnsigned = buffer;
@@ -825,7 +825,7 @@ namespace TechnitiumLibrary.Net.Dns
                 else if (record.Type == DnsResourceRecordType.CNAME)
                 {
                     lastAnswer = record;
-                    name = (record.RDATA as DnsCNAMERecord).Domain;
+                    name = (record.RDATA as DnsCNAMERecordData).Domain;
                 }
             }
 
@@ -1126,7 +1126,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             byte[] mac = ComputeTsigRequestMac(key.KeyName, key.AlgorithmName, timeSigned, fudge, error, otherData, key.SharedSecret, 0);
 
-            DnsResourceRecord tsigRecord = new DnsResourceRecord(key.KeyName, DnsResourceRecordType.TSIG, DnsClass.ANY, 0, new DnsTSIGRecord(key.AlgorithmName, timeSigned, fudge, mac, _ID, error, otherData));
+            DnsResourceRecord tsigRecord = new DnsResourceRecord(key.KeyName, DnsResourceRecordType.TSIG, DnsClass.ANY, 0, new DnsTSIGRecordData(key.AlgorithmName, timeSigned, fudge, mac, _ID, error, otherData));
 
             IReadOnlyList<DnsResourceRecord> additional;
 
@@ -1167,7 +1167,7 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new InvalidOperationException("Cannot verify this datagram: datagram is not signed.");
 
             DnsResourceRecord tsigRecord = _additional[_additional.Count - 1];
-            DnsTSIGRecord tsig = tsigRecord.RDATA as DnsTSIGRecord;
+            DnsTSIGRecordData tsig = tsigRecord.RDATA as DnsTSIGRecordData;
 
             //verify
             ushort expectedMacSize = GetTsigMacSize(tsig.AlgorithmName);
@@ -1178,7 +1178,7 @@ namespace TechnitiumLibrary.Net.Dns
                 unsignedRequest = null;
 
                 //unsigned error response
-                DnsTSIGRecord errorTsig = new DnsTSIGRecord(tsig.AlgorithmName, tsig.TimeSigned, tsig.Fudge, Array.Empty<byte>(), tsig.OriginalID, DnsTsigError.BADKEY, Array.Empty<byte>());
+                DnsTSIGRecordData errorTsig = new DnsTSIGRecordData(tsig.AlgorithmName, tsig.TimeSigned, tsig.Fudge, Array.Empty<byte>(), tsig.OriginalID, DnsTsigError.BADKEY, Array.Empty<byte>());
                 DnsResourceRecord errorTsigRecord = new DnsResourceRecord(tsigRecord.Name, DnsResourceRecordType.TSIG, DnsClass.ANY, 0, errorTsig);
                 errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuthorized, _question, null, null, new DnsResourceRecord[] { errorTsigRecord });
 
@@ -1202,7 +1202,7 @@ namespace TechnitiumLibrary.Net.Dns
                 unsignedRequest = null;
 
                 //unsigned error response
-                DnsTSIGRecord errorTsig = new DnsTSIGRecord(key.AlgorithmName, tsig.TimeSigned, tsig.Fudge, Array.Empty<byte>(), tsig.OriginalID, DnsTsigError.BADSIG, Array.Empty<byte>());
+                DnsTSIGRecordData errorTsig = new DnsTSIGRecordData(key.AlgorithmName, tsig.TimeSigned, tsig.Fudge, Array.Empty<byte>(), tsig.OriginalID, DnsTsigError.BADSIG, Array.Empty<byte>());
                 DnsResourceRecord errorTsigRecord = new DnsResourceRecord(key.KeyName, DnsResourceRecordType.TSIG, DnsClass.ANY, 0, errorTsig);
                 errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuthorized, _question, null, null, new DnsResourceRecord[] { errorTsigRecord });
 
@@ -1286,7 +1286,7 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new InvalidOperationException("Cannot sign this datagram: a signed request datagram is expected.");
 
             DnsResourceRecord requestTsigRecord = signedRequest._additional[signedRequest._additional.Count - 1];
-            DnsTSIGRecord requestTsig = requestTsigRecord.RDATA as DnsTSIGRecord;
+            DnsTSIGRecordData requestTsig = requestTsigRecord.RDATA as DnsTSIGRecordData;
 
             ulong timeSigned;
             byte[] otherData;
@@ -1309,7 +1309,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             byte[] mac = ComputeTsigResponseMac(requestTsigRecord, key.KeyName, key.AlgorithmName, timeSigned, requestTsig.Fudge, error, otherData, key.SharedSecret, 0);
 
-            DnsTSIGRecord tsig = new DnsTSIGRecord(key.AlgorithmName, timeSigned, requestTsig.Fudge, mac, requestTsig.OriginalID, error, otherData);
+            DnsTSIGRecordData tsig = new DnsTSIGRecordData(key.AlgorithmName, timeSigned, requestTsig.Fudge, mac, requestTsig.OriginalID, error, otherData);
             DnsResourceRecord tsigRecord = new DnsResourceRecord(key.KeyName, DnsResourceRecordType.TSIG, DnsClass.ANY, 0, tsig);
 
             IReadOnlyList<DnsResourceRecord> additional;
@@ -1343,14 +1343,14 @@ namespace TechnitiumLibrary.Net.Dns
             if (_nextDatagram is not null)
             {
                 DnsDatagram current = _nextDatagram;
-                DnsTSIGRecord priorTsig = tsig;
+                DnsTSIGRecordData priorTsig = tsig;
                 DnsDatagram lastSigned = signedDatagram;
 
                 while (current is not null)
                 {
                     byte[] currentMac = ComputeTsigNextResponseMac(priorTsig, new DnsDatagram[] { current }, timeSigned, requestTsig.Fudge, key.SharedSecret, 0);
 
-                    DnsTSIGRecord currentTsig = new DnsTSIGRecord(key.AlgorithmName, timeSigned, requestTsig.Fudge, currentMac, requestTsig.OriginalID, error, otherData);
+                    DnsTSIGRecordData currentTsig = new DnsTSIGRecordData(key.AlgorithmName, timeSigned, requestTsig.Fudge, currentMac, requestTsig.OriginalID, error, otherData);
                     DnsResourceRecord currentTsigRecord = new DnsResourceRecord(key.KeyName, DnsResourceRecordType.TSIG, DnsClass.ANY, 0, currentTsig);
 
                     IReadOnlyList<DnsResourceRecord> currentAdditional;
@@ -1404,7 +1404,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             DnsResourceRecord tsigRecord = _additional[_additional.Count - 1];
-            DnsTSIGRecord tsig = tsigRecord.RDATA as DnsTSIGRecord;
+            DnsTSIGRecordData tsig = tsigRecord.RDATA as DnsTSIGRecordData;
 
             //verify
             ushort expectedMacSize = GetTsigMacSize(tsig.AlgorithmName);
@@ -1532,7 +1532,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 DnsDatagram unsignedPrior = unsignedResponse;
                 DnsDatagram current = _nextDatagram;
-                DnsTSIGRecord priorTsig = tsig;
+                DnsTSIGRecordData priorTsig = tsig;
                 List<DnsDatagram> dnsMessages = new List<DnsDatagram>();
 
                 while (current is not null)
@@ -1552,7 +1552,7 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     DnsResourceRecord currentTsigRecord = current._additional[current._additional.Count - 1];
-                    DnsTSIGRecord currentTsig = currentTsigRecord.RDATA as DnsTSIGRecord;
+                    DnsTSIGRecordData currentTsig = currentTsigRecord.RDATA as DnsTSIGRecordData;
 
                     //verify
                     //MAC Check
@@ -1725,7 +1725,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         private byte[] ComputeTsigResponseMac(DnsResourceRecord requestTsigRecord, string keyName, string algorithmName, ulong timeSigned, ushort fudge, DnsTsigError error, byte[] otherData, string sharedSecret, int truncationLength)
         {
-            DnsTSIGRecord requestTsig = requestTsigRecord.RDATA as DnsTSIGRecord;
+            DnsTSIGRecordData requestTsig = requestTsigRecord.RDATA as DnsTSIGRecordData;
 
             using (MemoryStream mS = new MemoryStream(256))
             {
@@ -1766,7 +1766,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        private static byte[] ComputeTsigNextResponseMac(DnsTSIGRecord priorTsig, IReadOnlyList<DnsDatagram> dnsMessages, ulong timeSigned, ushort fudge, string sharedSecret, int truncationLength)
+        private static byte[] ComputeTsigNextResponseMac(DnsTSIGRecordData priorTsig, IReadOnlyList<DnsDatagram> dnsMessages, ulong timeSigned, ushort fudge, string sharedSecret, int truncationLength)
         {
             using (MemoryStream mS = new MemoryStream(256))
             {
@@ -1807,28 +1807,28 @@ namespace TechnitiumLibrary.Net.Dns
         {
             switch (algorithmName.ToLower())
             {
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_MD5:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5:
                     return 16;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA1:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA1:
                     return 20;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA256:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA256:
                     return 32;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA256_128:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA256_128:
                     return 16;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA384:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA384:
                     return 48;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA384_192:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA384_192:
                     return 24;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA512:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA512:
                     return 64;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA512_256:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA512_256:
                     return 32;
 
                 default:
@@ -1853,28 +1853,28 @@ namespace TechnitiumLibrary.Net.Dns
 
             switch (algorithmName.ToLower())
             {
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_MD5:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5:
                     using (HMAC hmac = new HMACMD5(key))
                     {
                         mac = hmac.ComputeHash(s);
                     }
                     break;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA1:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA1:
                     using (HMAC hmac = new HMACSHA1(key))
                     {
                         mac = hmac.ComputeHash(s);
                     }
                     break;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA256:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA256:
                     using (HMAC hmac = new HMACSHA256(key))
                     {
                         mac = hmac.ComputeHash(s);
                     }
                     break;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA256_128:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA256_128:
                     using (HMAC hmac = new HMACSHA256(key))
                     {
                         mac = hmac.ComputeHash(s);
@@ -1885,14 +1885,14 @@ namespace TechnitiumLibrary.Net.Dns
 
                     break;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA384:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA384:
                     using (HMAC hmac = new HMACSHA384(key))
                     {
                         mac = hmac.ComputeHash(s);
                     }
                     break;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA384_192:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA384_192:
                     using (HMAC hmac = new HMACSHA384(key))
                     {
                         mac = hmac.ComputeHash(s);
@@ -1903,14 +1903,14 @@ namespace TechnitiumLibrary.Net.Dns
 
                     break;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA512:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA512:
                     using (HMAC hmac = new HMACSHA512(key))
                     {
                         mac = hmac.ComputeHash(s);
                     }
                     break;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA512_256:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA512_256:
                     using (HMAC hmac = new HMACSHA512(key))
                     {
                         mac = hmac.ComputeHash(s);
@@ -2032,7 +2032,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get
             {
-                if ((_additional.Count > 0) && (_additional[_additional.Count - 1].RDATA is DnsTSIGRecord tsig))
+                if ((_additional.Count > 0) && (_additional[_additional.Count - 1].RDATA is DnsTSIGRecordData tsig))
                     return tsig.Error;
 
                 return DnsTsigError.NoError;

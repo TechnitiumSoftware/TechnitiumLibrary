@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsHINFORecord : DnsResourceRecordData
+    public class DnsHINFORecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -37,17 +37,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructors
 
-        public DnsHINFORecord(string cpu, string os)
+        public DnsHINFORecordData(string cpu, string os)
         {
             _cpu = cpu;
             _os = os;
         }
 
-        public DnsHINFORecord(Stream s)
+        public DnsHINFORecordData(Stream s)
             : base(s)
         { }
 
-        public DnsHINFORecord(dynamic jsonResourceRecord)
+        public DnsHINFORecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -96,7 +96,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsHINFORecord other)
+            if (obj is DnsHINFORecordData other)
                 return _cpu.Equals(other._cpu) && _os.Equals(other._os);
 
             return false;

@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Net.Dns
             _algorithmName = algorithmName;
 
             if (_algorithmName.Equals("hmac-md5", StringComparison.OrdinalIgnoreCase))
-                _algorithmName = DnsTSIGRecord.ALGORITHM_NAME_HMAC_MD5;
+                _algorithmName = DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5;
 
             _algorithm = GetTsigAlgorithm(_algorithmName);
         }
@@ -80,34 +80,34 @@ namespace TechnitiumLibrary.Net.Dns
             switch (algorithm)
             {
                 case TsigAlgorithm.HMAC_MD5:
-                    return DnsTSIGRecord.ALGORITHM_NAME_HMAC_MD5;
+                    return DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5;
 
                 case TsigAlgorithm.GSS_TSIG:
-                    return DnsTSIGRecord.ALGORITHM_NAME_GSS_TSIG;
+                    return DnsTSIGRecordData.ALGORITHM_NAME_GSS_TSIG;
 
                 case TsigAlgorithm.HMAC_SHA1:
-                    return DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA1;
+                    return DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA1;
 
                 case TsigAlgorithm.HMAC_SHA224:
-                    return DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA224;
+                    return DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA224;
 
                 case TsigAlgorithm.HMAC_SHA256:
-                    return DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA256;
+                    return DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA256;
 
                 case TsigAlgorithm.HMAC_SHA256_128:
-                    return DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA256_128;
+                    return DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA256_128;
 
                 case TsigAlgorithm.HMAC_SHA384:
-                    return DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA384;
+                    return DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA384;
 
                 case TsigAlgorithm.HMAC_SHA384_192:
-                    return DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA384_192;
+                    return DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA384_192;
 
                 case TsigAlgorithm.HMAC_SHA512:
-                    return DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA512;
+                    return DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA512;
 
                 case TsigAlgorithm.HMAC_SHA512_256:
-                    return DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA512_256;
+                    return DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA512_256;
 
                 default:
                     throw new NotSupportedException("TSIG algorithm is not supported.");
@@ -118,34 +118,34 @@ namespace TechnitiumLibrary.Net.Dns
         {
             switch (algorithmName.ToLower())
             {
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_MD5:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5:
                     return TsigAlgorithm.HMAC_MD5;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_GSS_TSIG:
+                case DnsTSIGRecordData.ALGORITHM_NAME_GSS_TSIG:
                     return TsigAlgorithm.GSS_TSIG;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA1:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA1:
                     return TsigAlgorithm.HMAC_SHA1;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA224:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA224:
                     return TsigAlgorithm.HMAC_SHA224;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA256:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA256:
                     return TsigAlgorithm.HMAC_SHA256;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA256_128:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA256_128:
                     return TsigAlgorithm.HMAC_SHA256_128;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA384:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA384:
                     return TsigAlgorithm.HMAC_SHA384;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA384_192:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA384_192:
                     return TsigAlgorithm.HMAC_SHA384_192;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA512:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA512:
                     return TsigAlgorithm.HMAC_SHA512;
 
-                case DnsTSIGRecord.ALGORITHM_NAME_HMAC_SHA512_256:
+                case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_SHA512_256:
                     return TsigAlgorithm.HMAC_SHA512_256;
 
                 default:

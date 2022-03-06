@@ -258,7 +258,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             do
             {
-                if (!_cache.TryGetValue((lastCNAME.RDATA as DnsCNAMERecord).Domain.ToLower(), out DnsCacheEntry entry))
+                if (!_cache.TryGetValue((lastCNAME.RDATA as DnsCNAMERecordData).Domain.ToLower(), out DnsCacheEntry entry))
                     break;
 
                 IReadOnlyList<DnsResourceRecord> records = entry.QueryRecords(question.Type, true);
@@ -286,21 +286,21 @@ namespace TechnitiumLibrary.Net.Dns
                 switch (refRecord.Type)
                 {
                     case DnsResourceRecordType.NS:
-                        DnsNSRecord nsRecord = refRecord.RDATA as DnsNSRecord;
+                        DnsNSRecordData nsRecord = refRecord.RDATA as DnsNSRecordData;
                         if (nsRecord is not null)
                             ResolveAdditionalRecords(refRecord, nsRecord.NameServer, additionalRecords);
 
                         break;
 
                     case DnsResourceRecordType.MX:
-                        DnsMXRecord mxRecord = refRecord.RDATA as DnsMXRecord;
+                        DnsMXRecordData mxRecord = refRecord.RDATA as DnsMXRecordData;
                         if (mxRecord is not null)
                             ResolveAdditionalRecords(refRecord, mxRecord.Exchange, additionalRecords);
 
                         break;
 
                     case DnsResourceRecordType.SRV:
-                        DnsSRVRecord srvRecord = refRecord.RDATA as DnsSRVRecord;
+                        DnsSRVRecordData srvRecord = refRecord.RDATA as DnsSRVRecordData;
                         if (srvRecord is not null)
                             ResolveAdditionalRecords(refRecord, srvRecord.Target, additionalRecords);
 
@@ -419,7 +419,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 foreach (DnsResourceRecord rrsigRecord in rrsigRecords)
                                 {
-                                    if (!DnsRRSIGRecord.IsWildcard(rrsigRecord))
+                                    if (!DnsRRSIGRecordData.IsWildcard(rrsigRecord))
                                         continue;
 
                                     //add NSEC/NSEC3 for the wildcard proof
@@ -553,7 +553,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (rrsigRecord.Type != DnsResourceRecordType.RRSIG)
                         continue;
 
-                    DnsRRSIGRecord rrsig = rrsigRecord.RDATA as DnsRRSIGRecord;
+                    DnsRRSIGRecordData rrsig = rrsigRecord.RDATA as DnsRRSIGRecordData;
 
                     foreach (DnsResourceRecord record in response.Answer)
                     {
@@ -561,7 +561,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             AddRRSIGRecordTo(record, rrsigRecord);
 
-                            if (DnsRRSIGRecord.IsWildcard(rrsigRecord))
+                            if (DnsRRSIGRecordData.IsWildcard(rrsigRecord))
                             {
                                 //record is wildcard synthesized
                                 //add NSEC from authority if any
@@ -588,7 +588,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (rrsigRecord.Type != DnsResourceRecordType.RRSIG)
                         continue;
 
-                    DnsRRSIGRecord rrsig = rrsigRecord.RDATA as DnsRRSIGRecord;
+                    DnsRRSIGRecordData rrsig = rrsigRecord.RDATA as DnsRRSIGRecordData;
 
                     foreach (DnsResourceRecord record in response.Authority)
                     {
@@ -602,7 +602,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (rrsigRecord.Type != DnsResourceRecordType.RRSIG)
                         continue;
 
-                    DnsRRSIGRecord rrsig = rrsigRecord.RDATA as DnsRRSIGRecord;
+                    DnsRRSIGRecordData rrsig = rrsigRecord.RDATA as DnsRRSIGRecordData;
 
                     foreach (DnsResourceRecord record in response.Additional)
                     {
@@ -629,7 +629,7 @@ namespace TechnitiumLibrary.Net.Dns
                             case DnsResourceRecordType.CNAME:
                                 cachableRecords.Add(answer);
 
-                                qName = (answer.RDATA as DnsCNAMERecord).Domain;
+                                qName = (answer.RDATA as DnsCNAMERecordData).Domain;
                                 break;
 
                             case DnsResourceRecordType.NS:
@@ -637,7 +637,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     cachableRecords.Add(answer);
 
                                     //add glue from additional section
-                                    string nsDomain = (answer.RDATA as DnsNSRecord).NameServer;
+                                    string nsDomain = (answer.RDATA as DnsNSRecordData).NameServer;
 
                                     foreach (DnsResourceRecord additional in response.Additional)
                                     {
@@ -657,13 +657,13 @@ namespace TechnitiumLibrary.Net.Dns
                                             switch (additional.Type)
                                             {
                                                 case DnsResourceRecordType.A:
-                                                    if (IPAddress.IsLoopback((additional.RDATA as DnsARecord).Address))
+                                                    if (IPAddress.IsLoopback((additional.RDATA as DnsARecordData).Address))
                                                         continue;
 
                                                     break;
 
                                                 case DnsResourceRecordType.AAAA:
-                                                    if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecord).Address))
+                                                    if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecordData).Address))
                                                         continue;
 
                                                     break;
@@ -680,7 +680,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     cachableRecords.Add(answer);
 
                                     //add glue from additional section
-                                    string mxExchange = (answer.RDATA as DnsMXRecord).Exchange;
+                                    string mxExchange = (answer.RDATA as DnsMXRecordData).Exchange;
 
                                     foreach (DnsResourceRecord additional in response.Additional)
                                     {
@@ -706,7 +706,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     cachableRecords.Add(answer);
 
                                     //add glue from additional section
-                                    string srvTarget = (answer.RDATA as DnsSRVRecord).Target;
+                                    string srvTarget = (answer.RDATA as DnsSRVRecordData).Target;
 
                                     foreach (DnsResourceRecord additional in response.Additional)
                                     {
@@ -757,7 +757,7 @@ namespace TechnitiumLibrary.Net.Dns
                             //empty response with authority
                             foreach (DnsQuestionRecord question in response.Question)
                             {
-                                DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecord).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response));
+                                DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response));
                                 record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                                 InternalCacheRecords(new DnsResourceRecord[] { record });
@@ -774,7 +774,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     //negative cache only when RCODE is not NXDOMAIN or when RCODE is NXDOMAIN and there is only 1 CNAME in answer
                                     foreach (DnsQuestionRecord question in response.Question)
                                     {
-                                        DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecord).Domain, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecord).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response));
+                                        DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response));
                                         record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                                         InternalCacheRecords(new DnsResourceRecord[] { record });
@@ -795,7 +795,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 foreach (DnsResourceRecord authority in response.Authority)
                                 {
-                                    if ((authority.Type == DnsResourceRecordType.NS) && (authority.RDATA as DnsNSRecord).NameServer.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
+                                    if ((authority.Type == DnsResourceRecordType.NS) && (authority.RDATA as DnsNSRecordData).NameServer.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
                                     {
                                         //empty response from authority name server that was queried; dont cache authority section with NS records
                                         DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response.RCODE, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), response.EDNS, response.DnsClientExtendedErrors));
@@ -819,7 +819,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             cachableRecords.Add(authority);
 
                                             //add glue from additional section
-                                            string nsDomain = (authority.RDATA as DnsNSRecord).NameServer;
+                                            string nsDomain = (authority.RDATA as DnsNSRecordData).NameServer;
 
                                             foreach (DnsResourceRecord additional in response.Additional)
                                             {
@@ -828,13 +828,13 @@ namespace TechnitiumLibrary.Net.Dns
                                                     switch (additional.Type)
                                                     {
                                                         case DnsResourceRecordType.A:
-                                                            if (IPAddress.IsLoopback((additional.RDATA as DnsARecord).Address))
+                                                            if (IPAddress.IsLoopback((additional.RDATA as DnsARecordData).Address))
                                                                 continue;
 
                                                             break;
 
                                                         case DnsResourceRecordType.AAAA:
-                                                            if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecord).Address))
+                                                            if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecordData).Address))
                                                                 continue;
 
                                                             break;
@@ -1316,7 +1316,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(type, existingCNAMERecords, skipSpecialCacheRecord);
                                 if (rrset.Count > 0)
                                 {
-                                    if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecord))
+                                    if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecordData))
                                         return rrset;
                                 }
                             }
@@ -1338,7 +1338,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(type, existingCNAMERecords, skipSpecialCacheRecord);
                                 if (rrset.Count > 0)
                                 {
-                                    if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecord))
+                                    if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecordData))
                                         return rrset;
                                 }
                             }

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsARecord : DnsResourceRecordData
+    public class DnsAAAARecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -38,19 +38,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsARecord(IPAddress address)
+        public DnsAAAARecordData(IPAddress address)
         {
             _address = address;
 
-            if (_address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            if (_address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6)
                 throw new DnsClientException("Invalid IP address family.");
         }
 
-        public DnsARecord(Stream s)
+        public DnsAAAARecordData(Stream s)
             : base(s)
         { }
 
-        public DnsARecord(dynamic jsonResourceRecord)
+        public DnsAAAARecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -63,7 +63,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _rData = s.ReadBytes(4);
+            _rData = s.ReadBytes(16);
             _address = new IPAddress(_rData);
         }
 
@@ -87,9 +87,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsARecord other)
+            if (obj is DnsAAAARecordData other)
                 return _address.Equals(other._address);
-
+            
             return false;
         }
 
@@ -113,10 +113,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public string IPAddress
         { get { return _address.ToString(); } }
-
+        
         [IgnoreDataMember]
         public override ushort UncompressedLength
-        { get { return 4; } }
+        { get { return 16; } }
 
         #endregion
     }

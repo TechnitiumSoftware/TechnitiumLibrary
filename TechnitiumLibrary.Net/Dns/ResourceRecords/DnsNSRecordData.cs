@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,32 +24,32 @@ using System.Runtime.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsPTRRecord : DnsResourceRecordData
+    public class DnsNSRecordData : DnsResourceRecordData
     {
         #region variables
 
-        string _domain;
+        string _nameServer;
 
         #endregion
 
         #region constructor
 
-        public DnsPTRRecord(string domain)
+        public DnsNSRecordData(string nameServer)
         {
-            DnsClient.IsDomainNameValid(domain, true);
+            DnsClient.IsDomainNameValid(nameServer, true);
 
-            _domain = domain;
+            _nameServer = nameServer;
         }
 
-        public DnsPTRRecord(Stream s)
+        public DnsNSRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsPTRRecord(dynamic jsonResourceRecord)
+        public DnsNSRecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            _domain = (jsonResourceRecord.data.Value as string).TrimEnd('.');
+            _nameServer = (jsonResourceRecord.data.Value as string).TrimEnd('.');
         }
 
         #endregion
@@ -58,12 +58,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _domain = DnsDatagram.DeserializeDomainName(s);
+            _nameServer = DnsDatagram.DeserializeDomainName(s);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            DnsDatagram.SerializeDomainName(canonicalForm ? _domain.ToLower() : _domain, s, domainEntries);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _nameServer.ToLower() : _nameServer, s, domainEntries);
         }
 
         #endregion
@@ -72,7 +72,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override void NormalizeName()
         {
-            _domain = _domain.ToLower();
+            _nameServer = _nameServer.ToLower();
         }
 
         #endregion
@@ -87,32 +87,32 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsPTRRecord other)
-                return _domain.Equals(other._domain, StringComparison.OrdinalIgnoreCase);
+            if (obj is DnsNSRecordData other)
+                return _nameServer.Equals(other._nameServer, StringComparison.OrdinalIgnoreCase);
 
             return false;
         }
 
         public override int GetHashCode()
         {
-            return _domain.GetHashCode();
+            return _nameServer.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _domain.ToLower() + ".";
+            return _nameServer.ToLower() + ".";
         }
 
         #endregion
 
         #region properties
 
-        public string Domain
-        { get { return _domain; } }
+        public string NameServer
+        { get { return _nameServer; } }
 
         [IgnoreDataMember]
         public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_domain)); } }
+        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_nameServer)); } }
 
         #endregion
     }

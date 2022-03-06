@@ -34,7 +34,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         SHA384 = 4
     }
 
-    public class DnsDSRecord : DnsResourceRecordData
+    public class DnsDSRecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -49,7 +49,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructors
 
-        public DnsDSRecord(ushort keyTag, DnssecAlgorithm algorithm, DnssecDigestType digestType, byte[] digest)
+        public DnsDSRecordData(ushort keyTag, DnssecAlgorithm algorithm, DnssecDigestType digestType, byte[] digest)
         {
             _keyTag = keyTag;
             _algorithm = algorithm;
@@ -59,11 +59,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             Serialize();
         }
 
-        public DnsDSRecord(Stream s)
+        public DnsDSRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsDSRecord(dynamic jsonResourceRecord)
+        public DnsDSRecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -88,7 +88,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (record.Type != DnsResourceRecordType.DS)
                     throw new InvalidOperationException();
 
-                if ((record.RDATA as DnsDSRecord).IsDnssecAlgorithmSupported())
+                if ((record.RDATA as DnsDSRecordData).IsDnssecAlgorithmSupported())
                     return true;
             }
 
@@ -102,7 +102,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (record.Type != DnsResourceRecordType.DS)
                     throw new InvalidOperationException();
 
-                if ((record.RDATA as DnsDSRecord).IsDigestTypeSupported())
+                if ((record.RDATA as DnsDSRecordData).IsDigestTypeSupported())
                     return true;
             }
 
@@ -192,7 +192,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsDSRecord other)
+            if (obj is DnsDSRecordData other)
             {
                 if (_keyTag != other._keyTag)
                     return false;

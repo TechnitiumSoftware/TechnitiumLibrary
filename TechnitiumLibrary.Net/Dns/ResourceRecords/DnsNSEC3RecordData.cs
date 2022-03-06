@@ -45,7 +45,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     //Authenticated Denial of Existence in the DNS 
     //https://datatracker.ietf.org/doc/html/rfc7129
 
-    public class DnsNSEC3Record : DnsResourceRecordData
+    public class DnsNSEC3RecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructors
 
-        public DnsNSEC3Record(DnssecNSEC3HashAlgorithm hashAlgorithm, DnssecNSEC3Flags flags, ushort iterations, byte[] salt, byte[] nextHashedOwnerName, IReadOnlyList<DnsResourceRecordType> types)
+        public DnsNSEC3RecordData(DnssecNSEC3HashAlgorithm hashAlgorithm, DnssecNSEC3Flags flags, ushort iterations, byte[] salt, byte[] nextHashedOwnerName, IReadOnlyList<DnsResourceRecordType> types)
         {
             _hashAlgorithm = hashAlgorithm;
             _flags = flags;
@@ -78,11 +78,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             Serialize();
         }
 
-        public DnsNSEC3Record(Stream s)
+        public DnsNSEC3RecordData(Stream s)
             : base(s)
         { }
 
-        public DnsNSEC3Record(dynamic jsonResourceRecord)
+        public DnsNSEC3RecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -169,7 +169,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (nsec3Record.Type != DnsResourceRecordType.NSEC3)
                         continue;
 
-                    DnsNSEC3Record nsec3 = nsec3Record.RDATA as DnsNSEC3Record;
+                    DnsNSEC3RecordData nsec3 = nsec3Record.RDATA as DnsNSEC3RecordData;
                     string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
 
                     if (hashedClosestEncloser is null)
@@ -213,13 +213,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (nsec3Record.Type != DnsResourceRecordType.NSEC3)
                     continue;
 
-                DnsNSEC3Record nsec3 = nsec3Record.RDATA as DnsNSEC3Record;
+                DnsNSEC3RecordData nsec3 = nsec3Record.RDATA as DnsNSEC3RecordData;
                 string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
 
                 if (hashedNextCloserName is null)
                     hashedNextCloserName = nsec3.ComputeHashedOwnerName(nextCloserName);
 
-                if (DnsNSECRecord.IsDomainCovered(hashedOwnerName, nsec3._nextHashedOwnerName, hashedNextCloserName))
+                if (DnsNSECRecordData.IsDomainCovered(hashedOwnerName, nsec3._nextHashedOwnerName, hashedNextCloserName))
                 {
                     //found proof of cover for hashed next closer name
 
@@ -248,7 +248,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (nsec3Record.Type != DnsResourceRecordType.NSEC3)
                     continue;
 
-                DnsNSEC3Record nsec3 = nsec3Record.RDATA as DnsNSEC3Record;
+                DnsNSEC3RecordData nsec3 = nsec3Record.RDATA as DnsNSEC3RecordData;
                 string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
 
                 if (hashedWildcardDomainName is null)
@@ -265,7 +265,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     //response failed to prove that the domain does not exists since a wildcard exists
                     return DnssecProofOfNonExistence.NoProof;
                 }
-                else if (DnsNSECRecord.IsDomainCovered(hashedOwnerName, nsec3._nextHashedOwnerName, hashedWildcardDomainName))
+                else if (DnsNSECRecordData.IsDomainCovered(hashedOwnerName, nsec3._nextHashedOwnerName, hashedWildcardDomainName))
                 {
                     //found proof of cover for wildcard domain
 
@@ -379,7 +379,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 mS.Write(_salt);
                 mS.WriteByte((byte)_nextHashedOwnerNameValue.Length);
                 mS.Write(_nextHashedOwnerNameValue);
-                DnsNSECRecord.WriteTypeBitMapsTo(_types, mS);
+                DnsNSECRecordData.WriteTypeBitMapsTo(_types, mS);
 
                 _rData = mS.ToArray();
             }
@@ -437,7 +437,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 _iterations = DnsDatagram.ReadUInt16NetworkOrder(mS);
                 _salt = mS.ReadBytes(mS.ReadByteValue());
                 _nextHashedOwnerNameValue = mS.ReadBytes(mS.ReadByteValue());
-                _types = DnsNSECRecord.ReadTypeBitMapsFrom(mS, (int)(mS.Length - mS.Position));
+                _types = DnsNSECRecordData.ReadTypeBitMapsFrom(mS, (int)(mS.Length - mS.Position));
             }
 
             _nextHashedOwnerName = Base32.ToBase32HexString(_nextHashedOwnerNameValue);
@@ -467,7 +467,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsNSEC3Record other)
+            if (obj is DnsNSEC3RecordData other)
             {
                 if (_hashAlgorithm != other._hashAlgorithm)
                     return false;

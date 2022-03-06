@@ -28,7 +28,7 @@ using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsForwarderRecord : DnsResourceRecordData
+    public class DnsForwarderRecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -48,11 +48,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsForwarderRecord(DnsTransportProtocol protocol, string forwarder)
+        public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder)
             : this(protocol, forwarder, false, NetProxyType.None, null, 0, null, null)
         { }
 
-        public DnsForwarderRecord(DnsTransportProtocol protocol, string forwarder, bool dnssecValidation, NetProxyType proxyType, string proxyAddress, ushort proxyPort, string proxyUsername, string proxyPassword)
+        public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder, bool dnssecValidation, NetProxyType proxyType, string proxyAddress, ushort proxyPort, string proxyUsername, string proxyPassword)
         {
             _protocol = protocol;
             _forwarder = forwarder;
@@ -70,11 +70,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             InitObjects();
         }
 
-        public DnsForwarderRecord(Stream s)
+        public DnsForwarderRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsForwarderRecord(dynamic jsonResourceRecord)
+        public DnsForwarderRecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -178,7 +178,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsForwarderRecord other)
+            if (obj is DnsForwarderRecordData other)
             {
                 if (_protocol != other._protocol)
                     return false;

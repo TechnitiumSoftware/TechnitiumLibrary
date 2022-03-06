@@ -183,99 +183,99 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             switch (_type)
             {
                 case DnsResourceRecordType.A:
-                    _data = new DnsARecord(s);
+                    _data = new DnsARecordData(s);
                     break;
 
                 case DnsResourceRecordType.NS:
-                    _data = new DnsNSRecord(s);
+                    _data = new DnsNSRecordData(s);
                     break;
 
                 case DnsResourceRecordType.CNAME:
-                    _data = new DnsCNAMERecord(s);
+                    _data = new DnsCNAMERecordData(s);
                     break;
 
                 case DnsResourceRecordType.SOA:
-                    _data = new DnsSOARecord(s);
+                    _data = new DnsSOARecordData(s);
                     break;
 
                 case DnsResourceRecordType.PTR:
-                    _data = new DnsPTRRecord(s);
+                    _data = new DnsPTRRecordData(s);
                     break;
 
                 case DnsResourceRecordType.HINFO:
-                    _data = new DnsHINFORecord(s);
+                    _data = new DnsHINFORecordData(s);
                     break;
 
                 case DnsResourceRecordType.MX:
-                    _data = new DnsMXRecord(s);
+                    _data = new DnsMXRecordData(s);
                     break;
 
                 case DnsResourceRecordType.TXT:
-                    _data = new DnsTXTRecord(s);
+                    _data = new DnsTXTRecordData(s);
                     break;
 
                 case DnsResourceRecordType.AAAA:
-                    _data = new DnsAAAARecord(s);
+                    _data = new DnsAAAARecordData(s);
                     break;
 
                 case DnsResourceRecordType.SRV:
-                    _data = new DnsSRVRecord(s);
+                    _data = new DnsSRVRecordData(s);
                     break;
 
                 case DnsResourceRecordType.DNAME:
-                    _data = new DnsDNAMERecord(s);
+                    _data = new DnsDNAMERecordData(s);
                     break;
 
                 case DnsResourceRecordType.OPT:
-                    _data = new DnsOPTRecord(s);
+                    _data = new DnsOPTRecordData(s);
                     break;
 
                 case DnsResourceRecordType.DS:
-                    _data = new DnsDSRecord(s);
+                    _data = new DnsDSRecordData(s);
                     break;
 
                 case DnsResourceRecordType.RRSIG:
-                    _data = new DnsRRSIGRecord(s);
+                    _data = new DnsRRSIGRecordData(s);
                     break;
 
                 case DnsResourceRecordType.NSEC:
-                    _data = new DnsNSECRecord(s);
+                    _data = new DnsNSECRecordData(s);
                     break;
 
                 case DnsResourceRecordType.DNSKEY:
-                    _data = new DnsDNSKEYRecord(s);
+                    _data = new DnsDNSKEYRecordData(s);
                     break;
 
                 case DnsResourceRecordType.NSEC3:
-                    _data = new DnsNSEC3Record(s);
+                    _data = new DnsNSEC3RecordData(s);
                     break;
 
                 case DnsResourceRecordType.NSEC3PARAM:
-                    _data = new DnsNSEC3PARAMRecord(s);
+                    _data = new DnsNSEC3PARAMRecordData(s);
                     break;
 
                 case DnsResourceRecordType.TSIG:
-                    _data = new DnsTSIGRecord(s);
+                    _data = new DnsTSIGRecordData(s);
                     break;
 
                 case DnsResourceRecordType.CAA:
-                    _data = new DnsCAARecord(s);
+                    _data = new DnsCAARecordData(s);
                     break;
 
                 case DnsResourceRecordType.ANAME:
-                    _data = new DnsANAMERecord(s);
+                    _data = new DnsANAMERecordData(s);
                     break;
 
                 case DnsResourceRecordType.FWD:
-                    _data = new DnsForwarderRecord(s);
+                    _data = new DnsForwarderRecordData(s);
                     break;
 
                 case DnsResourceRecordType.APP:
-                    _data = new DnsApplicationRecord(s);
+                    _data = new DnsApplicationRecordData(s);
                     break;
 
                 default:
-                    _data = new DnsUnknownRecord(s);
+                    _data = new DnsUnknownRecordData(s);
                     break;
             }
         }
@@ -290,99 +290,99 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             switch (_type)
             {
                 case DnsResourceRecordType.A:
-                    _data = new DnsARecord(jsonResourceRecord);
+                    _data = new DnsARecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.NS:
-                    _data = new DnsNSRecord(jsonResourceRecord);
+                    _data = new DnsNSRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.CNAME:
-                    _data = new DnsCNAMERecord(jsonResourceRecord);
+                    _data = new DnsCNAMERecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.SOA:
-                    _data = new DnsSOARecord(jsonResourceRecord);
+                    _data = new DnsSOARecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.PTR:
-                    _data = new DnsPTRRecord(jsonResourceRecord);
+                    _data = new DnsPTRRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.HINFO:
-                    _data = new DnsHINFORecord(jsonResourceRecord);
+                    _data = new DnsHINFORecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.MX:
-                    _data = new DnsMXRecord(jsonResourceRecord);
+                    _data = new DnsMXRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.TXT:
-                    _data = new DnsTXTRecord(jsonResourceRecord);
+                    _data = new DnsTXTRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.AAAA:
-                    _data = new DnsAAAARecord(jsonResourceRecord);
+                    _data = new DnsAAAARecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.SRV:
-                    _data = new DnsSRVRecord(jsonResourceRecord);
+                    _data = new DnsSRVRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.DNAME:
-                    _data = new DnsDNAMERecord(jsonResourceRecord);
+                    _data = new DnsDNAMERecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.OPT:
-                    _data = new DnsOPTRecord(jsonResourceRecord);
+                    _data = new DnsOPTRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.DS:
-                    _data = new DnsDSRecord(jsonResourceRecord);
+                    _data = new DnsDSRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.RRSIG:
-                    _data = new DnsRRSIGRecord(jsonResourceRecord);
+                    _data = new DnsRRSIGRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.NSEC:
-                    _data = new DnsNSECRecord(jsonResourceRecord);
+                    _data = new DnsNSECRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.DNSKEY:
-                    _data = new DnsDNSKEYRecord(jsonResourceRecord);
+                    _data = new DnsDNSKEYRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.NSEC3:
-                    _data = new DnsNSEC3Record(jsonResourceRecord);
+                    _data = new DnsNSEC3RecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.NSEC3PARAM:
-                    _data = new DnsNSEC3PARAMRecord(jsonResourceRecord);
+                    _data = new DnsNSEC3PARAMRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.TSIG:
-                    _data = new DnsTSIGRecord(jsonResourceRecord);
+                    _data = new DnsTSIGRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.CAA:
-                    _data = new DnsCAARecord(jsonResourceRecord);
+                    _data = new DnsCAARecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.ANAME:
-                    _data = new DnsANAMERecord(jsonResourceRecord);
+                    _data = new DnsANAMERecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.FWD:
-                    _data = new DnsForwarderRecord(jsonResourceRecord);
+                    _data = new DnsForwarderRecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.APP:
-                    _data = new DnsApplicationRecord(jsonResourceRecord);
+                    _data = new DnsApplicationRecordData(jsonResourceRecord);
                     break;
 
                 default:
-                    _data = new DnsUnknownRecord(jsonResourceRecord);
+                    _data = new DnsUnknownRecordData(jsonResourceRecord);
                     break;
             }
         }
@@ -571,7 +571,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             int value;
 
-            value = DnsNSECRecord.CanonicalComparison(_name, other._name);
+            value = DnsNSECRecordData.CanonicalComparison(_name, other._name);
             if (value != 0)
                 return value;
 

@@ -80,17 +80,17 @@ namespace TechnitiumLibrary.Net.Dns
             if (opt is null)
                 return null;
 
-            return new DnsDatagramEdns((ushort)opt.Class, (DnsResponseCode)(((opt.OriginalTtlValue & 0xff000000u) >> 20) | ((uint)RCODE & 0xfu)), (byte)((opt.OriginalTtlValue >> 16) & 0xffu), (EDnsHeaderFlags)(opt.OriginalTtlValue & 0xffffu), (opt.RDATA as DnsOPTRecord).Options);
+            return new DnsDatagramEdns((ushort)opt.Class, (DnsResponseCode)(((opt.OriginalTtlValue & 0xff000000u) >> 20) | ((uint)RCODE & 0xfu)), (byte)((opt.OriginalTtlValue >> 16) & 0xffu), (EDnsHeaderFlags)(opt.OriginalTtlValue & 0xffffu), (opt.RDATA as DnsOPTRecordData).Options);
         }
 
         public static DnsResourceRecord GetOPTFor(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption> options)
         {
-            DnsOPTRecord opt;
+            DnsOPTRecordData opt;
 
             if ((options is null) || (options.Count == 0))
-                opt = DnsOPTRecord.Empty;
+                opt = DnsOPTRecordData.Empty;
             else
-                opt = new DnsOPTRecord(options);
+                opt = new DnsOPTRecordData(options);
 
             return new DnsResourceRecord("", DnsResourceRecordType.OPT, (DnsClass)udpPayloadSize, ((((uint)extendedRCODE) & 0x00000ff0u) << 20) | (((uint)version) << 16) | ((uint)flags), opt);
         }

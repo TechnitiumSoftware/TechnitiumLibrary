@@ -42,7 +42,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     //Clarifications and Implementation Notes for DNS Security (DNSSEC)
     //https://datatracker.ietf.org/doc/html/rfc6840
 
-    public class DnsNSECRecord : DnsResourceRecordData
+    public class DnsNSECRecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -58,7 +58,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsNSECRecord(string nextDomainName, IReadOnlyList<DnsResourceRecordType> types)
+        public DnsNSECRecordData(string nextDomainName, IReadOnlyList<DnsResourceRecordType> types)
         {
             _nextDomainName = nextDomainName;
             _types = types;
@@ -67,11 +67,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             CheckForDelegation();
         }
 
-        public DnsNSECRecord(Stream s)
+        public DnsNSECRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsNSECRecord(dynamic jsonResourceRecord)
+        public DnsNSECRecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -210,7 +210,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (nsecRecord.Type != DnsResourceRecordType.NSEC)
                     continue;
 
-                DnsNSECRecord nsec = nsecRecord.RDATA as DnsNSECRecord;
+                DnsNSECRecordData nsec = nsecRecord.RDATA as DnsNSECRecordData;
 
                 if (nsecRecord.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
                 {
@@ -249,7 +249,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (nsecRecord.Type != DnsResourceRecordType.NSEC)
                     continue;
 
-                DnsNSECRecord nsec = nsecRecord.RDATA as DnsNSECRecord;
+                DnsNSECRecordData nsec = nsecRecord.RDATA as DnsNSECRecordData;
 
                 if (nsecRecord.Name.Equals(wildcardDomain, StringComparison.OrdinalIgnoreCase))
                 {
@@ -450,7 +450,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsNSECRecord other)
+            if (obj is DnsNSECRecordData other)
             {
                 if (!_nextDomainName.Equals(other._nextDomainName, StringComparison.OrdinalIgnoreCase))
                     return false;

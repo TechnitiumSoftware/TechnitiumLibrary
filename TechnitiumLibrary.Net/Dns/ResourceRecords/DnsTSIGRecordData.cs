@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     //Secret Key Transaction Authentication for DNS (TSIG)
     //https://datatracker.ietf.org/doc/html/rfc8945
 
-    public class DnsTSIGRecord : DnsResourceRecordData
+    public class DnsTSIGRecordData : DnsResourceRecordData
     {
         #region constants
 
@@ -68,11 +68,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsTSIGRecord(string algorithmName, DateTime timeSigned, ushort fudge, byte[] mac, ushort originalID, DnsTsigError error, byte[] otherData)
+        public DnsTSIGRecordData(string algorithmName, DateTime timeSigned, ushort fudge, byte[] mac, ushort originalID, DnsTsigError error, byte[] otherData)
             : this(algorithmName, Convert.ToUInt64((timeSigned - DateTime.UnixEpoch).TotalSeconds), fudge, mac, originalID, error, otherData)
         { }
 
-        public DnsTSIGRecord(string algorithmName, ulong timeSigned, ushort fudge, byte[] mac, ushort originalID, DnsTsigError error, byte[] otherData)
+        public DnsTSIGRecordData(string algorithmName, ulong timeSigned, ushort fudge, byte[] mac, ushort originalID, DnsTsigError error, byte[] otherData)
         {
             _algorithmName = algorithmName;
             _timeSigned = timeSigned;
@@ -83,11 +83,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _otherData = otherData;
         }
 
-        public DnsTSIGRecord(Stream s)
+        public DnsTSIGRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsTSIGRecord(dynamic jsonResourceRecord)
+        public DnsTSIGRecordData(dynamic jsonResourceRecord)
         {
             throw new NotSupportedException();
         }
@@ -140,7 +140,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsTSIGRecord other)
+            if (obj is DnsTSIGRecordData other)
             {
                 if (!_algorithmName.Equals(other._algorithmName, StringComparison.OrdinalIgnoreCase))
                     return false;

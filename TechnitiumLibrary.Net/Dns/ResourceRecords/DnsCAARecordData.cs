@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsCAARecord : DnsResourceRecordData
+    public class DnsCAARecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -38,7 +38,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsCAARecord(byte flags, string tag, string value)
+        public DnsCAARecordData(byte flags, string tag, string value)
         {
             if (tag.Length < 1)
                 throw new InvalidDataException("CAA tag length must be at least 1.");
@@ -48,11 +48,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _value = value;
         }
 
-        public DnsCAARecord(Stream s)
+        public DnsCAARecordData(Stream s)
             : base(s)
         { }
 
-        public DnsCAARecord(dynamic jsonResourceRecord)
+        public DnsCAARecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -106,7 +106,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsCAARecord other)
+            if (obj is DnsCAARecordData other)
             {
                 if (_flags != other._flags)
                     return false;

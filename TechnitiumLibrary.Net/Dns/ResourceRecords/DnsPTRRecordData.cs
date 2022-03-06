@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ using System.Runtime.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsDNAMERecord : DnsResourceRecordData
+    public class DnsPTRRecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -34,18 +34,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsDNAMERecord(string domain)
+        public DnsPTRRecordData(string domain)
         {
             DnsClient.IsDomainNameValid(domain, true);
 
             _domain = domain;
         }
 
-        public DnsDNAMERecord(Stream s)
+        public DnsPTRRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsDNAMERecord(dynamic jsonResourceRecord)
+        public DnsPTRRecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -63,7 +63,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            DnsDatagram.SerializeDomainName(canonicalForm ? _domain.ToLower() : _domain, s);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _domain.ToLower() : _domain, s, domainEntries);
         }
 
         #endregion
@@ -79,14 +79,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public string Substitute(string qname, string owner)
-        {
-            if (_domain.Length == 0)
-                return qname.Substring(0, qname.Length - owner.Length - 1);
-            else
-                return qname.Substring(0, qname.Length - owner.Length) + _domain;
-        }
-
         public override bool Equals(object obj)
         {
             if (obj is null)
@@ -95,7 +87,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsDNAMERecord other)
+            if (obj is DnsPTRRecordData other)
                 return _domain.Equals(other._domain, StringComparison.OrdinalIgnoreCase);
 
             return false;

@@ -54,7 +54,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         PRIVATEOID = 254
     }
 
-    public class DnsDNSKEYRecord : DnsResourceRecordData
+    public class DnsDNSKEYRecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -71,7 +71,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructors
 
-        public DnsDNSKEYRecord(DnsDnsKeyFlag flags, byte protocol, DnssecAlgorithm algorithm, DnssecPublicKey publicKey)
+        public DnsDNSKEYRecordData(DnsDnsKeyFlag flags, byte protocol, DnssecAlgorithm algorithm, DnssecPublicKey publicKey)
         {
             _flags = flags;
             _protocol = protocol;
@@ -82,11 +82,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             ComputeKeyTag();
         }
 
-        public DnsDNSKEYRecord(Stream s)
+        public DnsDNSKEYRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsDNSKEYRecord(dynamic jsonResourceRecord)
+        public DnsDNSKEYRecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -210,18 +210,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public bool IsDnsKeyValid(string ownerName, DnsDSRecord ds)
+        public bool IsDnsKeyValid(string ownerName, DnsDSRecordData ds)
         {
             byte[] computedDigest = ComputeDigest(ownerName, ds.DigestType);
 
             return BinaryNumber.Equals(computedDigest, ds.DigestValue);
         }
 
-        public DnsDSRecord CreateDS(string ownerName, DnssecDigestType digestType)
+        public DnsDSRecordData CreateDS(string ownerName, DnssecDigestType digestType)
         {
             byte[] computedDigest = ComputeDigest(ownerName, digestType);
 
-            return new DnsDSRecord(_computedKeyTag, _algorithm, digestType, computedDigest);
+            return new DnsDSRecordData(_computedKeyTag, _algorithm, digestType, computedDigest);
         }
 
         public override bool Equals(object obj)
@@ -232,7 +232,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsDNSKEYRecord other)
+            if (obj is DnsDNSKEYRecordData other)
             {
                 if (_flags != other._flags)
                     return false;

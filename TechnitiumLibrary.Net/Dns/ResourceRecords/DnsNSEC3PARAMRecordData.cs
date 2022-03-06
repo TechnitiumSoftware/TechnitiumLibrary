@@ -25,7 +25,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsNSEC3PARAMRecord : DnsResourceRecordData
+    public class DnsNSEC3PARAMRecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -40,7 +40,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructors
 
-        public DnsNSEC3PARAMRecord(DnssecNSEC3HashAlgorithm hashAlgorithm, DnssecNSEC3Flags flags, ushort iterations, byte[] salt)
+        public DnsNSEC3PARAMRecordData(DnssecNSEC3HashAlgorithm hashAlgorithm, DnssecNSEC3Flags flags, ushort iterations, byte[] salt)
         {
             _hashAlgorithm = hashAlgorithm;
             _flags = flags;
@@ -50,11 +50,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             Serialize();
         }
 
-        public DnsNSEC3PARAMRecord(Stream s)
+        public DnsNSEC3PARAMRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsNSEC3PARAMRecord(dynamic jsonResourceRecord)
+        public DnsNSEC3PARAMRecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -114,12 +114,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public string ComputeHashedOwnerNameBase32HexString(string ownerName)
         {
-            return Base32.ToBase32HexString(DnsNSEC3Record.ComputeHashedOwnerName(ownerName, _hashAlgorithm, _iterations, _salt));
+            return Base32.ToBase32HexString(DnsNSEC3RecordData.ComputeHashedOwnerName(ownerName, _hashAlgorithm, _iterations, _salt));
         }
 
         public byte[] ComputeHashedOwnerName(string ownerName)
         {
-            return DnsNSEC3Record.ComputeHashedOwnerName(ownerName, _hashAlgorithm, _iterations, _salt);
+            return DnsNSEC3RecordData.ComputeHashedOwnerName(ownerName, _hashAlgorithm, _iterations, _salt);
         }
 
         public override bool Equals(object obj)
@@ -130,7 +130,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsNSEC3PARAMRecord other)
+            if (obj is DnsNSEC3PARAMRecordData other)
             {
                 if (_hashAlgorithm != other._hashAlgorithm)
                     return false;

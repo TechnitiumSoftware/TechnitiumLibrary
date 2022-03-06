@@ -27,7 +27,7 @@ using TechnitiumLibrary.Net.Dns.EDnsOptions;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsRRSIGRecord : DnsResourceRecordData
+    public class DnsRRSIGRecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -47,7 +47,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructors
 
-        public DnsRRSIGRecord(DnsResourceRecordType typeCovered, DnssecAlgorithm algorithm, byte labels, uint originalTtl, uint signatureExpiration, uint signatureInception, ushort keyTag, string signersName, byte[] signature)
+        public DnsRRSIGRecordData(DnsResourceRecordType typeCovered, DnssecAlgorithm algorithm, byte labels, uint originalTtl, uint signatureExpiration, uint signatureInception, ushort keyTag, string signersName, byte[] signature)
         {
             _typeCovered = typeCovered;
             _algorithm = algorithm;
@@ -60,11 +60,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _signature = signature;
         }
 
-        public DnsRRSIGRecord(Stream s)
+        public DnsRRSIGRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsRRSIGRecord(dynamic jsonResourceRecord)
+        public DnsRRSIGRecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -87,7 +87,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static bool IsWildcard(DnsResourceRecord rrsigRecord)
         {
-            if (rrsigRecord.RDATA is DnsRRSIGRecord rrsig)
+            if (rrsigRecord.RDATA is DnsRRSIGRecordData rrsig)
                 return GetLabelCount(rrsigRecord.Name) > rrsig._labels;
 
             throw new InvalidOperationException();
@@ -95,7 +95,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static bool IsWildcard(DnsResourceRecord rrsigRecord, out string nextCloserName)
         {
-            if (rrsigRecord.RDATA is DnsRRSIGRecord rrsig)
+            if (rrsigRecord.RDATA is DnsRRSIGRecordData rrsig)
             {
                 if (GetLabelCount(rrsigRecord.Name) > rrsig._labels)
                 {
@@ -133,7 +133,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return count;
         }
 
-        public static bool TryGetRRSetHash(DnsRRSIGRecord rrsigRecord, IReadOnlyList<DnsResourceRecord> records, out byte[] hash, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
+        public static bool TryGetRRSetHash(DnsRRSIGRecordData rrsigRecord, IReadOnlyList<DnsResourceRecord> records, out byte[] hash, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
         {
             using (MemoryStream mS = new MemoryStream(512))
             {
@@ -383,7 +383,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             uint utc = Convert.ToUInt32((DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds % uint.MaxValue);
 
             //The validator's notion of the current time MUST be less than or equal to the time listed in the RRSIG RR's Expiration field.
-            if (DnsSOARecord.IsZoneUpdateAvailable(_signatureExpiration, utc)) //using Serial number arithmetic
+            if (DnsSOARecordData.IsZoneUpdateAvailable(_signatureExpiration, utc)) //using Serial number arithmetic
             {
                 //utc is greater than expiration; so signature is expired
                 extendedDnsErrorCode = EDnsExtendedDnsErrorCode.SignatureExpired;
@@ -391,7 +391,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
 
             //The validator's notion of the current time MUST be greater than or equal to the time listed in the RRSIG RR's Inception field.
-            if (DnsSOARecord.IsZoneUpdateAvailable(utc, _signatureInception)) //using Serial number arithmetic
+            if (DnsSOARecordData.IsZoneUpdateAvailable(utc, _signatureInception)) //using Serial number arithmetic
             {
                 //inception is greater than utc; so signature is not yet valid
                 extendedDnsErrorCode = EDnsExtendedDnsErrorCode.SignatureNotYetValid;
@@ -417,7 +417,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (!dnsKeyRecord.Name.Equals(_signersName, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                DnsDNSKEYRecord dnsKey = dnsKeyRecord.RDATA as DnsDNSKEYRecord;
+                DnsDNSKEYRecordData dnsKey = dnsKeyRecord.RDATA as DnsDNSKEYRecordData;
 
                 if (dnsKey.Protocol != 3)
                     continue;
@@ -490,7 +490,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsRRSIGRecord other)
+            if (obj is DnsRRSIGRecordData other)
             {
                 if (_typeCovered != other._typeCovered)
                     return false;
@@ -616,7 +616,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             public int CompareTo(SerializedResourceRecord other)
             {
                 //Canonical RR Ordering by sorting RDATA portion of the canonical form of each RR
-                return DnsNSECRecord.CanonicalComparison(_rdataPart, other._rdataPart);
+                return DnsNSECRecordData.CanonicalComparison(_rdataPart, other._rdataPart);
             }
 
             public void WriteTo(Stream s)

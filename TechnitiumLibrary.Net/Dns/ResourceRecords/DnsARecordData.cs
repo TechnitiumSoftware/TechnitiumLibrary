@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,41 +20,41 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Runtime.Serialization;
+using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsMXRecord : DnsResourceRecordData, IComparable<DnsMXRecord>
+    public class DnsARecordData : DnsResourceRecordData
     {
         #region variables
 
-        ushort _preference;
-        string _exchange;
+        IPAddress _address;
+
+        byte[] _rData;
 
         #endregion
 
         #region constructor
 
-        public DnsMXRecord(ushort preference, string exchange)
+        public DnsARecordData(IPAddress address)
         {
-            DnsClient.IsDomainNameValid(exchange, true);
+            _address = address;
 
-            _preference = preference;
-            _exchange = exchange;
+            if (_address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+                throw new DnsClientException("Invalid IP address family.");
         }
 
-        public DnsMXRecord(Stream s)
+        public DnsARecordData(Stream s)
             : base(s)
         { }
 
-        public DnsMXRecord(dynamic jsonResourceRecord)
+        public DnsARecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
-
-            _preference = ushort.Parse(parts[0]);
-            _exchange = parts[1].TrimEnd('.');
+            _address = System.Net.IPAddress.Parse(jsonResourceRecord.data.Value);
         }
 
         #endregion
@@ -63,33 +63,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _preference = DnsDatagram.ReadUInt16NetworkOrder(s);
-            _exchange = DnsDatagram.DeserializeDomainName(s);
+            _rData = s.ReadBytes(4);
+            _address = new IPAddress(_rData);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            DnsDatagram.WriteUInt16NetworkOrder(_preference, s);
-            DnsDatagram.SerializeDomainName(canonicalForm ? _exchange.ToLower() : _exchange, s, domainEntries);
-        }
+            if (_rData is null)
+                _rData = _address.GetAddressBytes();
 
-        #endregion
-
-        #region internal
-
-        internal override void NormalizeName()
-        {
-            _exchange = _exchange.ToLower();
+            s.Write(_rData);
         }
 
         #endregion
 
         #region public
-
-        public int CompareTo(DnsMXRecord other)
-        {
-            return _preference.CompareTo(other._preference);
-        }
 
         public override bool Equals(object obj)
         {
@@ -99,35 +87,36 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsMXRecord other)
-                return _exchange.Equals(other._exchange, StringComparison.OrdinalIgnoreCase);
+            if (obj is DnsARecordData other)
+                return _address.Equals(other._address);
 
             return false;
         }
 
         public override int GetHashCode()
         {
-            return _exchange.GetHashCode();
+            return _address.GetHashCode();
         }
 
         public override string ToString()
         {
-            return _preference + " " + _exchange.ToLower() + ".";
+            return _address.ToString();
         }
 
         #endregion
 
         #region properties
 
-        public ushort Preference
-        { get { return _preference; } }
+        [IgnoreDataMember]
+        public IPAddress Address
+        { get { return _address; } }
 
-        public string Exchange
-        { get { return _exchange; } }
+        public string IPAddress
+        { get { return _address.ToString(); } }
 
         [IgnoreDataMember]
         public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(2 + DnsDatagram.GetSerializeDomainNameLength(_exchange)); } }
+        { get { return 4; } }
 
         #endregion
     }

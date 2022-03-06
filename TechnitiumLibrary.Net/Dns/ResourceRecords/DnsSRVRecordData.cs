@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ using System.Runtime.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
-    public class DnsSRVRecord : DnsResourceRecordData
+    public class DnsSRVRecordData : DnsResourceRecordData
     {
         #region variables
 
@@ -37,7 +37,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsSRVRecord(ushort priority, ushort weight, ushort port, string target)
+        public DnsSRVRecordData(ushort priority, ushort weight, ushort port, string target)
         {
             DnsClient.IsDomainNameValid(target, true);
 
@@ -47,11 +47,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _target = target;
         }
 
-        public DnsSRVRecord(Stream s)
+        public DnsSRVRecordData(Stream s)
             : base(s)
         { }
 
-        public DnsSRVRecord(dynamic jsonResourceRecord)
+        public DnsSRVRecordData(dynamic jsonResourceRecord)
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
@@ -104,7 +104,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is DnsSRVRecord other)
+            if (obj is DnsSRVRecordData other)
             {
                 if (_port != other._port)
                     return false;

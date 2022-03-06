@@ -399,7 +399,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (authorityRecord.Type == DnsResourceRecordType.NS)
                 {
-                    DnsNSRecord nsRecord = (DnsNSRecord)authorityRecord.RDATA;
+                    DnsNSRecordData nsRecord = (DnsNSRecordData)authorityRecord.RDATA;
 
                     if (IPAddress.TryParse(nsRecord.NameServer, out _))
                         continue; //skip misconfigured NS record
@@ -414,12 +414,12 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (rr.Type)
                             {
                                 case DnsResourceRecordType.A:
-                                    endPoint = new IPEndPoint(((DnsARecord)rr.RDATA).Address, 53);
+                                    endPoint = new IPEndPoint(((DnsARecordData)rr.RDATA).Address, 53);
                                     nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint));
                                     break;
 
                                 case DnsResourceRecordType.AAAA:
-                                    endPoint = new IPEndPoint(((DnsAAAARecord)rr.RDATA).Address, 53);
+                                    endPoint = new IPEndPoint(((DnsAAAARecordData)rr.RDATA).Address, 53);
 
                                     if (preferIPv6)
                                         nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint));
