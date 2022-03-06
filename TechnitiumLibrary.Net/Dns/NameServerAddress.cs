@@ -731,7 +731,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public Uri DnsOverHttpEndPoint
+        public Uri DoHEndPoint
         { get { return _dohEndPoint; } }
 
         public DomainEndPoint DomainEndPoint

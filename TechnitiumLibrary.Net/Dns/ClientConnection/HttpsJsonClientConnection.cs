@@ -57,10 +57,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             _httpClient.DefaultRequestHeaders.Add("accept", "application/dns-json");
 
-            if (_server.DnsOverHttpEndPoint.IsDefaultPort)
-                _httpClient.DefaultRequestHeaders.Add("host", _server.DnsOverHttpEndPoint.Host);
+            if (_server.DoHEndPoint.IsDefaultPort)
+                _httpClient.DefaultRequestHeaders.Add("host", _server.DoHEndPoint.Host);
             else
-                _httpClient.DefaultRequestHeaders.Add("host", _server.DnsOverHttpEndPoint.Host + ":" + _server.DnsOverHttpEndPoint.Port);
+                _httpClient.DefaultRequestHeaders.Add("host", _server.DoHEndPoint.Host + ":" + _server.DoHEndPoint.Port);
 
             _httpClient.DefaultRequestHeaders.Add("user-agent", "DoH client");
         }
@@ -102,14 +102,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (_server.IsIPEndPointStale)
                         await _server.RecursiveResolveIPAddressAsync(null, null, false, DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, false, 2, 2000, cancellationToken);
 
-                    queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
+                    queryUri = new Uri(_server.DoHEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DoHEndPoint.PathAndQuery);
                 }
                 else
                 {
                     if (_server.IPEndPoint == null)
-                        queryUri = _server.DnsOverHttpEndPoint;
+                        queryUri = _server.DoHEndPoint;
                     else
-                        queryUri = new Uri(_server.DnsOverHttpEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DnsOverHttpEndPoint.PathAndQuery);
+                        queryUri = new Uri(_server.DoHEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DoHEndPoint.PathAndQuery);
                 }
 
                 return new HttpRequestMessage(HttpMethod.Get, queryUri.AbsoluteUri + "?name=" + (request.Question[0].Name.Length == 0 ? "." : request.Question[0].Name) + "&type=" + Convert.ToString((int)request.Question[0].Type) + "&do=" + request.DnssecOk);
