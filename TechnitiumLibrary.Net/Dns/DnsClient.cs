@@ -1951,22 +1951,37 @@ namespace TechnitiumLibrary.Net.Dns
             //find DNSKEYs for all signers that are sub domain names for last DS record owner name
             foreach (string signersName in signersNames)
             {
-                if (!signersName.Equals(lastDSOwnerName, StringComparison.OrdinalIgnoreCase) && (signersName.EndsWith("." + lastDSOwnerName, StringComparison.OrdinalIgnoreCase) || (lastDSOwnerName.Length == 0)))
+                if (signersName.Equals(lastDSOwnerName, StringComparison.OrdinalIgnoreCase))
+                    continue; //already found DNSKEYs for last DS record owner name
+
+                IReadOnlyList<DnsResourceRecord> dnsKeyRecords;
+
+                if (signersName.EndsWith("." + lastDSOwnerName, StringComparison.OrdinalIgnoreCase) || (lastDSOwnerName.Length == 0))
                 {
                     //signer's name is a subdomain for last DS record owner name
-                    //find DNSKEY
-                    IReadOnlyList<DnsResourceRecord> dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, response, cancellationToken);
-                    if (dnsKeyRecords is null)
-                    {
-                        if (unsignedZones is null)
-                            unsignedZones = new List<string>(2);
+                    //find signer's DNSKEYs
+                    dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, response, cancellationToken);
+                }
+                else
+                {
+                    //signer's name is not related to last DS record
+                    //get root's DNSKEYs
+                    IReadOnlyList<DnsResourceRecord> rootDnsKeyRecords = await GetDnsKeyForAsync(ROOT_TRUST_ANCHORS, dnsClient, cache, udpPayloadSize, cancellationToken);
 
-                        unsignedZones.Add(signersName);
-                    }
-                    else
-                    {
-                        allDnsKeyRecords.AddRange(dnsKeyRecords);
-                    }
+                    //find signer's DNSKEYs
+                    dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, rootDnsKeyRecords, dnsClient, cache, udpPayloadSize, response, cancellationToken);
+                }
+
+                if (dnsKeyRecords is null)
+                {
+                    if (unsignedZones is null)
+                        unsignedZones = new List<string>(2);
+
+                    unsignedZones.Add(signersName);
+                }
+                else
+                {
+                    allDnsKeyRecords.AddRange(dnsKeyRecords);
                 }
             }
 
@@ -3424,23 +3439,44 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK);
             DnsDatagram response = await InternalResolveAsync(request, cancellationToken);
 
-            await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(question.Name), this, cache, _udpPayloadSize, cancellationToken);
+            await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(response), this, cache, _udpPayloadSize, cancellationToken);
 
             return response;
         }
 
-        private IReadOnlyList<DnsResourceRecord> GetTrustAnchorsFor(string domain)
+        private IReadOnlyList<DnsResourceRecord> GetTrustAnchorsFor(DnsDatagram response)
         {
             if (_trustAnchors is null)
                 return ROOT_TRUST_ANCHORS;
 
-            while (domain is not null)
-            {
-                if (_trustAnchors.TryGetValue(domain, out IReadOnlyList<DnsResourceRecord> trustAnchor))
-                    return trustAnchor;
+            List<string> signersNames = new List<string>();
 
-                domain = DnsCache.GetParentZone(domain);
+            FindSignersNames(response, signersNames);
+
+            List<DnsResourceRecord> selectedTrustAnchors = new List<DnsResourceRecord>();
+
+            foreach (string signersName in signersNames)
+            {
+                string domain = signersName;
+
+                while (domain is not null)
+                {
+                    if (_trustAnchors.TryGetValue(domain, out IReadOnlyList<DnsResourceRecord> dsRecords))
+                    {
+                        foreach (DnsResourceRecord dsRecord in dsRecords)
+                        {
+                            if (!selectedTrustAnchors.Contains(dsRecord))
+                                selectedTrustAnchors.Add(dsRecord);
+                        }
+                        break;
+                    }
+
+                    domain = DnsCache.GetParentZone(domain);
+                }
             }
+
+            if (selectedTrustAnchors.Count > 0)
+                return selectedTrustAnchors;
 
             return ROOT_TRUST_ANCHORS;
         }
@@ -3635,7 +3671,21 @@ namespace TechnitiumLibrary.Net.Dns
             if (_trustAnchors is null)
                 _trustAnchors = new Dictionary<string, IReadOnlyList<DnsResourceRecord>>();
 
-            _trustAnchors.Add(domain, new DnsResourceRecord[] { new DnsResourceRecord(domain, DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecord(keyTag, algorithm, digestType, digest)) });
+            DnsResourceRecord dsRecord = new DnsResourceRecord(domain, DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecord(keyTag, algorithm, digestType, digest));
+
+            if (_trustAnchors.TryGetValue(domain, out IReadOnlyList<DnsResourceRecord> existingRecords))
+            {
+                List<DnsResourceRecord> newRecords = new List<DnsResourceRecord>(existingRecords.Count + 1);
+
+                newRecords.AddRange(existingRecords);
+                newRecords.Add(dsRecord);
+
+                _trustAnchors[domain] = newRecords;
+            }
+            else
+            {
+                _trustAnchors.Add(domain, new DnsResourceRecord[] { dsRecord });
+            }
         }
 
         #endregion
