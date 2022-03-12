@@ -51,6 +51,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         bool _isInsecureDelegation;
         bool _isAncestorDelegation;
+        bool _isAncestorDNAME;
 
         byte[] _rData;
 
@@ -94,13 +95,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region static
 
-        public static string GetWildcardFor(string ownerName, string nextDomainName)
+        public static string GetWildcardFor(string nsecOwnerName, string nxDomain)
         {
             // abc.xyz.example.com
             // x.y.z.example.com
             // *.example.com
-            string[] labels1 = ownerName.Split('.');
-            string[] labels2 = nextDomainName.Split('.');
+            string[] labels1 = nsecOwnerName.Split('.');
+            string[] labels2 = nxDomain.Split('.');
 
             int minCount;
 
@@ -229,11 +230,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (nsec._nextDomainName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase))
                         return DnssecProofOfNonExistence.NoData; //domain is empty non-terminal (ENT) so proves NO DATA
 
+                    if (nsec._isAncestorDNAME)
+                        return DnssecProofOfNonExistence.NoProof; //An NSEC or NSEC3 RR with the DNAME bit set MUST NOT be used to assume the nonexistence of any subdomain of that NSEC/NSEC3 RR's (original) owner name.
+
                     if (wildcardAnswerValidation)
                         return DnssecProofOfNonExistence.NxDomain; //since wildcard was already validated; the domain does not exists
 
                     foundProofOfCover = true;
-                    wildcardDomain = GetWildcardFor(nsecRecord.Name, nsec._nextDomainName);
+                    wildcardDomain = GetWildcardFor(nsecRecord.Name, domain);
                     break;
                 }
             }
@@ -265,6 +269,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 else if (IsDomainCovered(nsecRecord.Name, nsec._nextDomainName, wildcardDomain))
                 {
                     //found proof of cover for wildcard domain
+
+                    if (nsec._isAncestorDNAME)
+                        return DnssecProofOfNonExistence.NoProof; //An NSEC or NSEC3 RR with the DNAME bit set MUST NOT be used to assume the nonexistence of any subdomain of that NSEC/NSEC3 RR's (original) owner name.
 
                     //proved that the actual domain does not exists since a wildcard does not exists
                     return DnssecProofOfNonExistence.NxDomain;
@@ -413,7 +420,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
 
             _isInsecureDelegation = !foundDS && !foundSOA && foundNS;
-            _isAncestorDelegation = (foundNS && !foundSOA) || foundDNAME;
+            _isAncestorDelegation = foundNS && !foundSOA;
+            _isAncestorDNAME = foundDNAME;
         }
 
         #endregion
