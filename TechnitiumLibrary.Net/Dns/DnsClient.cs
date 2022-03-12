@@ -512,7 +512,8 @@ namespace TechnitiumLibrary.Net.Dns
 
                 //query cache
                 {
-                    DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, ednsFlags);
+                    //query cache without CD flag to not get response from "bad cache" and DO flag, if validation is enabled, to get DNSSEC records for correctly reading DS from response
+                    DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, ednsFlags);
                     DnsDatagram cacheResponse = cache.Query(cacheRequest, false, true);
                     if (cacheResponse is not null)
                     {
@@ -556,7 +557,6 @@ namespace TechnitiumLibrary.Net.Dns
                                                     {
                                                         lastDSRecords = cacheDSRecords;
                                                     }
-
                                                     break;
 
                                                 default:
@@ -619,7 +619,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             IReadOnlyList<DnsResourceRecord> nextDSRecords = lastDSRecords;
                                             List<NameServerAddress> nextNameServers = null;
 
-                                            nextNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6);
+                                            nextNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, false);
                                             InspectCacheNameServersForLoops(nextNameServers);
 
                                             if (nextNameServers.Count > 0)
@@ -664,7 +664,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     if (cachedNsResponse is null)
                                                         continue;
 
-                                                    nextNameServers = NameServerAddress.GetNameServersFromResponse(cachedNsResponse, preferIPv6);
+                                                    nextNameServers = NameServerAddress.GetNameServersFromResponse(cachedNsResponse, preferIPv6, false);
                                                     InspectCacheNameServersForLoops(nextNameServers);
 
                                                     if (nextNameServers.Count > 0)
@@ -845,11 +845,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 PushStack(nameServer.Host, preferIPv6 ? DnsResourceRecordType.AAAA : DnsResourceRecordType.A);
                                 goto stackLoop;
                             }
-                        }
-                        else if (IPAddress.IsLoopback(nameServer.IPEndPoint.Address))
-                        {
-                            //skip this name server since it will cause resolution loops
-                            continue; //try next name server
                         }
 
                         DnsClient dnsClient = new DnsClient(nameServer);
@@ -1148,8 +1143,8 @@ namespace TechnitiumLibrary.Net.Dns
                                                 }
                                             }
 
-                                            //get next hop name servers
-                                            List<NameServerAddress> nextNameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6);
+                                            //get next hop name servers with loopback filter to prevent loops in resolution
+                                            List<NameServerAddress> nextNameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, true);
 
                                             if (nextNameServers.Count > 0)
                                             {
@@ -1356,7 +1351,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             //cache as failure
                             DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
-                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority);
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response for name servers");
 
                             cache.CacheResponse(failureResponse);
                         }
@@ -1366,9 +1361,9 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
 
                             if (ex2.SocketErrorCode == SocketError.TimedOut)
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority);
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out");
                             else
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError);
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error: " + ex2.SocketErrorCode.ToString());
 
                             cache.CacheResponse(failureResponse);
                         }
@@ -1378,7 +1373,7 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
 
                             if (lastException is not null)
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server Exception");
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server exception");
 
                             cache.CacheResponse(failureResponse);
                         }
@@ -1413,7 +1408,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 //cache as failure
                                 DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, question.Name + "/" + question.Type.ToString());
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Unable to resolve DS for " + question.Name);
 
                                 cache.CacheResponse(failureResponse);
 
@@ -2016,7 +2011,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             break;
 
                                         default:
-                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, record.Name + "/" + typeCovered.ToString());
+                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (Wildcard) for " + record.Name + "/" + typeCovered.ToString());
                                             throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + record.Name + "/" + typeCovered.ToString(), response);
                                     }
                                 }
@@ -2047,7 +2042,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 break;
 
                                             default:
-                                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, question.Name + "/" + question.Type.ToString());
+                                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.Name + "/" + question.Type.ToString());
                                                 throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
                                         }
                                     }
@@ -2076,7 +2071,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
 
                                 default:
-                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, question.Name + "/" + question.Type.ToString());
+                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.Name + "/" + question.Type.ToString());
                                     throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
                             }
                         }
@@ -2084,7 +2079,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             //empty answer and authority section
                             DnsQuestionRecord question = response.Question[0];
-                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, question.Name + "/" + question.Type.ToString());
+                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.Name + "/" + question.Type.ToString());
                             throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
                         }
 
@@ -2106,7 +2101,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
 
                                 default:
-                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, question.Name);
+                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (NX Domain) for " + question.Name);
                                     throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (NX Domain) for owner name: " + question.Name, response);
                             }
                         }
@@ -2355,7 +2350,7 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram dnsKeyResponse = await dnsClient.InternalResolveAsync(dnsKeyRequest, cancellationToken);
             if (dnsKeyResponse.Answer.Count == 0)
             {
-                dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, dnsKeyQuestion.Name);
+                dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, dnsKeyResponse.Metadata.NameServerAddress.ToString() + " returned no DNSKEYs for " + dnsKeyQuestion.Name);
                 cache.CacheResponse(dnsKeyResponse, true);
                 throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DNSKEY records for owner name: " + dnsKeyQuestion.Name, dnsKeyResponse);
             }
@@ -2387,7 +2382,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (dnsKeyRecords.Count == 0)
             {
-                dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, dnsKeyQuestion.Name);
+                dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "No SEP matching the DS found for " + dnsKeyQuestion.Name);
                 cache.CacheResponse(dnsKeyResponse, true);
                 throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find a valid DNSKEY record for owner name: " + dnsKeyQuestion.Name, dnsKeyResponse);
             }
@@ -2457,7 +2452,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return dsRecords;
             }
 
-            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, ownerName);
+            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, dsResponse.Metadata.NameServerAddress.ToString() + " returned no DS for " + ownerName);
             cache.CacheResponse(dsResponse, true);
             throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + ownerName, dsResponse);
         }
@@ -2619,12 +2614,11 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static void FindSignersNames(DnsDatagram response, List<string> signersNames)
         {
-            FindSignersNames(response.Answer, signersNames, false, false);
-            FindSignersNames(response.Authority, signersNames, true, false);
-            FindSignersNames(response.Additional, signersNames, false, true);
+            FindSignersNames(response.Answer, signersNames, false);
+            FindSignersNames(response.Authority, signersNames, true);
         }
 
-        private static void FindSignersNames(IReadOnlyList<DnsResourceRecord> records, List<string> signersNames, bool isAuthoritySection, bool isAdditionalSection)
+        private static void FindSignersNames(IReadOnlyList<DnsResourceRecord> records, List<string> signersNames, bool isAuthoritySection)
         {
             foreach (DnsResourceRecord record in records)
             {
@@ -2634,6 +2628,9 @@ namespace TechnitiumLibrary.Net.Dns
                     case DnsResourceRecordType.OPT:
                         continue;
                 }
+
+                if (record.Name.Length == 0)
+                    continue; //skip root zone
 
                 bool isRecordCovered = false;
 
@@ -2658,7 +2655,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (!isRecordCovered)
                 {
-                    if (isAdditionalSection || (isAuthoritySection && record.Type == DnsResourceRecordType.NS))
+                    if (isAuthoritySection && (record.Type == DnsResourceRecordType.NS))
                     {
                         //ignore record
                     }
@@ -2761,8 +2758,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                     foreach (DnsResourceRecord authority in response.Authority)
                     {
-                        if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
-                            newAuthority.Add(authority);
+                        if (!authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        newAuthority.Add(authority);
                     }
 
                     return response.Clone(null, newAuthority);
@@ -3534,17 +3533,24 @@ namespace TechnitiumLibrary.Net.Dns
                         //cache as failure
                         DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { q });
 
-                        if (ex.InnerException is SocketException ex3 && (ex3.SocketErrorCode != SocketError.TimedOut))
-                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError);
+                        if (ex.InnerException is SocketException ex3)
+                        {
+                            if (ex3.SocketErrorCode == SocketError.TimedOut)
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out");
+                            else
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error: " + ex3.SocketErrorCode.ToString());
+                        }
                         else
-                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority);
+                        {
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response for name servers");
+                        }
 
                         _cache.CacheResponse(failureResponse);
                     }
                     else
                     {
                         DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { q });
-                        failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server Exception");
+                        failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server exception");
 
                         //cache as failure
                         _cache.CacheResponse(failureResponse);
