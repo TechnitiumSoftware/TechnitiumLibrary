@@ -2384,7 +2384,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "No SEP matching the DS found for " + dnsKeyQuestion.Name);
                 cache.CacheResponse(dnsKeyResponse, true);
-                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find a valid DNSKEY record for owner name: " + dnsKeyQuestion.Name, dnsKeyResponse);
+                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find a SEP DNSKEY matching the DS for owner name: " + dnsKeyQuestion.Name, dnsKeyResponse);
             }
 
             //validate signature for DNSKEY response
