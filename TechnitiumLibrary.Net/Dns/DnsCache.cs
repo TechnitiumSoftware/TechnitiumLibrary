@@ -228,10 +228,14 @@ namespace TechnitiumLibrary.Net.Dns
             IReadOnlyList<DnsResourceRecord> records = entry.QueryRecords(DnsResourceRecordType.DS, true);
             if ((records.Count > 0) && (records[0].Type == DnsResourceRecordType.DS))
             {
-                List<DnsResourceRecord> newNSRecords = new List<DnsResourceRecord>(nsRecords.Count + records.Count);
+                List<DnsResourceRecord> newNSRecords = new List<DnsResourceRecord>(nsRecords.Count + records.Count + 1);
 
                 newNSRecords.AddRange(nsRecords);
                 newNSRecords.AddRange(records);
+
+                IReadOnlyList<DnsResourceRecord> rrsigRecords = GetRRSIGRecordsFrom(records[0]);
+                if (rrsigRecords is not null)
+                    newNSRecords.AddRange(rrsigRecords);
 
                 return newNSRecords;
             }
@@ -240,10 +244,18 @@ namespace TechnitiumLibrary.Net.Dns
             IReadOnlyList<DnsResourceRecord> nsecRecords = GetNSECRecordsFrom(nsRecords[0]);
             if (nsecRecords is not null)
             {
-                List<DnsResourceRecord> newNSRecords = new List<DnsResourceRecord>(nsRecords.Count + nsecRecords.Count);
+                List<DnsResourceRecord> newNSRecords = new List<DnsResourceRecord>(nsRecords.Count + (nsecRecords.Count * 2));
 
                 newNSRecords.AddRange(nsRecords);
-                newNSRecords.AddRange(nsecRecords);
+
+                foreach (DnsResourceRecord nsecRecord in nsecRecords)
+                {
+                    newNSRecords.Add(nsecRecord);
+
+                    IReadOnlyList<DnsResourceRecord> rrsigRecords = GetRRSIGRecordsFrom(nsecRecord);
+                    if (rrsigRecords is not null)
+                        newNSRecords.AddRange(rrsigRecords);
+                }
 
                 return newNSRecords;
             }
@@ -829,13 +841,13 @@ namespace TechnitiumLibrary.Net.Dns
                                                     {
                                                         case DnsResourceRecordType.A:
                                                             if (IPAddress.IsLoopback((additional.RDATA as DnsARecordData).Address))
-                                                                continue;
+                                                                continue; //skip loopback address to avoid creating resolution loops
 
                                                             break;
 
                                                         case DnsResourceRecordType.AAAA:
                                                             if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecordData).Address))
-                                                                continue;
+                                                                continue; //skip loopback address to avoid creating resolution loops
 
                                                             break;
                                                     }
