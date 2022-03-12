@@ -384,7 +384,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static List<NameServerAddress> GetNameServersFromResponse(DnsDatagram response, bool preferIPv6)
+        public static List<NameServerAddress> GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool filterLoopbackAddresses)
         {
             IReadOnlyList<DnsResourceRecord> authorityRecords;
 
@@ -415,11 +415,18 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 case DnsResourceRecordType.A:
                                     endPoint = new IPEndPoint(((DnsARecordData)rr.RDATA).Address, 53);
+
+                                    if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
+                                        continue;
+
                                     nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint));
                                     break;
 
                                 case DnsResourceRecordType.AAAA:
                                     endPoint = new IPEndPoint(((DnsAAAARecordData)rr.RDATA).Address, 53);
+
+                                    if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
+                                        continue;
 
                                     if (preferIPv6)
                                         nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint));
@@ -429,7 +436,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    if (endPoint == null)
+                    if (endPoint is null)
                         nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NameServer, 53)));
                 }
             }
