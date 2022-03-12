@@ -59,6 +59,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         string _nextHashedOwnerName;
         bool _isInsecureDelegation;
         bool _isAncestorDelegation;
+        bool _isAncestorDNAME;
 
         byte[] _rData;
 
@@ -226,6 +227,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (nsec3._flags.HasFlag(DnssecNSEC3Flags.OptOut))
                         return DnssecProofOfNonExistence.OptOut;
 
+                    if (nsec3._isAncestorDNAME)
+                        return DnssecProofOfNonExistence.NoProof; //An NSEC or NSEC3 RR with the DNAME bit set MUST NOT be used to assume the nonexistence of any subdomain of that NSEC/NSEC3 RR's (original) owner name.
+
                     if (wildcardAnswerValidation)
                         return DnssecProofOfNonExistence.NxDomain; //since wildcard was already validated; the domain does not exists
 
@@ -275,12 +279,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         //response failed to prove that the domain does not exists since a wildcard MAY exists
                         return DnssecProofOfNonExistence.NoProof;
                     }
-                    else
-                    {
-                        //no opt-out so wildcard domain does not exists
-                        //proved that the actual domain does not exists since a wildcard does not exists
-                        return DnssecProofOfNonExistence.NxDomain;
-                    }
+
+                    if (nsec3._isAncestorDNAME)
+                        return DnssecProofOfNonExistence.NoProof; //An NSEC or NSEC3 RR with the DNAME bit set MUST NOT be used to assume the nonexistence of any subdomain of that NSEC/NSEC3 RR's (original) owner name.
+
+                    //no opt-out so wildcard domain does not exists
+                    //proved that the actual domain does not exists since a wildcard does not exists
+                    return DnssecProofOfNonExistence.NxDomain;
                 }
             }
 
@@ -419,7 +424,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
 
             _isInsecureDelegation = !foundDS && !foundSOA && foundNS;
-            _isAncestorDelegation = (foundNS && !foundSOA) || foundDNAME;
+            _isAncestorDelegation = foundNS && !foundSOA;
+            _isAncestorDNAME = foundDNAME;
         }
 
         #endregion
