@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ namespace TechnitiumLibrary
 {
     public static class ListExtension
     {
-        readonly static RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+        readonly static RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
 
         public static void Shuffle<T>(this IList<T> array)
         {

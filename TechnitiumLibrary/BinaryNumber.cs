@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -51,7 +51,7 @@ namespace TechnitiumLibrary
 
         #region static
 
-        static readonly RandomNumberGenerator _rnd = new RNGCryptoServiceProvider();
+        static readonly RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
 
         public static BinaryNumber GenerateRandomNumber160()
         {
@@ -237,7 +237,7 @@ namespace TechnitiumLibrary
             else
                 Buffer.BlockCopy(b1._value, 0, value, 0, value.Length);
 
-            bitcount = bitcount % 8;
+            bitcount %= 8;
 
             if (bitcount > 0)
             {
@@ -262,7 +262,7 @@ namespace TechnitiumLibrary
             else
                 Buffer.BlockCopy(b1._value, 0, value, 0, value.Length);
 
-            bitcount = bitcount % 8;
+            bitcount %= 8;
 
             if (bitcount > 0)
             {

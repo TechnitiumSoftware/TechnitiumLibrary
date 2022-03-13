@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ namespace TechnitiumLibrary.Net.Mail
     {
         #region variables
 
-        readonly static RandomNumberGenerator _rng = new RNGCryptoServiceProvider();
+        readonly static RandomNumberGenerator _rng = RandomNumberGenerator.Create();
         readonly static RemoteCertificateValidationCallback _existingServerCertificateValidationCallback;
         static bool _ignoreCertificateErrorsForProxy;
 
