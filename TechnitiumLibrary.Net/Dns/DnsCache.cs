@@ -1188,6 +1188,22 @@ namespace TechnitiumLibrary.Net.Dns
             public DnsSpecialCacheRecordType Type
             { get { return _type; } }
 
+            public bool IsFailureOrBadCache
+            {
+                get
+                {
+                    switch (_type)
+                    {
+                        case DnsSpecialCacheRecordType.FailureCache:
+                        case DnsSpecialCacheRecordType.BadCache:
+                            return true;
+
+                        default:
+                            return false;
+                    }
+                }
+            }
+
             public DnsResponseCode RCODE
             {
                 get
@@ -1298,12 +1314,12 @@ namespace TechnitiumLibrary.Net.Dns
 
             public void SetRecords(DnsResourceRecordType type, IReadOnlyList<DnsResourceRecord> records)
             {
-                if ((records.Count > 0) && (records[0].RDATA is DnsSpecialCacheRecord splRecord) && (splRecord.Type == DnsSpecialCacheRecordType.FailureCache))
+                if ((records.Count > 0) && records[0].RDATA is DnsSpecialCacheRecord splRecord && splRecord.IsFailureOrBadCache)
                 {
                     //call trying to cache failure record
                     if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
                     {
-                        if ((existingRecords.Count > 0) && !(existingRecords[0].RDATA is DnsSpecialCacheRecord existingSplRecord && (existingSplRecord.Type == DnsSpecialCacheRecordType.FailureCache)) && !DnsResourceRecord.IsRRSetStale(existingRecords))
+                        if ((existingRecords.Count > 0) && !(existingRecords[0].RDATA is DnsSpecialCacheRecord existingSplRecord && existingSplRecord.IsFailureOrBadCache) && !DnsResourceRecord.IsRRSetStale(existingRecords))
                             return; //skip to avoid overwriting a useful record with a failure record
                     }
                 }
