@@ -81,37 +81,37 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region static
 
-        public static bool IsDnssecAlgorithmSupported(IReadOnlyList<DnsResourceRecord> dsRecords)
+        public static bool IsAnyDnssecAlgorithmSupported(IReadOnlyList<DnsResourceRecord> dsRecords)
         {
             foreach (DnsResourceRecord record in dsRecords)
             {
                 if (record.Type != DnsResourceRecordType.DS)
                     throw new InvalidOperationException();
 
-                if ((record.RDATA as DnsDSRecordData).IsDnssecAlgorithmSupported())
+                if (IsDnssecAlgorithmSupported((record.RDATA as DnsDSRecordData)._algorithm))
                     return true;
             }
 
             return false;
         }
 
-        public static bool IsDigestTypeSupported(IReadOnlyList<DnsResourceRecord> dsRecords)
+        public static bool IsAnyDigestTypeSupported(IReadOnlyList<DnsResourceRecord> dsRecords)
         {
             foreach (DnsResourceRecord record in dsRecords)
             {
                 if (record.Type != DnsResourceRecordType.DS)
                     throw new InvalidOperationException();
 
-                if ((record.RDATA as DnsDSRecordData).IsDigestTypeSupported())
+                if (IsDigestTypeSupported((record.RDATA as DnsDSRecordData)._digestType))
                     return true;
             }
 
             return false;
         }
 
-        private bool IsDnssecAlgorithmSupported()
+        public static bool IsDnssecAlgorithmSupported(DnssecAlgorithm algorithm)
         {
-            switch (_algorithm)
+            switch (algorithm)
             {
                 //case DnssecAlgorithm.RSAMD5: depricated
                 case DnssecAlgorithm.RSASHA1:
@@ -127,9 +127,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        private bool IsDigestTypeSupported()
+        public static bool IsDigestTypeSupported(DnssecDigestType digestType)
         {
-            switch (_digestType)
+            switch (digestType)
             {
                 case DnssecDigestType.SHA1:
                 case DnssecDigestType.SHA256:
