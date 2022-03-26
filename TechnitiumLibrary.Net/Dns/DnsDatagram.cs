@@ -801,7 +801,12 @@ namespace TechnitiumLibrary.Net.Dns
                 record.SetDnssecStatus(dnssecStatus);
 
             foreach (DnsResourceRecord record in _additional)
-                record.SetDnssecStatus(dnssecStatus);
+            {
+                if (record.Type == DnsResourceRecordType.OPT)
+                    record.SetDnssecStatus(DnssecStatus.Indeterminate);
+                else
+                    record.SetDnssecStatus(dnssecStatus);
+            }
         }
 
         public DnsResourceRecord GetLastAnswerRecord()
