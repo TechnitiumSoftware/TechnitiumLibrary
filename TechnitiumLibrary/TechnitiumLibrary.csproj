@@ -1,8 +1,8 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<OutputPath>..\bin\</OutputPath>
@@ -16,9 +16,9 @@
 		<PackageProjectUrl></PackageProjectUrl>
 		<RepositoryUrl>https://github.com/TechnitiumSoftware/TechnitiumLibrary</RepositoryUrl>
 		<RepositoryType></RepositoryType>
-		<Description>.NET 5</Description>
+		<Description></Description>
 		<PackageId>TechnitiumLibrary</PackageId>
-		<Version>1.0</Version>
+		<Version>2.0</Version>
 	</PropertyGroup>
 
 </Project>

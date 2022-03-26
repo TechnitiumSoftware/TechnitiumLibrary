@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -16,17 +16,21 @@
     <PackageProjectUrl></PackageProjectUrl>
     <RepositoryUrl>https://github.com/TechnitiumSoftware/TechnitiumLibrary</RepositoryUrl>
     <RepositoryType></RepositoryType>
-    <Description>.NET 5</Description>
+    <Description></Description>
     <PackageId>TechnitiumLibrary.Net</PackageId>
-    <Version>5.9</Version>
+    <Version>6.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <None Remove="named.root" />
+    <None Remove="root-anchors.xml" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="named.root">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="root-anchors.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -37,6 +41,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj" />
+    <ProjectReference Include="..\TechnitiumLibrary\TechnitiumLibrary.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -16,9 +16,9 @@
     <PackageProjectUrl></PackageProjectUrl>
     <RepositoryUrl>https://github.com/TechnitiumSoftware/TechnitiumLibrary</RepositoryUrl>
     <RepositoryType></RepositoryType>
-    <Description>.NET 5</Description>
+    <Description></Description>
     <PackageId>TechnitiumLibrary.Net.BitTorrent</PackageId>
-    <Version>2.0.2</Version>
+    <Version>3.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
