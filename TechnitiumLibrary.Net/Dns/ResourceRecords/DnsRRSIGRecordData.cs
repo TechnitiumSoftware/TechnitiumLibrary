@@ -258,7 +258,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     default:
                         hash = null;
-                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.DnssecIndeterminate;
+                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm;
                         return false;
                 }
 
