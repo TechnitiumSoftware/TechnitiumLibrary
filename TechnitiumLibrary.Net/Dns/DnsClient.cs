@@ -1964,7 +1964,10 @@ namespace TechnitiumLibrary.Net.Dns
                     IReadOnlyList<DnsResourceRecord> rootDnsKeyRecords = await GetDnsKeyForAsync(ROOT_TRUST_ANCHORS, dnsClient, cache, udpPayloadSize, cancellationToken);
 
                     //find signer's DNSKEYs
-                    dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, rootDnsKeyRecords, dnsClient, cache, udpPayloadSize, response, cancellationToken);
+                    if (signersName.Length == 0)
+                        dnsKeyRecords = rootDnsKeyRecords;
+                    else
+                        dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, rootDnsKeyRecords, dnsClient, cache, udpPayloadSize, response, cancellationToken);
                 }
 
                 if (dnsKeyRecords is null)
@@ -2117,6 +2120,25 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static void DnssecValidateSignature(DnsDatagram response, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones)
         {
+            //check if any DNSKEY with a supported algorithm is available
+            if (!DnsDNSKEYRecordData.IsAnyDnssecAlgorithmSupported(dnsKeyRecords))
+            {
+                //no DNSKEY available with a supported algorithm; mark response as Insecure
+                response.SetDnssecStatusForAllRecords(DnssecStatus.Insecure);
+                return;
+            }
+
+            //check if DNSKEYs are marked as insecure
+            foreach (DnsResourceRecord dnsKeyRecord in dnsKeyRecords)
+            {
+                if (dnsKeyRecord.DnssecStatus == DnssecStatus.Insecure)
+                {
+                    //DNSKEY with insecure status found; mark response as Insecure
+                    response.SetDnssecStatusForAllRecords(DnssecStatus.Insecure);
+                    return;
+                }
+            }
+
             //verify signature for all records in response
             if (response.Answer.Count > 0)
             {
@@ -2217,7 +2239,16 @@ namespace TechnitiumLibrary.Net.Dns
                                 switch (extendedDnsErrorCode)
                                 {
                                     case EDnsExtendedDnsErrorCode.DnssecBogus:
+                                    case EDnsExtendedDnsErrorCode.SignatureExpired:
+                                    case EDnsExtendedDnsErrorCode.SignatureNotYetValid:
+                                    case EDnsExtendedDnsErrorCode.RRSIGsMissing: //the RRSIG RR did not pass the necessary validation checks and MUST NOT be used to authenticate this RRset.
+                                    case EDnsExtendedDnsErrorCode.NoZoneKeyBitSet:
+                                    case EDnsExtendedDnsErrorCode.DNSKEYMissing:
                                         rrsigRecord.SetDnssecStatus(DnssecStatus.Bogus);
+                                        break;
+
+                                    case EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm:
+                                        rrsigRecord.SetDnssecStatus(DnssecStatus.Insecure);
                                         break;
 
                                     default:
@@ -2244,42 +2275,69 @@ namespace TechnitiumLibrary.Net.Dns
                         if (!isAdditionalSection)
                             response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName + "/" + rrsetType);
 
-                        if (lastExtendedDnsErrorCode == EDnsExtendedDnsErrorCode.DnssecBogus)
+                        switch (lastExtendedDnsErrorCode)
                         {
-                            //RRSIG with invalid signature
-                            foreach (DnsResourceRecord record in rrset.Value)
-                                record.SetDnssecStatus(DnssecStatus.Bogus);
+                            case EDnsExtendedDnsErrorCode.DnssecBogus:
+                            case EDnsExtendedDnsErrorCode.SignatureExpired:
+                            case EDnsExtendedDnsErrorCode.SignatureNotYetValid:
+                                //RRSIG with invalid signature
+                                foreach (DnsResourceRecord record in rrset.Value)
+                                    record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                            if (!isAdditionalSection)
-                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to invalid signature for owner name: " + ownerName + "/" + rrsetType, response);
-                        }
-                        else
-                        {
-                            //missing RRSIG for the RRSet
+                                if (!isAdditionalSection)
+                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to invalid signature [" + lastExtendedDnsErrorCode.ToString() + "] for owner name: " + ownerName + "/" + rrsetType, response);
 
-                            if ((rrsetType == DnsResourceRecordType.CNAME) && rrsets.TryGetValue(DnsResourceRecordType.DNAME, out List<DnsResourceRecord> dnameRRset))
-                            {
-                                //check if CNAME was synthesized from DNAME
-                                DnsResourceRecord cnameRecord = rrset.Value[0];
-                                DnsResourceRecord dnameRecord = dnameRRset[0];
+                                break;
 
-                                string synthesizedCNAME = (dnameRecord.RDATA as DnsDNAMERecordData).Substitute(cnameRecord.Name, dnameRecord.Name);
-                                string CNAME = (cnameRecord.RDATA as DnsCNAMERecordData).Domain;
+                            case EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm:
+                                //Missing RRSIG with a supported algorithm
+                                foreach (DnsResourceRecord record in rrset.Value)
+                                    record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                if (synthesizedCNAME.Equals(CNAME, StringComparison.OrdinalIgnoreCase))
+                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.RRSIGsMissing, "Missing RRSIG with a supported algorithm for " + ownerName + "/" + rrsetType);
+
+                                if (!isAdditionalSection)
+                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due missing RRSIG with a supported algorithm for owner name: " + ownerName + "/" + rrsetType, response);
+
+                                break;
+
+                            case EDnsExtendedDnsErrorCode.RRSIGsMissing:
+                                //missing RRSIG for the RRSet
+
+                                if ((rrsetType == DnsResourceRecordType.CNAME) && rrsets.TryGetValue(DnsResourceRecordType.DNAME, out List<DnsResourceRecord> dnameRRset))
                                 {
-                                    //found CNAME synthesized from DNAME
-                                    cnameRecord.SetDnssecStatus(DnssecStatus.Secure);
+                                    //check if CNAME was synthesized from DNAME
+                                    DnsResourceRecord cnameRecord = rrset.Value[0];
+                                    DnsResourceRecord dnameRecord = dnameRRset[0];
 
-                                    continue; //continue to next rrset
+                                    string synthesizedCNAME = (dnameRecord.RDATA as DnsDNAMERecordData).Substitute(cnameRecord.Name, dnameRecord.Name);
+                                    string CNAME = (cnameRecord.RDATA as DnsCNAMERecordData).Domain;
+
+                                    if (synthesizedCNAME.Equals(CNAME, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        //found CNAME synthesized from DNAME
+                                        cnameRecord.SetDnssecStatus(DnssecStatus.Secure);
+
+                                        continue; //continue to next rrset
+                                    }
                                 }
-                            }
 
-                            foreach (DnsResourceRecord record in rrset.Value)
-                                record.SetDnssecStatus(DnssecStatus.Indeterminate);
+                                foreach (DnsResourceRecord record in rrset.Value)
+                                    record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                            if (!isAdditionalSection)
-                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to verify signature for owner name: " + ownerName + "/" + rrsetType, response);
+                                if (!isAdditionalSection)
+                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing RRSIG for owner name: " + ownerName + "/" + rrsetType, response);
+
+                                break;
+
+                            default:
+                                foreach (DnsResourceRecord record in rrset.Value)
+                                    record.SetDnssecStatus(DnssecStatus.Bogus);
+
+                                if (!isAdditionalSection)
+                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to reason: " + lastExtendedDnsErrorCode.ToString() + ", for owner name: " + ownerName + "/" + rrsetType, response);
+
+                                break;
                         }
                     }
                 }
@@ -2356,7 +2414,19 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             //find valid DNSKEY using DS digest
-            List<DnsResourceRecord> dnsKeyRecords = new List<DnsResourceRecord>(2);
+            if (lastDSRecords.Count > 1)
+            {
+                //reverse sort DS by digest type
+                List<DnsResourceRecord> sortedLastDSRecords = new List<DnsResourceRecord>(lastDSRecords);
+                sortedLastDSRecords.Sort(delegate (DnsResourceRecord x, DnsResourceRecord y)
+                {
+                    return (x.RDATA as DnsDSRecordData).DigestType.CompareTo((y.RDATA as DnsDSRecordData).DigestType) * -1;
+                });
+
+                lastDSRecords = sortedLastDSRecords;
+            }
+
+            List<DnsResourceRecord> sepDnsKeyRecords = new List<DnsResourceRecord>(2);
 
             foreach (DnsResourceRecord dnsKeyRecord in dnsKeyResponse.Answer)
             {
@@ -2376,11 +2446,14 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsDSRecordData ds = dsRecord.RDATA as DnsDSRecordData;
 
                     if ((ds.KeyTag == dnsKey.ComputedKeyTag) && (ds.Algorithm == dnsKey.Algorithm) && dnsKey.IsDnsKeyValid(dnsKeyRecord.Name, ds))
-                        dnsKeyRecords.Add(dnsKeyRecord);
+                    {
+                        sepDnsKeyRecords.Add(dnsKeyRecord);
+                        break;
+                    }
                 }
             }
 
-            if (dnsKeyRecords.Count == 0)
+            if (sepDnsKeyRecords.Count == 0)
             {
                 dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "No SEP matching the DS found for " + dnsKeyQuestion.Name);
                 cache.CacheResponse(dnsKeyResponse, true);
@@ -2390,7 +2463,7 @@ namespace TechnitiumLibrary.Net.Dns
             //validate signature for DNSKEY response
             try
             {
-                DnssecValidateSignature(dnsKeyResponse, dnsKeyRecords, null);
+                DnssecValidateSignature(dnsKeyResponse, sepDnsKeyRecords, null);
             }
             catch (DnsClientResponseDnssecValidationException ex)
             {
@@ -2482,16 +2555,26 @@ namespace TechnitiumLibrary.Net.Dns
                                 //authenticated NSEC RRset proving that no DS RRset exists, as
                                 //described above.
 
-                                if (!DnsDSRecordData.IsDigestTypeSupported(dsRecords))
+                                if (!DnsDSRecordData.IsAnyDigestTypeSupported(dsRecords))
                                 {
                                     response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDsDigestType, ownerName);
                                     dsRecords = null;
                                 }
 
-                                if (!DnsDSRecordData.IsDnssecAlgorithmSupported(dsRecords))
+                                if (!DnsDSRecordData.IsAnyDnssecAlgorithmSupported(dsRecords))
                                 {
                                     response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm, ownerName);
                                     dsRecords = null;
+                                }
+
+                                foreach (DnsResourceRecord dsRecord in dsRecords)
+                                {
+                                    if (dsRecord.DnssecStatus == DnssecStatus.Insecure)
+                                    {
+                                        //found DS marked as insecure so the zone is considered as insecure
+                                        dsRecords = null;
+                                        break;
+                                    }
                                 }
 
                                 return true;
@@ -2546,16 +2629,26 @@ namespace TechnitiumLibrary.Net.Dns
                             //authenticated NSEC RRset proving that no DS RRset exists, as
                             //described above.
 
-                            if (!DnsDSRecordData.IsDigestTypeSupported(dsRecords))
+                            if (!DnsDSRecordData.IsAnyDigestTypeSupported(dsRecords))
                             {
                                 response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDsDigestType, ownerName);
                                 dsRecords = null;
                             }
 
-                            if (!DnsDSRecordData.IsDnssecAlgorithmSupported(dsRecords))
+                            if (!DnsDSRecordData.IsAnyDnssecAlgorithmSupported(dsRecords))
                             {
                                 response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm, ownerName);
                                 dsRecords = null;
+                            }
+
+                            foreach (DnsResourceRecord dsRecord in dsRecords)
+                            {
+                                if (dsRecord.DnssecStatus == DnssecStatus.Insecure)
+                                {
+                                    //found DS marked as insecure so the zone is considered as insecure
+                                    dsRecords = null;
+                                    break;
+                                }
                             }
 
                             return true;
