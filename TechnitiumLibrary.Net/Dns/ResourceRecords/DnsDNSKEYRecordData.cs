@@ -103,6 +103,24 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region static
+
+        public static bool IsAnyDnssecAlgorithmSupported(IReadOnlyList<DnsResourceRecord> dnsKeyRecords)
+        {
+            foreach (DnsResourceRecord record in dnsKeyRecords)
+            {
+                if (record.Type != DnsResourceRecordType.DNSKEY)
+                    continue;
+
+                if (DnsDSRecordData.IsDnssecAlgorithmSupported((record.RDATA as DnsDNSKEYRecordData)._algorithm))
+                    return true;
+            }
+
+            return false;
+        }
+
+        #endregion
+
         #region private
 
         private void Serialize()
