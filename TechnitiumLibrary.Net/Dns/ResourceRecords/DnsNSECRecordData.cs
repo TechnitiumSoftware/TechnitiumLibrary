@@ -95,43 +95,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region static
 
-        public static string GetWildcardFor(string nsecOwnerName, string nxDomain)
+        public static string GetWildcardFor(DnsResourceRecord nsecRecord, string nxDomain)
         {
-            // abc.xyz.example.com
-            // x.y.z.example.com
-            // *.example.com
-            string[] labels1 = nsecOwnerName.Split('.');
-            string[] labels2 = nxDomain.Split('.');
+            DnsNSECRecordData nsec = nsecRecord.RDATA as DnsNSECRecordData;
 
-            int minCount;
+            string w1 = GetWildcardFor(nsecRecord.Name, nxDomain);
+            string w2 = GetWildcardFor(nsec._nextDomainName, nxDomain);
 
-            if (labels1.Length < labels2.Length)
-                minCount = labels1.Length;
-            else
-                minCount = labels2.Length;
+            byte wc1 = DnsRRSIGRecordData.GetLabelCount(w1);
+            byte wc2 = DnsRRSIGRecordData.GetLabelCount(w2);
 
-            string wildcard = null;
+            if (wc1 > wc2)
+                return w1;
 
-            for (int i = 0; i < minCount; i++)
-            {
-                string label1 = labels1[labels1.Length - 1 - i];
-                string label2 = labels2[labels2.Length - 1 - i];
-
-                if (label1.Equals(label2, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (wildcard is null)
-                        wildcard = label1;
-                    else
-                        wildcard = label1 + "." + wildcard;
-                }
-            }
-
-            if (wildcard is null)
-                wildcard = "*";
-            else
-                wildcard = "*." + wildcard;
-
-            return wildcard;
+            return w2;
         }
 
         public static bool IsDomainCovered(string ownerName, string nextDomainName, string domain)
@@ -237,7 +214,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         return DnssecProofOfNonExistence.NxDomain; //since wildcard was already validated; the domain does not exists
 
                     foundProofOfCover = true;
-                    wildcardDomain = GetWildcardFor(nsecRecord.Name, domain);
+                    wildcardDomain = GetWildcardFor(nsecRecord, domain);
                     break;
                 }
             }
@@ -296,6 +273,45 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             //found no record set
             return DnssecProofOfNonExistence.NoData;
+        }
+
+        private static string GetWildcardFor(string nsecOwnerName, string nxDomain)
+        {
+            // abc.xyz.example.com
+            // x.y.z.example.com
+            // *.example.com
+            string[] labels1 = nsecOwnerName.Split('.');
+            string[] labels2 = nxDomain.Split('.');
+
+            int minCount;
+
+            if (labels1.Length < labels2.Length)
+                minCount = labels1.Length;
+            else
+                minCount = labels2.Length;
+
+            string wildcard = null;
+
+            for (int i = 0; i < minCount; i++)
+            {
+                string label1 = labels1[labels1.Length - 1 - i];
+                string label2 = labels2[labels2.Length - 1 - i];
+
+                if (label1.Equals(label2, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (wildcard is null)
+                        wildcard = label1;
+                    else
+                        wildcard = label1 + "." + wildcard;
+                }
+            }
+
+            if (wildcard is null)
+                wildcard = "*";
+            else
+                wildcard = "*." + wildcard;
+
+            return wildcard;
         }
 
         internal static IReadOnlyList<DnsResourceRecordType> ReadTypeBitMapsFrom(Stream s, int length)
