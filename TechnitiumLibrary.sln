@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30011.22
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31912.275
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.IO", "TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj", "{E0BA5456-FEAA-4380-92BB-6B1C4BC3DC70}"
 EndProject
@@ -19,9 +19,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net.Tor",
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.ByteTree", "TechnitiumLibrary.ByteTree\TechnitiumLibrary.ByteTree.csproj", "{4AC0B032-CE6F-494B-9787-FE1E0C51A44B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Database", "TechnitiumLibrary.Database\TechnitiumLibrary.Database.csproj", "{E1CA5AAC-1568-4682-A8DE-EF60378A2259}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Database", "TechnitiumLibrary.Database\TechnitiumLibrary.Database.csproj", "{E1CA5AAC-1568-4682-A8DE-EF60378A2259}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary.Net.Firewall", "TechnitiumLibrary.Net.Firewall\TechnitiumLibrary.Net.Firewall.csproj", "{677C11FB-30F3-440B-98BB-5EDBFD8806A1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.Net.Firewall", "TechnitiumLibrary.Net.Firewall\TechnitiumLibrary.Net.Firewall.csproj", "{677C11FB-30F3-440B-98BB-5EDBFD8806A1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TechnitiumLibrary", "TechnitiumLibrary\TechnitiumLibrary.csproj", "{4A523584-454A-4992-8CB3-BEEE2AEB74E8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -69,6 +71,10 @@ Global
 		{677C11FB-30F3-440B-98BB-5EDBFD8806A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{677C11FB-30F3-440B-98BB-5EDBFD8806A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{677C11FB-30F3-440B-98BB-5EDBFD8806A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4A523584-454A-4992-8CB3-BEEE2AEB74E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4A523584-454A-4992-8CB3-BEEE2AEB74E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4A523584-454A-4992-8CB3-BEEE2AEB74E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4A523584-454A-4992-8CB3-BEEE2AEB74E8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
