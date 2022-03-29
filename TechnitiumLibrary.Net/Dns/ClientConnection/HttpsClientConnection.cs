@@ -171,7 +171,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (response.Identifier != request.Identifier)
                         throw new DnsClientResponseValidationException("Invalid response was received: query ID mismatch.");
 
-                    if (response.Question.Count != request.Question.Count)
+                    if ((response.RCODE != DnsResponseCode.FormatError) && (response.Question.Count != request.Question.Count))
                         throw new DnsClientResponseValidationException("Invalid response was received: question count mismatch.");
 
                     for (int i = 0; i < response.Question.Count; i++)
@@ -201,7 +201,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
             }
 
-            throw new DnsClientException("DnsClient failed to resolve the request: request timed out.");
+            throw new DnsClientNoResponseException("DnsClient failed to resolve the request: request timed out.");
         }
 
         #endregion
