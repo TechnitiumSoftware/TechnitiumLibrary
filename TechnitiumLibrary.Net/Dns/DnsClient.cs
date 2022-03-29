@@ -530,21 +530,23 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
                                         else
                                         {
-                                            PopStack();
-
                                             switch (cacheResponse.Answer[0].Type)
                                             {
                                                 case DnsResourceRecordType.AAAA:
+                                                    PopStack();
                                                     nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port));
                                                     break;
 
                                                 case DnsResourceRecordType.A:
+                                                    PopStack();
                                                     nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port));
                                                     break;
 
                                                 case DnsResourceRecordType.DS:
                                                     if (!TryGetDSFromResponse(cacheResponse, cacheResponse.Question[0].Name, out IReadOnlyList<DnsResourceRecord> cacheDSRecords))
                                                         throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name, cacheResponse);
+
+                                                    PopStack();
 
                                                     if (cacheDSRecords is null)
                                                     {
@@ -557,11 +559,6 @@ namespace TechnitiumLibrary.Net.Dns
                                                     {
                                                         lastDSRecords = cacheDSRecords;
                                                     }
-                                                    break;
-
-                                                default:
-                                                    //didnt find IP for current name server
-                                                    nameServerIndex++; //increment to skip current name server
                                                     break;
                                             }
 
@@ -967,21 +964,23 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
                                         else
                                         {
-                                            PopStack();
-
                                             switch (response.Answer[0].Type)
                                             {
                                                 case DnsResourceRecordType.AAAA:
+                                                    PopStack();
                                                     nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port));
                                                     break;
 
                                                 case DnsResourceRecordType.A:
+                                                    PopStack();
                                                     nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port));
                                                     break;
 
                                                 case DnsResourceRecordType.DS:
                                                     if (!TryGetDSFromResponse(response, response.Question[0].Name, out IReadOnlyList<DnsResourceRecord> dsRecords))
                                                         throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + response.Question[0].Name, response);
+
+                                                    PopStack();
 
                                                     if (dsRecords is null)
                                                     {
@@ -997,9 +996,8 @@ namespace TechnitiumLibrary.Net.Dns
                                                     break;
 
                                                 default:
-                                                    //didnt find IP for current name server
-                                                    nameServerIndex++; //increment to skip current name server
-                                                    break;
+                                                    //didnt find IP/DS for current name server
+                                                    continue; //try next name server
                                             }
 
                                             goto resolverLoop;
@@ -1408,7 +1406,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 //cache as failure
                                 DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Unable to resolve DS for " + question.Name);
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Unable to resolve DS for " + lastQuestion.Name);
 
                                 cache.CacheResponse(failureResponse);
 
@@ -1939,9 +1937,7 @@ namespace TechnitiumLibrary.Net.Dns
             allDnsKeyRecords.AddRange(currentDnsKeyRecords);
 
             //find signer's names for verification
-            List<string> signersNames = new List<string>();
-
-            FindSignersNames(response, signersNames);
+            IReadOnlyCollection<string> signersNames = FindSignersNames(response);
 
             //find DNSKEYs for all signers that are sub domain names for last DS record owner name
             foreach (string signersName in signersNames)
@@ -1994,18 +1990,18 @@ namespace TechnitiumLibrary.Net.Dns
                     case DnsResponseCode.NoError:
                         if (response.Answer.Count > 0)
                         {
-                            foreach (DnsResourceRecord record in response.Answer)
+                            foreach (DnsResourceRecord rrsigRecord in response.Answer)
                             {
-                                if (record.Type != DnsResourceRecordType.RRSIG)
+                                if (rrsigRecord.Type != DnsResourceRecordType.RRSIG)
                                     continue;
 
-                                if (DnsRRSIGRecordData.IsWildcard(record, out string nextCloserName))
+                                if (DnsRRSIGRecordData.IsWildcard(rrsigRecord, out string nextCloserName))
                                 {
                                     //For every wildcard expansion, we need to prove that the expansion was allowed.
 
                                     //validate wildcard
-                                    DnsResourceRecordType typeCovered = (record.RDATA as DnsRRSIGRecordData).TypeCovered;
-                                    DnssecProofOfNonExistence proofOfNonExistence = GetValidatedProofOfNonExistence(response.Authority, record.Name, typeCovered, true, nextCloserName);
+                                    DnsResourceRecordType typeCovered = (rrsigRecord.RDATA as DnsRRSIGRecordData).TypeCovered;
+                                    DnssecProofOfNonExistence proofOfNonExistence = GetValidatedProofOfNonExistence(response.Authority, rrsigRecord.Name, typeCovered, true, nextCloserName);
                                     switch (proofOfNonExistence)
                                     {
                                         case DnssecProofOfNonExistence.OptOut:
@@ -2014,8 +2010,8 @@ namespace TechnitiumLibrary.Net.Dns
                                             break;
 
                                         default:
-                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (Wildcard) for " + record.Name + "/" + typeCovered.ToString());
-                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + record.Name + "/" + typeCovered.ToString(), response);
+                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (Wildcard) for " + rrsigRecord.Name + "/" + typeCovered.ToString());
+                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + rrsigRecord.Name + "/" + typeCovered.ToString(), response);
                                     }
                                 }
                             }
@@ -2082,6 +2078,10 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             //empty answer and authority section
                             DnsQuestionRecord question = response.Question[0];
+
+                            if (IsDomainUnsigned(question.Name, unsignedZones))
+                                break;
+
                             response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.Name + "/" + question.Type.ToString());
                             throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
                         }
@@ -2705,10 +2705,32 @@ namespace TechnitiumLibrary.Net.Dns
             return DnssecProofOfNonExistence.NoProof;
         }
 
-        private static void FindSignersNames(DnsDatagram response, List<string> signersNames)
+        private static IReadOnlyCollection<string> FindSignersNames(DnsDatagram response)
         {
-            FindSignersNames(response.Answer, signersNames, false);
-            FindSignersNames(response.Authority, signersNames, true);
+            if ((response.Answer.Count == 0) && (response.Authority.Count == 0))
+            {
+                switch (response.RCODE)
+                {
+                    case DnsResponseCode.NoError:
+                    case DnsResponseCode.NxDomain:
+                        if (response.Question.Count > 0)
+                            return new string[] { response.Question[0].Name }; //return qname to allow validating insecure domains
+
+                        return Array.Empty<string>();
+
+                    default:
+                        return Array.Empty<string>();
+                }
+            }
+            else
+            {
+                List<string> signersNames = new List<string>();
+
+                FindSignersNames(response.Answer, signersNames, false);
+                FindSignersNames(response.Authority, signersNames, true);
+
+                return signersNames;
+            }
         }
 
         private static void FindSignersNames(IReadOnlyList<DnsResourceRecord> records, List<string> signersNames, bool isAuthoritySection)
@@ -3072,6 +3094,8 @@ namespace TechnitiumLibrary.Net.Dns
         private static async Task<DnsDatagram> ResolveQueryAsync(DnsQuestionRecord question, Func<DnsQuestionRecord, Task<DnsDatagram>> resolveAsync)
         {
             DnsDatagram response = await resolveAsync(question);
+            if (response is null)
+                return new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, DnsResponseCode.Refused, new DnsQuestionRecord[] { question });
 
             if (response.Answer.Count > 0)
             {
@@ -3114,6 +3138,11 @@ namespace TechnitiumLibrary.Net.Dns
                         DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class);
 
                         lastResponse = await resolveAsync(cnameQuestion);
+                        if (lastResponse is null)
+                        {
+                            lastResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question });
+                            break;
+                        }
 
                         if (lastResponse.Answer.Count == 0)
                             break;
@@ -3541,10 +3570,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (_trustAnchors is null)
                 return ROOT_TRUST_ANCHORS;
 
-            List<string> signersNames = new List<string>();
-
-            FindSignersNames(response, signersNames);
-
+            IReadOnlyCollection<string> signersNames = FindSignersNames(response);
             List<DnsResourceRecord> selectedTrustAnchors = new List<DnsResourceRecord>();
 
             foreach (string signersName in signersNames)
@@ -3582,6 +3608,10 @@ namespace TechnitiumLibrary.Net.Dns
                 DnsDatagram cacheResponse = QueryCache(_cache, newRequest);
                 if (cacheResponse is not null)
                     return cacheResponse;
+
+                //conditionalForwardingZoneCut is to prevent cache poisioning via the forwarder so is only implemented when DnsClient has cache configured
+                if ((_conditionalForwardingZoneCut is not null) && !q.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !q.Name.EndsWith("." + _conditionalForwardingZoneCut))
+                    return null;
 
                 try
                 {
