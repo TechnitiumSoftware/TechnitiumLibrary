@@ -3610,7 +3610,7 @@ namespace TechnitiumLibrary.Net.Dns
                     return cacheResponse;
 
                 //conditionalForwardingZoneCut is to prevent cache poisioning via the forwarder so is only implemented when DnsClient has cache configured
-                if ((_conditionalForwardingZoneCut is not null) && !q.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !q.Name.EndsWith("." + _conditionalForwardingZoneCut))
+                if ((_conditionalForwardingZoneCut is not null) && !q.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !q.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase))
                     return null;
 
                 try
