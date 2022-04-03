@@ -76,7 +76,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
 
-            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
+            string[] parts = (jsonResourceRecord.data.Value as string).TrimEnd(' ').Split(' ');
 
             _nextDomainName = parts[0].TrimEnd('.');
 
