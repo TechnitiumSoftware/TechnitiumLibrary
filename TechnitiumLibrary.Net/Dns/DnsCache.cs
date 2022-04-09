@@ -769,7 +769,7 @@ namespace TechnitiumLibrary.Net.Dns
                             //empty response with authority
                             foreach (DnsQuestionRecord question in response.Question)
                             {
-                                DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response));
+                                DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, Math.Min(3600u, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue)), new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response));
                                 record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                                 InternalCacheRecords(new DnsResourceRecord[] { record });
@@ -786,7 +786,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     //negative cache only when RCODE is not NXDOMAIN or when RCODE is NXDOMAIN and there is only 1 CNAME in answer
                                     foreach (DnsQuestionRecord question in response.Question)
                                     {
-                                        DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response));
+                                        DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class, Math.Min(3600u, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue)), new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response));
                                         record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                                         InternalCacheRecords(new DnsResourceRecord[] { record });
