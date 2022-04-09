@@ -911,8 +911,9 @@ namespace TechnitiumLibrary.Net.Dns
                         }
 
                         //sanitize response
-                        response = SanitizeResponseAnswer(response, zoneCut); //sanitize answer section
-                        response = SanitizeResponseAuthority(response, zoneCut); //sanitize authority section
+                        response = SanitizeResponseAnswerForQName(response);
+                        response = SanitizeResponseAnswerForZoneCut(response, zoneCut); //sanitize answer section
+                        response = SanitizeResponseAuthorityForZoneCut(response, zoneCut); //sanitize authority section
 
                         //cache response
                         cache.CacheResponse(response);
@@ -2559,12 +2560,14 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDsDigestType, ownerName);
                                     dsRecords = null;
+                                    return true;
                                 }
 
                                 if (!DnsDSRecordData.IsAnyDnssecAlgorithmSupported(dsRecords))
                                 {
                                     response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm, ownerName);
                                     dsRecords = null;
+                                    return true;
                                 }
 
                                 foreach (DnsResourceRecord dsRecord in dsRecords)
@@ -2573,7 +2576,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         //found DS marked as insecure so the zone is considered as insecure
                                         dsRecords = null;
-                                        break;
+                                        return true;
                                     }
                                 }
 
@@ -2633,12 +2636,14 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDsDigestType, ownerName);
                                 dsRecords = null;
+                                return true;
                             }
 
                             if (!DnsDSRecordData.IsAnyDnssecAlgorithmSupported(dsRecords))
                             {
                                 response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm, ownerName);
                                 dsRecords = null;
+                                return true;
                             }
 
                             foreach (DnsResourceRecord dsRecord in dsRecords)
@@ -2647,7 +2652,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     //found DS marked as insecure so the zone is considered as insecure
                                     dsRecords = null;
-                                    break;
+                                    return true;
                                 }
                             }
 
@@ -2799,7 +2804,67 @@ namespace TechnitiumLibrary.Net.Dns
             return false;
         }
 
-        private static DnsDatagram SanitizeResponseAnswer(DnsDatagram response, string zoneCut)
+        private static DnsDatagram SanitizeResponseAnswerForQName(DnsDatagram response)
+        {
+            bool fixAnswer = false;
+
+            foreach (DnsQuestionRecord question in response.Question)
+            {
+                string qname = question.Name;
+
+                foreach (DnsResourceRecord record in response.Answer)
+                {
+                    if (record.Type == DnsResourceRecordType.RRSIG)
+                        continue;
+
+                    if (!qname.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        fixAnswer = true;
+                        break;
+                    }
+
+                    if (record.Type == DnsResourceRecordType.CNAME)
+                        qname = (record.RDATA as DnsCNAMERecordData).Domain;
+                }
+
+                if (fixAnswer)
+                    break;
+            }
+
+            if (!fixAnswer)
+                return response;
+
+            //fix answer
+            List<DnsResourceRecord> newAnswers = new List<DnsResourceRecord>(response.Answer.Count);
+
+            foreach (DnsQuestionRecord question in response.Question)
+            {
+                string qname = question.Name;
+
+                do
+                {
+                    string nextQname = null;
+
+                    foreach (DnsResourceRecord record in response.Answer)
+                    {
+                        if (qname.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            newAnswers.Add(record);
+
+                            if (record.Type == DnsResourceRecordType.CNAME)
+                                nextQname = (record.RDATA as DnsCNAMERecordData).Domain;
+                        }
+                    }
+
+                    qname = nextQname;
+                }
+                while (qname is not null);
+            }
+
+            return response.Clone(newAnswers);
+        }
+
+        private static DnsDatagram SanitizeResponseAnswerForZoneCut(DnsDatagram response, string zoneCut)
         {
             string qName = response.Question[0].Name;
             string zoneCutEnd = zoneCut.Length > 0 ? "." + zoneCut : zoneCut;
@@ -2845,7 +2910,7 @@ namespace TechnitiumLibrary.Net.Dns
             return response;
         }
 
-        private static DnsDatagram SanitizeResponseAuthority(DnsDatagram response, string zoneCut)
+        private static DnsDatagram SanitizeResponseAuthorityForZoneCut(DnsDatagram response, string zoneCut)
         {
             if (zoneCut.Length == 0)
             {
@@ -3083,8 +3148,8 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             //sanitize response
-            response = SanitizeResponseAnswer(response, zoneCut); //sanitize answer section
-            response = SanitizeResponseAuthority(response, zoneCut); //sanitize authority section
+            response = SanitizeResponseAnswerForZoneCut(response, zoneCut); //sanitize answer section
+            response = SanitizeResponseAuthorityForZoneCut(response, zoneCut); //sanitize authority section
 
             //cache authoritative NS records from response
             if (response.Answer.Count > 0)
@@ -3327,6 +3392,11 @@ namespace TechnitiumLibrary.Net.Dns
                                             retryRequest = true;
                                             protocolWasSwitched = true;
                                         }
+                                        else
+                                        {
+                                            //unexpected truncated response for the transport protocol
+                                            lastException = new DnsClientResponseValidationException("Invalid response was received: truncated response over " + server.Protocol.ToString().ToUpper() + " transport.");
+                                        }
                                     }
                                     else
                                     {
@@ -3545,6 +3615,8 @@ namespace TechnitiumLibrary.Net.Dns
 
             response.SetDnssecStatusForAllRecords(DnssecStatus.Disabled);
 
+            response = SanitizeResponseAnswerForQName(response);
+
             return response;
         }
 
@@ -3561,6 +3633,8 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram response = await InternalResolveAsync(request, cancellationToken);
 
             await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(response), this, cache, _udpPayloadSize, cancellationToken);
+
+            response = SanitizeResponseAnswerForQName(response);
 
             return response;
         }
@@ -3623,9 +3697,9 @@ namespace TechnitiumLibrary.Net.Dns
                         newResponse = await InternalNoDnssecResolveAsync(newRequest, cancellationToken);
 
                     if (_conditionalForwardingZoneCut is not null)
-                        newResponse = SanitizeResponseAnswer(newResponse, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
+                        newResponse = SanitizeResponseAnswerForZoneCut(newResponse, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
                     else
-                        newResponse = SanitizeResponseAnswer(newResponse, string.Empty); //keep answers that match qname
+                        newResponse = SanitizeResponseAnswerForZoneCut(newResponse, string.Empty); //keep answers that match qname
 
                     newResponse = CleanupResponse(newResponse);
 
