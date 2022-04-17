@@ -679,6 +679,14 @@ namespace TechnitiumLibrary.Net.Dns
             AddDnsClientExtendedError(new EDnsExtendedDnsErrorOption(errorCode, extraText));
         }
 
+        internal void AddDnsClientExtendedError(IReadOnlyCollection<EDnsExtendedDnsErrorOption> dnsErrors)
+        {
+            if (_dnsClientExtendedErrors is null)
+                _dnsClientExtendedErrors = new List<EDnsExtendedDnsErrorOption>();
+
+            _dnsClientExtendedErrors.AddRange(dnsErrors);
+        }
+
         internal void AddDnsClientExtendedError(EDnsExtendedDnsErrorOption dnsError)
         {
             if (_dnsClientExtendedErrors is null)
