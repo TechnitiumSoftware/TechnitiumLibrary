@@ -928,7 +928,7 @@ namespace TechnitiumLibrary.Net.Dns
                         response = SanitizeResponseAuthorityForZoneCut(response, zoneCut); //sanitize authority section
 
                         //cache response
-                        cache.CacheResponse(response);
+                        cache.CacheResponse(response, false, zoneCut);
 
                         //set as last response
                         lastResponse = response;
@@ -972,11 +972,11 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             TriggerNsRevalidation();
 
-                                            if (cleanupResponse)
-                                                return CleanupResponse(response);
-
                                             if (extendedDnsErrors.Count > 0)
                                                 response.AddDnsClientExtendedError(extendedDnsErrors);
+
+                                            if (cleanupResponse)
+                                                return CleanupResponse(response);
 
                                             return response;
                                         }
@@ -1067,11 +1067,11 @@ namespace TechnitiumLibrary.Net.Dns
                                             {
                                                 TriggerNsRevalidation();
 
-                                                if (cleanupResponse)
-                                                    return CleanupResponse(response);
-
                                                 if (extendedDnsErrors.Count > 0)
                                                     response.AddDnsClientExtendedError(extendedDnsErrors);
+
+                                                if (cleanupResponse)
+                                                    return CleanupResponse(response);
 
                                                 return response;
                                             }
@@ -1113,22 +1113,18 @@ namespace TechnitiumLibrary.Net.Dns
                                         else
                                         {
                                             //check if empty response was received from the authoritative name server
+                                            bool continueNextNameServer = false;
+
                                             foreach (DnsResourceRecord authorityRecord in response.Authority)
                                             {
-                                                if ((authorityRecord.Type == DnsResourceRecordType.NS) && (authorityRecord.RDATA as DnsNSRecordData).NameServer.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
+                                                if ((authorityRecord.Type == DnsResourceRecordType.NS) && authorityRecord.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
                                                 {
-                                                    //empty response from authoritative name server
+                                                    //empty response with authority name servers that match the zone cut
                                                     if (resolverStack.Count == 0)
                                                     {
-                                                        TriggerNsRevalidation();
-
-                                                        if (cleanupResponse)
-                                                            return CleanupResponse(response);
-
-                                                        if (extendedDnsErrors.Count > 0)
-                                                            response.AddDnsClientExtendedError(extendedDnsErrors);
-
-                                                        return response;
+                                                        //continue for loop to next name server since current name server may be misconfigured
+                                                        continueNextNameServer = true;
+                                                        break;
                                                     }
                                                     else
                                                     {
@@ -1142,6 +1138,9 @@ namespace TechnitiumLibrary.Net.Dns
                                                 }
                                             }
 
+                                            if (continueNextNameServer)
+                                                break; //continue for loop to next name server since current name server may be misconfigured
+
                                             //check for hop limit
                                             if (hopCount >= MAX_DELEGATION_HOPS)
                                             {
@@ -1151,11 +1150,11 @@ namespace TechnitiumLibrary.Net.Dns
                                                     //cannot proceed forever; return what we have and stop
                                                     TriggerNsRevalidation();
 
-                                                    if (cleanupResponse)
-                                                        return CleanupResponse(response);
-
                                                     if (extendedDnsErrors.Count > 0)
                                                         response.AddDnsClientExtendedError(extendedDnsErrors);
+
+                                                    if (cleanupResponse)
+                                                        return CleanupResponse(response);
 
                                                     return response;
                                                 }
@@ -1279,11 +1278,11 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         TriggerNsRevalidation();
 
-                                        if (cleanupResponse)
-                                            return CleanupResponse(response);
-
                                         if (extendedDnsErrors.Count > 0)
                                             response.AddDnsClientExtendedError(extendedDnsErrors);
+
+                                        if (cleanupResponse)
+                                            return CleanupResponse(response);
 
                                         return response;
                                     }
@@ -1354,11 +1353,11 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             if (lastResponse.Question[0].Equals(question))
                             {
-                                if (cleanupResponse)
-                                    return CleanupResponse(lastResponse);
-
                                 if (extendedDnsErrors.Count > 0)
                                     lastResponse.AddDnsClientExtendedError(extendedDnsErrors);
+
+                                if (cleanupResponse)
+                                    return CleanupResponse(lastResponse);
 
                                 return lastResponse;
                             }
@@ -2871,6 +2870,13 @@ namespace TechnitiumLibrary.Net.Dns
 
             foreach (DnsQuestionRecord question in response.Question)
             {
+                switch (question.Type)
+                {
+                    case DnsResourceRecordType.AXFR:
+                    case DnsResourceRecordType.IXFR:
+                        continue;
+                }
+
                 string qname = question.Name;
 
                 foreach (DnsResourceRecord record in response.Answer)
@@ -2978,6 +2984,8 @@ namespace TechnitiumLibrary.Net.Dns
                 //zone cut is root, do nothing
                 return response;
             }
+
+            //remove records from authority section that are not in the zone cut
 
             if (response.Authority.Count > 0)
             {
@@ -3672,17 +3680,31 @@ namespace TechnitiumLibrary.Net.Dns
 
         private async Task<DnsDatagram> InternalNoDnssecResolveAsync(DnsDatagram request, CancellationToken cancellationToken)
         {
+            if ((_conditionalForwardingZoneCut is not null) && (request.Question.Count == 1))
+            {
+                DnsQuestionRecord question = request.Question[0];
+
+                if (!question.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !question.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase))
+                    return new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, DnsResponseCode.Refused, new DnsQuestionRecord[] { question });
+            }
+
             DnsDatagram response = await InternalResolveAsync(request, cancellationToken);
 
             response.SetDnssecStatusForAllRecords(DnssecStatus.Disabled);
 
             response = SanitizeResponseAnswerForQName(response);
 
+            if (_conditionalForwardingZoneCut is not null)
+                response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
+
             return response;
         }
 
         private async Task<DnsDatagram> InternalDnssecResolveAsync(DnsQuestionRecord question, CancellationToken cancellationToken)
         {
+            if ((_conditionalForwardingZoneCut is not null) && !question.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !question.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase))
+                return new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, DnsResponseCode.Refused, new DnsQuestionRecord[] { question });
+
             IDnsCache cache;
 
             if (_cache is null)
@@ -3696,6 +3718,9 @@ namespace TechnitiumLibrary.Net.Dns
             await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(response), this, cache, _udpPayloadSize, cancellationToken);
 
             response = SanitizeResponseAnswerForQName(response);
+
+            if (_conditionalForwardingZoneCut is not null)
+                response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
 
             return response;
         }
@@ -3738,15 +3763,14 @@ namespace TechnitiumLibrary.Net.Dns
         {
             return await ResolveQueryAsync(question, async delegate (DnsQuestionRecord q)
             {
+                if ((_conditionalForwardingZoneCut is not null) && !q.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !q.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase))
+                    return null;
+
                 DnsDatagram newRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { q }, null, null, null, _udpPayloadSize);
 
                 DnsDatagram cacheResponse = QueryCache(_cache, newRequest);
                 if (cacheResponse is not null)
                     return cacheResponse;
-
-                //conditionalForwardingZoneCut is to prevent cache poisioning via the forwarder so is only implemented when DnsClient has cache configured
-                if ((_conditionalForwardingZoneCut is not null) && !q.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !q.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase))
-                    return null;
 
                 try
                 {
@@ -3756,11 +3780,6 @@ namespace TechnitiumLibrary.Net.Dns
                         newResponse = await InternalDnssecResolveAsync(q, cancellationToken);
                     else
                         newResponse = await InternalNoDnssecResolveAsync(newRequest, cancellationToken);
-
-                    if (_conditionalForwardingZoneCut is not null)
-                        newResponse = SanitizeResponseAnswerForZoneCut(newResponse, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
-                    else
-                        newResponse = SanitizeResponseAnswerForZoneCut(newResponse, string.Empty); //keep answers that match qname
 
                     newResponse = CleanupResponse(newResponse);
 
