@@ -501,7 +501,7 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
-        public void CacheResponse(DnsDatagram response, bool isDnssecBadCache = false)
+        public void CacheResponse(DnsDatagram response, bool isDnssecBadCache = false, string zoneCut = null)
         {
             if (!response.IsResponse || response.Truncation || (response.Question.Count == 0))
                 return; //ineligible response
@@ -803,19 +803,32 @@ namespace TechnitiumLibrary.Net.Dns
                             //response is probably referral response
                             bool isReferralResponse = true;
 
+                            if (zoneCut is null)
+                                throw new InvalidOperationException("Zone cut cannot be null for caching referral response.");
+
                             foreach (DnsQuestionRecord question in response.Question)
                             {
                                 foreach (DnsResourceRecord authority in response.Authority)
                                 {
-                                    if ((authority.Type == DnsResourceRecordType.NS) && (authority.RDATA as DnsNSRecordData).NameServer.Equals(response.Metadata.NameServerAddress.Host, StringComparison.OrdinalIgnoreCase))
+                                    if (authority.Type == DnsResourceRecordType.NS)
                                     {
-                                        //empty response from authority name server that was queried; dont cache authority section with NS records
-                                        DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response.RCODE, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), response.EDNS, response.DnsClientExtendedErrors));
-                                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                                        if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            //empty response with authority name servers that match the zone cut; dont cache authority section with NS records
+                                            DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecord(DnsSpecialCacheRecordType.NegativeCache, response.RCODE, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), response.EDNS, response.DnsClientExtendedErrors));
+                                            record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                                        InternalCacheRecords(new DnsResourceRecord[] { record });
-                                        isReferralResponse = false;
-                                        break;
+                                            InternalCacheRecords(new DnsResourceRecord[] { record });
+                                            isReferralResponse = false;
+                                            break;
+                                        }
+
+                                        if ((zoneCut.Length > 0) && !authority.Name.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            //empty response with authority name server out of bailiwick; dont cache invalid referral response
+                                            isReferralResponse = false;
+                                            break;
+                                        }
                                     }
                                 }
                             }
@@ -1172,10 +1185,43 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 string value = _type.ToString() + ": " + _rcode.ToString();
 
+                if (_ednsOptions is not null)
+                {
+                    string extendedErrors = null;
+
+                    foreach (EDnsOption option in _ednsOptions)
+                    {
+                        if (option.Code == EDnsOptionCode.EXTENDED_DNS_ERROR)
+                        {
+                            EDnsExtendedDnsErrorOption dnsError = option.Data as EDnsExtendedDnsErrorOption;
+                            if (dnsError.InfoCode == EDnsExtendedDnsErrorCode.CachedError)
+                                continue;
+
+                            if (extendedErrors is null)
+                                extendedErrors = dnsError.InfoCode.ToString() + ": " + dnsError.ExtraText;
+                            else
+                                extendedErrors += ", " + dnsError.InfoCode.ToString() + ": " + dnsError.ExtraText;
+                        }
+                    }
+
+                    if (extendedErrors is not null)
+                        value += "; " + extendedErrors;
+                }
+
                 if (_authority is not null)
                 {
+                    string authority = null;
+
                     foreach (DnsResourceRecord record in _authority)
-                        value += ", " + record.ToString();
+                    {
+                        if (authority is null)
+                            authority = record.ToString();
+                        else
+                            authority += ", " + record.ToString();
+                    }
+
+                    if (authority is not null)
+                        value += "; " + authority;
                 }
 
                 return value;
