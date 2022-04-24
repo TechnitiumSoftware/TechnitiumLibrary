@@ -645,6 +645,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 break;
 
                             case DnsResourceRecordType.NS:
+                                if (question.Type == DnsResourceRecordType.NS)
                                 {
                                     cachableRecords.Add(answer);
 
