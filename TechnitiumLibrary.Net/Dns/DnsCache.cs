@@ -605,7 +605,10 @@ namespace TechnitiumLibrary.Net.Dns
                     foreach (DnsResourceRecord record in response.Authority)
                     {
                         if ((record.Type == rrsig.TypeCovered) && record.Name.Equals(rrsigRecord.Name, StringComparison.OrdinalIgnoreCase))
+                        {
                             AddRRSIGRecordTo(record, rrsigRecord);
+                            break;
+                        }
                     }
                 }
 
@@ -619,7 +622,10 @@ namespace TechnitiumLibrary.Net.Dns
                     foreach (DnsResourceRecord record in response.Additional)
                     {
                         if ((record.Type == rrsig.TypeCovered) && record.Name.Equals(rrsigRecord.Name, StringComparison.OrdinalIgnoreCase))
+                        {
                             AddRRSIGRecordTo(record, rrsigRecord);
+                            break;
+                        }
                     }
                 }
             }
@@ -673,16 +679,16 @@ namespace TechnitiumLibrary.Net.Dns
                                                     if (IPAddress.IsLoopback((additional.RDATA as DnsARecordData).Address))
                                                         continue;
 
+                                                    AddGlueRecordTo(answer, additional);
                                                     break;
 
                                                 case DnsResourceRecordType.AAAA:
                                                     if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecordData).Address))
                                                         continue;
 
+                                                    AddGlueRecordTo(answer, additional);
                                                     break;
                                             }
-
-                                            AddGlueRecordTo(answer, additional);
                                         }
                                     }
                                 }
@@ -709,7 +715,15 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
 
                                         if (mxExchange.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
-                                            AddGlueRecordTo(answer, additional);
+                                        {
+                                            switch (additional.Type)
+                                            {
+                                                case DnsResourceRecordType.A:
+                                                case DnsResourceRecordType.AAAA:
+                                                    AddGlueRecordTo(answer, additional);
+                                                    break;
+                                            }
+                                        }
                                     }
                                 }
                                 break;
@@ -735,7 +749,15 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
 
                                         if (srvTarget.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
-                                            AddGlueRecordTo(answer, additional);
+                                        {
+                                            switch (additional.Type)
+                                            {
+                                                case DnsResourceRecordType.A:
+                                                case DnsResourceRecordType.AAAA:
+                                                    AddGlueRecordTo(answer, additional);
+                                                    break;
+                                            }
+                                        }
                                     }
                                 }
                                 break;
@@ -857,16 +879,16 @@ namespace TechnitiumLibrary.Net.Dns
                                                             if (IPAddress.IsLoopback((additional.RDATA as DnsARecordData).Address))
                                                                 continue; //skip loopback address to avoid creating resolution loops
 
+                                                            AddGlueRecordTo(authority, additional);
                                                             break;
 
                                                         case DnsResourceRecordType.AAAA:
                                                             if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecordData).Address))
                                                                 continue; //skip loopback address to avoid creating resolution loops
 
+                                                            AddGlueRecordTo(authority, additional);
                                                             break;
                                                     }
-
-                                                    AddGlueRecordTo(authority, additional);
                                                 }
                                             }
                                             break;
