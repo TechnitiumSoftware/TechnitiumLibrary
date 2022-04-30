@@ -1539,6 +1539,17 @@ namespace TechnitiumLibrary.Net.Dns
 
                 foreach (DnsResourceRecord record in response.Additional)
                 {
+                    switch (record.DnssecStatus)
+                    {
+                        case DnssecStatus.Disabled:
+                        case DnssecStatus.Secure:
+                        case DnssecStatus.Insecure:
+                            break;
+
+                        default:
+                            continue;
+                    }
+
                     if (record.Name.Equals(mxEntry, StringComparison.OrdinalIgnoreCase))
                     {
                         switch (record.Type)
