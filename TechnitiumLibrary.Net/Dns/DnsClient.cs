@@ -395,25 +395,66 @@ namespace TechnitiumLibrary.Net.Dns
             List<EDnsExtendedDnsErrorOption> extendedDnsErrors = new List<EDnsExtendedDnsErrorOption>();
 
             //ns revalidation
-            Dictionary<string, NsRevalidationTask> nsRevalidationTasks = null;
+            Dictionary<string, NsRevalidationTask> nsRevalidationChildSideTasks = null;
+            Dictionary<string, object> nsRevalidationParentSideTask = null;
 
             if (asyncNsRevalidation)
-                nsRevalidationTasks = new Dictionary<string, NsRevalidationTask>();
+            {
+                nsRevalidationChildSideTasks = new Dictionary<string, NsRevalidationTask>();
+                nsRevalidationParentSideTask = new Dictionary<string, object>();
+            }
+
+            void AddNsRevalidationParentSideTaskIfRequired(IReadOnlyCollection<DnsResourceRecord> nsRecords)
+            {
+                foreach (DnsResourceRecord nsRecord in nsRecords)
+                {
+                    if (nsRecord.Type != DnsResourceRecordType.NS)
+                        continue;
+
+                    DnsNSRecordData ns = nsRecord.RDATA as DnsNSRecordData;
+
+                    if (ns.IsParentSideTtlSet && (ns.ParentSideTtl == 0))
+                        nsRevalidationParentSideTask.TryAdd(nsRecord.Name.ToLower(), null); //revalidate NS from parent side
+
+                    break; //check only first NS record
+                }
+            }
 
             void TriggerNsRevalidation()
             {
-                if (!asyncNsRevalidation || nsRevalidationTasks.Count == 0)
+                if (!asyncNsRevalidation || ((nsRevalidationChildSideTasks.Count == 0) && (nsRevalidationParentSideTask.Count == 0)))
                     return;
 
                 _ = Task.Factory.StartNew(async delegate ()
                 {
-                    List<Task> tasks = new List<Task>(nsRevalidationTasks.Count);
+                    List<Task> tasks = new List<Task>(nsRevalidationChildSideTasks.Count + nsRevalidationParentSideTask.Count);
 
-                    foreach (KeyValuePair<string, NsRevalidationTask> entry in nsRevalidationTasks)
-                        tasks.Add(RevalidateNameServers(entry.Key, entry.Value.LastDSRecords, entry.Value.NameServers, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, dnssecValidation, retries, timeout));
+                    foreach (KeyValuePair<string, NsRevalidationTask> entry in nsRevalidationChildSideTasks)
+                        tasks.Add(RevalidateNameServersFromChildSide(entry.Key, entry.Value.LastDSRecords, entry.Value.NameServers, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, dnssecValidation, retries, timeout));
+
+                    foreach (KeyValuePair<string, object> entry in nsRevalidationParentSideTask)
+                        tasks.Add(RevalidateNameServersFromParentSide(entry.Key, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout));
 
                     await Task.WhenAll(tasks);
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+            }
+
+            int CompareNameServerAddressesByGlue(NameServerAddress x, NameServerAddress y)
+            {
+                if (x.IPEndPoint is null)
+                {
+                    if (y.IPEndPoint is null)
+                        return 0;
+                    else
+                        return 1;
+                }
+                else
+                {
+                    if (y.IPEndPoint is null)
+                        return -1;
+                    else
+                        return 0;
+                }
             }
 
             //main stack
@@ -651,6 +692,9 @@ namespace TechnitiumLibrary.Net.Dns
                                                         nextDSRecords = cacheDsRecords;
                                                     }
                                                 }
+
+                                                if (asyncNsRevalidation)
+                                                    AddNsRevalidationParentSideTaskIfRequired(cacheResponse.Authority);
                                             }
 
                                             if (nextNameServers.Count == 0)
@@ -680,6 +724,10 @@ namespace TechnitiumLibrary.Net.Dns
                                                     {
                                                         //found NS for parent from cache
                                                         nextZoneCut = currentDomain;
+
+                                                        if (asyncNsRevalidation)
+                                                            AddNsRevalidationParentSideTaskIfRequired(cachedNsResponse.Answer);
+
                                                         break;
                                                     }
                                                 }
@@ -689,6 +737,13 @@ namespace TechnitiumLibrary.Net.Dns
                                             {
                                                 //found NS and/or DS (or proof of no DS)
                                                 nextNameServers.Shuffle();
+
+                                                if (resolverStack.Count > 0)
+                                                {
+                                                    //current stack is resolving an NS domain
+                                                    //sort name servers to prioritize ones with glue
+                                                    nextNameServers.Sort(CompareNameServerAddressesByGlue);
+                                                }
 
                                                 if (preferIPv6)
                                                     nextNameServers.Sort();
@@ -891,7 +946,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
                                 {
-                                    if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA) || (question.Type == DnsResourceRecordType.DS))
+                                    if (question.Type == question.MinimizedType)
                                     {
                                         //domain wont resolve
                                     }
@@ -943,7 +998,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         if (response.Answer[0].Name.Equals(question.Name, StringComparison.OrdinalIgnoreCase) || (response.Answer[0].Type == DnsResourceRecordType.DNAME)) //checking for DNAME since response was sanitized
                                         {
-                                            if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA) || (question.Type == DnsResourceRecordType.DS))
+                                            if (question.Type == question.MinimizedType)
                                             {
                                                 //found answer as QNAME minimization uses A, AAAA, or DS type queries
                                             }
@@ -1041,7 +1096,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             {
                                                 if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
                                                 {
-                                                    if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA) || (question.Type == DnsResourceRecordType.DS))
+                                                    if (question.Type == question.MinimizedType)
                                                     {
                                                         //record does not exists
                                                     }
@@ -1199,6 +1254,13 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                 nextNameServers.Shuffle();
 
+                                                if (resolverStack.Count > 0)
+                                                {
+                                                    //current stack is resolving an NS domain
+                                                    //sort name servers to prioritize ones with glue
+                                                    nextNameServers.Sort(CompareNameServerAddressesByGlue);
+                                                }
+
                                                 if (preferIPv6)
                                                     nextNameServers.Sort();
 
@@ -1215,7 +1277,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                 //add to NS revalidation task list
                                                 if (asyncNsRevalidation)
-                                                    nsRevalidationTasks.TryAdd(zoneCut.ToLower(), new NsRevalidationTask(lastDSRecords, nextNameServers));
+                                                    nsRevalidationChildSideTasks.TryAdd(zoneCut.ToLower(), new NsRevalidationTask(lastDSRecords, nextNameServers));
 
                                                 goto resolverLoop;
                                             }
@@ -1231,7 +1293,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
                                             {
-                                                if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA) || (question.Type == DnsResourceRecordType.DS))
+                                                if (question.Type == question.MinimizedType)
                                                 {
                                                     //record does not exists
                                                 }
@@ -1261,7 +1323,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     if (question.ZoneCut is not null)
                                     {
-                                        if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
+                                        if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase) && (question.Type == question.MinimizedType))
                                         {
                                             //domain does not exists
                                         }
@@ -1317,7 +1379,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
                                         {
-                                            if ((question.Type == DnsResourceRecordType.A) || (question.Type == DnsResourceRecordType.AAAA) || (question.Type == DnsResourceRecordType.DS))
+                                            if (question.Type == question.MinimizedType)
                                             {
                                                 //domain wont resolve
                                             }
@@ -2888,21 +2950,45 @@ namespace TechnitiumLibrary.Net.Dns
                         continue;
                 }
 
-                string qname = question.Name;
+                string qName = question.Name;
 
-                foreach (DnsResourceRecord record in response.Answer)
+                foreach (DnsResourceRecord answer in response.Answer)
                 {
-                    if (record.Type == DnsResourceRecordType.RRSIG)
-                        continue;
-
-                    if (!qname.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                    if (qName.Equals(answer.Name, StringComparison.OrdinalIgnoreCase))
                     {
-                        fixAnswer = true;
-                        break;
+                        switch (answer.Type)
+                        {
+                            case DnsResourceRecordType.CNAME:
+                                qName = (answer.RDATA as DnsCNAMERecordData).Domain;
+                                continue;
+
+                            case DnsResourceRecordType.RRSIG:
+                                continue;
+
+                            default:
+                                if ((question.Type == answer.Type) || (question.Type == DnsResourceRecordType.ANY))
+                                    continue;
+
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        switch (answer.Type)
+                        {
+                            case DnsResourceRecordType.RRSIG:
+                                continue;
+
+                            case DnsResourceRecordType.DNAME:
+                                if (qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                                    continue; //found DNAME, continue next
+
+                                break;
+                        }
                     }
 
-                    if (record.Type == DnsResourceRecordType.CNAME)
-                        qname = (record.RDATA as DnsCNAMERecordData).Domain;
+                    fixAnswer = true;
+                    break;
                 }
 
                 if (fixAnswer)
@@ -2917,26 +3003,45 @@ namespace TechnitiumLibrary.Net.Dns
 
             foreach (DnsQuestionRecord question in response.Question)
             {
-                string qname = question.Name;
+                string qName = question.Name;
 
                 do
                 {
-                    string nextQname = null;
+                    string nextQName = null;
 
-                    foreach (DnsResourceRecord record in response.Answer)
+                    foreach (DnsResourceRecord answer in response.Answer)
                     {
-                        if (qname.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                        if (qName.Equals(answer.Name, StringComparison.OrdinalIgnoreCase))
                         {
-                            newAnswers.Add(record);
+                            switch (answer.Type)
+                            {
+                                case DnsResourceRecordType.CNAME:
+                                    newAnswers.Add(answer);
 
-                            if (record.Type == DnsResourceRecordType.CNAME)
-                                nextQname = (record.RDATA as DnsCNAMERecordData).Domain;
+                                    nextQName = (answer.RDATA as DnsCNAMERecordData).Domain;
+                                    break;
+
+                                case DnsResourceRecordType.RRSIG:
+                                    newAnswers.Add(answer);
+                                    break;
+
+                                default:
+                                    if ((question.Type == answer.Type) || (question.Type == DnsResourceRecordType.ANY))
+                                        newAnswers.Add(answer);
+
+                                    break;
+                            }
+                        }
+                        else if ((answer.Type == DnsResourceRecordType.DNAME) && qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            //found DNAME
+                            newAnswers.Add(answer);
                         }
                     }
 
-                    qname = nextQname;
+                    qName = nextQName;
                 }
-                while (qname is not null);
+                while (qName is not null);
             }
 
             return response.Clone(newAnswers);
@@ -2967,11 +3072,17 @@ namespace TechnitiumLibrary.Net.Dns
                         continue;
                     }
 
-                    if (answer.Type == DnsResourceRecordType.RRSIG)
-                        continue;
+                    switch (answer.Type)
+                    {
+                        case DnsResourceRecordType.RRSIG:
+                            continue;
 
-                    if ((answer.Type == DnsResourceRecordType.DNAME) && qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
-                        continue; //found DNAME, continue next
+                        case DnsResourceRecordType.DNAME:
+                            if (qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                                continue; //found DNAME, continue next
+
+                            break;
+                    }
                 }
 
                 //name mismatch or not in zone cut
@@ -3175,7 +3286,7 @@ namespace TechnitiumLibrary.Net.Dns
             return response;
         }
 
-        private static async Task RevalidateNameServers(string zoneCut, IReadOnlyList<DnsResourceRecord> lastDSRecords, IReadOnlyList<NameServerAddress> parentSideNameServers, IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool randomizeName, bool dnssecValidation, int retries, int timeout)
+        private static async Task RevalidateNameServersFromChildSide(string zoneCut, IReadOnlyList<DnsResourceRecord> lastDSRecords, IReadOnlyList<NameServerAddress> parentSideNameServers, IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool randomizeName, bool dnssecValidation, int retries, int timeout)
         {
             //Delegation Revalidation by DNS Resolvers
             //https://datatracker.ietf.org/doc/draft-ietf-dnsop-ns-revalidation/
@@ -3234,6 +3345,14 @@ namespace TechnitiumLibrary.Net.Dns
             //cache authoritative NS records from response
             if (response.Answer.Count > 0)
                 cache.CacheResponse(response);
+        }
+
+        private static Task RevalidateNameServersFromParentSide(string zoneCut, IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool randomizeName, bool qnameMinimization, bool dnssecValidation, int retries, int timeout)
+        {
+            DnsQuestionRecord question = new DnsQuestionRecord(zoneCut, DnsResourceRecordType.NS, DnsClass.IN);
+            ResolverNsRevalidationDnsCache revalidationDnsCache = new ResolverNsRevalidationDnsCache(cache, question);
+
+            return RecursiveResolveAsync(question, revalidationDnsCache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, true, dnssecValidation, retries, timeout);
         }
 
         private static async Task<DnsDatagram> ResolveQueryAsync(DnsQuestionRecord question, Func<DnsQuestionRecord, Task<DnsDatagram>> resolveAsync)
