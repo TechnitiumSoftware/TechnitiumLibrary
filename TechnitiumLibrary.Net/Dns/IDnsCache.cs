@@ -21,6 +21,8 @@ namespace TechnitiumLibrary.Net.Dns
 {
     public interface IDnsCache
     {
+        DnsDatagram QueryClosestDelegation(DnsDatagram request);
+
         DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false);
 
         void CacheResponse(DnsDatagram response, bool isDnssecBadCache = false, string zoneCut = null);
