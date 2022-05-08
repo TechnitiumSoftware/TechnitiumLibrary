@@ -30,6 +30,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         string _nameServer;
 
+        bool _parentSideTtlExpirySet;
+        DateTime _parentSideTtlExpires;
+        const uint PARENT_SIDE_NS_MINIMUM_TTL = 3600u; //1 hr to prevent frequent revalidations
+        const uint PARENT_SIDE_NS_MAXIMUM_TTL = 86400u; //1 day to revalidate within this limit
+
         #endregion
 
         #region constructor
@@ -109,6 +114,40 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public string NameServer
         { get { return _nameServer; } }
+
+        [IgnoreDataMember]
+        public uint ParentSideTtl
+        {
+            get
+            {
+                if (!_parentSideTtlExpirySet)
+                    throw new InvalidOperationException();
+
+                DateTime utcNow = DateTime.UtcNow;
+
+                if (utcNow > _parentSideTtlExpires)
+                    return 0u;
+
+                return Convert.ToUInt32((_parentSideTtlExpires - utcNow).TotalSeconds);
+            }
+            set
+            {
+                if (_parentSideTtlExpirySet)
+                    throw new InvalidOperationException();
+
+                if (value < PARENT_SIDE_NS_MINIMUM_TTL)
+                    value = PARENT_SIDE_NS_MINIMUM_TTL;
+                else if (value > PARENT_SIDE_NS_MAXIMUM_TTL)
+                    value = PARENT_SIDE_NS_MAXIMUM_TTL;
+
+                _parentSideTtlExpires = DateTime.UtcNow.AddSeconds(value);
+                _parentSideTtlExpirySet = true;
+            }
+        }
+
+        [IgnoreDataMember]
+        public bool IsParentSideTtlSet
+        { get { return _parentSideTtlExpirySet; } }
 
         [IgnoreDataMember]
         public override ushort UncompressedLength
