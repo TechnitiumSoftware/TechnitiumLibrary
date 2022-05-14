@@ -981,6 +981,7 @@ namespace TechnitiumLibrary.Net.Dns
                         response = SanitizeResponseAnswerForQName(response);
                         response = SanitizeResponseAnswerForZoneCut(response, zoneCut); //sanitize answer section
                         response = SanitizeResponseAuthorityForZoneCut(response, zoneCut); //sanitize authority section
+                        response = SanitizeResponseAdditionalForZoneCut(response, zoneCut); //sanitize additional section
 
                         //cache response
                         cache.CacheResponse(response, false, zoneCut);
@@ -3142,6 +3143,58 @@ namespace TechnitiumLibrary.Net.Dns
             return response;
         }
 
+        private static DnsDatagram SanitizeResponseAdditionalForZoneCut(DnsDatagram response, string zoneCut)
+        {
+            if (zoneCut.Length == 0)
+            {
+                //zone cut is root, do nothing
+                return response;
+            }
+
+            //remove records from additional section that are not in the zone cut
+
+            if (response.Additional.Count > 0)
+            {
+                bool additionalNotInZoneCut = false;
+                string zoneCutEnd = "." + zoneCut;
+
+                foreach (DnsResourceRecord additional in response.Additional)
+                {
+                    if (additional.Type == DnsResourceRecordType.OPT)
+                        continue;
+
+                    if (!additional.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !additional.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                    {
+                        additionalNotInZoneCut = true;
+                        break;
+                    }
+                }
+
+                if (additionalNotInZoneCut)
+                {
+                    List<DnsResourceRecord> newAdditional = new List<DnsResourceRecord>();
+
+                    foreach (DnsResourceRecord additional in response.Additional)
+                    {
+                        if (additional.Type == DnsResourceRecordType.OPT)
+                        {
+                            newAdditional.Add(additional);
+                            continue;
+                        }
+
+                        if (!additional.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !additional.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        newAdditional.Add(additional);
+                    }
+
+                    return response.Clone(null, null, newAdditional);
+                }
+            }
+
+            return response;
+        }
+
         private static DnsDatagram CleanupResponse(DnsDatagram response)
         {
             //removing NS records from authority section to prevent them from being cached as referrer when answer section is empty
@@ -3341,6 +3394,7 @@ namespace TechnitiumLibrary.Net.Dns
             //sanitize response
             response = SanitizeResponseAnswerForZoneCut(response, zoneCut); //sanitize answer section
             response = SanitizeResponseAuthorityForZoneCut(response, zoneCut); //sanitize authority section
+            response = SanitizeResponseAdditionalForZoneCut(response, zoneCut); //sanitize additional section
 
             //cache authoritative NS records from response
             if (response.Answer.Count > 0)
