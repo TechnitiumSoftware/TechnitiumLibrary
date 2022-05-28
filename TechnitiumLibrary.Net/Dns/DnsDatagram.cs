@@ -520,7 +520,7 @@ namespace TechnitiumLibrary.Net.Dns
             return t;
         }
 
-        public static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries = null)
+        public static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries = null, bool isEmailAddress = false)
         {
             while (!string.IsNullOrEmpty(domain))
             {
@@ -548,7 +548,21 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 string label;
-                int i = domain.IndexOf('.');
+                int i;
+
+                if (isEmailAddress)
+                {
+                    i = domain.IndexOf('@');
+                    if (i < 0)
+                        i = domain.IndexOf('.');
+
+                    isEmailAddress = false;
+                }
+                else
+                {
+                    i = domain.IndexOf('.');
+                }
+
                 if (i < 0)
                 {
                     label = domain;
@@ -571,7 +585,7 @@ namespace TechnitiumLibrary.Net.Dns
             s.WriteByte(Convert.ToByte(0));
         }
 
-        public static string DeserializeDomainName(Stream s, int maxDepth = 10, bool ignoreMissingNullTermination = false)
+        public static string DeserializeDomainName(Stream s, int maxDepth = 10, bool ignoreMissingNullTermination = false, bool isEmailAddress = false)
         {
             if (maxDepth < 0)
                 throw new DnsClientException("Error while reading domain name: max depth for decompression reached");
@@ -595,7 +609,7 @@ namespace TechnitiumLibrary.Net.Dns
                     long CurrentPosition = s.Position;
                     s.Position = Offset;
 
-                    string domainSuffix = DeserializeDomainName(s, maxDepth - 1, ignoreMissingNullTermination);
+                    string domainSuffix = DeserializeDomainName(s, maxDepth - 1, ignoreMissingNullTermination, isEmailAddress);
                     if (domainSuffix.Length > 0)
                     {
                         domain.Append(domainSuffix);
@@ -612,7 +626,16 @@ namespace TechnitiumLibrary.Net.Dns
 
                     s.ReadBytes(buffer, 0, labelLength);
                     domain.Append(Encoding.ASCII.GetChars(buffer, 0, labelLength));
-                    domain.Append('.');
+
+                    if (isEmailAddress)
+                    {
+                        domain.Append('@');
+                        isEmailAddress = false;
+                    }
+                    else
+                    {
+                        domain.Append('.');
+                    }
 
                     if (ignoreMissingNullTermination && (s.Length == s.Position))
                         break; //option to ignore for buggy DHCP clients
@@ -808,12 +831,20 @@ namespace TechnitiumLibrary.Net.Dns
             foreach (DnsResourceRecord record in _authority)
                 record.SetDnssecStatus(dnssecStatus);
 
-            foreach (DnsResourceRecord record in _additional)
+            if (dnssecStatus == DnssecStatus.Disabled)
             {
-                if (record.Type == DnsResourceRecordType.OPT)
-                    record.SetDnssecStatus(DnssecStatus.Indeterminate);
-                else
+                foreach (DnsResourceRecord record in _additional)
                     record.SetDnssecStatus(dnssecStatus);
+            }
+            else
+            {
+                foreach (DnsResourceRecord record in _additional)
+                {
+                    if (record.Type == DnsResourceRecordType.OPT)
+                        record.SetDnssecStatus(DnssecStatus.Indeterminate);
+                    else
+                        record.SetDnssecStatus(dnssecStatus);
+                }
             }
         }
 
@@ -1674,11 +1705,17 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static void WriteSection(JsonTextWriter jsonWriter, IReadOnlyList<DnsResourceRecord> section, string sectionName)
         {
+            if ((section.Count == 1) && (section[0].Type == DnsResourceRecordType.OPT))
+                return;
+
             jsonWriter.WritePropertyName(sectionName);
             jsonWriter.WriteStartArray();
 
             foreach (DnsResourceRecord record in section)
             {
+                if (record.Type == DnsResourceRecordType.OPT)
+                    continue;
+
                 jsonWriter.WriteStartObject();
 
                 jsonWriter.WritePropertyName("name");
