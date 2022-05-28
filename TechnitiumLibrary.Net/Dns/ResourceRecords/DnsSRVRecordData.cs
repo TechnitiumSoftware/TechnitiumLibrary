@@ -106,6 +106,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             if (obj is DnsSRVRecordData other)
             {
+                if (_priority != other._priority)
+                    return false;
+
+                if (_weight != other._weight)
+                    return false;
+
                 if (_port != other._port)
                     return false;
 
