@@ -100,7 +100,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return true;
 
             if (obj is DnsMXRecordData other)
+            {
+                if (_preference != other._preference)
+                    return false;
+
                 return _exchange.Equals(other._exchange, StringComparison.OrdinalIgnoreCase);
+            }
 
             return false;
         }
