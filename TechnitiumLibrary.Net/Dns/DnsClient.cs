@@ -1475,6 +1475,28 @@ namespace TechnitiumLibrary.Net.Dns
 
                             cache.CacheResponse(failureResponse);
                         }
+                        else if (lastException is IOException ex3)
+                        {
+                            //cache as failure
+                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+
+                            if (extendedDnsErrors.Count > 0)
+                                failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
+
+                            if (ex3.InnerException is SocketException ex3a)
+                            {
+                                if (ex3a.SocketErrorCode == SocketError.TimedOut)
+                                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out");
+                                else
+                                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error: " + ex3a.SocketErrorCode.ToString());
+                            }
+                            else
+                            {
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "IO error: " + ex3.Message);
+                            }
+
+                            cache.CacheResponse(failureResponse);
+                        }
                         else
                         {
                             //cache as failure
