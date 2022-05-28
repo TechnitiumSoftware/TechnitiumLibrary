@@ -43,7 +43,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsSOARecordData(string primaryNameServer, string responsiblePerson, uint serial, uint refresh, uint retry, uint expire, uint minimum)
         {
             DnsClient.IsDomainNameValid(primaryNameServer, true);
-            DnsClient.IsDomainNameValid(responsiblePerson, true);
+
+            if (!responsiblePerson.Contains('@'))
+            {
+                int i = responsiblePerson.IndexOf('.');
+                if (i < 1)
+                    throw new ArgumentException("Please enter a valid email address.", nameof(responsiblePerson));
+
+                responsiblePerson = responsiblePerson.Substring(0, i) + "@" + responsiblePerson.Substring(i + 1);
+            }
 
             _primaryNameServer = primaryNameServer;
             _responsiblePerson = responsiblePerson;
@@ -71,6 +79,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _retry = uint.Parse(parts[4]);
             _expire = uint.Parse(parts[5]);
             _minimum = uint.Parse(parts[6]);
+
+            int i = _responsiblePerson.LastIndexOf("\\.");
+            if (i < 0)
+                i = _responsiblePerson.IndexOf('.');
+            else
+                i = _responsiblePerson.IndexOf('.', i + 2);
+
+            if (i > -1)
+                _responsiblePerson = _responsiblePerson.Substring(0, i).Replace("\\.", ".") + "@" + _responsiblePerson.Substring(i + 1);
         }
 
         #endregion
@@ -93,7 +110,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         protected override void ReadRecordData(Stream s)
         {
             _primaryNameServer = DnsDatagram.DeserializeDomainName(s);
-            _responsiblePerson = DnsDatagram.DeserializeDomainName(s);
+            _responsiblePerson = DnsDatagram.DeserializeDomainName(s, 10, false, true);
             _serial = DnsDatagram.ReadUInt32NetworkOrder(s);
             _refresh = DnsDatagram.ReadUInt32NetworkOrder(s);
             _retry = DnsDatagram.ReadUInt32NetworkOrder(s);
@@ -104,7 +121,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
             DnsDatagram.SerializeDomainName(canonicalForm ? _primaryNameServer.ToLower() : _primaryNameServer, s, domainEntries);
-            DnsDatagram.SerializeDomainName(canonicalForm ? _responsiblePerson.ToLower() : _responsiblePerson, s, domainEntries);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _responsiblePerson.ToLower() : _responsiblePerson, s, domainEntries, true);
             DnsDatagram.WriteUInt32NetworkOrder(_serial, s);
             DnsDatagram.WriteUInt32NetworkOrder(_refresh, s);
             DnsDatagram.WriteUInt32NetworkOrder(_retry, s);
@@ -175,7 +192,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _primaryNameServer.ToLower() + ". " + _responsiblePerson.ToLower() + ". " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
+            string responsiblePerson = _responsiblePerson;
+
+            int i = responsiblePerson.IndexOf('@');
+            if (i > -1)
+                responsiblePerson = responsiblePerson.Substring(0, i).Replace(".", "\\.") + "." + responsiblePerson.Substring(i + 1);
+
+            return _primaryNameServer.ToLower() + ". " + responsiblePerson.ToLower() + ". " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
         }
 
         #endregion
