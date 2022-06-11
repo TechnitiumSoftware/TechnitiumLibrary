@@ -274,7 +274,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 ROOT_TRUST_ANCHORS = new DnsResourceRecord[]
                 {
-                    new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN,0, new DnsDSRecordData(20326, DnssecAlgorithm.RSASHA256, DnssecDigestType.SHA256, Convert.FromHexString("E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D")))
+                    new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecordData(20326, DnssecAlgorithm.RSASHA256, DnssecDigestType.SHA256, Convert.FromHexString("E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D")))
                 };
             }
         }
@@ -345,6 +345,19 @@ namespace TechnitiumLibrary.Net.Dns
 
             for (int i = 0; i < strServers.Length; i++)
                 servers[i] = new NameServerAddress(strServers[i]);
+
+            _servers = servers;
+        }
+
+        public DnsClient(params string[] addresses)
+        {
+            if (addresses.Length == 0)
+                throw new DnsClientException("At least one name server must be available for DnsClient.");
+
+            NameServerAddress[] servers = new NameServerAddress[addresses.Length];
+
+            for (int i = 0; i < addresses.Length; i++)
+                servers[i] = new NameServerAddress(addresses[i]);
 
             _servers = servers;
         }
@@ -2602,7 +2615,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     DnsDSRecordData ds = dsRecord.RDATA as DnsDSRecordData;
 
-                    if ((ds.KeyTag == dnsKey.ComputedKeyTag) && (ds.Algorithm == dnsKey.Algorithm) && dnsKey.IsDnsKeyValid(dnsKeyRecord.Name, ds))
+                    if ((ds.KeyTag == dnsKey.ComputedKeyTag) && (ds.Algorithm == dnsKey.Algorithm) && DnsDSRecordData.IsDigestTypeSupported(ds.DigestType) && dnsKey.IsDnsKeyValid(dnsKeyRecord.Name, ds))
                     {
                         sepDnsKeyRecords.Add(dnsKeyRecord);
                         break;
