@@ -592,37 +592,49 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
                                         else
                                         {
-                                            switch (cacheResponse.Answer[0].Type)
+                                            bool found = false;
+
+                                            foreach (DnsResourceRecord answer in cacheResponse.Answer)
                                             {
-                                                case DnsResourceRecordType.AAAA:
-                                                    PopStack();
-                                                    nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port));
-                                                    break;
+                                                switch (answer.Type)
+                                                {
+                                                    case DnsResourceRecordType.AAAA:
+                                                        found = true;
+                                                        PopStack();
+                                                        nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port));
+                                                        break;
 
-                                                case DnsResourceRecordType.A:
-                                                    PopStack();
-                                                    nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((cacheResponse.Answer[0].RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port));
-                                                    break;
+                                                    case DnsResourceRecordType.A:
+                                                        found = true;
+                                                        PopStack();
+                                                        nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port));
+                                                        break;
 
-                                                case DnsResourceRecordType.DS:
-                                                    if (!TryGetDSFromResponse(cacheResponse, cacheResponse.Question[0].Name, out IReadOnlyList<DnsResourceRecord> cacheDSRecords))
-                                                        throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name, cacheResponse);
+                                                    case DnsResourceRecordType.DS:
+                                                        found = true;
 
-                                                    extendedDnsErrors.AddRange(cacheResponse.DnsClientExtendedErrors);
+                                                        if (!TryGetDSFromResponse(cacheResponse, cacheResponse.Question[0].Name, out IReadOnlyList<DnsResourceRecord> cacheDSRecords))
+                                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name, cacheResponse);
 
-                                                    PopStack();
+                                                        extendedDnsErrors.AddRange(cacheResponse.DnsClientExtendedErrors);
 
-                                                    if (cacheDSRecords is null)
-                                                    {
-                                                        //zone is unsigned
-                                                        //removing DNSSEC_OK flag
-                                                        ednsFlags &= (EDnsHeaderFlags)0x7FFF;
-                                                        lastDSRecords = null;
-                                                    }
-                                                    else if (cacheDSRecords.Count > 0)
-                                                    {
-                                                        lastDSRecords = cacheDSRecords;
-                                                    }
+                                                        PopStack();
+
+                                                        if (cacheDSRecords is null)
+                                                        {
+                                                            //zone is unsigned
+                                                            //removing DNSSEC_OK flag
+                                                            ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                            lastDSRecords = null;
+                                                        }
+                                                        else if (cacheDSRecords.Count > 0)
+                                                        {
+                                                            lastDSRecords = cacheDSRecords;
+                                                        }
+                                                        break;
+                                                }
+
+                                                if (found)
                                                     break;
                                             }
 
@@ -937,6 +949,12 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             response = await dnsClient.InternalResolveAsync(request, cancellationToken);
 
+                            //sanitize response
+                            response = SanitizeResponseAnswerForQName(response);
+                            response = SanitizeResponseAnswerForZoneCut(response, zoneCut); //sanitize answer section
+                            response = SanitizeResponseAuthorityForZoneCut(response, zoneCut); //sanitize authority section
+                            response = SanitizeResponseAdditionalForZoneCut(response, zoneCut); //sanitize additional section
+
                             if (ednsFlags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
                             {
                                 //dnssec validate response
@@ -990,12 +1008,6 @@ namespace TechnitiumLibrary.Net.Dns
                             continue; //try next name server
                         }
 
-                        //sanitize response
-                        response = SanitizeResponseAnswerForQName(response);
-                        response = SanitizeResponseAnswerForZoneCut(response, zoneCut); //sanitize answer section
-                        response = SanitizeResponseAuthorityForZoneCut(response, zoneCut); //sanitize authority section
-                        response = SanitizeResponseAdditionalForZoneCut(response, zoneCut); //sanitize additional section
-
                         //cache response
                         cache.CacheResponse(response, false, zoneCut);
 
@@ -1010,7 +1022,22 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     if (response.Answer.Count > 0)
                                     {
-                                        if (response.Answer[0].Name.Equals(question.Name, StringComparison.OrdinalIgnoreCase) || (response.Answer[0].Type == DnsResourceRecordType.DNAME)) //checking for DNAME since response was sanitized
+                                        bool qnameMatches = response.Answer[0].Name.Equals(question.Name, StringComparison.OrdinalIgnoreCase);
+                                        bool foundDNAME = false;
+
+                                        if (!qnameMatches)
+                                        {
+                                            foreach (DnsResourceRecord answer in response.Answer)
+                                            {
+                                                if ((answer.Type == DnsResourceRecordType.DNAME) && question.Name.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    foundDNAME = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+
+                                        if (qnameMatches || foundDNAME) //checking for DNAME too
                                         {
                                             if (question.Type == question.MinimizedType)
                                             {
@@ -1051,42 +1078,53 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
                                         else
                                         {
-                                            switch (response.Answer[0].Type)
+                                            bool found = false;
+
+                                            foreach (DnsResourceRecord answer in response.Answer)
                                             {
-                                                case DnsResourceRecordType.AAAA:
-                                                    PopStack();
-                                                    nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port));
+                                                switch (answer.Type)
+                                                {
+                                                    case DnsResourceRecordType.AAAA:
+                                                        found = true;
+                                                        PopStack();
+                                                        nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port));
+                                                        break;
+
+                                                    case DnsResourceRecordType.A:
+                                                        found = true;
+                                                        PopStack();
+                                                        nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port));
+                                                        break;
+
+                                                    case DnsResourceRecordType.DS:
+                                                        found = true;
+                                                        if (!TryGetDSFromResponse(response, response.Question[0].Name, out IReadOnlyList<DnsResourceRecord> dsRecords))
+                                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + response.Question[0].Name, response);
+
+                                                        extendedDnsErrors.AddRange(response.DnsClientExtendedErrors);
+
+                                                        PopStack();
+
+                                                        if (dsRecords is null)
+                                                        {
+                                                            //zone is unsigned
+                                                            ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                            lastDSRecords = null;
+                                                        }
+                                                        else if (dsRecords.Count > 0)
+                                                        {
+                                                            lastDSRecords = dsRecords;
+                                                        }
+
+                                                        break;
+
+                                                    default:
+                                                        //didnt find IP/DS for current name server
+                                                        continue; //try next name server
+                                                }
+
+                                                if (found)
                                                     break;
-
-                                                case DnsResourceRecordType.A:
-                                                    PopStack();
-                                                    nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((response.Answer[0].RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port));
-                                                    break;
-
-                                                case DnsResourceRecordType.DS:
-                                                    if (!TryGetDSFromResponse(response, response.Question[0].Name, out IReadOnlyList<DnsResourceRecord> dsRecords))
-                                                        throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + response.Question[0].Name, response);
-
-                                                    extendedDnsErrors.AddRange(response.DnsClientExtendedErrors);
-
-                                                    PopStack();
-
-                                                    if (dsRecords is null)
-                                                    {
-                                                        //zone is unsigned
-                                                        ednsFlags &= (EDnsHeaderFlags)0x7FFF;
-                                                        lastDSRecords = null;
-                                                    }
-                                                    else if (dsRecords.Count > 0)
-                                                    {
-                                                        lastDSRecords = dsRecords;
-                                                    }
-
-                                                    break;
-
-                                                default:
-                                                    //didnt find IP/DS for current name server
-                                                    continue; //try next name server
                                             }
 
                                             goto resolverLoop;
