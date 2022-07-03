@@ -388,10 +388,28 @@ namespace TechnitiumLibrary.Net.Dns
         {
             IReadOnlyList<DnsResourceRecord> authorityRecords;
 
-            if ((response.Question.Count > 0) && (response.Question[0].Type == DnsResourceRecordType.NS) && (response.Answer.Count > 0) && (response.Answer[0].Type == DnsResourceRecordType.NS))
-                authorityRecords = response.Answer;
+            if ((response.Question.Count > 0) && (response.Question[0].Type == DnsResourceRecordType.NS) && (response.Answer.Count > 0))
+            {
+                bool found = false;
+
+                foreach (DnsResourceRecord answer in response.Answer)
+                {
+                    if (answer.Type == DnsResourceRecordType.NS)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (found)
+                    authorityRecords = response.Answer;
+                else
+                    authorityRecords = response.Authority;
+            }
             else
+            {
                 authorityRecords = response.Authority;
+            }
 
             List<NameServerAddress> nameServers = new List<NameServerAddress>(authorityRecords.Count);
 
@@ -575,7 +593,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             IPEndPoint ipEndPoint = null;
 
-            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, false, retries, timeout, 16, cancellationToken);
+            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, retries, timeout, 16, cancellationToken);
             if (addresses.Count > 0)
                 ipEndPoint = new IPEndPoint(addresses[0], Port);
 
@@ -608,7 +626,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 try
                 {
-                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, false, retries, timeout, 16, cancellationToken));
+                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, retries, timeout, 16, cancellationToken));
                     if (ptrDomains.Count > 0)
                         _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
