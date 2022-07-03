@@ -391,7 +391,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, bool cleanupResponse = false, CancellationToken cancellationToken = default)
+        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, bool cleanupResponse = false, bool asyncNsResolution = false, CancellationToken cancellationToken = default)
         {
             if ((udpPayloadSize < 512) && dnssecValidation)
                 throw new ArgumentOutOfRangeException(nameof(UdpPayloadSize), "EDNS cannot be disabled by setting UDP payload size to less than 512 when DNSSEC validation is enabled.");
@@ -415,6 +415,8 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 nsRevalidationChildSideTasks = new Dictionary<string, NsRevalidationTask>();
                 nsRevalidationParentSideTask = new Dictionary<string, object>();
+
+                asyncNsResolution = false; //since NS revalidation does NS resolution too
             }
 
             void AddNsRevalidationParentSideTaskIfRequired(IReadOnlyCollection<DnsResourceRecord> nsRecords)
@@ -443,16 +445,51 @@ namespace TechnitiumLibrary.Net.Dns
                     List<Task> tasks = new List<Task>(nsRevalidationChildSideTasks.Count + nsRevalidationParentSideTask.Count);
 
                     foreach (KeyValuePair<string, NsRevalidationTask> entry in nsRevalidationChildSideTasks)
-                        tasks.Add(RevalidateNameServersFromChildSide(entry.Key, entry.Value.LastDSRecords, entry.Value.NameServers, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, dnssecValidation, retries, timeout));
+                        tasks.Add(RevalidateNameServersFromChildSide(entry.Key, entry.Value.LastDSRecords, entry.Value.NameServers, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, maxStackCount));
 
                     foreach (KeyValuePair<string, object> entry in nsRevalidationParentSideTask)
-                        tasks.Add(RevalidateNameServersFromParentSide(entry.Key, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout));
+                        tasks.Add(RevalidateNameServersFromParentSide(entry.Key, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, maxStackCount));
 
                     await Task.WhenAll(tasks);
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             }
 
-            int CompareNameServerAddressesByGlue(NameServerAddress x, NameServerAddress y)
+            //async resolve all name servers
+            Dictionary<string, object> asyncNsResolutionTasks = null;
+
+            if (asyncNsResolution)
+                asyncNsResolutionTasks = new Dictionary<string, object>();
+
+            void TriggerNsResolution()
+            {
+                if (!asyncNsResolution || (asyncNsResolutionTasks.Count == 0))
+                    return;
+
+                _ = Task.Factory.StartNew(async delegate ()
+                {
+                    foreach (KeyValuePair<string, object> entry in asyncNsResolutionTasks)
+                    {
+                        if (preferIPv6)
+                        {
+                            try
+                            {
+                                await RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, retries, timeout, maxStackCount, false, false, cancellationToken);
+                            }
+                            catch
+                            { }
+                        }
+
+                        try
+                        {
+                            await RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, retries, timeout, maxStackCount, false, false, cancellationToken);
+                        }
+                        catch
+                        { }
+                    }
+                }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+            }
+
+            int CompareNameServersByAddress(NameServerAddress x, NameServerAddress y)
             {
                 if (x.IPEndPoint is null)
                 {
@@ -548,6 +585,48 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
+            List<NameServerAddress> ResolveNameServerAddressesFromCache(List<NameServerAddress> nameServers)
+            {
+                List<NameServerAddress> newNameServers = new List<NameServerAddress>(preferIPv6 ? nameServers.Count * 2 : nameServers.Count);
+
+                foreach (NameServerAddress nameServer in nameServers)
+                {
+                    if (nameServer.IPEndPoint is not null)
+                    {
+                        newNameServers.Add(nameServer);
+                        continue;
+                    }
+
+                    bool resolved = false;
+
+                    if (preferIPv6)
+                    {
+                        DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(nameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN) });
+                        DnsDatagram cacheResponse = cache.Query(cacheRequest, false, false);
+                        if ((cacheResponse is not null) && (cacheResponse.Answer.Count > 0) && (cacheResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
+                        {
+                            resolved = true;
+                            newNameServers.Add(new NameServerAddress(nameServer.DomainEndPoint.Address, (cacheResponse.Answer[0].RDATA as DnsAAAARecordData).Address));
+                        }
+                    }
+
+                    {
+                        DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(nameServer.DomainEndPoint.Address, DnsResourceRecordType.A, DnsClass.IN) });
+                        DnsDatagram cacheResponse = cache.Query(cacheRequest, false, false);
+                        if ((cacheResponse is not null) && (cacheResponse.Answer.Count > 0) && (cacheResponse.Answer[0].Type == DnsResourceRecordType.A))
+                        {
+                            resolved = true;
+                            newNameServers.Add(new NameServerAddress(nameServer.DomainEndPoint.Address, (cacheResponse.Answer[0].RDATA as DnsARecordData).Address));
+                        }
+                    }
+
+                    if (!resolved)
+                        newNameServers.Add(nameServer);
+                }
+
+                return newNameServers;
+            }
+
             while (true) //stack loop
             {
                 if (resolverStack.Count > maxStackCount)
@@ -588,6 +667,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         if (resolverStack.Count == 0)
                                         {
                                             TriggerNsRevalidation();
+                                            TriggerNsResolution();
                                             return cacheResponse;
                                         }
                                         else
@@ -650,6 +730,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             if (resolverStack.Count == 0)
                                             {
                                                 TriggerNsRevalidation();
+                                                TriggerNsResolution();
                                                 return cacheResponse;
                                             }
                                             else
@@ -763,11 +844,10 @@ namespace TechnitiumLibrary.Net.Dns
                                                 //found NS and/or DS (or proof of no DS)
                                                 nextNameServers.Shuffle();
 
-                                                if (resolverStack.Count > 0)
+                                                if (asyncNsRevalidation || asyncNsResolution || (resolverStack.Count > 0))
                                                 {
-                                                    //current stack is resolving an NS domain
-                                                    //sort name servers to prioritize ones with glue
-                                                    nextNameServers.Sort(CompareNameServerAddressesByGlue);
+                                                    //sort name servers to prioritize ones with address
+                                                    nextNameServers.Sort(CompareNameServersByAddress);
                                                 }
 
                                                 if (preferIPv6)
@@ -791,6 +871,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         if (resolverStack.Count == 0)
                                         {
                                             TriggerNsRevalidation();
+                                            TriggerNsResolution();
                                             return cacheResponse;
                                         }
                                         else
@@ -822,6 +903,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     if (resolverStack.Count == 0)
                                     {
                                         TriggerNsRevalidation();
+                                        TriggerNsResolution();
                                         return cacheResponse;
                                     }
                                     else
@@ -855,6 +937,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     if (resolverStack.Count == 0)
                                     {
                                         TriggerNsRevalidation();
+                                        TriggerNsResolution();
                                         return cacheResponse;
                                     }
                                     else
@@ -1067,6 +1150,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         if (resolverStack.Count == 0)
                                         {
                                             TriggerNsRevalidation();
+                                            TriggerNsResolution();
 
                                             if (extendedDnsErrors.Count > 0)
                                                 response.AddDnsClientExtendedError(extendedDnsErrors);
@@ -1173,6 +1257,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             if (resolverStack.Count == 0)
                                             {
                                                 TriggerNsRevalidation();
+                                                TriggerNsResolution();
 
                                                 if (extendedDnsErrors.Count > 0)
                                                     response.AddDnsClientExtendedError(extendedDnsErrors);
@@ -1256,6 +1341,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 {
                                                     //cannot proceed forever; return what we have and stop
                                                     TriggerNsRevalidation();
+                                                    TriggerNsResolution();
 
                                                     if (extendedDnsErrors.Count > 0)
                                                         response.AddDnsClientExtendedError(extendedDnsErrors);
@@ -1304,13 +1390,13 @@ namespace TechnitiumLibrary.Net.Dns
                                                     }
                                                 }
 
+                                                nextNameServers = ResolveNameServerAddressesFromCache(nextNameServers);
                                                 nextNameServers.Shuffle();
 
-                                                if (resolverStack.Count > 0)
+                                                if (asyncNsRevalidation || asyncNsResolution || (resolverStack.Count > 0))
                                                 {
-                                                    //current stack is resolving an NS domain
-                                                    //sort name servers to prioritize ones with glue
-                                                    nextNameServers.Sort(CompareNameServerAddressesByGlue);
+                                                    //sort name servers to prioritize ones with address
+                                                    nextNameServers.Sort(CompareNameServersByAddress);
                                                 }
 
                                                 if (preferIPv6)
@@ -1330,6 +1416,16 @@ namespace TechnitiumLibrary.Net.Dns
                                                 //add to NS revalidation task list
                                                 if (asyncNsRevalidation)
                                                     nsRevalidationChildSideTasks.TryAdd(zoneCut.ToLower(), new NsRevalidationTask(lastDSRecords, nextNameServers));
+
+                                                //add to async NS resolution task list
+                                                if (asyncNsResolution)
+                                                {
+                                                    foreach (NameServerAddress nextNameServer in nextNameServers)
+                                                    {
+                                                        if (nextNameServer.IPEndPoint is null)
+                                                            asyncNsResolutionTasks.TryAdd(nextNameServer.DomainEndPoint.Address, null);
+                                                    }
+                                                }
 
                                                 goto resolverLoop;
                                             }
@@ -1391,6 +1487,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     if (resolverStack.Count == 0)
                                     {
                                         TriggerNsRevalidation();
+                                        TriggerNsResolution();
 
                                         if (extendedDnsErrors.Count > 0)
                                             response.AddDnsClientExtendedError(extendedDnsErrors);
@@ -1462,6 +1559,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (resolverStack.Count == 0)
                     {
                         TriggerNsRevalidation();
+                        TriggerNsResolution();
 
                         if (lastResponse is not null)
                         {
@@ -1613,30 +1711,30 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, CancellationToken cancellationToken = default)
+        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, CancellationToken cancellationToken = default)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             return ResolveQueryAsync(question, delegate (DnsQuestionRecord q)
             {
-                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount, true, cancellationToken);
+                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, retries, timeout, maxStackCount, true, false, cancellationToken);
             });
         }
 
-        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, CancellationToken cancellationToken = default)
+        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, CancellationToken cancellationToken = default)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount, cancellationToken));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, maxStackCount, cancellationToken));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, asyncNsRevalidation, dnssecValidation, retries, timeout, maxStackCount, cancellationToken));
+            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, maxStackCount, cancellationToken));
         }
 
         public static async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(IDnsClient dnsClient, string domain, bool preferIPv6 = false, CancellationToken cancellationToken = default)
@@ -3412,7 +3510,7 @@ namespace TechnitiumLibrary.Net.Dns
             return response;
         }
 
-        private static async Task RevalidateNameServersFromChildSide(string zoneCut, IReadOnlyList<DnsResourceRecord> lastDSRecords, IReadOnlyList<NameServerAddress> parentSideNameServers, IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool randomizeName, bool dnssecValidation, int retries, int timeout)
+        private static async Task RevalidateNameServersFromChildSide(string zoneCut, IReadOnlyList<DnsResourceRecord> lastDSRecords, IReadOnlyList<NameServerAddress> parentSideNameServers, IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool randomizeName, bool qnameMinimization, bool dnssecValidation, int retries, int timeout, int maxStackCount)
         {
             //Delegation Revalidation by DNS Resolvers
             //https://datatracker.ietf.org/doc/draft-ietf-dnsop-ns-revalidation/
@@ -3471,15 +3569,44 @@ namespace TechnitiumLibrary.Net.Dns
 
             //cache authoritative NS records from response
             if (response.Answer.Count > 0)
+            {
+                //resolve all name server addresses
+                List<NameServerAddress> revalidatedNameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, true);
+
+                foreach (NameServerAddress revalidatedNameServer in revalidatedNameServers)
+                {
+                    if (revalidatedNameServer.IPEndPoint is null)
+                    {
+                        if (preferIPv6)
+                        {
+                            try
+                            {
+                                await RecursiveResolveAsync(new DnsQuestionRecord(revalidatedNameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, retries, timeout, maxStackCount, false, false);
+                            }
+                            catch
+                            { }
+                        }
+
+                        try
+                        {
+                            await RecursiveResolveAsync(new DnsQuestionRecord(revalidatedNameServer.DomainEndPoint.Address, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, retries, timeout, maxStackCount, false, false);
+                        }
+                        catch
+                        { }
+                    }
+                }
+
+                //cache revalidated NS after resolving their addresses to avoid overwriting existing NS with glue
                 cache.CacheResponse(response);
+            }
         }
 
-        private static Task RevalidateNameServersFromParentSide(string zoneCut, IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool randomizeName, bool qnameMinimization, bool dnssecValidation, int retries, int timeout)
+        private static Task RevalidateNameServersFromParentSide(string zoneCut, IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool randomizeName, bool qnameMinimization, bool dnssecValidation, int retries, int timeout, int maxStackCount)
         {
             DnsQuestionRecord question = new DnsQuestionRecord(zoneCut, DnsResourceRecordType.NS, DnsClass.IN);
             ResolverNsRevalidationDnsCache revalidationDnsCache = new ResolverNsRevalidationDnsCache(cache, question);
 
-            return RecursiveResolveAsync(question, revalidationDnsCache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, true, dnssecValidation, retries, timeout);
+            return RecursiveResolveAsync(question, revalidationDnsCache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, true, dnssecValidation, retries, timeout, maxStackCount);
         }
 
         private static async Task<DnsDatagram> ResolveQueryAsync(DnsQuestionRecord question, Func<DnsQuestionRecord, Task<DnsDatagram>> resolveAsync)
