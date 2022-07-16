@@ -215,7 +215,7 @@ namespace TechnitiumLibrary.Net.Dns
             CacheRecords(resourceRecords);
         }
 
-        private IReadOnlyList<DnsResourceRecord> GetClosestNameServers(string domain, bool includeDSRecords)
+        private IReadOnlyList<DnsResourceRecord> GetClosestNameServers(string domain, bool dnssecOk)
         {
             domain = domain.ToLower();
 
@@ -226,10 +226,15 @@ namespace TechnitiumLibrary.Net.Dns
                     IReadOnlyList<DnsResourceRecord> records = entry.QueryRecords(DnsResourceRecordType.NS, true);
                     if ((records.Count > 0) && (records[0].Type == DnsResourceRecordType.NS))
                     {
-                        if (includeDSRecords)
-                            return AddDSRecordsTo(entry, records);
+                        if (dnssecOk)
+                        {
+                            if (records[0].DnssecStatus != DnssecStatus.Disabled) //dont return NS records for Disabled status since DO flag is set
+                                return AddDSRecordsTo(entry, records);
+                        }
                         else
+                        {
                             return records;
+                        }
                     }
                 }
 
@@ -405,6 +410,12 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         if (request.DnssecOk)
                         {
+                            foreach (DnsResourceRecord originalAuthority in dnsSpecialCacheRecord.OriginalAuthority)
+                            {
+                                if (originalAuthority.DnssecStatus == DnssecStatus.Disabled)
+                                    goto beforeFindClosestNameServers; //dont return answer with disabled status since DO flag is set
+                            }
+
                             bool authenticData;
 
                             switch (dnsSpecialCacheRecord.Type)
@@ -444,7 +455,14 @@ namespace TechnitiumLibrary.Net.Dns
 
                     if (request.DnssecOk)
                     {
-                        //DNSSEC enabled; insert RRSIG records
+                        //DNSSEC enabled
+                        foreach (DnsResourceRecord answer in answers)
+                        {
+                            if (answer.DnssecStatus == DnssecStatus.Disabled)
+                                goto beforeFindClosestNameServers; //dont return answer when status is disabled since DO flag is set
+                        }
+
+                        //insert RRSIG records
                         List<DnsResourceRecord> newAnswers = new List<DnsResourceRecord>(answers.Count * 2);
                         List<DnsResourceRecord> newAuthority = null;
 
@@ -500,6 +518,8 @@ namespace TechnitiumLibrary.Net.Dns
                     return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, answers[0].DnssecStatus == DnssecStatus.Secure, request.CheckingDisabled, DnsResponseCode.NoError, request.Question, answers, authority, additional);
                 }
             }
+
+            beforeFindClosestNameServers:
 
             if (findClosestNameServers)
             {
