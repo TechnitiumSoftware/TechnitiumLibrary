@@ -2571,9 +2571,6 @@ namespace TechnitiumLibrary.Net.Dns
                     }
                     else
                     {
-                        if (!isAdditionalSection)
-                            response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName + "/" + rrsetType);
-
                         switch (lastExtendedDnsErrorCode)
                         {
                             case EDnsExtendedDnsErrorCode.DnssecBogus:
@@ -2582,6 +2579,8 @@ namespace TechnitiumLibrary.Net.Dns
                                 //RRSIG with invalid signature
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
+
+                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName + "/" + rrsetType);
 
                                 if (!isAdditionalSection)
                                     throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to invalid signature [" + lastExtendedDnsErrorCode.ToString() + "] for owner name: " + ownerName + "/" + rrsetType, response);
@@ -2603,22 +2602,35 @@ namespace TechnitiumLibrary.Net.Dns
                             case EDnsExtendedDnsErrorCode.RRSIGsMissing:
                                 //missing RRSIG for the RRSet
 
-                                if ((rrsetType == DnsResourceRecordType.CNAME) && rrsets.TryGetValue(DnsResourceRecordType.DNAME, out List<DnsResourceRecord> dnameRRset))
+                                if (rrsetType == DnsResourceRecordType.CNAME)
                                 {
                                     //check if CNAME was synthesized from DNAME
+                                    bool foundDNAME = false;
                                     DnsResourceRecord cnameRecord = rrset.Value[0];
-                                    DnsResourceRecord dnameRecord = dnameRRset[0];
 
-                                    string synthesizedCNAME = (dnameRecord.RDATA as DnsDNAMERecordData).Substitute(cnameRecord.Name, dnameRecord.Name);
-                                    string CNAME = (cnameRecord.RDATA as DnsCNAMERecordData).Domain;
-
-                                    if (synthesizedCNAME.Equals(CNAME, StringComparison.OrdinalIgnoreCase))
+                                    foreach (DnsResourceRecord dnameRecord in records)
                                     {
-                                        //found CNAME synthesized from DNAME
-                                        cnameRecord.SetDnssecStatus(DnssecStatus.Secure);
+                                        if (dnameRecord.Type != DnsResourceRecordType.DNAME)
+                                            continue;
 
-                                        continue; //continue to next rrset
+                                        if (cnameRecord.Name.EndsWith("." + dnameRecord.Name, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            string synthesizedCNAME = (dnameRecord.RDATA as DnsDNAMERecordData).Substitute(cnameRecord.Name, dnameRecord.Name);
+                                            string CNAME = (cnameRecord.RDATA as DnsCNAMERecordData).Domain;
+
+                                            if (synthesizedCNAME.Equals(CNAME, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                //found CNAME synthesized from DNAME
+                                                cnameRecord.SetDnssecStatus(DnssecStatus.Secure);
+
+                                                foundDNAME = true;
+                                                break;
+                                            }
+                                        }
                                     }
+
+                                    if (foundDNAME)
+                                        continue; //continue to next rrset
                                 }
 
                                 if (isAdditionalSection)
@@ -2631,6 +2643,8 @@ namespace TechnitiumLibrary.Net.Dns
                                     foreach (DnsResourceRecord record in rrset.Value)
                                         record.SetDnssecStatus(DnssecStatus.Bogus);
 
+                                    response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName + "/" + rrsetType);
+
                                     throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing RRSIG for owner name: " + ownerName + "/" + rrsetType, response);
                                 }
 
@@ -2639,6 +2653,8 @@ namespace TechnitiumLibrary.Net.Dns
                             default:
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
+
+                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName + "/" + rrsetType);
 
                                 if (!isAdditionalSection)
                                     throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to reason: " + lastExtendedDnsErrorCode.ToString() + ", for owner name: " + ownerName + "/" + rrsetType, response);
@@ -3061,7 +3077,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                 foreach (DnsResourceRecord rrsigRecord in records)
                 {
-                    if ((rrsigRecord.Type == DnsResourceRecordType.RRSIG) && rrsigRecord.Name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                    if (rrsigRecord.Type != DnsResourceRecordType.RRSIG)
+                        continue;
+
+                    if (rrsigRecord.Name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
                     {
                         DnsRRSIGRecordData rrsig = rrsigRecord.RDATA as DnsRRSIGRecordData;
 
@@ -3075,6 +3094,11 @@ namespace TechnitiumLibrary.Net.Dns
                             isRecordCovered = true;
                             break;
                         }
+                    }
+                    else if ((record.Type == DnsResourceRecordType.CNAME) && record.Name.EndsWith("." + rrsigRecord.Name, StringComparison.OrdinalIgnoreCase) && ((rrsigRecord.RDATA as DnsRRSIGRecordData).TypeCovered == DnsResourceRecordType.DNAME))
+                    {
+                        isRecordCovered = true;
+                        break;
                     }
                 }
 
@@ -3473,6 +3497,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             case DnsResourceRecordType.A:
                             case DnsResourceRecordType.AAAA:
+                            case DnsResourceRecordType.RRSIG:
                                 if (foundNS)
                                 {
                                     bool foundGlue = false;
