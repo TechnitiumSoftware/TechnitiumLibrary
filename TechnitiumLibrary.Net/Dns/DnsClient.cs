@@ -1162,26 +1162,21 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
                                         else
                                         {
-                                            bool found = false;
-
                                             foreach (DnsResourceRecord answer in response.Answer)
                                             {
                                                 switch (answer.Type)
                                                 {
                                                     case DnsResourceRecordType.AAAA:
-                                                        found = true;
                                                         PopStack();
                                                         nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port));
-                                                        break;
+                                                        goto resolverLoop;
 
                                                     case DnsResourceRecordType.A:
-                                                        found = true;
                                                         PopStack();
                                                         nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port));
-                                                        break;
+                                                        goto resolverLoop;
 
                                                     case DnsResourceRecordType.DS:
-                                                        found = true;
                                                         if (!TryGetDSFromResponse(response, response.Question[0].Name, out IReadOnlyList<DnsResourceRecord> dsRecords))
                                                             throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + response.Question[0].Name, response);
 
@@ -1200,18 +1195,12 @@ namespace TechnitiumLibrary.Net.Dns
                                                             lastDSRecords = dsRecords;
                                                         }
 
-                                                        break;
-
-                                                    default:
-                                                        //didnt find IP/DS for current name server
-                                                        continue; //try next name server
+                                                        goto resolverLoop;
                                                 }
-
-                                                if (found)
-                                                    break;
                                             }
 
-                                            goto resolverLoop;
+                                            //didnt find IP/DS for current name server
+                                            continue; //try next name server
                                         }
                                     }
                                     else if (response.Authority.Count > 0)
@@ -2335,7 +2324,6 @@ namespace TechnitiumLibrary.Net.Dns
                                             case DnssecProofOfNonExistence.OptOut:
                                             case DnssecProofOfNonExistence.NoData:
                                             case DnssecProofOfNonExistence.InsecureDelegation: //proves no DS record exists
-                                            case DnssecProofOfNonExistence.NxDomain: //proves NO DATA due to empty non terminal (ENT) caused by qname minimization
                                                 //no data for the type was found
                                                 break;
 
