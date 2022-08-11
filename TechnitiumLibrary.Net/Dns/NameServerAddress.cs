@@ -468,51 +468,78 @@ namespace TechnitiumLibrary.Net.Dns
 
         public NameServerAddress ChangeProtocol(DnsTransportProtocol protocol)
         {
+            if (_protocol == protocol)
+                return this;
+
             NameServerAddress nsAddress = new NameServerAddress();
 
             switch (protocol)
             {
                 case DnsTransportProtocol.Udp:
                 case DnsTransportProtocol.Tcp:
-                    if ((_dohEndPoint is not null) && !IPAddress.TryParse(_dohEndPoint.Host, out _))
-                        nsAddress._domainEndPoint = new DomainEndPoint(_dohEndPoint.Host, 53);
-                    else if (_domainEndPoint is not null)
-                        nsAddress._domainEndPoint = new DomainEndPoint(_domainEndPoint.Address, 53);
+                    {
+                        int port;
 
-                    if ((_dohEndPoint is not null) && IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address1))
-                        nsAddress._ipEndPoint = new IPEndPoint(address1, 53);
-                    else if (_ipEndPoint is not null)
-                        nsAddress._ipEndPoint = new IPEndPoint(_ipEndPoint.Address, 53);
+                        if (_protocol == DnsTransportProtocol.Udp)
+                            port = Port;
+                        else
+                            port = 53;
 
+                        if ((_dohEndPoint is not null) && !IPAddress.TryParse(_dohEndPoint.Host, out _))
+                            nsAddress._domainEndPoint = new DomainEndPoint(_dohEndPoint.Host, port);
+                        else if (_domainEndPoint is not null)
+                            nsAddress._domainEndPoint = new DomainEndPoint(_domainEndPoint.Address, port);
+
+                        if ((_dohEndPoint is not null) && IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address))
+                            nsAddress._ipEndPoint = new IPEndPoint(address, port);
+                        else if (_ipEndPoint is not null)
+                            nsAddress._ipEndPoint = new IPEndPoint(_ipEndPoint.Address, port);
+                    }
                     break;
 
                 case DnsTransportProtocol.Tls:
-                    if ((_dohEndPoint is not null) && !IPAddress.TryParse(_dohEndPoint.Host, out _))
-                        nsAddress._domainEndPoint = new DomainEndPoint(_dohEndPoint.Host, 853);
-                    else if (_domainEndPoint is not null)
-                        nsAddress._domainEndPoint = new DomainEndPoint(_domainEndPoint.Address, 853);
+                    {
+                        int port;
 
-                    if ((_dohEndPoint is not null) && IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address2))
-                        nsAddress._ipEndPoint = new IPEndPoint(address2, 853);
-                    else if (_ipEndPoint is not null)
-                        nsAddress._ipEndPoint = new IPEndPoint(_ipEndPoint.Address, 853);
+                        if ((_protocol == DnsTransportProtocol.Udp) && (Port != 53))
+                            port = Port;
+                        else
+                            port = 853;
 
+                        if ((_dohEndPoint is not null) && !IPAddress.TryParse(_dohEndPoint.Host, out _))
+                            nsAddress._domainEndPoint = new DomainEndPoint(_dohEndPoint.Host, port);
+                        else if (_domainEndPoint is not null)
+                            nsAddress._domainEndPoint = new DomainEndPoint(_domainEndPoint.Address, port);
+
+                        if ((_dohEndPoint is not null) && IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address))
+                            nsAddress._ipEndPoint = new IPEndPoint(address, port);
+                        else if (_ipEndPoint is not null)
+                            nsAddress._ipEndPoint = new IPEndPoint(_ipEndPoint.Address, port);
+                    }
                     break;
 
                 case DnsTransportProtocol.Https:
                 case DnsTransportProtocol.HttpsJson:
-                    if (_dohEndPoint is not null)
-                        nsAddress._dohEndPoint = _dohEndPoint;
-                    else if (_domainEndPoint is not null)
-                        nsAddress._dohEndPoint = new Uri("https://" + _domainEndPoint.Address + "/dns-query");
-                    else if (_ipEndPoint is not null)
-                        nsAddress._dohEndPoint = new Uri("https://" + (_ipEndPoint.Address.AddressFamily == AddressFamily.InterNetworkV6 ? "[" + _ipEndPoint.Address.ToString() + "]" : _ipEndPoint.Address.ToString()) + "/dns-query");
+                    {
+                        int port;
 
-                    if ((_dohEndPoint is not null) && IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address3))
-                        nsAddress._ipEndPoint = new IPEndPoint(address3, 443);
-                    else if (_ipEndPoint is not null)
-                        nsAddress._ipEndPoint = new IPEndPoint(_ipEndPoint.Address, 443);
+                        if ((_protocol == DnsTransportProtocol.Udp) && (Port != 53))
+                            port = Port;
+                        else
+                            port = 443;
 
+                        if (_dohEndPoint is not null)
+                            nsAddress._dohEndPoint = _dohEndPoint;
+                        else if (_domainEndPoint is not null)
+                            nsAddress._dohEndPoint = new Uri("https://" + _domainEndPoint.Address + (port == 443 ? "" : ":" + port) + "/dns-query");
+                        else if (_ipEndPoint is not null)
+                            nsAddress._dohEndPoint = new Uri("https://" + (_ipEndPoint.Address.AddressFamily == AddressFamily.InterNetworkV6 ? "[" + _ipEndPoint.Address.ToString() + "]" : _ipEndPoint.Address.ToString()) + (port == 443 ? "" : ":" + port) + "/dns-query");
+
+                        if ((_dohEndPoint is not null) && IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address))
+                            nsAddress._ipEndPoint = new IPEndPoint(address, port);
+                        else if (_ipEndPoint is not null)
+                            nsAddress._ipEndPoint = new IPEndPoint(_ipEndPoint.Address, port);
+                    }
                     break;
 
                 default:
@@ -646,11 +673,11 @@ namespace TechnitiumLibrary.Net.Dns
         {
             string value;
 
-            if (_dohEndPoint != null)
+            if (_dohEndPoint is not null)
             {
                 value = _dohEndPoint.AbsoluteUri;
             }
-            else if (_domainEndPoint != null)
+            else if (_domainEndPoint is not null)
             {
                 if (_domainEndPoint.Port == 53)
                     value = _domainEndPoint.Address;
@@ -660,13 +687,18 @@ namespace TechnitiumLibrary.Net.Dns
             else
             {
                 if (_ipEndPoint.Port == 53)
-                    return _ipEndPoint.Address.ToString();
+                    return _ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6 ? "[" + _ipEndPoint.Address.ToString() + "]" : _ipEndPoint.Address.ToString();
                 else
                     return _ipEndPoint.ToString();
             }
 
-            if (_ipEndPoint != null)
-                value += " (" + _ipEndPoint.Address.ToString() + ")";
+            if (_ipEndPoint is not null)
+            {
+                string address = _ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6 ? "[" + _ipEndPoint.Address.ToString() + "]" : _ipEndPoint.Address.ToString();
+
+                if ((_dohEndPoint is null) || (_dohEndPoint.Host != address))
+                    value += " (" + address + ")";
+            }
 
             return value;
         }
