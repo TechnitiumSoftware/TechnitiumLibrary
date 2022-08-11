@@ -707,7 +707,11 @@ namespace TechnitiumLibrary.Net.Dns
             if (_dnsClientExtendedErrors is null)
                 _dnsClientExtendedErrors = new List<EDnsExtendedDnsErrorOption>();
 
-            _dnsClientExtendedErrors.AddRange(dnsErrors);
+            foreach (EDnsExtendedDnsErrorOption dnsError in dnsErrors)
+            {
+                if (!_dnsClientExtendedErrors.Contains(dnsError))
+                    _dnsClientExtendedErrors.Add(dnsError);
+            }
         }
 
         internal void AddDnsClientExtendedError(EDnsExtendedDnsErrorOption dnsError)
@@ -715,7 +719,8 @@ namespace TechnitiumLibrary.Net.Dns
             if (_dnsClientExtendedErrors is null)
                 _dnsClientExtendedErrors = new List<EDnsExtendedDnsErrorOption>();
 
-            _dnsClientExtendedErrors.Add(dnsError);
+            if (!_dnsClientExtendedErrors.Contains(dnsError))
+                _dnsClientExtendedErrors.Add(dnsError);
         }
 
         internal void AddDnsClientExtendedErrorFrom(DnsDatagram datagram)
