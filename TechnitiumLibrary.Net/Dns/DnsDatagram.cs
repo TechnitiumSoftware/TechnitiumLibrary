@@ -951,6 +951,7 @@ namespace TechnitiumLibrary.Net.Dns
         public async Task WriteToTcpAsync(Stream s, MemoryStream sharedBuffer, CancellationToken cancellationToken = default)
         {
             DnsDatagram current = this;
+            long datagramLength;
 
             do
             {
@@ -958,8 +959,22 @@ namespace TechnitiumLibrary.Net.Dns
                 sharedBuffer.Position = 2;
                 current.WriteTo(sharedBuffer);
 
+                datagramLength = sharedBuffer.Length - 2L;
+                if (datagramLength > ushort.MaxValue)
+                {
+                    //truncate and write
+                    IReadOnlyList<DnsResourceRecord> additional = null;
+
+                    if (_edns is not null)
+                        additional = new DnsResourceRecord[] { DnsDatagramEdns.GetOPTFor(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, _edns.Options) };
+
+                    DnsDatagram truncted = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, true, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), additional);
+                    await truncted.WriteToTcpAsync(s, sharedBuffer, cancellationToken);
+                    break;
+                }
+
                 sharedBuffer.Position = 0;
-                WriteUInt16NetworkOrder(Convert.ToUInt16(sharedBuffer.Length - 2), sharedBuffer);
+                WriteUInt16NetworkOrder(Convert.ToUInt16(datagramLength), sharedBuffer);
 
                 sharedBuffer.Position = 0;
                 await sharedBuffer.CopyToAsync(s, Math.Min(4096, (int)sharedBuffer.Length), cancellationToken);
