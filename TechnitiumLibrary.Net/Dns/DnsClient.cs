@@ -642,7 +642,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (extendedDnsErrors.Count > 0)
                         failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
-                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Iteration limit reached");
+                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Iteration limit reached for " + question.ToString());
 
                     cache.CacheResponse(failureResponse);
 
@@ -1594,7 +1594,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
-                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response for name servers");
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + question.ToString());
 
                             cache.CacheResponse(failureResponse);
                         }
@@ -1607,9 +1607,9 @@ namespace TechnitiumLibrary.Net.Dns
                                 failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
                             if (ex2.SocketErrorCode == SocketError.TimedOut)
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out");
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString());
                             else
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error: " + ex2.SocketErrorCode.ToString());
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error for " + question.ToString() + ": " + ex2.SocketErrorCode.ToString());
 
                             cache.CacheResponse(failureResponse);
                         }
@@ -1624,13 +1624,13 @@ namespace TechnitiumLibrary.Net.Dns
                             if (ex3.InnerException is SocketException ex3a)
                             {
                                 if (ex3a.SocketErrorCode == SocketError.TimedOut)
-                                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out");
+                                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString());
                                 else
-                                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error: " + ex3a.SocketErrorCode.ToString());
+                                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error for " + question.ToString() + ": " + ex3a.SocketErrorCode.ToString());
                             }
                             else
                             {
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "IO error: " + ex3.Message);
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "IO error for " + question.ToString() + ": " + ex3.Message);
                             }
 
                             cache.CacheResponse(failureResponse);
@@ -1644,7 +1644,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
                             if (lastException is not null)
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server exception");
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server exception for " + question.ToString());
 
                             cache.CacheResponse(failureResponse);
                         }
@@ -2298,7 +2298,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             break;
 
                                         default:
-                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (Wildcard) for " + rrsigRecord.Name + "/" + typeCovered.ToString());
+                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (Wildcard) for " + rrsigRecord.Name + " " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString());
                                             throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + rrsigRecord.Name + "/" + typeCovered.ToString(), response);
                                     }
                                 }
@@ -2328,7 +2328,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 break;
 
                                             default:
-                                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.Name + "/" + question.Type.ToString());
+                                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.ToString());
                                                 throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
                                         }
                                     }
@@ -2357,7 +2357,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
 
                                 default:
-                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.Name + "/" + question.Type.ToString());
+                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.ToString());
                                     throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
                             }
                         }
@@ -2369,7 +2369,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if (IsDomainUnsigned(question.Name, unsignedZones))
                                 break;
 
-                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.Name + "/" + question.Type.ToString());
+                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.ToString());
                             throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name + "/" + question.Type.ToString(), response);
                         }
 
@@ -2568,7 +2568,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName + "/" + rrsetType);
+                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName + " " + rrsetType + " " + rrsetClass.ToString());
 
                                 if (!isAdditionalSection)
                                     throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to invalid signature [" + lastExtendedDnsErrorCode.ToString() + "] for owner name: " + ownerName + "/" + rrsetType, response);
@@ -2580,7 +2580,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.RRSIGsMissing, "Missing RRSIG with a supported algorithm for " + ownerName + "/" + rrsetType);
+                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.RRSIGsMissing, "Missing RRSIG with a supported algorithm for " + ownerName + " " + rrsetType + " " + rrsetClass.ToString());
 
                                 if (!isAdditionalSection)
                                     throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due missing RRSIG with a supported algorithm for owner name: " + ownerName + "/" + rrsetType, response);
@@ -4210,13 +4210,13 @@ namespace TechnitiumLibrary.Net.Dns
                         if (ex.InnerException is SocketException ex3)
                         {
                             if (ex3.SocketErrorCode == SocketError.TimedOut)
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out");
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + q.ToString());
                             else
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error: " + ex3.SocketErrorCode.ToString());
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error for " + q.ToString() + ": " + ex3.SocketErrorCode.ToString());
                         }
                         else
                         {
-                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response for name servers");
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + q.ToString());
                         }
 
                         _cache.CacheResponse(failureResponse);
@@ -4224,7 +4224,7 @@ namespace TechnitiumLibrary.Net.Dns
                     else
                     {
                         DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { q });
-                        failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server exception");
+                        failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server exception for " + q.ToString());
 
                         //cache as failure
                         _cache.CacheResponse(failureResponse);
