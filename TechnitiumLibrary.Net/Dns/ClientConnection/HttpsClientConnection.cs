@@ -44,9 +44,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         public HttpsClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsTransportProtocol.Https, server, proxy)
         {
-            if (proxy == null)
+            if (proxy is null)
             {
-                _httpClient = new HttpClient();
+                SocketsHttpHandler handler = new SocketsHttpHandler();
+                handler.UseProxy = false;
+
+                _httpClient = new HttpClient(handler);
             }
             else
             {
