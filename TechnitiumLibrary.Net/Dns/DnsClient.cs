@@ -2755,10 +2755,13 @@ namespace TechnitiumLibrary.Net.Dns
 
                     DnsDSRecordData ds = dsRecord.RDATA as DnsDSRecordData;
 
-                    if ((ds.KeyTag == dnsKey.ComputedKeyTag) && (ds.Algorithm == dnsKey.Algorithm) && DnsDSRecordData.IsDigestTypeSupported(ds.DigestType) && dnsKey.IsDnsKeyValid(dnsKeyRecord.Name, ds))
+                    if ((ds.KeyTag == dnsKey.ComputedKeyTag) && (ds.Algorithm == dnsKey.Algorithm) && DnsDSRecordData.IsDigestTypeSupported(ds.DigestType))
                     {
-                        sepDnsKeyRecords.Add(dnsKeyRecord);
-                        break;
+                        //found DS with highest supported digest type
+                        if (dnsKey.IsDnsKeyValid(dnsKeyRecord.Name, ds))
+                            sepDnsKeyRecords.Add(dnsKeyRecord);
+
+                        break; //ignore any other DS with lower digest type
                     }
                 }
             }
