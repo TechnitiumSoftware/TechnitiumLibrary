@@ -169,10 +169,10 @@ namespace TechnitiumLibrary.Net.Dns
                         _dohEndPoint = new Uri(bR.ReadShortString());
 
                     if (bR.ReadBoolean())
-                        _domainEndPoint = EndPointExtension.Parse(bR) as DomainEndPoint;
+                        _domainEndPoint = EndPointExtension.ReadFrom(bR) as DomainEndPoint;
 
                     if (bR.ReadBoolean())
-                        _ipEndPoint = EndPointExtension.Parse(bR) as IPEndPoint;
+                        _ipEndPoint = EndPointExtension.ReadFrom(bR) as IPEndPoint;
 
                     if (_dohEndPoint != null)
                         _originalAddress = _dohEndPoint.AbsoluteUri;

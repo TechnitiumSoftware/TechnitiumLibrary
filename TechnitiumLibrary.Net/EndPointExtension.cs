@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ namespace TechnitiumLibrary.Net
     {
         #region static
 
-        public static EndPoint Parse(BinaryReader bR)
+        public static EndPoint ReadFrom(BinaryReader bR)
         {
             switch (bR.ReadByte())
             {

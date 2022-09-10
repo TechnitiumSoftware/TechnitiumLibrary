@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -136,9 +136,9 @@ namespace TechnitiumLibrary.Net
             return true;
         }
 
-        public static NetworkAddress Parse(BinaryReader bR)
+        public static NetworkAddress ReadFrom(BinaryReader bR)
         {
-            IPAddress address = IPAddressExtension.Parse(bR);
+            IPAddress address = IPAddressExtension.ReadFrom(bR);
             int prefixLength = bR.ReadByte();
 
             return new NetworkAddress(address, prefixLength, false);
