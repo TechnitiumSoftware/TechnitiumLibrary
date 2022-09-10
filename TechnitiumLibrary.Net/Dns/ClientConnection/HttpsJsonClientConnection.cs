@@ -43,9 +43,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         public HttpsJsonClientConnection(NameServerAddress server, NetProxy proxy)
             : base(DnsTransportProtocol.HttpsJson, server, proxy)
         {
-            if (proxy == null)
+            if (proxy is null)
             {
-                _httpClient = new HttpClient();
+                SocketsHttpHandler handler = new SocketsHttpHandler();
+                handler.UseProxy = false;
+
+                _httpClient = new HttpClient(handler);
             }
             else
             {
