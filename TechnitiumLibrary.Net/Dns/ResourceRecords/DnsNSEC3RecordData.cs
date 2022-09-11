@@ -266,8 +266,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if ((type != DnsResourceRecordType.DS) && nsec3._isAncestorDelegation)
                         continue; //cannot prove with ancestor delegation NSEC3; try next NSEC3
 
-                    //response failed to prove that the domain does not exists since a wildcard exists
-                    return DnssecProofOfNonExistence.NoProof;
+                    //wildcard domain exists; find if record set exists or no data
+                    return nsec3.GetProofOfNonExistenceFromRecordTypes(type);
                 }
                 else if (DnsNSECRecordData.IsDomainCovered(hashedOwnerName, nsec3._nextHashedOwnerName, hashedWildcardDomainName))
                 {
