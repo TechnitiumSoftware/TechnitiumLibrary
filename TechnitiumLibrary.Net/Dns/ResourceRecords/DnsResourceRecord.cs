@@ -151,7 +151,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         readonly DnsResourceRecordData _data;
 
         readonly int _datagramOffset;
-        bool _setExpiry = false;
+        bool _setExpiry;
+        bool _wasExpiryReset;
         DateTime _ttlExpires;
         DateTime _serveStaleTtlExpires;
         DnssecStatus _dnssecStatus;
@@ -494,6 +495,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 _ttl = maximumTtl; //to help remove record from cache early
 
             _setExpiry = true;
+            _wasExpiryReset = false;
             _ttlExpires = DateTime.UtcNow.AddSeconds(_ttl);
             _serveStaleTtlExpires = _ttlExpires.AddSeconds(serveStaleTtl);
         }
@@ -503,6 +505,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (!_setExpiry)
                 throw new InvalidOperationException("Must call SetExpiry() before ResetExpiry().");
 
+            _wasExpiryReset = true;
             _ttlExpires = DateTime.UtcNow.AddSeconds(seconds);
         }
 
@@ -633,6 +636,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return false;
             }
         }
+
+        [IgnoreDataMember]
+        public bool WasExpiryReset
+        { get { return _wasExpiryReset; } }
 
         public string TTL
         {
