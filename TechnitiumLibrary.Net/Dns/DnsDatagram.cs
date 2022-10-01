@@ -53,7 +53,7 @@ namespace TechnitiumLibrary.Net.Dns
         YXDomain = 6,
         YXRRSet = 7,
         NXRRSet = 8,
-        NotAuthorized = 9,
+        NotAuth = 9,
         NotZone = 10,
         BADVERS = 16,
         BADCOOKIE = 23
@@ -1244,7 +1244,7 @@ namespace TechnitiumLibrary.Net.Dns
                 //unsigned error response
                 DnsTSIGRecordData errorTsig = new DnsTSIGRecordData(tsig.AlgorithmName, tsig.TimeSigned, tsig.Fudge, Array.Empty<byte>(), tsig.OriginalID, DnsTsigError.BADKEY, Array.Empty<byte>());
                 DnsResourceRecord errorTsigRecord = new DnsResourceRecord(tsigRecord.Name, DnsResourceRecordType.TSIG, DnsClass.ANY, 0, errorTsig);
-                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuthorized, _question, null, null, new DnsResourceRecord[] { errorTsigRecord });
+                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuth, _question, null, null, new DnsResourceRecord[] { errorTsigRecord });
 
                 return false;
             }
@@ -1268,7 +1268,7 @@ namespace TechnitiumLibrary.Net.Dns
                 //unsigned error response
                 DnsTSIGRecordData errorTsig = new DnsTSIGRecordData(key.AlgorithmName, tsig.TimeSigned, tsig.Fudge, Array.Empty<byte>(), tsig.OriginalID, DnsTsigError.BADSIG, Array.Empty<byte>());
                 DnsResourceRecord errorTsigRecord = new DnsResourceRecord(key.KeyName, DnsResourceRecordType.TSIG, DnsClass.ANY, 0, errorTsig);
-                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuthorized, _question, null, null, new DnsResourceRecord[] { errorTsigRecord });
+                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuth, _question, null, null, new DnsResourceRecord[] { errorTsigRecord });
 
                 return false;
             }
@@ -1283,7 +1283,7 @@ namespace TechnitiumLibrary.Net.Dns
                 unsignedRequest = null;
 
                 //signed error response
-                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuthorized, _question);
+                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuth, _question);
                 errorResponse = errorResponse.SignResponse(this, keys, DnsTsigError.BADTIME);
 
                 return false;
@@ -1295,7 +1295,7 @@ namespace TechnitiumLibrary.Net.Dns
                 unsignedRequest = null;
 
                 //signed error response
-                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuthorized, _question);
+                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuth, _question);
                 errorResponse = errorResponse.SignResponse(this, keys, DnsTsigError.BADTRUNC);
 
                 return false;
@@ -1478,7 +1478,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 unsignedResponse = null;
                 requestFailed = false;
-                rCode = DnsResponseCode.NotAuthorized;
+                rCode = DnsResponseCode.NotAuth;
                 error = DnsTsigError.BADKEY;
                 return false;
             }
@@ -1489,7 +1489,7 @@ namespace TechnitiumLibrary.Net.Dns
                 switch (_RCODE)
                 {
                     case DnsResponseCode.FormatError:
-                    case DnsResponseCode.NotAuthorized:
+                    case DnsResponseCode.NotAuth:
                         unsignedResponse = null;
                         requestFailed = true;
                         rCode = _RCODE;
@@ -1515,7 +1515,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 unsignedResponse = null;
                 requestFailed = false;
-                rCode = DnsResponseCode.NotAuthorized;
+                rCode = DnsResponseCode.NotAuth;
                 error = DnsTsigError.BADSIG;
                 return false;
             }
@@ -1524,7 +1524,7 @@ namespace TechnitiumLibrary.Net.Dns
             switch (_RCODE)
             {
                 case DnsResponseCode.FormatError:
-                case DnsResponseCode.NotAuthorized:
+                case DnsResponseCode.NotAuth:
                     unsignedResponse = null;
                     requestFailed = true;
                     rCode = _RCODE;
@@ -1541,7 +1541,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 unsignedResponse = null;
                 requestFailed = false;
-                rCode = DnsResponseCode.NotAuthorized;
+                rCode = DnsResponseCode.NotAuth;
                 error = DnsTsigError.BADTIME;
                 return false;
             }
@@ -1551,7 +1551,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 unsignedResponse = null;
                 requestFailed = false;
-                rCode = DnsResponseCode.NotAuthorized;
+                rCode = DnsResponseCode.NotAuth;
                 error = DnsTsigError.BADTRUNC;
                 return false;
             }
@@ -1634,7 +1634,7 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         unsignedResponse = null;
                         requestFailed = false;
-                        rCode = DnsResponseCode.NotAuthorized;
+                        rCode = DnsResponseCode.NotAuth;
                         error = DnsTsigError.BADSIG;
                         return false;
                     }
@@ -1647,7 +1647,7 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         unsignedResponse = null;
                         requestFailed = false;
-                        rCode = DnsResponseCode.NotAuthorized;
+                        rCode = DnsResponseCode.NotAuth;
                         error = DnsTsigError.BADTIME;
                         return false;
                     }
@@ -1657,7 +1657,7 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         unsignedResponse = null;
                         requestFailed = false;
-                        rCode = DnsResponseCode.NotAuthorized;
+                        rCode = DnsResponseCode.NotAuth;
                         error = DnsTsigError.BADTRUNC;
                         return false;
                     }
