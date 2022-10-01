@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Runtime.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -42,6 +43,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsNSRecordData(string nameServer)
         {
             DnsClient.IsDomainNameValid(nameServer, true);
+
+            if (IPAddress.TryParse(nameServer, out _))
+                throw new DnsClientException("Invalid domain name [" + nameServer + "]: IP address cannot be used for name server domain name.");
 
             _nameServer = nameServer;
         }
