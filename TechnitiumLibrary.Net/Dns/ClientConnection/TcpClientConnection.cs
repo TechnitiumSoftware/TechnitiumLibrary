@@ -290,8 +290,15 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     }
                     else
                     {
-                        if (response.RCODE != DnsResponseCode.FormatError)
-                            throw new DnsClientResponseValidationException("Invalid response was received: question count mismatch.");
+                        switch (response.RCODE)
+                        {
+                            case DnsResponseCode.FormatError:
+                            case DnsResponseCode.Refused:
+                                break;
+
+                            default:
+                                throw new DnsClientResponseValidationException("Invalid response was received: question count mismatch.");
+                        }
                     }
 
                     return response;
