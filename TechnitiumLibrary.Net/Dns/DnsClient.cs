@@ -674,20 +674,37 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             bool found = false;
 
-                                            foreach (DnsResourceRecord answer in cacheResponse.Answer)
+                                            for (int i = 0; i < cacheResponse.Answer.Count; i++)
                                             {
+                                                DnsResourceRecord answer = cacheResponse.Answer[i];
                                                 switch (answer.Type)
                                                 {
                                                     case DnsResourceRecordType.AAAA:
                                                         found = true;
                                                         PopStack();
                                                         nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port));
+
+                                                        for (int j = i + 1; j < cacheResponse.Answer.Count; j++)
+                                                        {
+                                                            answer = cacheResponse.Answer[j];
+                                                            if (answer.Type == DnsResourceRecordType.AAAA)
+                                                                nameServers.Insert(nameServerIndex + (j - i), new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port)));
+                                                        }
+
                                                         break;
 
                                                     case DnsResourceRecordType.A:
                                                         found = true;
                                                         PopStack();
                                                         nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port));
+
+                                                        for (int j = i + 1; j < cacheResponse.Answer.Count; j++)
+                                                        {
+                                                            answer = cacheResponse.Answer[j];
+                                                            if (answer.Type == DnsResourceRecordType.A)
+                                                                nameServers.Insert(nameServerIndex + (j - i), new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port)));
+                                                        }
+
                                                         break;
 
                                                     case DnsResourceRecordType.DS:
@@ -1162,18 +1179,35 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
                                         else
                                         {
-                                            foreach (DnsResourceRecord answer in response.Answer)
+                                            for (int i = 0; i < response.Answer.Count; i++)
                                             {
+                                                DnsResourceRecord answer = response.Answer[i];
                                                 switch (answer.Type)
                                                 {
                                                     case DnsResourceRecordType.AAAA:
                                                         PopStack();
                                                         nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port));
+
+                                                        for (int j = i + 1; j < response.Answer.Count; j++)
+                                                        {
+                                                            answer = response.Answer[j];
+                                                            if (answer.Type == DnsResourceRecordType.AAAA)
+                                                                nameServers.Insert(nameServerIndex + (j - i), new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsAAAARecordData).Address, nameServers[nameServerIndex].Port)));
+                                                        }
+
                                                         goto resolverLoop;
 
                                                     case DnsResourceRecordType.A:
                                                         PopStack();
                                                         nameServers[nameServerIndex] = new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port));
+
+                                                        for (int j = i + 1; j < response.Answer.Count; j++)
+                                                        {
+                                                            answer = response.Answer[j];
+                                                            if (answer.Type == DnsResourceRecordType.A)
+                                                                nameServers.Insert(nameServerIndex + (j - i), new NameServerAddress(nameServers[nameServerIndex].Host, new IPEndPoint((answer.RDATA as DnsARecordData).Address, nameServers[nameServerIndex].Port)));
+                                                        }
+
                                                         goto resolverLoop;
 
                                                     case DnsResourceRecordType.DS:
@@ -1564,7 +1598,19 @@ namespace TechnitiumLibrary.Net.Dns
                             }
                         }
 
-                        if (lastException is DnsClientResponseDnssecValidationException ex)
+                        if (lastException is null)
+                        {
+                            //cache as failure
+                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+
+                            if (extendedDnsErrors.Count > 0)
+                                failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
+
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + question.ToString());
+
+                            cache.CacheResponse(failureResponse);
+                        }
+                        else if (lastException is DnsClientResponseDnssecValidationException ex)
                         {
                             if ((ex.Response.Question.Count > 0) && ex.Response.Question[0].Equals(question))
                             {
