@@ -398,26 +398,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             foreach (DnsResourceRecord record in records)
             {
-                Dictionary<DnsResourceRecordType, List<DnsResourceRecord>> groupedByTypeRecords;
                 string recordName = record.Name.ToLower();
 
-                if (groupedByDomainRecords.ContainsKey(recordName))
-                {
-                    groupedByTypeRecords = groupedByDomainRecords[recordName];
-                }
-                else
+                if (!groupedByDomainRecords.TryGetValue(recordName, out Dictionary<DnsResourceRecordType, List<DnsResourceRecord>> groupedByTypeRecords))
                 {
                     groupedByTypeRecords = new Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>();
                     groupedByDomainRecords.Add(recordName, groupedByTypeRecords);
                 }
 
-                List<DnsResourceRecord> groupedRecords;
-
-                if (groupedByTypeRecords.ContainsKey(record.Type))
-                {
-                    groupedRecords = groupedByTypeRecords[record.Type];
-                }
-                else
+                if (!groupedByTypeRecords.TryGetValue(record.Type, out List<DnsResourceRecord> groupedRecords))
                 {
                     groupedRecords = new List<DnsResourceRecord>();
                     groupedByTypeRecords.Add(record.Type, groupedRecords);
