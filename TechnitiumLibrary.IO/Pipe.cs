@@ -187,7 +187,7 @@ namespace TechnitiumLibrary.IO
             public override int Read(byte[] buffer, int offset, int count)
             {
                 if (count < 1)
-                    throw new ArgumentOutOfRangeException("Count cannot be less than 1.");
+                    return 0;
 
                 return _otherPipe.ReadBuffer(buffer, offset, count, _readTimeout);
             }
