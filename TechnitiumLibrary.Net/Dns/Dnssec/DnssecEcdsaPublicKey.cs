@@ -106,11 +106,6 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
             }
         }
 
-        public override string ToString()
-        {
-            return Convert.ToBase64String(_ecdsaPublicKey.Q.X) + " " + Convert.ToBase64String(_ecdsaPublicKey.Q.Y);
-        }
-
         #endregion
 
         #region properties
