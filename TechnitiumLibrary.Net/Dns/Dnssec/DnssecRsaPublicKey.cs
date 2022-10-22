@@ -99,11 +99,6 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
             }
         }
 
-        public override string ToString()
-        {
-            return Convert.ToBase64String(_rsaPublicKey.Exponent) + " " + Convert.ToBase64String(_rsaPublicKey.Modulus);
-        }
-
         #endregion
 
         #region properties
