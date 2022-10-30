@@ -235,6 +235,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     _data = new DnsDSRecordData(s);
                     break;
 
+                case DnsResourceRecordType.SSHFP:
+                    _data = new DnsSSHFPRecordData(s);
+                    break;
+
                 case DnsResourceRecordType.RRSIG:
                     _data = new DnsRRSIGRecordData(s);
                     break;
@@ -253,6 +257,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnsResourceRecordType.NSEC3PARAM:
                     _data = new DnsNSEC3PARAMRecordData(s);
+                    break;
+
+                case DnsResourceRecordType.TLSA:
+                    _data = new DnsTLSARecordData(s);
                     break;
 
                 case DnsResourceRecordType.TSIG:
@@ -342,6 +350,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     _data = new DnsDSRecordData(jsonResourceRecord);
                     break;
 
+                case DnsResourceRecordType.SSHFP:
+                    _data = new DnsSSHFPRecordData(jsonResourceRecord);
+                    break;
+
                 case DnsResourceRecordType.RRSIG:
                     _data = new DnsRRSIGRecordData(jsonResourceRecord);
                     break;
@@ -360,6 +372,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnsResourceRecordType.NSEC3PARAM:
                     _data = new DnsNSEC3PARAMRecordData(jsonResourceRecord);
+                    break;
+
+                case DnsResourceRecordType.TLSA:
+                    _data = new DnsTLSARecordData(jsonResourceRecord);
                     break;
 
                 case DnsResourceRecordType.TSIG:
