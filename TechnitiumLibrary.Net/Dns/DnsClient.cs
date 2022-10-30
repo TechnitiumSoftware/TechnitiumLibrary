@@ -1894,7 +1894,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -1933,7 +1933,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -1972,7 +1972,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -2011,7 +2011,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -2063,7 +2063,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -2098,7 +2098,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Name server returned error. DNS RCODE: " + response.RCODE + " (" + (int)response.RCODE + ")" + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -3710,14 +3710,16 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    DnsDatagram lastResponse;
+                    DnsDatagram lastResponse = null;
                     int queryCount = 0;
 
                     do
                     {
-                        DnsQuestionRecord cnameQuestion = new DnsQuestionRecord((lastRR.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class);
+                        string cnameDomain = (lastRR.RDATA as DnsCNAMERecordData).Domain;
+                        if (lastRR.Name.Equals(cnameDomain, StringComparison.OrdinalIgnoreCase))
+                            break; //loop detected
 
-                        lastResponse = await resolveAsync(cnameQuestion);
+                        lastResponse = await resolveAsync(new DnsQuestionRecord(cnameDomain, question.Type, question.Class));
                         if (lastResponse is null)
                         {
                             lastResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question });
@@ -3727,14 +3729,36 @@ namespace TechnitiumLibrary.Net.Dns
                         if (lastResponse.Answer.Count == 0)
                             break;
 
-                        newAnswer.AddRange(lastResponse.Answer);
-
                         lastRR = lastResponse.GetLastAnswerRecord();
-
                         if (lastRR.Type != DnsResourceRecordType.CNAME)
+                        {
+                            newAnswer.AddRange(lastResponse.Answer);
                             break; //cname was resolved
+                        }
+
+                        bool foundRepeat = false;
+
+                        foreach (DnsResourceRecord answerRecord in newAnswer)
+                        {
+                            if (answerRecord.Type != DnsResourceRecordType.CNAME)
+                                continue;
+
+                            if (answerRecord.RDATA.Equals(lastRR.RDATA))
+                            {
+                                foundRepeat = true;
+                                break;
+                            }
+                        }
+
+                        if (foundRepeat)
+                            break; //loop detected
+
+                        newAnswer.AddRange(lastResponse.Answer);
                     }
                     while (++queryCount < MAX_CNAME_HOPS);
+
+                    if (lastResponse is null)
+                        return response;
 
                     IReadOnlyList<DnsResourceRecord> authority;
 
@@ -3926,6 +3950,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 case DnsResponseCode.NoError:
                                                 case DnsResponseCode.NxDomain:
                                                 case DnsResponseCode.YXDomain:
+                                                    response.SetIdentifier(request.Identifier);
                                                     return response;
 
                                                 case DnsResponseCode.FormatError:
@@ -4302,6 +4327,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         public Task<DnsDatagram> ResolveAsync(DnsDatagram request, CancellationToken cancellationToken = default)
         {
+            if (request.Identifier == 0)
+                request.SetRandomIdentifier();
+
             if ((_cache is not null) && (request.Question.Count == 1))
                 return InternalCachedResolveQueryAsync(request.Question[0], cancellationToken);
 
@@ -4318,7 +4346,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         public async Task<DnsDatagram> ResolveAsync(DnsDatagram request, TsigKey key, ushort fudge = 300, CancellationToken cancellationToken = default)
         {
-            request.SetRandomIdentifier();
+            if (request.Identifier == 0)
+                request.SetRandomIdentifier();
+
             DnsDatagram signedRequest = request.SignRequest(key, fudge);
 
             DnsDatagram signedResponse = await InternalNoDnssecResolveAsync(signedRequest, cancellationToken);
