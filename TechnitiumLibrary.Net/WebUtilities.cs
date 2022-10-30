@@ -22,11 +22,9 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Mime;
-using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Http;
-using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net
 {
@@ -343,62 +341,6 @@ namespace TechnitiumLibrary.Net
             }
 
             return new ContentType(mimeType);
-        }
-
-        public static async Task<Uri> GetUriRedirectLocationAsync(Uri sourceUri, NetProxy proxy = null, int timeout = 30000)
-        {
-            EndPoint ep;
-
-            if (proxy == null)
-                ep = EndPointExtension.GetEndPoint(sourceUri.Host, sourceUri.Port);
-            else
-                ep = proxy.ProxyEndPoint;
-
-            if (ep.AddressFamily == AddressFamily.Unspecified)
-                ep = await ep.GetIPEndPointAsync();
-
-            using (Socket socket = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp))
-            {
-                await socket.ConnectAsync(ep).WithTimeout(timeout);
-
-                NetworkStream networkStream = new NetworkStream(socket);
-
-                await networkStream.WriteAsync(Encoding.ASCII.GetBytes("GET " + sourceUri.PathAndQuery + " HTTP/1.1\r\nHost: " + sourceUri.Host + "\r\nAccept: */*\r\nConection: close\r\n\r\n"));
-
-                StreamReader sR = new StreamReader(networkStream);
-
-                string line = await sR.ReadLineAsync().WithTimeout(timeout);
-                string[] RetVal = line.Split(' ');
-
-                switch (RetVal[1])
-                {
-                    case "301":
-                    case "302":
-                    case "303":
-                    case "307":
-                        while (true)
-                        {
-                            line = sR.ReadLine();
-                            if (string.IsNullOrEmpty(line))
-                                break;
-
-                            if (line.StartsWith("location", StringComparison.OrdinalIgnoreCase))
-                            {
-                                int i = line.IndexOf(':');
-                                if (i > -1)
-                                    return new Uri(line.Substring(i + 1).Trim());
-                            }
-                        }
-
-                        throw new HttpRequestException("Server did not provide redirect location in response header for HTTP location: " + sourceUri.AbsolutePath);
-
-                    case "200":
-                        return sourceUri;
-
-                    default:
-                        throw new HttpRequestException("Error while opening location: " + sourceUri.AbsoluteUri + ", HTTP response: " + line);
-                }
-            }
         }
 
         public static async Task<bool> IsWebAccessibleAsync(Uri[] uriCheckList = null, IWebProxy proxy = null, HttpClientNetworkType networkType = HttpClientNetworkType.Default, int timeout = 10000, bool throwException = false)
