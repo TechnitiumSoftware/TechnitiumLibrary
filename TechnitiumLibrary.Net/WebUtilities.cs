@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ using System.Net.Mime;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
-using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Http;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net
