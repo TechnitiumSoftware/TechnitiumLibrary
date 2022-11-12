@@ -23,9 +23,12 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -53,6 +56,8 @@ namespace TechnitiumLibrary.Net.Dns
         readonly static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv6;
 
         readonly static IReadOnlyList<DnsResourceRecord> ROOT_TRUST_ANCHORS;
+
+        readonly static FieldInfo _sslStream_innerStream = typeof(SslStream).GetField("_innerStream", BindingFlags.Instance | BindingFlags.NonPublic);
 
         const int MAX_DELEGATION_HOPS = 16;
         internal const int MAX_CNAME_HOPS = 16;
@@ -405,7 +410,7 @@ namespace TechnitiumLibrary.Net.Dns
                 question.ZoneCut = ""; //enable QNAME minimization by setting zone cut to <root>
             }
 
-            List<EDnsExtendedDnsErrorOption> extendedDnsErrors = new List<EDnsExtendedDnsErrorOption>();
+            List<EDnsExtendedDnsErrorOptionData> extendedDnsErrors = new List<EDnsExtendedDnsErrorOptionData>();
 
             //ns revalidation
             Dictionary<string, NsRevalidationTask> nsRevalidationChildSideTasks = null;
@@ -1894,7 +1899,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -1933,7 +1938,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -1972,7 +1977,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -2011,7 +2016,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -2063,7 +2068,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -2098,7 +2103,87 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServerAddress.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
+                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
+            }
+        }
+
+        public static IReadOnlyList<DnsTLSARecordData> ParseResponseTLSA(DnsDatagram response)
+        {
+            string domain = response.Question[0].Name;
+
+            switch (response.RCODE)
+            {
+                case DnsResponseCode.NoError:
+                    if (response.Answer.Count == 0)
+                        return Array.Empty<DnsTLSARecordData>();
+
+                    List<DnsTLSARecordData> tlsaRecords = new List<DnsTLSARecordData>(response.Answer.Count);
+
+                    foreach (DnsResourceRecord record in response.Answer)
+                    {
+                        if (record.DnssecStatus != DnssecStatus.Secure)
+                            continue;
+
+                        if (record.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            switch (record.Type)
+                            {
+                                case DnsResourceRecordType.TLSA:
+                                    DnsTLSARecordData tlsa = record.RDATA as DnsTLSARecordData;
+
+                                    switch (tlsa.CertificateUsage)
+                                    {
+                                        case DnsTLSACertificateUsage.PKIX_TA:
+                                        case DnsTLSACertificateUsage.PKIX_EE:
+                                        case DnsTLSACertificateUsage.DANE_TA:
+                                        case DnsTLSACertificateUsage.DANE_EE:
+                                            break;
+
+                                        default:
+                                            continue; //unusable
+                                    }
+
+                                    switch (tlsa.Selector)
+                                    {
+                                        case DnsTLSASelector.Cert:
+                                        case DnsTLSASelector.SPKI:
+                                            break;
+
+                                        default:
+                                            continue; //unusable
+                                    }
+
+                                    switch (tlsa.MatchingType)
+                                    {
+                                        case DnsTLSAMatchingType.Full:
+                                        case DnsTLSAMatchingType.SHA2_256:
+                                        case DnsTLSAMatchingType.SHA2_512:
+                                            break;
+
+                                        default:
+                                            continue; //unusable
+                                    }
+
+                                    if (tlsa.CertificateAssociationDataValue.Length == 0)
+                                        continue; //unusable
+
+                                    tlsaRecords.Add(tlsa);
+                                    break;
+
+                                case DnsResourceRecordType.CNAME:
+                                    domain = (record.RDATA as DnsCNAMERecordData).Domain;
+                                    break;
+                            }
+                        }
+                    }
+
+                    return tlsaRecords;
+
+                case DnsResponseCode.NxDomain:
+                    return null;
+
+                default:
+                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServerAddress.ToString()));
             }
         }
 
@@ -2213,6 +2298,9 @@ namespace TechnitiumLibrary.Net.Dns
                             continue;
 
                         if (labelChar == 95) //[_]
+                            continue;
+
+                        if (labelChar == 47) //[/]
                             continue;
 
                         if (throwException)
@@ -4445,6 +4533,179 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 _trustAnchors.Add(domain, new DnsResourceRecord[] { dsRecord });
             }
+        }
+
+        public async Task ValidateDaneAsync(SslStream sslStream, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            if (sslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateNotAvailable))
+                throw new AuthenticationException("The remote certificate is invalid according to the validation procedure: " + sslPolicyErrors.ToString());
+
+            NetworkStream networkStream = _sslStream_innerStream.GetValue(sslStream) as NetworkStream;
+            IReadOnlyList<DnsTLSARecordData> tlsaRecords = ParseResponseTLSA(await ResolveAsync("_" + networkStream.Socket.RemoteEndPoint.GetPort() + "._tcp." + sslStream.TargetHostName, DnsResourceRecordType.TLSA));
+
+            if ((tlsaRecords is null) || (tlsaRecords.Count == 0))
+            {
+                //no TLSA records available; process as usual
+                if (sslPolicyErrors == SslPolicyErrors.None)
+                    return;
+
+                throw new AuthenticationException("The remote certificate is invalid according to the validation procedure: " + sslPolicyErrors.ToString());
+            }
+
+            foreach (DnsTLSARecordData tlsa in tlsaRecords)
+            {
+                switch (tlsa.CertificateUsage)
+                {
+                    case DnsTLSACertificateUsage.PKIX_TA:
+                        {
+                            if (sslPolicyErrors == SslPolicyErrors.None)
+                            {
+                                //PKIX is validating; validate TLSA
+                                for (int i = 1; i < chain.ChainElements.Count; i++)
+                                {
+                                    X509ChainElement chainElement = chain.ChainElements[i];
+                                    byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, chainElement.Certificate);
+
+                                    if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationDataValue))
+                                        return; //TLSA is validating
+                                }
+                            }
+                        }
+                        break;
+
+                    case DnsTLSACertificateUsage.PKIX_EE:
+                        {
+                            if (sslPolicyErrors == SslPolicyErrors.None)
+                            {
+                                //PKIX is validating; validate TLSA
+                                byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, certificate);
+
+                                if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationDataValue))
+                                    return; //TLSA is validating
+                            }
+                        }
+                        break;
+
+                    case DnsTLSACertificateUsage.DANE_TA:
+                        {
+                            bool pkixFailed = false;
+
+                            for (int i = 0; i < chain.ChainElements.Count; i++)
+                            {
+                                X509ChainElement chainElement = chain.ChainElements[i];
+
+                                if (i == 0)
+                                {
+                                    //validate PKIX
+                                    if (sslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateNameMismatch) || (chainElement.ChainElementStatus.Length > 0))
+                                    {
+                                        //cert has validation issues
+                                        pkixFailed = true;
+                                        break;
+                                    }
+
+                                    //first i.e. end entity certificate only requires cert validation
+                                    continue;
+                                }
+
+                                //validate TLSA
+                                byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, chainElement.Certificate);
+                                bool tlsaVerified = BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationDataValue);
+
+                                //validate PKIX
+                                foreach (X509ChainStatus chainStatus in chainElement.ChainElementStatus)
+                                {
+                                    switch (chainStatus.Status)
+                                    {
+                                        case X509ChainStatusFlags.PartialChain:
+                                        case X509ChainStatusFlags.UntrustedRoot:
+                                            if (tlsaVerified)
+                                                continue; //ignored issues since cert is TA
+
+                                            //cert has validation issues
+                                            break;
+                                    }
+
+                                    //cert has validation issues
+                                    pkixFailed = true;
+                                    break;
+                                }
+
+                                if (pkixFailed)
+                                    break; //cert has validation issues; DANE-TA failed to validate
+
+                                if (tlsaVerified)
+                                    return; //TLSA is validating; DANE-TA was validated successfully
+                            }
+
+                            if (!pkixFailed && (tlsa.MatchingType == DnsTLSAMatchingType.Full))
+                            {
+                                switch (tlsa.Selector)
+                                {
+                                    case DnsTLSASelector.Cert:
+                                        {
+                                            //validate TA cert from TLSA record
+                                            X509Certificate2 taCert = new X509Certificate2(tlsa.CertificateAssociationDataValue);
+                                            X509Certificate2 lastCert = chain.ChainElements[chain.ChainElements.Count - 1].Certificate;
+
+                                            using (X509Chain taChain = new X509Chain())
+                                            {
+                                                taChain.ChainPolicy.CustomTrustStore.Add(taCert);
+
+                                                if (taChain.Build(lastCert))
+                                                    return; //TA cert chain is validating
+                                            }
+                                        }
+                                        break;
+
+                                    case DnsTLSASelector.SPKI:
+                                        //validation using only public key is not supported
+                                        break;
+                                }
+                            }
+                        }
+                        break;
+
+                    case DnsTLSACertificateUsage.DANE_EE:
+                        {
+                            //validate PKIX
+                            bool pkixFailed = false;
+
+                            foreach (X509ChainStatus chainStatus in chain.ChainElements[0].ChainElementStatus)
+                            {
+                                switch (chainStatus.Status)
+                                {
+                                    case X509ChainStatusFlags.PartialChain:
+                                    case X509ChainStatusFlags.UntrustedRoot:
+                                    case X509ChainStatusFlags.HasExcludedNameConstraint:
+                                    case X509ChainStatusFlags.HasNotDefinedNameConstraint:
+                                    case X509ChainStatusFlags.HasNotPermittedNameConstraint:
+                                    case X509ChainStatusFlags.HasNotSupportedNameConstraint:
+                                    case X509ChainStatusFlags.InvalidNameConstraints:
+                                    case X509ChainStatusFlags.NotTimeValid:
+                                        //ignored issues
+                                        continue;
+                                }
+
+                                //cert has validation issues
+                                pkixFailed = true;
+                                break;
+                            }
+
+                            if (pkixFailed)
+                                break; //cert has validation issues
+
+                            //PKIX is validating; validate TLSA
+                            byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, certificate);
+
+                            if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationDataValue))
+                                return; //TLSA is validating
+                        }
+                        break;
+                }
+            }
+
+            throw new AuthenticationException("The SSL connection could not be established since the TLS certificate failed DANE validation: no matching TLSA record was found, or the certificate had one or more issues.");
         }
 
         #endregion
