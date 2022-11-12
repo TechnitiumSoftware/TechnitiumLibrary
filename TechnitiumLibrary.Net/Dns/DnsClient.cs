@@ -4418,17 +4418,6 @@ namespace TechnitiumLibrary.Net.Dns
             if (request.Identifier == 0)
                 request.SetRandomIdentifier();
 
-            if ((_cache is not null) && (request.Question.Count == 1))
-                return InternalCachedResolveQueryAsync(request.Question[0], cancellationToken);
-
-            if (_dnssecValidation)
-            {
-                if (request.Question.Count != 1)
-                    throw new ArgumentException("Request must have exactly one question record.", nameof(request));
-
-                return InternalDnssecResolveAsync(request.Question[0], cancellationToken);
-            }
-
             return InternalNoDnssecResolveAsync(request, cancellationToken);
         }
 
