@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -206,12 +206,20 @@ namespace TechnitiumLibrary.Net
                             {
                                 if (IsPublicIPv6(ip.Address))
                                 {
-                                    if (ip.DuplicateAddressDetectionState == DuplicateAddressDetectionState.Preferred)
+                                    if (OperatingSystem.IsWindows())
                                     {
-                                        if (ip.SuffixOrigin == SuffixOrigin.Random)
-                                            return new NetworkInfo(nic, ip.Address);
+                                        if (ip.DuplicateAddressDetectionState == DuplicateAddressDetectionState.Preferred)
+                                        {
+                                            if (ip.SuffixOrigin == SuffixOrigin.Random)
+                                                return new NetworkInfo(nic, ip.Address);
 
-                                        ipv6 = ip.Address;
+                                            ipv6 = ip.Address;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (ip.PrefixLength >= 64)
+                                            ipv6 = ip.Address;
                                     }
                                 }
                             }
@@ -240,12 +248,20 @@ namespace TechnitiumLibrary.Net
                     {
                         if (IsPublicIPv6(ip.Address))
                         {
-                            if (ip.DuplicateAddressDetectionState == DuplicateAddressDetectionState.Preferred)
+                            if (OperatingSystem.IsWindows())
                             {
-                                if (ip.SuffixOrigin == SuffixOrigin.Random)
-                                    return new NetworkInfo(nic, ip.Address);
+                                if (ip.DuplicateAddressDetectionState == DuplicateAddressDetectionState.Preferred)
+                                {
+                                    if (ip.SuffixOrigin == SuffixOrigin.Random)
+                                        return new NetworkInfo(nic, ip.Address);
 
-                                ipv6 = ip.Address;
+                                    ipv6 = ip.Address;
+                                }
+                            }
+                            else
+                            {
+                                if (ip.PrefixLength >= 64)
+                                    ipv6 = ip.Address;
                             }
                         }
                     }
