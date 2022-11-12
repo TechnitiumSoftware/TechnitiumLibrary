@@ -50,7 +50,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsOPTRecordData(Stream s)
             : base(s)
         {
-            _options = Array.Empty<EDnsOption>();
+            if (_options is null)
+                _options = Array.Empty<EDnsOption>();
         }
 
         public DnsOPTRecordData(dynamic jsonResourceRecord)
@@ -79,8 +80,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 bytesRead += 2 + 2 + option.Data.Length;
             }
 
-            if (options is not null)
-                _options = options;
+            _options = options;
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
