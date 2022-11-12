@@ -56,6 +56,24 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsSSHFPRecordData(DnsSSHFPAlgorithm algorithm, DnsSSHFPFingerprintType fingerprintType, byte[] fingerprint)
         {
+            switch (fingerprintType)
+            {
+                case DnsSSHFPFingerprintType.SHA1:
+                    if (fingerprint.Length != 20)
+                        throw new ArgumentException("Invalid Fingerprint value for the Fingerprint Type.");
+
+                    break;
+
+                case DnsSSHFPFingerprintType.SHA256:
+                    if (fingerprint.Length != 32)
+                        throw new ArgumentException("Invalid Fingerprint value for the Fingerprint Type.");
+
+                    break;
+
+                default:
+                    throw new NotSupportedException("Fingerprint Type is not supported: " + fingerprintType);
+            }
+
             _algorithm = algorithm;
             _fingerprintType = fingerprintType;
             _fingerprint = fingerprint;
