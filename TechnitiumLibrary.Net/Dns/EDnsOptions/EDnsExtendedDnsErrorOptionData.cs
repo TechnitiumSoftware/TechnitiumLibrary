@@ -156,7 +156,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         InvalidData = 24
     }
 
-    public class EDnsExtendedDnsErrorOption : EDnsOptionData
+    public class EDnsExtendedDnsErrorOptionData : EDnsOptionData
     {
         #region variables
 
@@ -167,13 +167,13 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         #region constructor
 
-        public EDnsExtendedDnsErrorOption(EDnsExtendedDnsErrorCode infoCode, string extraText)
+        public EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode infoCode, string extraText)
         {
             _infoCode = infoCode;
             _extraText = extraText;
         }
 
-        public EDnsExtendedDnsErrorOption(Stream s)
+        public EDnsExtendedDnsErrorOptionData(Stream s)
             : base(s)
         { }
 
@@ -210,7 +210,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is EDnsExtendedDnsErrorOption other)
+            if (obj is EDnsExtendedDnsErrorOptionData other)
             {
                 if (_infoCode != other._infoCode)
                     return false;

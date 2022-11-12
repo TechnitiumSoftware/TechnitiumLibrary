@@ -24,7 +24,7 @@ using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 {
-    public class EDnsUnknownOption : EDnsOptionData
+    public class EDnsUnknownOptionData : EDnsOptionData
     {
         #region variables
 
@@ -34,12 +34,12 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         #region constructor
 
-        public EDnsUnknownOption(byte[] data)
+        public EDnsUnknownOptionData(byte[] data)
         {
             _data = data;
         }
 
-        public EDnsUnknownOption(Stream s)
+        public EDnsUnknownOptionData(Stream s)
             : base(s)
         { }
 
@@ -72,7 +72,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (obj is EDnsUnknownOption other)
+            if (obj is EDnsUnknownOptionData other)
             {
                 if (!BinaryNumber.Equals(_data, other._data))
                     return false;
