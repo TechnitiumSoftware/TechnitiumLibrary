@@ -67,12 +67,16 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             _code = (EDnsOptionCode)DnsDatagram.ReadUInt16NetworkOrder(s);
             switch (_code)
             {
+                case EDnsOptionCode.EDNS_CLIENT_SUBNET:
+                    _data = new EDnsClientSubnetOptionData(s);
+                    break;
+
                 case EDnsOptionCode.EXTENDED_DNS_ERROR:
-                    _data = new EDnsExtendedDnsErrorOption(s);
+                    _data = new EDnsExtendedDnsErrorOptionData(s);
                     break;
 
                 default:
-                    _data = new EDnsUnknownOption(s);
+                    _data = new EDnsUnknownOptionData(s);
                     break;
             }
         }
