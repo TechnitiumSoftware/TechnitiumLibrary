@@ -158,6 +158,156 @@ namespace TechnitiumLibrary.Net
             }
         }
 
+        public static IPAddress MapToIPv6(this IPAddress address, NetworkAddress ipv6Prefix)
+        {
+            if (address.AddressFamily == AddressFamily.InterNetworkV6)
+                return address;
+
+            switch (ipv6Prefix.PrefixLength)
+            {
+                case 32:
+                    {
+                        byte[] ipv4Buffer = address.GetAddressBytes();
+                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+
+                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 4, 4);
+
+                        return new IPAddress(ipv6Buffer);
+                    }
+
+                case 40:
+                    {
+                        byte[] ipv4Buffer = address.GetAddressBytes();
+                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+
+                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 5, 3);
+                        Buffer.BlockCopy(ipv4Buffer, 3, ipv6Buffer, 9, 1);
+
+                        return new IPAddress(ipv6Buffer);
+                    }
+
+                case 48:
+                    {
+                        byte[] ipv4Buffer = address.GetAddressBytes();
+                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+
+                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 6, 2);
+                        Buffer.BlockCopy(ipv4Buffer, 2, ipv6Buffer, 9, 2);
+
+                        return new IPAddress(ipv6Buffer);
+                    }
+
+                case 56:
+                    {
+                        byte[] ipv4Buffer = address.GetAddressBytes();
+                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+
+                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 7, 1);
+                        Buffer.BlockCopy(ipv4Buffer, 1, ipv6Buffer, 9, 3);
+
+                        return new IPAddress(ipv6Buffer);
+                    }
+
+                case 64:
+                    {
+                        byte[] ipv4Buffer = address.GetAddressBytes();
+                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+
+                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 9, 4);
+
+                        return new IPAddress(ipv6Buffer);
+                    }
+
+                case 96:
+                    {
+                        byte[] ipv4Buffer = address.GetAddressBytes();
+                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+
+                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 12, 4);
+
+                        return new IPAddress(ipv6Buffer);
+                    }
+
+                default:
+                    throw new NotSupportedException("IPv6-embedded IPv6 address format supports only the following prefixes: 32, 40, 48, 56, 64, or 96.");
+            }
+        }
+
+        public static IPAddress MapToIPv4(this IPAddress address, int prefixLength)
+        {
+            if (address.AddressFamily == AddressFamily.InterNetwork)
+                return address;
+
+            switch (prefixLength)
+            {
+                case 32:
+                    {
+                        byte[] ipv6Buffer = address.GetAddressBytes();
+                        byte[] ipv4Buffer = new byte[4];
+
+                        Buffer.BlockCopy(ipv6Buffer, 4, ipv4Buffer, 0, 4);
+
+                        return new IPAddress(ipv4Buffer);
+                    }
+
+                case 40:
+                    {
+                        byte[] ipv6Buffer = address.GetAddressBytes();
+                        byte[] ipv4Buffer = new byte[4];
+
+                        Buffer.BlockCopy(ipv6Buffer, 5, ipv4Buffer, 0, 3);
+                        Buffer.BlockCopy(ipv6Buffer, 9, ipv4Buffer, 3, 1);
+
+                        return new IPAddress(ipv4Buffer);
+                    }
+
+                case 48:
+                    {
+                        byte[] ipv6Buffer = address.GetAddressBytes();
+                        byte[] ipv4Buffer = new byte[4];
+
+                        Buffer.BlockCopy(ipv6Buffer, 6, ipv4Buffer, 0, 2);
+                        Buffer.BlockCopy(ipv6Buffer, 9, ipv4Buffer, 2, 2);
+
+                        return new IPAddress(ipv4Buffer);
+                    }
+
+                case 56:
+                    {
+                        byte[] ipv6Buffer = address.GetAddressBytes();
+                        byte[] ipv4Buffer = new byte[4];
+
+                        Buffer.BlockCopy(ipv6Buffer, 7, ipv4Buffer, 0, 1);
+                        Buffer.BlockCopy(ipv6Buffer, 9, ipv4Buffer, 1, 3);
+
+                        return new IPAddress(ipv4Buffer);
+                    }
+
+                case 64:
+                    {
+                        byte[] ipv6Buffer = address.GetAddressBytes();
+                        byte[] ipv4Buffer = new byte[4];
+
+                        Buffer.BlockCopy(ipv6Buffer, 9, ipv4Buffer, 0, 4);
+
+                        return new IPAddress(ipv4Buffer);
+                    }
+
+                case 96:
+                    {
+                        byte[] ipv6Buffer = address.GetAddressBytes();
+                        byte[] ipv4Buffer = new byte[4];
+
+                        Buffer.BlockCopy(ipv6Buffer, 12, ipv4Buffer, 0, 4);
+
+                        return new IPAddress(ipv4Buffer);
+                    }
+
+                default:
+                    throw new NotSupportedException("IPv6-embedded IPv6 address format supports only the following prefixes: 32, 40, 48, 56, 64, or 96.");
+            }
+        }
+
         #endregion
     }
 }
