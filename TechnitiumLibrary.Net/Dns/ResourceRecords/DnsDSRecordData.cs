@@ -51,6 +51,31 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsDSRecordData(ushort keyTag, DnssecAlgorithm algorithm, DnssecDigestType digestType, byte[] digest)
         {
+            switch (digestType)
+            {
+                case DnssecDigestType.SHA1:
+                    if (digest.Length != 20)
+                        throw new ArgumentException("Invalid Digest value for the Digest Type.");
+
+                    break;
+
+                case DnssecDigestType.SHA256:
+                case DnssecDigestType.GOST_R_34_11_94:
+                    if (digest.Length != 32)
+                        throw new ArgumentException("Invalid Digest value for the Digest Type.");
+
+                    break;
+
+                case DnssecDigestType.SHA384:
+                    if (digest.Length != 48)
+                        throw new ArgumentException("Invalid Digest value for the Digest Type.");
+
+                    break;
+
+                default:
+                    throw new NotSupportedException("Digest Type is not supported: " + digestType);
+            }
+
             _keyTag = keyTag;
             _algorithm = algorithm;
             _digestType = digestType;
