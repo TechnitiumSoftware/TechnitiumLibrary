@@ -71,7 +71,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         DnsDatagramMetadata _metadata;
         DnsDatagramEdns _edns;
-        List<EDnsExtendedDnsErrorOption> _dnsClientExtendedErrors;
+        List<EDnsExtendedDnsErrorOptionData> _dnsClientExtendedErrors;
 
         int _size = -1;
         byte[] _parsedDatagramUnsigned;
@@ -699,25 +699,25 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal void AddDnsClientExtendedError(EDnsExtendedDnsErrorCode errorCode, string extraText = null)
         {
-            AddDnsClientExtendedError(new EDnsExtendedDnsErrorOption(errorCode, extraText));
+            AddDnsClientExtendedError(new EDnsExtendedDnsErrorOptionData(errorCode, extraText));
         }
 
-        internal void AddDnsClientExtendedError(IReadOnlyCollection<EDnsExtendedDnsErrorOption> dnsErrors)
+        internal void AddDnsClientExtendedError(IReadOnlyCollection<EDnsExtendedDnsErrorOptionData> dnsErrors)
         {
             if (_dnsClientExtendedErrors is null)
-                _dnsClientExtendedErrors = new List<EDnsExtendedDnsErrorOption>();
+                _dnsClientExtendedErrors = new List<EDnsExtendedDnsErrorOptionData>();
 
-            foreach (EDnsExtendedDnsErrorOption dnsError in dnsErrors)
+            foreach (EDnsExtendedDnsErrorOptionData dnsError in dnsErrors)
             {
                 if (!_dnsClientExtendedErrors.Contains(dnsError))
                     _dnsClientExtendedErrors.Add(dnsError);
             }
         }
 
-        internal void AddDnsClientExtendedError(EDnsExtendedDnsErrorOption dnsError)
+        internal void AddDnsClientExtendedError(EDnsExtendedDnsErrorOptionData dnsError)
         {
             if (_dnsClientExtendedErrors is null)
-                _dnsClientExtendedErrors = new List<EDnsExtendedDnsErrorOption>();
+                _dnsClientExtendedErrors = new List<EDnsExtendedDnsErrorOptionData>();
 
             if (!_dnsClientExtendedErrors.Contains(dnsError))
                 _dnsClientExtendedErrors.Add(dnsError);
@@ -731,14 +731,14 @@ namespace TechnitiumLibrary.Net.Dns
                 foreach (EDnsOption option in datagram._edns.Options)
                 {
                     if (option.Code == EDnsOptionCode.EXTENDED_DNS_ERROR)
-                        AddDnsClientExtendedError(option.Data as EDnsExtendedDnsErrorOption);
+                        AddDnsClientExtendedError(option.Data as EDnsExtendedDnsErrorOptionData);
                 }
             }
 
             //copy generated errors
             if (datagram._dnsClientExtendedErrors is not null)
             {
-                foreach (EDnsExtendedDnsErrorOption dnsError in datagram._dnsClientExtendedErrors)
+                foreach (EDnsExtendedDnsErrorOptionData dnsError in datagram._dnsClientExtendedErrors)
                     AddDnsClientExtendedError(dnsError);
             }
         }
@@ -2017,12 +2017,12 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsDatagramEdns EDNS
         { get { return _edns; } }
 
-        public IReadOnlyList<EDnsExtendedDnsErrorOption> DnsClientExtendedErrors
+        public IReadOnlyList<EDnsExtendedDnsErrorOptionData> DnsClientExtendedErrors
         {
             get
             {
                 if (_dnsClientExtendedErrors is null)
-                    return Array.Empty<EDnsExtendedDnsErrorOption>();
+                    return Array.Empty<EDnsExtendedDnsErrorOptionData>();
 
                 return _dnsClientExtendedErrors;
             }
