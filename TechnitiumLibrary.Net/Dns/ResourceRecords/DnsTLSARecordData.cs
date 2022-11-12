@@ -66,10 +66,74 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsTLSARecordData(DnsTLSACertificateUsage certificateUsage, DnsTLSASelector selector, DnsTLSAMatchingType matchingType, byte[] certificateAssociationData)
         {
+            switch (matchingType)
+            {
+                case DnsTLSAMatchingType.Full:
+                    if (certificateAssociationData.Length == 0)
+                        throw new ArgumentException("Invalid Certificate Association Data value for the Matching Type.");
+
+                    break;
+
+                case DnsTLSAMatchingType.SHA2_256:
+                    if (certificateAssociationData.Length != 32)
+                        throw new ArgumentException("Invalid Certificate Association Data value for the Matching Type.");
+
+                    break;
+
+                case DnsTLSAMatchingType.SHA2_512:
+                    if (certificateAssociationData.Length != 64)
+                        throw new ArgumentException("Invalid Certificate Association Data value for the Matching Type.");
+
+                    break;
+
+                default:
+                    throw new NotSupportedException("Matching Type is not supported: " + matchingType);
+            }
+
             _certificateUsage = certificateUsage;
             _selector = selector;
             _matchingType = matchingType;
             _certificateAssociationData = certificateAssociationData;
+        }
+
+        public DnsTLSARecordData(DnsTLSACertificateUsage certificateUsage, DnsTLSASelector selector, DnsTLSAMatchingType matchingType, string certificateAssociationData)
+        {
+            _certificateUsage = certificateUsage;
+            _selector = selector;
+            _matchingType = matchingType;
+
+            if (certificateAssociationData.StartsWith('-'))
+            {
+                _certificateAssociationData = GetCertificateAssociatedData(_selector, _matchingType, X509Certificate2.CreateFromPem(certificateAssociationData));
+            }
+            else
+            {
+                switch (_matchingType)
+                {
+                    case DnsTLSAMatchingType.Full:
+                        if (certificateAssociationData.Length == 0)
+                            throw new ArgumentException("Invalid Certificate Association Data value for the Matching Type.");
+
+                        break;
+
+                    case DnsTLSAMatchingType.SHA2_256:
+                        if (certificateAssociationData.Length != 64)
+                            throw new ArgumentException("Invalid Certificate Association Data value for the Matching Type.");
+
+                        break;
+
+                    case DnsTLSAMatchingType.SHA2_512:
+                        if (certificateAssociationData.Length != 128)
+                            throw new ArgumentException("Invalid Certificate Association Data value for the Matching Type.");
+
+                        break;
+
+                    default:
+                        throw new NotSupportedException("Matching Type is not supported: " + matchingType);
+                }
+
+                _certificateAssociationData = Convert.FromHexString(certificateAssociationData);
+            }
         }
 
         public DnsTLSARecordData(DnsTLSACertificateUsage certificateUsage, DnsTLSASelector selector, DnsTLSAMatchingType matchingType, X509Certificate2 certificate)
