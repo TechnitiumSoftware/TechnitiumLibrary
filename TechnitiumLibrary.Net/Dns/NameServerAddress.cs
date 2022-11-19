@@ -620,7 +620,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             IPEndPoint ipEndPoint = null;
 
-            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, retries, timeout, 16, cancellationToken);
+            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, null, retries, timeout, 16, cancellationToken);
             if (addresses.Count > 0)
                 ipEndPoint = new IPEndPoint(addresses[0], Port);
 
@@ -653,7 +653,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 try
                 {
-                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, retries, timeout, 16, cancellationToken));
+                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, null, retries, timeout, 16, cancellationToken));
                     if (ptrDomains.Count > 0)
                         _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
