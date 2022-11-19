@@ -72,6 +72,23 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         #endregion
 
+        #region static
+
+        public static EDnsOption[] GetEDnsClientSubnetOption(byte sourcePrefixLength, byte scopePrefixLength, IPAddress address)
+        {
+            return new EDnsOption[] { new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(sourcePrefixLength, scopePrefixLength, address)) };
+        }
+
+        public static EDnsOption[] GetEDnsClientSubnetOption(NetworkAddress eDnsClientSubnet)
+        {
+            if (eDnsClientSubnet is null)
+                return null;
+
+            return new EDnsOption[] { new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, 0, eDnsClientSubnet.Address)) };
+        }
+
+        #endregion
+
         #region protected
 
         protected override void ReadOptionData(Stream s)
@@ -79,7 +96,30 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             _family = (EDnsClientSubnetAddressFamily)DnsDatagram.ReadUInt16NetworkOrder(s);
             _sourcePrefixLength = s.ReadByteValue();
             _scopePrefixLength = s.ReadByteValue();
-            _address = new IPAddress(s.ReadBytes(_length - 4));
+
+            int count = _sourcePrefixLength / 8;
+            if ((count * 8) < _sourcePrefixLength)
+                count++;
+
+            byte[] buffer;
+
+            switch (_family)
+            {
+                case EDnsClientSubnetAddressFamily.IPv4:
+                    buffer = new byte[4];
+                    break;
+
+                case EDnsClientSubnetAddressFamily.IPv6:
+                    buffer = new byte[16];
+                    break;
+
+                default:
+                    throw new NotSupportedException("EDNS Client Subnet address family not supported: " + _family.ToString());
+            }
+
+            s.Read(buffer, 0, count);
+
+            _address = new IPAddress(buffer);
         }
 
         protected override void WriteOptionData(Stream s)
@@ -87,7 +127,14 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_family, s);
             s.WriteByte(_sourcePrefixLength);
             s.WriteByte(_scopePrefixLength);
-            s.Write(_address.GetAddressBytes());
+
+            int count = _sourcePrefixLength / 8;
+            if ((count * 8) < _sourcePrefixLength)
+                count++;
+
+            byte[] buffer = _address.GetAddressBytes();
+
+            s.Write(buffer, 0, count);
         }
 
         #endregion
