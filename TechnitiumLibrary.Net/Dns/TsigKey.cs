@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -116,7 +116,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static TsigAlgorithm GetTsigAlgorithm(string algorithmName)
         {
-            switch (algorithmName.ToLower())
+            switch (algorithmName.ToLowerInvariant())
             {
                 case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5:
                     return TsigAlgorithm.HMAC_MD5;

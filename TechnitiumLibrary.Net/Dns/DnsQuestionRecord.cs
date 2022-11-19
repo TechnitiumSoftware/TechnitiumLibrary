@@ -167,9 +167,9 @@ namespace TechnitiumLibrary.Net.Dns
         internal void NormalizeName()
         {
             if (_minimizedName == null)
-                _name = _name.ToLower();
+                _name = _name.ToLowerInvariant();
             else
-                _minimizedName = _minimizedName.ToLower();
+                _minimizedName = _minimizedName.ToLowerInvariant();
         }
 
         internal DnsQuestionRecord Clone()
@@ -229,7 +229,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public override string ToString()
         {
-            return _name + ". " + _type.ToString() + " " + _class.ToString();
+            return _name.ToLowerInvariant() + ". " + _type.ToString() + " " + _class.ToString();
         }
 
         #endregion
