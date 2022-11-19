@@ -140,7 +140,7 @@ namespace TechnitiumLibrary.Net
         {
             string mimeType;
 
-            switch (Path.GetExtension(fileName).ToLower())
+            switch (Path.GetExtension(fileName).ToLowerInvariant())
             {
                 case ".js":
                     mimeType = "application/javascript";
