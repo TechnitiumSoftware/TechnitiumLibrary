@@ -260,46 +260,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     DnsDatagram response = await transaction.Response; //await again for any exception to be rethrown
 
-                    if (response.Identifier != request.Identifier)
-                        throw new DnsClientResponseValidationException("Invalid response was received: query ID mismatch.");
-
-                    if (response.Question.Count == request.Question.Count)
-                    {
-                        for (int i = 0; i < response.Question.Count; i++)
-                        {
-                            if (request.Question[i].ZoneCut == null)
-                            {
-                                if (!response.Question[i].Name.Equals(request.Question[i].Name, StringComparison.Ordinal))
-                                    throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
-
-                                if (response.Question[i].Type != request.Question[i].Type)
-                                    throw new DnsClientResponseValidationException("Invalid response was received: QTYPE mismatch.");
-                            }
-                            else
-                            {
-                                if (!response.Question[i].Name.Equals(request.Question[i].MinimizedName, StringComparison.Ordinal))
-                                    throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
-
-                                if (response.Question[i].Type != request.Question[i].MinimizedType)
-                                    throw new DnsClientResponseValidationException("Invalid response was received: QTYPE mismatch.");
-                            }
-
-                            if (response.Question[i].Class != request.Question[i].Class)
-                                throw new DnsClientResponseValidationException("Invalid response was received: QCLASS mismatch.");
-                        }
-                    }
-                    else
-                    {
-                        switch (response.RCODE)
-                        {
-                            case DnsResponseCode.FormatError:
-                            case DnsResponseCode.Refused:
-                                break;
-
-                            default:
-                                throw new DnsClientResponseValidationException("Invalid response was received: question count mismatch.");
-                        }
-                    }
+                    ValidateResponse(request, response);
 
                     return response;
                 }

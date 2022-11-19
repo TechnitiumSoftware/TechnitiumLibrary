@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using TechnitiumLibrary.Net.Dns.EDnsOptions;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
@@ -252,6 +253,85 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 default:
                     throw new NotSupportedException("DnsClient protocol not supported: " + server.Protocol.ToString());
+            }
+        }
+
+        #endregion
+
+        #region protected
+
+        protected static void ValidateResponse(DnsDatagram request, DnsDatagram response)
+        {
+            if (response.Identifier != request.Identifier)
+                throw new DnsClientResponseValidationException("Invalid response was received: query ID mismatch.");
+
+            if (response.Question.Count == request.Question.Count)
+            {
+                for (int i = 0; i < response.Question.Count; i++)
+                {
+                    if (request.Question[i].ZoneCut == null)
+                    {
+                        if (!response.Question[i].Name.Equals(request.Question[i].Name, StringComparison.Ordinal))
+                            throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
+
+                        if (response.Question[i].Type != request.Question[i].Type)
+                            throw new DnsClientResponseValidationException("Invalid response was received: QTYPE mismatch.");
+                    }
+                    else
+                    {
+                        if (!response.Question[i].Name.Equals(request.Question[i].MinimizedName, StringComparison.Ordinal))
+                            throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
+
+                        if (response.Question[i].Type != request.Question[i].MinimizedType)
+                            throw new DnsClientResponseValidationException("Invalid response was received: QTYPE mismatch.");
+                    }
+
+                    if (response.Question[i].Class != request.Question[i].Class)
+                        throw new DnsClientResponseValidationException("Invalid response was received: QCLASS mismatch.");
+                }
+
+                EDnsClientSubnetOptionData requestECS = request.GetEDnsClientSubnetOption();
+                EDnsClientSubnetOptionData responseECS = response.GetEDnsClientSubnetOption();
+
+                if (requestECS is null)
+                {
+                    if (responseECS is not null)
+                        throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
+                }
+                else
+                {
+                    if (responseECS is null)
+                    {
+                        // If no ECS option is contained in the response, the Intermediate
+                        // Nameserver SHOULD treat this as being equivalent to having received a
+                        // SCOPE PREFIX-LENGTH of 0, which is an answer suitable for all client
+                        // addresses.
+                        response.SetEmptyShadowEDnsClientSubnetOption(requestECS);
+                    }
+                    else
+                    {
+                        if (requestECS.Family != responseECS.Family)
+                            throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
+
+                        if (requestECS.SourcePrefixLength != responseECS.SourcePrefixLength)
+                            throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
+
+                        if (!requestECS.Address.Equals(responseECS.Address))
+                            throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
+                    }
+                }
+            }
+            else
+            {
+                switch (response.RCODE)
+                {
+                    case DnsResponseCode.FormatError:
+                    case DnsResponseCode.Refused:
+                        break;
+
+                    default:
+                        throw new DnsClientResponseValidationException("Invalid response was received: question count mismatch.");
+                }
             }
         }
 
