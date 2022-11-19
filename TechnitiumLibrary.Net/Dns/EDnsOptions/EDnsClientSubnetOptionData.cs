@@ -114,7 +114,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
                     break;
 
                 default:
-                    throw new NotSupportedException("EDNS Client Subnet address family not supported: " + _family.ToString());
+                    return;
             }
 
             s.Read(buffer, 0, count);
