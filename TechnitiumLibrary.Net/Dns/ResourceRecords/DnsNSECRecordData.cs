@@ -125,8 +125,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static int CanonicalComparison(string domain1, string domain2)
         {
-            string[] labels1 = domain1.ToLower().Split('.');
-            string[] labels2 = domain2.ToLower().Split('.');
+            string[] labels1 = domain1.ToLowerInvariant().Split('.');
+            string[] labels2 = domain2.ToLowerInvariant().Split('.');
 
             int minLength = labels1.Length;
 

@@ -414,7 +414,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             foreach (DnsResourceRecord record in records)
             {
-                string recordName = record.Name.ToLower();
+                string recordName = record.Name.ToLowerInvariant();
 
                 if (!groupedByDomainRecords.TryGetValue(recordName, out Dictionary<DnsResourceRecordType, List<DnsResourceRecord>> groupedByTypeRecords))
                 {
@@ -470,7 +470,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal void NormalizeName()
         {
-            _name = _name.ToLower();
+            _name = _name.ToLowerInvariant();
             _data.NormalizeName();
         }
 
@@ -592,7 +592,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _name.ToLower() + ". " + _type.ToString() + " " + _class.ToString() + " " + _ttl + " " + _data.ToString();
+            return _name.ToLowerInvariant() + ". " + _type.ToString() + " " + _class.ToString() + " " + _ttl + " " + _data.ToString();
         }
 
         #endregion

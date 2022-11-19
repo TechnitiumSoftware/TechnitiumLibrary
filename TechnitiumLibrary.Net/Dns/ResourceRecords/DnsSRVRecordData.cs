@@ -80,7 +80,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             DnsDatagram.WriteUInt16NetworkOrder(_priority, s);
             DnsDatagram.WriteUInt16NetworkOrder(_weight, s);
             DnsDatagram.WriteUInt16NetworkOrder(_port, s);
-            DnsDatagram.SerializeDomainName(canonicalForm ? _target.ToLower() : _target, s, null); //no compression for domain name as per RFC
+            DnsDatagram.SerializeDomainName(canonicalForm ? _target.ToLowerInvariant() : _target, s, null); //no compression for domain name as per RFC
         }
 
         #endregion
@@ -89,7 +89,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override void NormalizeName()
         {
-            _target = _target.ToLower();
+            _target = _target.ToLowerInvariant();
         }
 
         #endregion
@@ -131,7 +131,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _priority + " " + _weight + " " + _port + " " + _target.ToLower() + ".";
+            return _priority + " " + _weight + " " + _port + " " + _target.ToLowerInvariant() + ".";
         }
 
         #endregion

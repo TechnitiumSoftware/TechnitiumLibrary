@@ -44,7 +44,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 throw new InvalidDataException("CAA tag length must be at least 1.");
 
             _flags = flags;
-            _tag = tag.ToLower();
+            _tag = tag.ToLowerInvariant();
             _value = value;
         }
 
@@ -82,7 +82,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (tagLength < 1)
                 throw new InvalidDataException("CAA tag length must be at least 1.");
 
-            _tag = Encoding.ASCII.GetString(s.ReadBytes(tagLength)).ToLower();
+            _tag = Encoding.ASCII.GetString(s.ReadBytes(tagLength)).ToLowerInvariant();
             _value = Encoding.ASCII.GetString(s.ReadBytes(_rdLength - tagLength - 2));
         }
 

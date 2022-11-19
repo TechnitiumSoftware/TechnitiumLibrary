@@ -72,7 +72,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            DnsDatagram.SerializeDomainName(canonicalForm ? _nameServer.ToLower() : _nameServer, s, domainEntries);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _nameServer.ToLowerInvariant() : _nameServer, s, domainEntries);
         }
 
         #endregion
@@ -81,7 +81,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override void NormalizeName()
         {
-            _nameServer = _nameServer.ToLower();
+            _nameServer = _nameServer.ToLowerInvariant();
         }
 
         #endregion
@@ -109,7 +109,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _nameServer.ToLower() + ".";
+            return _nameServer.ToLowerInvariant() + ".";
         }
 
         #endregion

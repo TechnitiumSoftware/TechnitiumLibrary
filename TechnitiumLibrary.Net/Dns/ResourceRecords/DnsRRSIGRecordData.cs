@@ -150,12 +150,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (rrsigRecord._labels == labelCount)
                     {
                         //name = fqdn
-                        name = records[0].Name.ToLower();
+                        name = records[0].Name.ToLowerInvariant();
                     }
                     else if (rrsigRecord._labels < labelCount)
                     {
                         //name = "*." | the rightmost rrsig_label labels of the fqdn
-                        name = GetWildcardDomain(records[0].Name, rrsigRecord._labels).ToLower();
+                        name = GetWildcardDomain(records[0].Name, rrsigRecord._labels).ToLowerInvariant();
 
                         if (rrsigRecord._typeCovered == DnsResourceRecordType.NSEC)
                         {
@@ -368,7 +368,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             DnsDatagram.WriteUInt32NetworkOrder(_signatureExpiration, s);
             DnsDatagram.WriteUInt32NetworkOrder(_signatureInception, s);
             DnsDatagram.WriteUInt16NetworkOrder(_keyTag, s);
-            DnsDatagram.SerializeDomainName(canonicalForm ? _signersName.ToLower() : _signersName, s);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _signersName.ToLowerInvariant() : _signersName, s);
 
             if (!canonicalForm)
                 s.Write(_signature);

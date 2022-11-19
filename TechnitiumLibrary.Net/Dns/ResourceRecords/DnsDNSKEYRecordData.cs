@@ -169,7 +169,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             using (MemoryStream mS = new MemoryStream(DnsDatagram.GetSerializeDomainNameLength(ownerName) + _rData.Length))
             {
-                DnsDatagram.SerializeDomainName(ownerName.ToLower(), mS);
+                DnsDatagram.SerializeDomainName(ownerName.ToLowerInvariant(), mS);
                 mS.Write(_rData);
 
                 mS.Position = 0;

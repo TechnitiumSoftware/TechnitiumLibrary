@@ -120,8 +120,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            DnsDatagram.SerializeDomainName(canonicalForm ? _primaryNameServer.ToLower() : _primaryNameServer, s, domainEntries);
-            DnsDatagram.SerializeDomainName(canonicalForm ? _responsiblePerson.ToLower() : _responsiblePerson, s, domainEntries, true);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _primaryNameServer.ToLowerInvariant() : _primaryNameServer, s, domainEntries);
+            DnsDatagram.SerializeDomainName(canonicalForm ? _responsiblePerson.ToLowerInvariant() : _responsiblePerson, s, domainEntries, true);
             DnsDatagram.WriteUInt32NetworkOrder(_serial, s);
             DnsDatagram.WriteUInt32NetworkOrder(_refresh, s);
             DnsDatagram.WriteUInt32NetworkOrder(_retry, s);
@@ -135,8 +135,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override void NormalizeName()
         {
-            _primaryNameServer = _primaryNameServer.ToLower();
-            _responsiblePerson = _responsiblePerson.ToLower();
+            _primaryNameServer = _primaryNameServer.ToLowerInvariant();
+            _responsiblePerson = _responsiblePerson.ToLowerInvariant();
         }
 
         #endregion
@@ -198,7 +198,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (i > -1)
                 responsiblePerson = responsiblePerson.Substring(0, i).Replace(".", "\\.") + "." + responsiblePerson.Substring(i + 1);
 
-            return _primaryNameServer.ToLower() + ". " + responsiblePerson.ToLower() + ". " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
+            return _primaryNameServer.ToLowerInvariant() + ". " + responsiblePerson.ToLowerInvariant() + ". " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
         }
 
         #endregion

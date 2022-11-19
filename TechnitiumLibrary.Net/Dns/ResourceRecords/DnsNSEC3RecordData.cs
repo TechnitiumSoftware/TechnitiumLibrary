@@ -351,7 +351,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 using (MemoryStream mS = new MemoryStream(Math.Max(ownerName.Length, hash.HashSize / 8)))
                 {
-                    DnsDatagram.SerializeDomainName(ownerName.ToLower(), mS);
+                    DnsDatagram.SerializeDomainName(ownerName.ToLowerInvariant(), mS);
                     mS.Write(salt);
 
                     mS.Position = 0;
