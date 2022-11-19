@@ -72,6 +72,8 @@ namespace TechnitiumLibrary.Net.Dns
         DnsDatagramMetadata _metadata;
         DnsDatagramEdns _edns;
         List<EDnsExtendedDnsErrorOptionData> _dnsClientExtendedErrors;
+        bool _shadowHideECSOption;
+        EDnsClientSubnetOptionData _shadowECSOption;
 
         int _size = -1;
         byte[] _parsedDatagramUnsigned;
@@ -743,6 +745,14 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        internal void SetEmptyShadowEDnsClientSubnetOption(EDnsClientSubnetOptionData requestECS)
+        {
+            if (_QR != 1)
+                throw new InvalidOperationException("DnsDatagram must be response.");
+
+            _shadowECSOption = new EDnsClientSubnetOptionData(requestECS.SourcePrefixLength, 0, requestECS.Address);
+        }
+
         #endregion
 
         #region public
@@ -805,6 +815,73 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             return Clone(null, null, newAdditional);
+        }
+
+        public DnsDatagram CloneWithoutEDnsClientSubnet()
+        {
+            if ((_edns is null) || (_edns.Options.Count == 0))
+                return this;
+
+            List<DnsResourceRecord> newAdditional = new List<DnsResourceRecord>(_additional.Count);
+
+            foreach (DnsResourceRecord record in _additional)
+            {
+                if (record.Type != DnsResourceRecordType.OPT)
+                    newAdditional.Add(record);
+            }
+
+            IReadOnlyList<EDnsOption> options;
+
+            if ((_edns.Options.Count == 1) && (_edns.Options[0].Code == EDnsOptionCode.EDNS_CLIENT_SUBNET))
+            {
+                options = Array.Empty<EDnsOption>();
+            }
+            else
+            {
+                List<EDnsOption> newOptions = new List<EDnsOption>(_edns.Options.Count);
+
+                foreach (EDnsOption option in _edns.Options)
+                {
+                    if (option.Code != EDnsOptionCode.EDNS_CLIENT_SUBNET)
+                        newOptions.Add(option);
+                }
+
+                options = newOptions;
+            }
+
+            newAdditional.Add(DnsDatagramEdns.GetOPTFor(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, options));
+
+            return Clone(null, null, newAdditional);
+        }
+
+        public EDnsClientSubnetOptionData GetEDnsClientSubnetOption()
+        {
+            if (_shadowHideECSOption)
+                return null;
+
+            if (_shadowECSOption is not null)
+                return _shadowECSOption;
+
+            if (_edns is null)
+                return null;
+
+            foreach (EDnsOption eDnsOption in _edns.Options)
+            {
+                if (eDnsOption.Code == EDnsOptionCode.EDNS_CLIENT_SUBNET)
+                    return eDnsOption.Data as EDnsClientSubnetOptionData;
+            }
+
+            return null;
+        }
+
+        public void SetShadowEDnsClientSubnetOption(NetworkAddress eDnsClientSubnet)
+        {
+            _shadowECSOption = new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, 0, eDnsClientSubnet.Address);
+        }
+
+        public void ShadowHideEDnsClientSubnetOption()
+        {
+            _shadowHideECSOption = true;
         }
 
         public void SetMetadata(NameServerAddress server = null, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, double rtt = 0.0)
@@ -1237,7 +1314,7 @@ namespace TechnitiumLibrary.Net.Dns
             ushort expectedMacSize = GetTsigMacSize(tsig.AlgorithmName);
 
             //Key Check
-            if ((expectedMacSize == ushort.MinValue) || (keys is null) || !keys.TryGetValue(tsigRecord.Name.ToLower(), out TsigKey key) || !key.AlgorithmName.Equals(tsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
+            if ((expectedMacSize == ushort.MinValue) || (keys is null) || !keys.TryGetValue(tsigRecord.Name.ToLowerInvariant(), out TsigKey key) || !key.AlgorithmName.Equals(tsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
             {
                 unsignedRequest = null;
 
@@ -1368,7 +1445,7 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
             }
 
-            if ((keys is null) || !keys.TryGetValue(requestTsigRecord.Name.ToLower(), out TsigKey key) || !key.AlgorithmName.Equals(requestTsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
+            if ((keys is null) || !keys.TryGetValue(requestTsigRecord.Name.ToLowerInvariant(), out TsigKey key) || !key.AlgorithmName.Equals(requestTsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Cannot sign this datagram: key not found or algorithm mismatch.");
 
             byte[] mac = ComputeTsigResponseMac(requestTsigRecord, key.KeyName, key.AlgorithmName, timeSigned, requestTsig.Fudge, error, otherData, key.SharedSecret, 0);
@@ -1777,10 +1854,10 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 //write TSIG Variables (request)
-                SerializeDomainName(keyName.ToLower(), mS); //NAME
+                SerializeDomainName(keyName.ToLowerInvariant(), mS); //NAME
                 WriteUInt16NetworkOrder((ushort)DnsClass.ANY, mS); //CLASS
                 WriteUInt32NetworkOrder(0u, mS); //TTL
-                SerializeDomainName(algorithmName.ToLower(), mS); //Algorithm Name
+                SerializeDomainName(algorithmName.ToLowerInvariant(), mS); //Algorithm Name
                 WriteUInt48NetworkOrder(timeSigned, mS); //Time Signed
                 WriteUInt16NetworkOrder(fudge, mS); //Fudge
                 WriteUInt16NetworkOrder((ushort)error, mS); //Error
@@ -1820,10 +1897,10 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 //write TSIG Variables (response)
-                SerializeDomainName(keyName.ToLower(), mS); //NAME
+                SerializeDomainName(keyName.ToLowerInvariant(), mS); //NAME
                 WriteUInt16NetworkOrder((ushort)DnsClass.ANY, mS); //CLASS
                 WriteUInt32NetworkOrder(0u, mS); //TTL
-                SerializeDomainName(algorithmName.ToLower(), mS); //Algorithm Name
+                SerializeDomainName(algorithmName.ToLowerInvariant(), mS); //Algorithm Name
                 WriteUInt48NetworkOrder(timeSigned, mS); //Time Signed
                 WriteUInt16NetworkOrder(fudge, mS); //Fudge
                 WriteUInt16NetworkOrder((ushort)error, mS); //Error
@@ -1875,7 +1952,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static ushort GetTsigMacSize(string algorithmName)
         {
-            switch (algorithmName.ToLower())
+            switch (algorithmName.ToLowerInvariant())
             {
                 case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5:
                     return 16;
@@ -1921,7 +1998,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             byte[] mac;
 
-            switch (algorithmName.ToLower())
+            switch (algorithmName.ToLowerInvariant())
             {
                 case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5:
                     using (HMAC hmac = new HMACMD5(key))
