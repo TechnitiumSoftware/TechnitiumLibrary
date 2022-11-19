@@ -70,6 +70,7 @@ namespace TechnitiumLibrary.Net.Dns
         ushort _udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE;
         bool _randomizeName;
         bool _dnssecValidation;
+        NetworkAddress _eDnsClientSubnet;
         string _conditionalForwardingZoneCut;
         int _retries = 2;
         int _timeout = 2000;
@@ -116,12 +117,12 @@ namespace TechnitiumLibrary.Net.Dns
                                 if (type.Equals("NS", StringComparison.OrdinalIgnoreCase))
                                 {
                                     string rootServer = PopWord(ref line);
-                                    rootServers.Add(rootServer.ToLower());
+                                    rootServers.Add(rootServer.ToLowerInvariant());
                                 }
                             }
                             else
                             {
-                                name = name.ToLower();
+                                name = name.ToLowerInvariant();
                                 _ = PopWord(ref line); //TTL
                                 string type = PopWord(ref line);
 
@@ -207,7 +208,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     foreach (XmlNode childNode in keyDigestNode.ChildNodes)
                     {
-                        switch (childNode.Name.ToLower())
+                        switch (childNode.Name.ToLowerInvariant())
                         {
                             case "keytag":
                                 keyTag = ushort.Parse(childNode.InnerText);
@@ -396,10 +397,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, bool cleanupResponse = false, bool asyncNsResolution = false, CancellationToken cancellationToken = default)
+        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int maxStackCount = 16, bool cleanupResponse = false, bool asyncNsResolution = false, CancellationToken cancellationToken = default)
         {
-            if ((udpPayloadSize < 512) && dnssecValidation)
-                throw new ArgumentOutOfRangeException(nameof(UdpPayloadSize), "EDNS cannot be disabled by setting UDP payload size to less than 512 when DNSSEC validation is enabled.");
+            if ((udpPayloadSize < 512) && (dnssecValidation || (eDnsClientSubnet is not null)))
+                throw new ArgumentOutOfRangeException(nameof(UdpPayloadSize), "EDNS cannot be disabled by setting UDP payload size to less than 512 when DNSSEC validation or EDNS Client Subnet is enabled.");
+
+            EDnsOption[] eDnsClientSubnetOption = EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(eDnsClientSubnet);
 
             if (cache is null)
                 cache = new DnsCache();
@@ -434,7 +437,7 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsNSRecordData ns = nsRecord.RDATA as DnsNSRecordData;
 
                     if (ns.IsParentSideTtlSet && (ns.ParentSideTtl == 0))
-                        nsRevalidationParentSideTask.TryAdd(nsRecord.Name.ToLower(), null); //revalidate NS from parent side
+                        nsRevalidationParentSideTask.TryAdd(nsRecord.Name.ToLowerInvariant(), null); //revalidate NS from parent side
 
                     break; //check only first NS record
                 }
@@ -478,7 +481,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             try
                             {
-                                await RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, retries, timeout, maxStackCount, false, false, cancellationToken);
+                                await RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false, cancellationToken);
                             }
                             catch
                             { }
@@ -486,7 +489,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         try
                         {
-                            await RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, retries, timeout, maxStackCount, false, false, cancellationToken);
+                            await RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false, cancellationToken);
                         }
                         catch
                         { }
@@ -657,7 +660,7 @@ namespace TechnitiumLibrary.Net.Dns
                 //query cache
                 {
                     //query cache without CD flag to not get response from "bad cache" and DO flag, if validation is enabled, to get DNSSEC records for correctly reading DS from response
-                    DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, ednsFlags);
+                    DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, ednsFlags, resolverStack.Count == 0 ? eDnsClientSubnetOption : null);
                     DnsDatagram cacheResponse = cache.Query(cacheRequest, false, true);
                     if (cacheResponse is not null)
                     {
@@ -1047,7 +1050,7 @@ namespace TechnitiumLibrary.Net.Dns
                         dnsClient._retries = retries;
                         dnsClient._timeout = timeout;
 
-                        DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, ednsFlags);
+                        DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, ednsFlags, (resolverStack.Count == 0) && zoneCut.Contains('.') ? eDnsClientSubnetOption : null);
                         DnsDatagram response;
 
                         try
@@ -1443,7 +1446,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                 //add to NS revalidation task list
                                                 if (asyncNsRevalidation)
-                                                    nsRevalidationChildSideTasks.TryAdd(zoneCut.ToLower(), new NsRevalidationTask(lastDSRecords, nextNameServers));
+                                                    nsRevalidationChildSideTasks.TryAdd(zoneCut.ToLowerInvariant(), new NsRevalidationTask(lastDSRecords, nextNameServers));
 
                                                 //add to async NS resolution task list
                                                 if (asyncNsResolution)
@@ -1751,30 +1754,30 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, CancellationToken cancellationToken = default)
+        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int maxStackCount = 16, CancellationToken cancellationToken = default)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             return ResolveQueryAsync(question, delegate (DnsQuestionRecord q)
             {
-                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, retries, timeout, maxStackCount, true, false, cancellationToken);
+                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, eDnsClientSubnet, retries, timeout, maxStackCount, true, false, cancellationToken);
             });
         }
 
-        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, int retries = 2, int timeout = 2000, int maxStackCount = 16, CancellationToken cancellationToken = default)
+        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int maxStackCount = 16, CancellationToken cancellationToken = default)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             if (preferIPv6)
             {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, maxStackCount, cancellationToken));
+                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, maxStackCount, cancellationToken));
                 if (addresses.Count > 0)
                     return addresses;
             }
 
-            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, maxStackCount, cancellationToken));
+            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, maxStackCount, cancellationToken));
         }
 
         public static async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(IDnsClient dnsClient, string domain, bool preferIPv6 = false, CancellationToken cancellationToken = default)
@@ -2945,7 +2948,15 @@ namespace TechnitiumLibrary.Net.Dns
                     return cacheDSRecords;
                 }
 
-                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + ownerName, cacheDSResponse);
+                switch (cacheDSResponse.RCODE)
+                {
+                    case DnsResponseCode.NoError:
+                    case DnsResponseCode.NxDomain:
+                        throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DS records for owner name: " + ownerName, cacheDSResponse);
+
+                    default:
+                        throw new DnsClientException("Failed to resolve the request '" + cacheDSResponse.Question[0].ToString() + "'. Received a response with RCODE: " + cacheDSResponse.RCODE);
+                }
             }
 
             //query dns server
@@ -2972,9 +2983,18 @@ namespace TechnitiumLibrary.Net.Dns
                 return dsRecords;
             }
 
-            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, dsResponse.Metadata.NameServerAddress.ToString() + " returned no DS for " + ownerName);
-            cache.CacheResponse(dsResponse, true);
-            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + ownerName, dsResponse);
+            switch (dsResponse.RCODE)
+            {
+                case DnsResponseCode.NoError:
+                case DnsResponseCode.NxDomain:
+                    dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, dsResponse.Metadata.NameServerAddress.ToString() + " returned no DS for " + ownerName);
+                    cache.CacheResponse(dsResponse, true);
+                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DS records for owner name: " + ownerName, dsResponse);
+
+                default:
+                    cache.CacheResponse(dsResponse, true);
+                    throw new DnsClientException("Failed to resolve the request '" + dsResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dsResponse.RCODE + (dsResponse.Metadata is null ? "" : " from Name server: " + dsResponse.Metadata.NameServerAddress.ToString()));
+            }
         }
 
         private static bool TryGetDSFromResponse(DnsDatagram response, string ownerName, out IReadOnlyList<DnsResourceRecord> dsRecords)
@@ -3731,7 +3751,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             try
                             {
-                                await RecursiveResolveAsync(new DnsQuestionRecord(revalidatedNameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, retries, timeout, maxStackCount, false, false);
+                                await RecursiveResolveAsync(new DnsQuestionRecord(revalidatedNameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false);
                             }
                             catch
                             { }
@@ -3739,7 +3759,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         try
                         {
-                            await RecursiveResolveAsync(new DnsQuestionRecord(revalidatedNameServer.DomainEndPoint.Address, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, retries, timeout, maxStackCount, false, false);
+                            await RecursiveResolveAsync(new DnsQuestionRecord(revalidatedNameServer.DomainEndPoint.Address, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false);
                         }
                         catch
                         { }
@@ -3756,7 +3776,7 @@ namespace TechnitiumLibrary.Net.Dns
             DnsQuestionRecord question = new DnsQuestionRecord(zoneCut, DnsResourceRecordType.NS, DnsClass.IN);
             ResolverNsRevalidationDnsCache revalidationDnsCache = new ResolverNsRevalidationDnsCache(cache, question);
 
-            return RecursiveResolveAsync(question, revalidationDnsCache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, true, dnssecValidation, retries, timeout, maxStackCount);
+            return RecursiveResolveAsync(question, revalidationDnsCache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, true, dnssecValidation, null, retries, timeout, maxStackCount);
         }
 
         private static async Task<DnsDatagram> ResolveQueryAsync(DnsQuestionRecord question, Func<DnsQuestionRecord, Task<DnsDatagram>> resolveAsync)
@@ -4058,6 +4078,30 @@ namespace TechnitiumLibrary.Net.Dns
                                                     }
                                                     break;
 
+                                                case DnsResponseCode.Refused:
+                                                    EDnsClientSubnetOptionData requestECS = asyncRequest.GetEDnsClientSubnetOption();
+                                                    if (requestECS is not null)
+                                                    {
+                                                        //If a REFUSED response is received from an Authoritative Nameserver,
+                                                        //an ECS-aware resolver MUST retry the query without ECS to distinguish
+                                                        //the response from one where the Authoritative Nameserver is not
+                                                        //responsible for the name, which is a common convention for the
+                                                        //REFUSED status. Similarly, a client of a Recursive Resolver SHOULD
+                                                        //retry after receiving a REFUSED response because it is not
+                                                        //sufficiently clear whether the REFUSED response was because of the
+                                                        //ECS option or some other reason.
+                                                        asyncRequest = asyncRequest.CloneWithoutEDnsClientSubnet();
+
+                                                        retryRequest = true;
+                                                        protocolWasSwitched = false;
+                                                    }
+                                                    else
+                                                    {
+                                                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, response.Metadata.NameServerAddress.ToString() + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
+                                                        lastResponse = response;
+                                                    }
+                                                    break;
+
                                                 default:
                                                     response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, response.Metadata.NameServerAddress.ToString() + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
                                                     lastResponse = response;
@@ -4271,7 +4315,7 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 cache = _cache;
 
-            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK);
+            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));
             DnsDatagram response = await InternalResolveAsync(request, cancellationToken);
 
             await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(response), this, cache, _udpPayloadSize, cancellationToken);
@@ -4325,7 +4369,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if ((_conditionalForwardingZoneCut is not null) && !q.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !q.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase))
                     return null;
 
-                DnsDatagram newRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { q }, null, null, null, _udpPayloadSize);
+                DnsDatagram newRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { q }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.None, EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));
 
                 DnsDatagram cacheResponse = QueryCache(_cache, newRequest);
                 if (cacheResponse is not null)
@@ -4448,12 +4492,12 @@ namespace TechnitiumLibrary.Net.Dns
             if (_dnssecValidation)
                 return InternalDnssecResolveAsync(question, cancellationToken);
 
-            return InternalNoDnssecResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize), cancellationToken);
+            return InternalNoDnssecResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.None, EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet)), cancellationToken);
         }
 
         public Task<DnsDatagram> ResolveAsync(DnsQuestionRecord question, TsigKey key, ushort fudge = 300, CancellationToken cancellationToken = default)
         {
-            return ResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize), key, fudge, cancellationToken);
+            return ResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.None, EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet)), key, fudge, cancellationToken);
         }
 
         public Task<DnsDatagram> ResolveAsync(string domain, DnsResourceRecordType type, CancellationToken cancellationToken = default)
@@ -4738,6 +4782,12 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get { return _dnssecValidation; }
             set { _dnssecValidation = value; }
+        }
+
+        public NetworkAddress EDnsClientSubnet
+        {
+            get { return _eDnsClientSubnet; }
+            set { _eDnsClientSubnet = value; }
         }
 
         public string ConditionalForwardingZoneCut
