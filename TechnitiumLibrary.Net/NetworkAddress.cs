@@ -29,13 +29,13 @@ namespace TechnitiumLibrary.Net
         #region variables
 
         readonly IPAddress _address;
-        readonly int _prefixLength;
+        readonly byte _prefixLength;
 
         #endregion
 
         #region constructor
 
-        private NetworkAddress(IPAddress address, int prefixLength, bool validate)
+        private NetworkAddress(IPAddress address, byte prefixLength, bool validate)
         {
             if (validate)
             {
@@ -65,7 +65,7 @@ namespace TechnitiumLibrary.Net
             _prefixLength = prefixLength;
         }
 
-        public NetworkAddress(IPAddress address, int prefixLength)
+        public NetworkAddress(IPAddress address, byte prefixLength)
             : this(address, prefixLength, true)
         { }
 
@@ -91,9 +91,9 @@ namespace TechnitiumLibrary.Net
                 return false;
             }
 
-            int prefixLength = -1;
+            byte prefixLength = 255;
 
-            if ((network.Length > 1) && (!int.TryParse(network[1], out prefixLength) || (prefixLength < 0)))
+            if ((network.Length > 1) && !byte.TryParse(network[1], out prefixLength))
             {
                 networkAddress = null;
                 return false;
@@ -102,7 +102,7 @@ namespace TechnitiumLibrary.Net
             switch (address.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    if (prefixLength == -1)
+                    if (prefixLength == 255)
                     {
                         prefixLength = 32;
                     }
@@ -115,7 +115,7 @@ namespace TechnitiumLibrary.Net
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    if (prefixLength == -1)
+                    if (prefixLength == 255)
                     {
                         prefixLength = 128;
                     }
@@ -139,7 +139,7 @@ namespace TechnitiumLibrary.Net
         public static NetworkAddress ReadFrom(BinaryReader bR)
         {
             IPAddress address = IPAddressExtension.ReadFrom(bR);
-            int prefixLength = bR.ReadByte();
+            byte prefixLength = bR.ReadByte();
 
             return new NetworkAddress(address, prefixLength, false);
         }
@@ -159,7 +159,7 @@ namespace TechnitiumLibrary.Net
         public void WriteTo(BinaryWriter bW)
         {
             _address.WriteTo(bW);
-            bW.Write(Convert.ToByte(_prefixLength));
+            bW.Write(_prefixLength);
         }
 
         public bool Equals(NetworkAddress other)
@@ -201,7 +201,7 @@ namespace TechnitiumLibrary.Net
         public IPAddress Address
         { get { return _address; } }
 
-        public int PrefixLength
+        public byte PrefixLength
         { get { return _prefixLength; } }
 
         #endregion
