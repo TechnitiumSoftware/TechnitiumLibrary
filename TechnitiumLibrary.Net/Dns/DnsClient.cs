@@ -2847,7 +2847,14 @@ namespace TechnitiumLibrary.Net.Dns
                 if (cacheDnsKeyResponse.Answer.Count > 0)
                     return cacheDnsKeyResponse.Answer; //found in cache
 
-                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DNSKEY records for owner name: " + dnsKeyQuestion.Name, cacheDnsKeyResponse);
+                switch (cacheDnsKeyResponse.RCODE)
+                {
+                    case DnsResponseCode.NoError:
+                        throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DNSKEY records for owner name: " + dnsKeyQuestion.Name, cacheDnsKeyResponse);
+
+                    default:
+                        throw new DnsClientException("Failed to resolve the request '" + cacheDnsKeyResponse.Question[0].ToString() + "'. Received a response with RCODE: " + cacheDnsKeyResponse.RCODE);
+                }
             }
 
             //query name server
@@ -2855,9 +2862,17 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram dnsKeyResponse = await dnsClient.InternalResolveAsync(dnsKeyRequest, cancellationToken);
             if (dnsKeyResponse.Answer.Count == 0)
             {
-                dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, dnsKeyResponse.Metadata.NameServerAddress.ToString() + " returned no DNSKEYs for " + dnsKeyQuestion.Name);
-                cache.CacheResponse(dnsKeyResponse, true);
-                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DNSKEY records for owner name: " + dnsKeyQuestion.Name, dnsKeyResponse);
+                switch (dnsKeyResponse.RCODE)
+                {
+                    case DnsResponseCode.NoError:
+                        dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, dnsKeyResponse.Metadata.NameServerAddress.ToString() + " returned no DNSKEYs for " + dnsKeyQuestion.Name);
+                        cache.CacheResponse(dnsKeyResponse, true);
+                        throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DNSKEY records for owner name: " + dnsKeyQuestion.Name, dnsKeyResponse);
+
+                    default:
+                        cache.CacheResponse(dnsKeyResponse, true);
+                        throw new DnsClientException("Failed to resolve the request '" + dnsKeyResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dnsKeyResponse.RCODE + (dnsKeyResponse.Metadata is null ? "" : " from Name server: " + dnsKeyResponse.Metadata.NameServerAddress.ToString()));
+                }
             }
 
             //find valid DNSKEY using DS digest
