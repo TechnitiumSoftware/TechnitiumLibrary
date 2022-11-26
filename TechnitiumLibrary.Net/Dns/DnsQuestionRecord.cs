@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Text;
@@ -66,30 +65,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsQuestionRecord(IPAddress ip, DnsClass @class)
         {
+            _name = ip.GetReverseDomain();
             _type = DnsResourceRecordType.PTR;
             _class = @class;
-
-            byte[] ipBytes = ip.GetAddressBytes();
-
-            switch (ip.AddressFamily)
-            {
-                case AddressFamily.InterNetwork:
-                    for (int i = ipBytes.Length - 1; i >= 0; i--)
-                        _name += ipBytes[i] + ".";
-
-                    _name += "in-addr.arpa";
-                    break;
-
-                case AddressFamily.InterNetworkV6:
-                    for (int i = ipBytes.Length - 1; i >= 0; i--)
-                        _name += (ipBytes[i] & 0x0F).ToString("X") + "." + (ipBytes[i] >> 4).ToString("X") + ".";
-
-                    _name += "ip6.arpa";
-                    break;
-
-                default:
-                    throw new DnsClientException("IP address family not supported for PTR query.");
-            }
         }
 
         public DnsQuestionRecord(Stream s)
