@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -305,6 +306,68 @@ namespace TechnitiumLibrary.Net
 
                 default:
                     throw new NotSupportedException("IPv6-embedded IPv6 address format supports only the following prefixes: 32, 40, 48, 56, 64, or 96.");
+            }
+        }
+
+        public static string GetReverseDomain(this IPAddress address)
+        {
+            byte[] ipBytes = address.GetAddressBytes();
+            string name = "";
+
+            switch (address.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    for (int i = ipBytes.Length - 1; i >= 0; i--)
+                        name += ipBytes[i] + ".";
+
+                    name += "in-addr.arpa";
+                    break;
+
+                case AddressFamily.InterNetworkV6:
+                    for (int i = ipBytes.Length - 1; i >= 0; i--)
+                        name += (ipBytes[i] & 0x0F).ToString("X") + "." + (ipBytes[i] >> 4).ToString("X") + ".";
+
+                    name += "ip6.arpa";
+                    break;
+
+                default:
+                    throw new NotSupportedException("IP address family not supported: " + address.AddressFamily.ToString());
+            }
+
+            return name;
+        }
+
+        public static IPAddress ParseReverseDomain(string ptrDomain)
+        {
+            if (ptrDomain.EndsWith(".in-addr.arpa"))
+            {
+                //1.10.168.192.in-addr.arpa
+                //192.168.10.1
+
+                string[] parts = ptrDomain.Split('.');
+                byte[] buffer = new byte[4];
+
+                for (int i = 0, j = parts.Length - 3; (i < 4) && (j > -1); i++, j--)
+                    buffer[i] = byte.Parse(parts[j]);
+
+                return new IPAddress(buffer);
+            }
+            else if (ptrDomain.EndsWith(".ip6.arpa"))
+            {
+                //B.E.3.0.B.3.B.8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.B.9.F.F.4.6.0.0.ip6.arpa
+                //64:ff9b::8b3b:3eb
+
+                string[] parts = ptrDomain.Split('.');
+                byte[] buffer = new byte[16];
+
+                for (int i = 0, j = parts.Length - 3; (i < 16) && (j > 0); i++, j -= 2)
+                    buffer[i] = (byte)(byte.Parse(parts[j], NumberStyles.HexNumber) << 4 | byte.Parse(parts[j - 1], NumberStyles.HexNumber));
+
+                return new IPAddress(buffer);
+            }
+            else
+            {
+                throw new NotSupportedException("Invalid reverse domain: " + ptrDomain);
             }
         }
 
