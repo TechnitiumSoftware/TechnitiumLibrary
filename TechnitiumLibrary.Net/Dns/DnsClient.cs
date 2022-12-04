@@ -57,7 +57,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         readonly static IReadOnlyList<DnsResourceRecord> ROOT_TRUST_ANCHORS;
 
-        readonly static FieldInfo _sslStream_innerStream = typeof(SslStream).GetField("_innerStream", BindingFlags.Instance | BindingFlags.NonPublic);
+        readonly static PropertyInfo _sslStream_innerStream = typeof(SslStream).GetProperty("InnerStream", BindingFlags.Instance | BindingFlags.NonPublic);
 
         const int MAX_DELEGATION_HOPS = 16;
         internal const int MAX_CNAME_HOPS = 16;
@@ -4068,6 +4068,20 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
                                         else
                                         {
+                                            EDnsClientSubnetOptionData requestECS = request.GetEDnsClientSubnetOption();
+                                            if (requestECS is not null)
+                                            {
+                                                EDnsClientSubnetOptionData responseECS = response.GetEDnsClientSubnetOption();
+                                                if (responseECS is null)
+                                                {
+                                                    // If no ECS option is contained in the response, the Intermediate
+                                                    // Nameserver SHOULD treat this as being equivalent to having received a
+                                                    // SCOPE PREFIX-LENGTH of 0, which is an answer suitable for all client
+                                                    // addresses.
+                                                    response.SetEmptyShadowEDnsClientSubnetOption(requestECS);
+                                                }
+                                            }
+
                                             switch (response.RCODE)
                                             {
                                                 case DnsResponseCode.NoError:
@@ -4094,8 +4108,8 @@ namespace TechnitiumLibrary.Net.Dns
                                                     break;
 
                                                 case DnsResponseCode.Refused:
-                                                    EDnsClientSubnetOptionData requestECS = asyncRequest.GetEDnsClientSubnetOption();
-                                                    if (requestECS is not null)
+                                                    EDnsClientSubnetOptionData asyncRequestECS = asyncRequest.GetEDnsClientSubnetOption();
+                                                    if (asyncRequestECS is not null)
                                                     {
                                                         //If a REFUSED response is received from an Authoritative Nameserver,
                                                         //an ECS-aware resolver MUST retry the query without ECS to distinguish
