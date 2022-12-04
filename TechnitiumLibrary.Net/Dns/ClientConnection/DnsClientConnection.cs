@@ -291,24 +291,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
 
                 EDnsClientSubnetOptionData requestECS = request.GetEDnsClientSubnetOption();
-                EDnsClientSubnetOptionData responseECS = response.GetEDnsClientSubnetOption();
-
-                if (requestECS is null)
+                if (requestECS is not null)
                 {
+                    EDnsClientSubnetOptionData responseECS = response.GetEDnsClientSubnetOption();
                     if (responseECS is not null)
-                        throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
-                }
-                else
-                {
-                    if (responseECS is null)
-                    {
-                        // If no ECS option is contained in the response, the Intermediate
-                        // Nameserver SHOULD treat this as being equivalent to having received a
-                        // SCOPE PREFIX-LENGTH of 0, which is an answer suitable for all client
-                        // addresses.
-                        response.SetEmptyShadowEDnsClientSubnetOption(requestECS);
-                    }
-                    else
                     {
                         if (requestECS.Family != responseECS.Family)
                             throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
@@ -316,7 +302,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         if (requestECS.SourcePrefixLength != responseECS.SourcePrefixLength)
                             throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
 
-                        if (!requestECS.Address.Equals(responseECS.Address))
+                        if (!requestECS.AddressValue.Equals(responseECS.AddressValue))
                             throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
                     }
                 }
