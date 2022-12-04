@@ -192,7 +192,11 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public byte ScopePrefixLength
         { get { return _scopePrefixLength; } }
 
-        public IPAddress Address
+        public string Address
+        { get { return _address.ToString(); } }
+
+        [IgnoreDataMember]
+        public IPAddress AddressValue
         { get { return _address; } }
 
         [IgnoreDataMember]
