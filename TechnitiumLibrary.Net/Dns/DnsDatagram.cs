@@ -694,6 +694,8 @@ namespace TechnitiumLibrary.Net.Dns
             datagram._metadata = _metadata;
             datagram._edns = _edns;
             datagram._dnsClientExtendedErrors = _dnsClientExtendedErrors;
+            datagram._shadowHideECSOption = _shadowHideECSOption;
+            datagram._shadowECSOption = _shadowECSOption;
             datagram.Tag = Tag;
 
             return datagram;
@@ -750,7 +752,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (_QR != 1)
                 throw new InvalidOperationException("DnsDatagram must be response.");
 
-            _shadowECSOption = new EDnsClientSubnetOptionData(requestECS.SourcePrefixLength, 0, requestECS.Address);
+            _shadowECSOption = new EDnsClientSubnetOptionData(requestECS.SourcePrefixLength, 0, requestECS.AddressValue);
         }
 
         #endregion
@@ -780,6 +782,8 @@ namespace TechnitiumLibrary.Net.Dns
                 datagram._edns = DnsDatagramEdns.ReadOPTFrom(additional, _RCODE);
 
             datagram._dnsClientExtendedErrors = _dnsClientExtendedErrors;
+            datagram._shadowHideECSOption = _shadowHideECSOption;
+            datagram._shadowECSOption = _shadowECSOption;
 
             datagram._nextDatagram = _nextDatagram;
 
@@ -854,13 +858,16 @@ namespace TechnitiumLibrary.Net.Dns
             return Clone(null, null, newAdditional);
         }
 
-        public EDnsClientSubnetOptionData GetEDnsClientSubnetOption()
+        public EDnsClientSubnetOptionData GetEDnsClientSubnetOption(bool noShadow = false)
         {
-            if (_shadowHideECSOption)
-                return null;
+            if (!noShadow)
+            {
+                if (_shadowHideECSOption)
+                    return null;
 
-            if (_shadowECSOption is not null)
-                return _shadowECSOption;
+                if (_shadowECSOption is not null)
+                    return _shadowECSOption;
+            }
 
             if (_edns is null)
                 return null;
