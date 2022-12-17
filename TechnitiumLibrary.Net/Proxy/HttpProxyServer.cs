@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -206,7 +206,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region private
 
-            private async Task DoConnectAsync(NetworkStream localStream, HttpRequest httpRequest)
+            private async Task DoConnectAsync(NetworkStream localStream, HttpRequest httpRequest, string username)
             {
                 string host;
                 int port;
@@ -222,7 +222,10 @@ namespace TechnitiumLibrary.Net.Proxy
                 }
 
                 //connect to remote server
-                _remoteSocket = await _connectionManager.ConnectAsync(EndPointExtension.GetEndPoint(host, port));
+                if (_connectionManager is IProxyServerExtendedConnectionManager extendedConnectionManager)
+                    _remoteSocket = await extendedConnectionManager.ConnectAsync(EndPointExtension.GetEndPoint(host, port), username);
+                else
+                    _remoteSocket = await _connectionManager.ConnectAsync(EndPointExtension.GetEndPoint(host, port));
 
                 //signal client 200 OK
                 await localStream.WriteAsync(Encoding.ASCII.GetBytes(httpRequest.Protocol + " 200 OK\r\nConnection: close\r\n\r\n"));
@@ -312,6 +315,8 @@ namespace TechnitiumLibrary.Net.Proxy
                         if (httpRequest == null)
                             return; //connection closed gracefully by client
 
+                        string username = null;
+
                         if (_authenticationManager != null)
                         {
                             string proxyAuth = httpRequest.Headers[HttpRequestHeader.ProxyAuthorization];
@@ -321,7 +326,6 @@ namespace TechnitiumLibrary.Net.Proxy
                                 return;
                             }
 
-                            string username;
                             string password;
                             {
                                 string[] parts = proxyAuth.Split(new char[] { ' ' }, 2);
@@ -352,7 +356,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                         if (httpRequest.HttpMethod.Equals("CONNECT", StringComparison.OrdinalIgnoreCase))
                         {
-                            await DoConnectAsync(localStream, httpRequest);
+                            await DoConnectAsync(localStream, httpRequest, username);
                             dontDispose = true;
                             break;
                         }
@@ -405,7 +409,11 @@ namespace TechnitiumLibrary.Net.Proxy
                                     _remoteSocket.Dispose();
                                 }
 
-                                _remoteSocket = await _connectionManager.ConnectAsync(EndPointExtension.GetEndPoint(host, port));
+                                if (_connectionManager is IProxyServerExtendedConnectionManager extendedConnectionManager)
+                                    _remoteSocket = await extendedConnectionManager.ConnectAsync(EndPointExtension.GetEndPoint(host, port), username);
+                                else
+                                    _remoteSocket = await _connectionManager.ConnectAsync(EndPointExtension.GetEndPoint(host, port));
+
                                 remoteStream = new WriteBufferedStream(new NetworkStream(_remoteSocket), 512);
 
                                 lastHost = host;

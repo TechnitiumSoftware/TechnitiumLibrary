@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -369,6 +369,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     //match method and authenticate
                     bool methodMatched = false;
                     SocksProxyAuthenticationMethod serverMethod = _authenticationManager == null ? SocksProxyAuthenticationMethod.NoAuthenticationRequired : SocksProxyAuthenticationMethod.UsernamePassword;
+                    string username = null;
 
                     foreach (SocksProxyAuthenticationMethod method in negotiationRequest.Methods)
                     {
@@ -405,6 +406,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                     await new SocksProxyAuthenticationReply(SocksProxyAuthenticationStatus.Success).WriteToAsync(localStream);
                                     await localStream.FlushAsync();
                                     methodMatched = true;
+                                    username = authenticationRequest.Username;
                                     break;
                             }
 
@@ -443,7 +445,11 @@ namespace TechnitiumLibrary.Net.Proxy
                             {
                                 try
                                 {
-                                    _remoteSocket = await _connectionManager.ConnectAsync(request.DestinationEndPoint);
+                                    if (_connectionManager is IProxyServerExtendedConnectionManager extendedConnectionManager)
+                                        _remoteSocket = await extendedConnectionManager.ConnectAsync(request.DestinationEndPoint, username);
+                                    else
+                                        _remoteSocket = await _connectionManager.ConnectAsync(request.DestinationEndPoint);
+
                                     reply = SocksProxyReplyCode.Succeeded;
                                     bindEP = _remoteSocket.LocalEndPoint;
                                 }
