@@ -34,6 +34,11 @@ namespace TechnitiumLibrary.Net.Proxy
         Task<IProxyServerUdpAssociateHandler> GetUdpAssociateHandlerAsync(EndPoint localEP);
     }
 
+    public interface IProxyServerExtendedConnectionManager : IProxyServerConnectionManager
+    {
+        Task<Socket> ConnectAsync(EndPoint remoteEP, string username, CancellationToken cancellationToken = default);
+    }
+
     public interface IProxyServerBindHandler : IDisposable
     {
         Task<Socket> AcceptAsync();
