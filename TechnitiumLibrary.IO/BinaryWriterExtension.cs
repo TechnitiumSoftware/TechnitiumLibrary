@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ namespace TechnitiumLibrary.IO
         {
             byte[] buffer = Encoding.UTF8.GetBytes(value);
             if (buffer.Length > 255)
-                throw new ArgumentOutOfRangeException("Parameter 'value' exceeded max length of 255 bytes.");
+                throw new ArgumentOutOfRangeException(nameof(value), "Parameter 'value' exceeded max length of 255 bytes.");
 
             bW.Write(Convert.ToByte(buffer.Length));
             bW.Write(buffer);
