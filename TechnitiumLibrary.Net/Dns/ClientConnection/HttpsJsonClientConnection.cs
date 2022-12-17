@@ -17,12 +17,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using TechnitiumLibrary.Net.Dns.EDnsOptions;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
@@ -115,7 +116,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         queryUri = new Uri(_server.DoHEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DoHEndPoint.PathAndQuery);
                 }
 
-                return new HttpRequestMessage(HttpMethod.Get, queryUri.AbsoluteUri + "?name=" + (request.Question[0].Name.Length == 0 ? "." : request.Question[0].Name) + "&type=" + Convert.ToString((int)request.Question[0].Type) + "&do=" + request.DnssecOk);
+                string ednsClientSubnet = null;
+
+                EDnsClientSubnetOptionData requestECS = request.GetEDnsClientSubnetOption();
+                if (requestECS is not null)
+                    ednsClientSubnet = requestECS.AddressValue.ToString() + "/" + requestECS.SourcePrefixLength;
+
+                return new HttpRequestMessage(HttpMethod.Get, queryUri.AbsoluteUri + "?name=" + (request.Question[0].Name.Length == 0 ? "." : request.Question[0].Name) + "&type=" + Convert.ToString((int)request.Question[0].Type) + "&do=" + request.DnssecOk + (ednsClientSubnet is null ? "" : "&edns_client_subnet=" + ednsClientSubnet));
             }
 
             //DoH JSON format request 
@@ -151,7 +158,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 string responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
 
                 //parse response
-                DnsDatagram response = DnsDatagram.ReadFromJson(JsonConvert.DeserializeObject(responseJson), responseJson.Length, request.EDNS);
+                DnsDatagram response;
+
+                using (JsonDocument jsonDocument = JsonDocument.Parse(responseJson))
+                {
+                    response = DnsDatagram.ReadFromJson(jsonDocument.RootElement, responseJson.Length, request.EDNS);
+                }
 
                 response.SetIdentifier(request.Identifier);
                 response.SetMetadata(_server, _protocol, stopwatch.Elapsed.TotalMilliseconds);
