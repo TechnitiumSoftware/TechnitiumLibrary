@@ -17,13 +17,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
@@ -353,80 +354,124 @@ namespace TechnitiumLibrary.Net.Dns
             return ReadFrom(sharedBuffer);
         }
 
-        public static DnsDatagram ReadFromJson(dynamic jsonResponse, int size, DnsDatagramEdns requestEdns)
+        public static DnsDatagram ReadFromJson(JsonElement jsonResponse, int size, DnsDatagramEdns requestEdns)
         {
             DnsDatagram datagram = new DnsDatagram();
 
             datagram._QR = 1; //is response
             datagram._OPCODE = DnsOpcode.StandardQuery;
 
-            datagram._TC = (byte)(jsonResponse.TC.Value ? 1 : 0);
-            datagram._RD = (byte)(jsonResponse.RD.Value ? 1 : 0);
-            datagram._RA = (byte)(jsonResponse.RA.Value ? 1 : 0);
-            datagram._AD = (byte)(jsonResponse.AD.Value ? 1 : 0);
-            datagram._CD = (byte)(jsonResponse.CD.Value ? 1 : 0);
-            datagram._RCODE = (DnsResponseCode)jsonResponse.Status;
+            datagram._TC = (byte)(jsonResponse.GetProperty("TC").GetBoolean() ? 1 : 0);
+            datagram._RD = (byte)(jsonResponse.GetProperty("RD").GetBoolean() ? 1 : 0);
+            datagram._RA = (byte)(jsonResponse.GetProperty("RA").GetBoolean() ? 1 : 0);
+            datagram._AD = (byte)(jsonResponse.GetProperty("AD").GetBoolean() ? 1 : 0);
+            datagram._CD = (byte)(jsonResponse.GetProperty("CD").GetBoolean() ? 1 : 0);
+            datagram._RCODE = (DnsResponseCode)jsonResponse.GetProperty("Status").GetUInt16();
 
             try
             {
                 //question
-                if ((jsonResponse.Question == null) || (jsonResponse.Question.Count == 0))
+                if (jsonResponse.TryGetProperty("Question", out JsonElement jsonQuestion))
                 {
-                    datagram._question = Array.Empty<DnsQuestionRecord>();
-                }
-                else
-                {
-                    ushort QDCOUNT = Convert.ToUInt16(jsonResponse.Question.Count);
+                    ushort QDCOUNT = Convert.ToUInt16(jsonQuestion.GetArrayLength());
                     List<DnsQuestionRecord> question = new List<DnsQuestionRecord>(QDCOUNT);
                     datagram._question = question;
 
-                    foreach (dynamic jsonQuestionRecord in jsonResponse.Question)
+                    foreach (JsonElement jsonQuestionRecord in jsonQuestion.EnumerateArray())
                         question.Add(new DnsQuestionRecord(jsonQuestionRecord));
+                }
+                else
+                {
+                    datagram._question = Array.Empty<DnsQuestionRecord>();
                 }
 
                 //answer
-                if ((jsonResponse.Answer == null) || (jsonResponse.Answer.Count == 0))
+                if (jsonResponse.TryGetProperty("Answer", out JsonElement jsonAnswer))
                 {
-                    datagram._answer = Array.Empty<DnsResourceRecord>();
-                }
-                else
-                {
-                    ushort ANCOUNT = Convert.ToUInt16(jsonResponse.Answer.Count);
+                    ushort ANCOUNT = Convert.ToUInt16(jsonAnswer.GetArrayLength());
                     List<DnsResourceRecord> answer = new List<DnsResourceRecord>(ANCOUNT);
                     datagram._answer = answer;
 
-                    foreach (dynamic jsonAnswerRecord in jsonResponse.Answer)
+                    foreach (JsonElement jsonAnswerRecord in jsonAnswer.EnumerateArray())
                         answer.Add(new DnsResourceRecord(jsonAnswerRecord));
+                }
+                else
+                {
+                    datagram._answer = Array.Empty<DnsResourceRecord>();
                 }
 
                 //authority
-                if ((jsonResponse.Authority == null) || (jsonResponse.Authority.Count == 0))
+                if (jsonResponse.TryGetProperty("Authority", out JsonElement jsonAuthority))
                 {
-                    datagram._authority = Array.Empty<DnsResourceRecord>();
-                }
-                else
-                {
-                    ushort NSCOUNT = Convert.ToUInt16(jsonResponse.Authority.Count);
+                    ushort NSCOUNT = Convert.ToUInt16(jsonAuthority.GetArrayLength());
                     List<DnsResourceRecord> authority = new List<DnsResourceRecord>(NSCOUNT);
                     datagram._authority = authority;
 
-                    foreach (dynamic jsonAuthorityRecord in jsonResponse.Authority)
+                    foreach (JsonElement jsonAuthorityRecord in jsonAuthority.EnumerateArray())
                         authority.Add(new DnsResourceRecord(jsonAuthorityRecord));
-                }
-
-                //additional
-                if ((jsonResponse.Additional == null) || (jsonResponse.Additional.Count == 0))
-                {
-                    datagram._additional = Array.Empty<DnsResourceRecord>();
                 }
                 else
                 {
-                    ushort ARCOUNT = Convert.ToUInt16(jsonResponse.Additional.Count);
+                    datagram._authority = Array.Empty<DnsResourceRecord>();
+                }
+
+                //additional
+                if (jsonResponse.TryGetProperty("Additional", out JsonElement jsonAdditional))
+                {
+                    ushort ARCOUNT = Convert.ToUInt16(jsonAdditional.GetArrayLength());
                     List<DnsResourceRecord> additional = new List<DnsResourceRecord>(ARCOUNT);
                     datagram._additional = additional;
 
-                    foreach (dynamic jsonAdditionalRecord in jsonResponse.Additional)
+                    foreach (JsonElement jsonAdditionalRecord in jsonAdditional.EnumerateArray())
                         additional.Add(new DnsResourceRecord(jsonAdditionalRecord));
+                }
+                else
+                {
+                    datagram._additional = Array.Empty<DnsResourceRecord>();
+                }
+
+                //edns_client_subnet
+                if (requestEdns is not null)
+                {
+                    if (jsonResponse.TryGetProperty("edns_client_subnet", out JsonElement jsonECS))
+                    {
+                        string[] ecsParts = jsonECS.GetString().Split('/');
+                        if (ecsParts.Length == 2)
+                        {
+                            IPAddress ecsAddress = IPAddress.Parse(ecsParts[0]);
+                            byte scopePrefixLength = byte.Parse(ecsParts[1]);
+
+                            foreach (EDnsOption option in requestEdns.Options)
+                            {
+                                if (option.Code == EDnsOptionCode.EDNS_CLIENT_SUBNET)
+                                {
+                                    EDnsOption[] options = EDnsClientSubnetOptionData.GetEDnsClientSubnetOption((option.Data as EDnsClientSubnetOptionData).SourcePrefixLength, scopePrefixLength, ecsAddress);
+
+                                    datagram._edns = new DnsDatagramEdns(requestEdns.UdpPayloadSize, datagram._RCODE, 0, requestEdns.Flags, options);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (datagram._edns is null)
+                        datagram._edns = new DnsDatagramEdns(requestEdns.UdpPayloadSize, datagram._RCODE, 0, requestEdns.Flags, null);
+
+                    DnsResourceRecord optRecord = DnsDatagramEdns.GetOPTFor(requestEdns.UdpPayloadSize, datagram._RCODE, 0, requestEdns.Flags, datagram._edns.Options);
+
+                    if (datagram._additional.Count == 0)
+                    {
+                        datagram._additional = new DnsResourceRecord[] { optRecord };
+                    }
+                    else
+                    {
+                        List<DnsResourceRecord> newAdditional = new List<DnsResourceRecord>(datagram._additional.Count + 1);
+
+                        newAdditional.AddRange(datagram._additional);
+                        newAdditional.Add(optRecord);
+
+                        datagram._additional = newAdditional;
+                    }
                 }
             }
             catch (Exception ex)
@@ -447,9 +492,6 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             datagram._size = size;
-
-            if (requestEdns is not null)
-                datagram._edns = new DnsDatagramEdns(requestEdns.UdpPayloadSize, datagram._RCODE, 0, requestEdns.Flags, null);
 
             return datagram;
         }
@@ -1073,27 +1115,16 @@ namespace TechnitiumLibrary.Net.Dns
             while (current is not null);
         }
 
-        public void WriteToJson(JsonTextWriter jsonWriter)
+        public void WriteToJson(Utf8JsonWriter jsonWriter)
         {
             jsonWriter.WriteStartObject();
 
-            jsonWriter.WritePropertyName("Status");
-            jsonWriter.WriteValue((int)_RCODE);
-
-            jsonWriter.WritePropertyName("TC");
-            jsonWriter.WriteValue(_TC == 1);
-
-            jsonWriter.WritePropertyName("RD");
-            jsonWriter.WriteValue(_RD == 1);
-
-            jsonWriter.WritePropertyName("RA");
-            jsonWriter.WriteValue(_RA == 1);
-
-            jsonWriter.WritePropertyName("AD");
-            jsonWriter.WriteValue(_AD == 1);
-
-            jsonWriter.WritePropertyName("CD");
-            jsonWriter.WriteValue(_CD == 1);
+            jsonWriter.WriteNumber("Status", (int)_RCODE);
+            jsonWriter.WriteBoolean("TC", _TC == 1);
+            jsonWriter.WriteBoolean("RD", _RD == 1);
+            jsonWriter.WriteBoolean("RA", _RA == 1);
+            jsonWriter.WriteBoolean("AD", _AD == 1);
+            jsonWriter.WriteBoolean("CD", _CD == 1);
 
             jsonWriter.WritePropertyName("Question");
             jsonWriter.WriteStartArray();
@@ -1102,11 +1133,8 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 jsonWriter.WriteStartObject();
 
-                jsonWriter.WritePropertyName("name");
-                jsonWriter.WriteValue(question.Name + ".");
-
-                jsonWriter.WritePropertyName("type");
-                jsonWriter.WriteValue((int)question.Type);
+                jsonWriter.WriteString("name", question.Name + ".");
+                jsonWriter.WriteNumber("type", (int)question.Type);
 
                 jsonWriter.WriteEndObject();
             }
@@ -1121,6 +1149,10 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (_additional.Count > 0)
                 WriteSection(jsonWriter, _additional, "Additional");
+
+            EDnsClientSubnetOptionData ecs = GetEDnsClientSubnetOption();
+            if (ecs is not null)
+                jsonWriter.WriteString("edns_client_subnet", ecs.AddressValue.ToString() + "/" + ecs.ScopePrefixLength);
 
             jsonWriter.WriteEndObject();
         }
@@ -1807,7 +1839,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region private
 
-        private static void WriteSection(JsonTextWriter jsonWriter, IReadOnlyList<DnsResourceRecord> section, string sectionName)
+        private static void WriteSection(Utf8JsonWriter jsonWriter, IReadOnlyList<DnsResourceRecord> section, string sectionName)
         {
             if ((section.Count == 1) && (section[0].Type == DnsResourceRecordType.OPT))
                 return;
@@ -1822,17 +1854,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                 jsonWriter.WriteStartObject();
 
-                jsonWriter.WritePropertyName("name");
-                jsonWriter.WriteValue(record.Name + ".");
-
-                jsonWriter.WritePropertyName("type");
-                jsonWriter.WriteValue((ushort)record.Type);
-
-                jsonWriter.WritePropertyName("TTL");
-                jsonWriter.WriteValue(record.TtlValue);
-
-                jsonWriter.WritePropertyName("data");
-                jsonWriter.WriteValue(record.RDATA.ToString());
+                jsonWriter.WriteString("name", record.Name + ".");
+                jsonWriter.WriteNumber("type", (ushort)record.Type);
+                jsonWriter.WriteNumber("TTL", record.TtlValue);
+                jsonWriter.WriteString("data", record.RDATA.ToString());
 
                 jsonWriter.WriteEndObject();
             }
@@ -2177,11 +2202,11 @@ namespace TechnitiumLibrary.Net.Dns
         public IReadOnlyList<DnsResourceRecord> Additional
         { get { return _additional; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public bool IsSigned
         { get { return (_additional.Count > 0) && (_additional[_additional.Count - 1].Type == DnsResourceRecordType.TSIG); } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public DnsTsigError TsigError
         {
             get
@@ -2193,7 +2218,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public string TsigKeyName
         {
             get
@@ -2205,15 +2230,15 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public bool IsZoneTransfer
         { get { return (_question.Count > 0) && ((_question[0].Type == DnsResourceRecordType.IXFR) || (_question[0].Type == DnsResourceRecordType.AXFR)); } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public Exception ParsingException
         { get { return _parsingException; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public DnsDatagram NextDatagram
         {
             get { return _nextDatagram; }
@@ -2226,7 +2251,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public bool DnssecOk
         {
             get
@@ -2238,7 +2263,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public object Tag { get; set; }
 
         #endregion
