@@ -20,7 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -106,11 +106,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region properties
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public ushort RDLENGTH
         { get { return _rdLength; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public abstract ushort UncompressedLength
         { get; }
 

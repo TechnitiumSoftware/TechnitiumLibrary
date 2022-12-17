@@ -20,7 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -289,12 +290,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        public DnsResourceRecord(dynamic jsonResourceRecord)
+        public DnsResourceRecord(JsonElement jsonResourceRecord)
         {
-            _name = (jsonResourceRecord.name.Value as string).TrimEnd('.');
-            _type = (DnsResourceRecordType)jsonResourceRecord.type;
+            _name = jsonResourceRecord.GetProperty("name").GetString().TrimEnd('.');
+            _type = (DnsResourceRecordType)jsonResourceRecord.GetProperty("type").GetUInt16();
             _class = DnsClass.IN;
-            _ttl = jsonResourceRecord.TTL;
+            _ttl = jsonResourceRecord.GetProperty("TTL").GetUInt32();
 
             switch (_type)
             {
@@ -608,7 +609,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsClass Class
         { get { return _class; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public uint TtlValue
         {
             get
@@ -630,7 +631,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public bool IsStale
         {
             get
@@ -642,7 +643,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public bool WasExpiryReset
         { get { return _wasExpiryReset; } }
 
@@ -669,7 +670,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public uint OriginalTtlValue
         { get { return _ttl; } }
 
@@ -679,15 +680,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsResourceRecordData RDATA
         { get { return _data; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public int DatagramOffset
         { get { return _datagramOffset; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public ushort UncompressedLength
         { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_name) + 2 + 2 + 4 + 2 + _data.UncompressedLength); } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public object Tag { get; set; }
 
         public DnssecStatus DnssecStatus
