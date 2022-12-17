@@ -18,8 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
-using System.Runtime.Serialization;
 using System.Security.Cryptography;
+using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.Dnssec
 {
@@ -106,7 +106,7 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
         public RSAParameters RsaPublicKey
         { get { return _rsaPublicKey; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override bool IsAlgorithmSupported
         { get { return true; } }
 

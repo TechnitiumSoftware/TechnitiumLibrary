@@ -21,7 +21,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.EDnsOptions
@@ -195,11 +195,11 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public string Address
         { get { return _address.ToString(); } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public IPAddress AddressValue
         { get { return _address; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + 1 + 1 + (_family == EDnsClientSubnetAddressFamily.IPv4 ? 4 : 16)); } }
 

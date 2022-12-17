@@ -18,7 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
-using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns
 {
@@ -50,7 +50,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region properties
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public NameServerAddress NameServerAddress
         { get { return _server; } }
 
@@ -60,14 +60,14 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsTransportProtocol Protocol
         { get { return _protocol; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public int Size
         { get { return _size; } }
 
         public string DatagramSize
         { get { return _size + " bytes"; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public double RTT
         { get { return _rtt; } }
 

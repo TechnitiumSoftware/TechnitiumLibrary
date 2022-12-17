@@ -19,8 +19,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
-using System.Runtime.Serialization;
 using System.Security.Cryptography;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns.Dnssec
@@ -112,7 +112,7 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
         public byte[] RawPublicKey
         { get { return _rawPublicKey; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public virtual bool IsAlgorithmSupported
         { get { return false; } }
 
