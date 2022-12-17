@@ -21,9 +21,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -77,10 +78,10 @@ namespace TechnitiumLibrary.Net.Dns
             _class = (DnsClass)DnsDatagram.ReadUInt16NetworkOrder(s);
         }
 
-        public DnsQuestionRecord(dynamic jsonQuestionRecord)
+        public DnsQuestionRecord(JsonElement jsonQuestionRecord)
         {
-            _name = (jsonQuestionRecord.name.Value as string).TrimEnd('.');
-            _type = (DnsResourceRecordType)jsonQuestionRecord.type;
+            _name = jsonQuestionRecord.GetProperty("name").GetString().TrimEnd('.');
+            _type = (DnsResourceRecordType)jsonQuestionRecord.GetProperty("type").GetUInt16();
             _class = DnsClass.IN;
         }
 
@@ -223,7 +224,7 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsClass Class
         { get { return _class; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         internal string ZoneCut
         {
             get { return _zoneCut; }
@@ -240,11 +241,11 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         internal string MinimizedName
         { get { return _minimizedName; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         internal DnsResourceRecordType MinimizedType
         {
             get
@@ -261,7 +262,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public ushort UncompressedLength
         { get { return Convert.ToUInt16(_name.Length + 2 + 2 + 2); } }
 
