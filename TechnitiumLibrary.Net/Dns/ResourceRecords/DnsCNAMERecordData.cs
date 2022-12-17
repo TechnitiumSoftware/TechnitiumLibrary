@@ -20,7 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -45,11 +46,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsCNAMERecordData(dynamic jsonResourceRecord)
+        public DnsCNAMERecordData(JsonElement jsonResourceRecord)
         {
-            _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+            string rdata = jsonResourceRecord.GetProperty("data").GetString();
 
-            _domain = (jsonResourceRecord.data.Value as string).TrimEnd('.');
+            _rdLength = Convert.ToUInt16(rdata.Length);
+            _domain = rdata.TrimEnd('.');
         }
 
         #endregion
@@ -110,7 +112,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Domain
         { get { return _domain; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_domain)); } }
 

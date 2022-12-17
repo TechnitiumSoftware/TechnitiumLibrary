@@ -21,7 +21,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using System.Runtime.Serialization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -50,11 +51,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsARecordData(dynamic jsonResourceRecord)
+        public DnsARecordData(JsonElement jsonResourceRecord)
         {
-            _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+            string rdata = jsonResourceRecord.GetProperty("data").GetString();
 
-            _address = System.Net.IPAddress.Parse(jsonResourceRecord.data.Value);
+            _rdLength = Convert.ToUInt16(rdata.Length);
+            _address = System.Net.IPAddress.Parse(rdata);
         }
 
         #endregion
@@ -107,14 +109,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region properties
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public IPAddress Address
         { get { return _address; } }
 
         public string IPAddress
         { get { return _address.ToString(); } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return 4; } }
 

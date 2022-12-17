@@ -20,7 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -87,7 +88,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsTSIGRecordData(dynamic jsonResourceRecord)
+        public DnsTSIGRecordData(JsonElement jsonResourceRecord)
         {
             throw new NotSupportedException();
         }
@@ -204,7 +205,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public byte[] OtherData
         { get { return _otherData; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_algorithmName) + 6 + 2 + 2 + _mac.Length + 2 + 2 + 2 + _otherData.Length); } }
 

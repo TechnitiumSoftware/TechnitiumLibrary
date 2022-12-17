@@ -20,8 +20,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
 using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
 
@@ -64,11 +65,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsRRSIGRecordData(dynamic jsonResourceRecord)
+        public DnsRRSIGRecordData(JsonElement jsonResourceRecord)
         {
-            _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+            string rdata = jsonResourceRecord.GetProperty("data").GetString();
 
-            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
+            _rdLength = Convert.ToUInt16(rdata.Length);
+
+            string[] parts = rdata.Split(' ');
 
             _typeCovered = Enum.Parse<DnsResourceRecordType>(parts[0], true);
             _algorithm = Enum.Parse<DnssecAlgorithm>(parts[1].Replace("-", "_"), true);
@@ -563,14 +566,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public uint OriginalTtl
         { get { return _originalTtl; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public uint SignatureExpirationValue
         { get { return _signatureExpiration; } }
 
         public DateTime SignatureExpiration
         { get { return DateTime.UnixEpoch.AddSeconds(_signatureExpiration); } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public uint SignatureInceptionValue
         { get { return _signatureInception; } }
 
@@ -586,7 +589,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public byte[] Signature
         { get { return _signature; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + 1 + 1 + 4 + 4 + 4 + 2 + DnsDatagram.GetSerializeDomainNameLength(_signersName) + _signature.Length); } }
 

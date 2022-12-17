@@ -20,7 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -66,11 +67,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsSOARecordData(dynamic jsonResourceRecord)
+        public DnsSOARecordData(JsonElement jsonResourceRecord)
         {
-            _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+            string rdata = jsonResourceRecord.GetProperty("data").GetString();
 
-            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
+            _rdLength = Convert.ToUInt16(rdata.Length);
+
+            string[] parts = rdata.Split(' ');
 
             _primaryNameServer = parts[0].TrimEnd('.');
             _responsiblePerson = parts[1].TrimEnd('.');
@@ -226,7 +229,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public uint Minimum
         { get { return _minimum; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_primaryNameServer) + DnsDatagram.GetSerializeDomainNameLength(_responsiblePerson) + 4 + 4 + 4 + 4 + 4); } }
 

@@ -20,7 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -83,11 +84,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsSSHFPRecordData(dynamic jsonResourceRecord)
+        public DnsSSHFPRecordData(JsonElement jsonResourceRecord)
         {
-            _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+            string rdata = jsonResourceRecord.GetProperty("data").GetString();
 
-            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
+            _rdLength = Convert.ToUInt16(rdata.Length);
+
+            string[] parts = rdata.Split(' ');
 
             _algorithm = (DnsSSHFPAlgorithm)byte.Parse(parts[0]);
             _fingerprintType = (DnsSSHFPFingerprintType)byte.Parse(parts[1]);
@@ -161,14 +164,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsSSHFPFingerprintType FingerprintType
         { get { return _fingerprintType; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public byte[] FingerprintValue
         { get { return _fingerprint; } }
 
         public string Fingerprint
         { get { return Convert.ToHexString(_fingerprint); } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(1 + 1 + _fingerprint.Length); } }
 

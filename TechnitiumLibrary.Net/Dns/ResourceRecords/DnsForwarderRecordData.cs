@@ -21,8 +21,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using System.Runtime.Serialization;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -74,11 +75,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsForwarderRecordData(dynamic jsonResourceRecord)
+        public DnsForwarderRecordData(JsonElement jsonResourceRecord)
         {
-            _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+            string rdata = jsonResourceRecord.GetProperty("data").GetString();
 
-            string[] parts = (jsonResourceRecord.data.Value as string).Split(new char[] { ' ' });
+            _rdLength = Convert.ToUInt16(rdata.Length);
+
+            string[] parts = rdata.Split(new char[] { ' ' });
 
             _protocol = Enum.Parse<DnsTransportProtocol>(parts[0], true);
             _forwarder = parts[1];
@@ -240,15 +243,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string ProxyPassword
         { get { return _proxyPassword; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public NameServerAddress NameServer
         { get { return _nameServer; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public NetProxy Proxy
         { get { return _proxy; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         {
             get

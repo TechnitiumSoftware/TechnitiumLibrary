@@ -20,9 +20,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -148,11 +149,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsTLSARecordData(dynamic jsonResourceRecord)
+        public DnsTLSARecordData(JsonElement jsonResourceRecord)
         {
-            _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+            string rdata = jsonResourceRecord.GetProperty("data").GetString();
 
-            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
+            _rdLength = Convert.ToUInt16(rdata.Length);
+
+            string[] parts = rdata.Split(' ');
 
             _certificateUsage = (DnsTLSACertificateUsage)byte.Parse(parts[0]);
             _selector = (DnsTLSASelector)byte.Parse(parts[1]);
@@ -279,14 +282,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsTLSAMatchingType MatchingType
         { get { return _matchingType; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public byte[] CertificateAssociationDataValue
         { get { return _certificateAssociationData; } }
 
         public string CertificateAssociationData
         { get { return Convert.ToHexString(_certificateAssociationData); } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(1 + 1 + 1 + _certificateAssociationData.Length); } }
 

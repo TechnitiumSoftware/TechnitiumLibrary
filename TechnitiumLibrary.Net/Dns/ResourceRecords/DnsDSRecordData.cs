@@ -20,7 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -88,11 +89,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsDSRecordData(dynamic jsonResourceRecord)
+        public DnsDSRecordData(JsonElement jsonResourceRecord)
         {
-            _rdLength = Convert.ToUInt16(jsonResourceRecord.data.Value.Length);
+            string rdata = jsonResourceRecord.GetProperty("data").GetString();
 
-            string[] parts = (jsonResourceRecord.data.Value as string).Split(' ');
+            _rdLength = Convert.ToUInt16(rdata.Length);
+
+            string[] parts = rdata.Split(' ');
 
             _keyTag = ushort.Parse(parts[0]);
             _algorithm = Enum.Parse<DnssecAlgorithm>(parts[1].Replace("-", "_"), true);
@@ -260,14 +263,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnssecDigestType DigestType
         { get { return _digestType; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public byte[] DigestValue
         { get { return _digest; } }
 
         public string Digest
         { get { return Convert.ToHexString(_digest); } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + 1 + 1 + _digest.Length); } }
 

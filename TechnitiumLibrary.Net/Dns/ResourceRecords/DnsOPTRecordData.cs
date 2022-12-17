@@ -20,7 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -54,7 +55,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 _options = Array.Empty<EDnsOption>();
         }
 
-        public DnsOPTRecordData(dynamic jsonResourceRecord)
+        public DnsOPTRecordData(JsonElement jsonResourceRecord)
         {
             throw new NotSupportedException();
         }
@@ -145,7 +146,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public IReadOnlyList<EDnsOption> Options
         { get { return _options; } }
 
-        [IgnoreDataMember]
+        [JsonIgnore]
         public override ushort UncompressedLength
         {
             get
