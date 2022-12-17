@@ -1,0 +1,216 @@
+﻿/*
+Technitium Library
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+using System;
+using System.Collections.Generic;
+using System.Text.Json;
+
+namespace TechnitiumLibrary
+{
+    public static class JsonExtension
+    {
+        #region private
+
+        private static string[] ReadArray(JsonElement jsonArray)
+        {
+            string[] array = new string[jsonArray.GetArrayLength()];
+            int i = 0;
+
+            foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
+                array[i++] = jsonItem.GetString();
+
+            return array;
+        }
+
+        private static T[] ReadArray<T>(JsonElement jsonArray, Func<string, T> getObject)
+        {
+            T[] array = new T[jsonArray.GetArrayLength()];
+            int i = 0;
+
+            foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
+                array[i++] = getObject(jsonItem.GetString());
+
+            return array;
+        }
+
+        private static T[] ReadArray<T>(JsonElement jsonArray, Func<JsonElement, T> getObject)
+        {
+            T[] array = new T[jsonArray.GetArrayLength()];
+            int i = 0;
+
+            foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
+                array[i++] = getObject(jsonItem);
+
+            return array;
+        }
+
+        private static Dictionary<TKey, TValue> ReadArrayAsMap<TKey, TValue>(JsonElement jsonArray, Func<JsonElement, Tuple<TKey, TValue>> getObject)
+        {
+            Dictionary<TKey, TValue> map = new Dictionary<TKey, TValue>(jsonArray.GetArrayLength());
+
+            foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
+            {
+                Tuple<TKey, TValue> item = getObject(jsonItem);
+                if (item is not null)
+                    map.Add(item.Item1, item.Item2);
+            }
+
+            return map;
+        }
+
+        private static Dictionary<TKey, TValue> ReadObjectAsMap<TKey, TValue>(JsonElement jsonMap, Func<string, JsonElement, Tuple<TKey, TValue>> getObject)
+        {
+            Dictionary<TKey, TValue> map = new Dictionary<TKey, TValue>();
+
+            foreach (JsonProperty jsonProperty in jsonMap.EnumerateObject())
+            {
+                Tuple<TKey, TValue> item = getObject(jsonProperty.Name, jsonProperty.Value);
+                if (item is not null)
+                    map.Add(item.Item1, item.Item2);
+            }
+
+            return map;
+        }
+
+        #endregion
+
+        #region public
+
+        public static string[] ReadArray(this JsonElement jsonElement, string propertyName)
+        {
+            return ReadArray(jsonElement.GetProperty(propertyName));
+        }
+
+        public static bool TryReadArray(this JsonElement jsonElement, string propertyName, out string[] array)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            {
+                array = ReadArray(jsonArray);
+                return true;
+            }
+
+            array = null;
+            return false;
+        }
+
+        public static T[] ReadArray<T>(this JsonElement jsonElement, string propertyName, Func<string, T> getObject)
+        {
+            return ReadArray(jsonElement.GetProperty(propertyName), getObject);
+        }
+
+        public static bool TryReadArray<T>(this JsonElement jsonElement, string propertyName, Func<string, T> getObject, out T[] array)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            {
+                array = ReadArray(jsonArray, getObject);
+                return true;
+            }
+
+            array = null;
+            return false;
+        }
+
+        public static T[] ReadArray<T>(this JsonElement jsonElement, string propertyName, Func<JsonElement, T> getObject)
+        {
+            return ReadArray(jsonElement.GetProperty(propertyName), getObject);
+        }
+
+        public static bool TryReadArray<T>(this JsonElement jsonElement, string propertyName, Func<JsonElement, T> getObject, out T[] array)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            {
+                array = ReadArray(jsonArray, getObject);
+                return true;
+            }
+
+            array = null;
+            return false;
+        }
+
+        public static Dictionary<TKey, TValue> ReadArrayAsMap<TKey, TValue>(this JsonElement jsonElement, string propertyName, Func<JsonElement, Tuple<TKey, TValue>> getObject)
+        {
+            return ReadArrayAsMap(jsonElement.GetProperty(propertyName), getObject);
+        }
+
+        public static bool TryReadArrayAsMap<TKey, TValue>(this JsonElement jsonElement, string propertyName, Func<JsonElement, Tuple<TKey, TValue>> getObject, out Dictionary<TKey, TValue> map)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            {
+                map = ReadArrayAsMap(jsonArray, getObject);
+                return true;
+            }
+
+            map = null;
+            return false;
+        }
+
+        public static Dictionary<TKey, TValue> ReadObjectAsMap<TKey, TValue>(this JsonElement jsonElement, string propertyName, Func<string, JsonElement, Tuple<TKey, TValue>> getObject)
+        {
+            JsonElement jsonMap = jsonElement.GetProperty(propertyName);
+            Dictionary<TKey, TValue> map = new Dictionary<TKey, TValue>();
+
+            foreach (JsonProperty jsonProperty in jsonMap.EnumerateObject())
+            {
+                Tuple<TKey, TValue> item = getObject(jsonProperty.Name, jsonProperty.Value);
+                if (item is not null)
+                    map.Add(item.Item1, item.Item2);
+            }
+
+            return map;
+        }
+
+        public static bool TryReadObjectAsMap<TKey, TValue>(this JsonElement jsonElement, string propertyName, Func<string, JsonElement, Tuple<TKey, TValue>> getObject, out Dictionary<TKey, TValue> map)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            {
+                map = ReadObjectAsMap(jsonArray, getObject);
+                return true;
+            }
+
+            map = null;
+            return false;
+        }
+
+        public static string GetPropertyValue(this JsonElement jsonElement, string propertyName, string defaultValue)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue))
+                return jsonValue.GetString();
+
+            return defaultValue;
+        }
+
+        public static bool GetPropertyValue(this JsonElement jsonElement, string propertyName, bool defaultValue)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue))
+                return jsonValue.GetBoolean();
+
+            return defaultValue;
+        }
+
+        public static int GetPropertyValue(this JsonElement jsonElement, string propertyName, int defaultValue)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue))
+                return jsonValue.GetInt32();
+
+            return defaultValue;
+        }
+
+        #endregion
+    }
+}
