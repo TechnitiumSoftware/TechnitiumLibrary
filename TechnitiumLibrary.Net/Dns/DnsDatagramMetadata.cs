@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 
 namespace TechnitiumLibrary.Net.Dns
 {
@@ -48,31 +48,35 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
+        #region public
+
+        public void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("NameServer", _server?.ToString());
+            jsonWriter.WriteString("Protocol", _protocol.ToString());
+            jsonWriter.WriteString("DatagramSize", _size + " bytes");
+            jsonWriter.WriteString("RoundTripTime", Math.Round(_rtt, 2) + " ms");
+
+            jsonWriter.WriteEndObject();
+        }
+
+        #endregion
+
         #region properties
 
-        [JsonIgnore]
-        public NameServerAddress NameServerAddress
+        public NameServerAddress NameServer
         { get { return _server; } }
-
-        public string NameServer
-        { get { return _server?.ToString(); } }
 
         public DnsTransportProtocol Protocol
         { get { return _protocol; } }
 
-        [JsonIgnore]
-        public int Size
+        public int DatagramSize
         { get { return _size; } }
 
-        public string DatagramSize
-        { get { return _size + " bytes"; } }
-
-        [JsonIgnore]
-        public double RTT
+        public double RoundTripTime
         { get { return _rtt; } }
-
-        public string RoundTripTime
-        { get { return Math.Round(_rtt, 2) + " ms"; } }
 
         #endregion
     }
