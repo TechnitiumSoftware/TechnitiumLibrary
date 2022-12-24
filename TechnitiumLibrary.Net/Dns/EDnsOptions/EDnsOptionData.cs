@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 
 namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 {
@@ -81,15 +81,15 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         public override abstract string ToString();
 
+        public abstract void SerializeTo(Utf8JsonWriter jsonWriter);
+
         #endregion
 
         #region properties
 
-        [JsonIgnore]
         public ushort Length
         { get { return _length; } }
 
-        [JsonIgnore]
         public abstract ushort UncompressedLength
         { get; }
 

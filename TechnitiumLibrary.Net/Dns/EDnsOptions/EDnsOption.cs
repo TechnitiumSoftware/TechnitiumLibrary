@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 
 namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 {
@@ -121,6 +121,19 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             return _code.ToString() + " " + _data.ToString();
         }
 
+        public void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("Code", _code.ToString());
+            jsonWriter.WriteString("Length", _data.Length + " bytes");
+
+            jsonWriter.WritePropertyName("Data");
+            _data.SerializeTo(jsonWriter);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -128,13 +141,9 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public EDnsOptionCode Code
         { get { return _code; } }
 
-        public string Length
-        { get { return _data.Length + " bytes"; } }
-
         public EDnsOptionData Data
         { get { return _data; } }
 
-        [JsonIgnore]
         public ushort UncompressedLength
         { get { return (ushort)(2 + 2 + _data.UncompressedLength); } }
 

@@ -21,7 +21,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.EDnsOptions
@@ -179,6 +179,18 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             return "[" + _family.ToString() + " " + _sourcePrefixLength.ToString() + " " + _scopePrefixLength + " " + _address.ToString() + "]";
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("Family", _family.ToString());
+            jsonWriter.WriteNumber("SourcePrefixLength", _sourcePrefixLength);
+            jsonWriter.WriteNumber("ScopePrefixLength", _scopePrefixLength);
+            jsonWriter.WriteString("Address", _address.ToString());
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -192,14 +204,9 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public byte ScopePrefixLength
         { get { return _scopePrefixLength; } }
 
-        public string Address
-        { get { return _address.ToString(); } }
-
-        [JsonIgnore]
-        public IPAddress AddressValue
+        public IPAddress Address
         { get { return _address; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + 1 + 1 + (_family == EDnsClientSubnetAddressFamily.IPv4 ? 4 : 16)); } }
 

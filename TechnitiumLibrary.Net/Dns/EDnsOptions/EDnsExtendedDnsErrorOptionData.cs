@@ -20,7 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.IO;
 using System.Text;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.EDnsOptions
@@ -234,6 +234,16 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             return "[" + _infoCode.ToString() + (_extraText is null ? "" : ": " + _extraText) + "]";
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("InfoCode", _infoCode.ToString());
+            jsonWriter.WriteString("ExtraText", _extraText);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -244,7 +254,6 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public string ExtraText
         { get { return _extraText; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + (_extraText is null ? 0 : _extraText.Length)); } }
 
