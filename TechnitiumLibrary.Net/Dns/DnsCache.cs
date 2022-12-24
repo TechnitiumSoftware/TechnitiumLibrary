@@ -22,6 +22,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Text.Json;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
@@ -610,7 +611,7 @@ namespace TechnitiumLibrary.Net.Dns
             EDnsClientSubnetOptionData ecs = response.GetEDnsClientSubnetOption();
             if (ecs is not null)
             {
-                eDnsClientSubnet = new NetworkAddress(ecs.AddressValue, Math.Min(ecs.SourcePrefixLength, ecs.ScopePrefixLength));
+                eDnsClientSubnet = new NetworkAddress(ecs.Address, Math.Min(ecs.SourcePrefixLength, ecs.ScopePrefixLength));
 
                 foreach (DnsResourceRecord record in response.Answer)
                     SetEDnsClientSubnetTo(record, eDnsClientSubnet);
@@ -1378,6 +1379,11 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 return value;
+            }
+
+            public override void SerializeTo(Utf8JsonWriter jsonWriter)
+            {
+                throw new InvalidOperationException();
             }
 
             #endregion
