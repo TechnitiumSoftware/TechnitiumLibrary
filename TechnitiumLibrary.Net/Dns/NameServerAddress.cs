@@ -227,7 +227,6 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
 
                 case DnsTransportProtocol.Https:
-                case DnsTransportProtocol.HttpsJson:
                     if (_dohEndPoint == null)
                         throw new ArgumentException("Invalid DNS transport protocol was specified for current operation: " + _protocol.ToString());
 
@@ -519,7 +518,6 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
 
                 case DnsTransportProtocol.Https:
-                case DnsTransportProtocol.HttpsJson:
                     {
                         int port;
 
