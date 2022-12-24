@@ -24,7 +24,6 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -211,6 +210,17 @@ namespace TechnitiumLibrary.Net.Dns
             return _name.ToLowerInvariant() + ". " + _type.ToString() + " " + _class.ToString();
         }
 
+        public void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("Name", _name);
+            jsonWriter.WriteString("Type", _type.ToString());
+            jsonWriter.WriteString("Class", _class.ToString());
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -224,7 +234,6 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsClass Class
         { get { return _class; } }
 
-        [JsonIgnore]
         internal string ZoneCut
         {
             get { return _zoneCut; }
@@ -241,11 +250,9 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        [JsonIgnore]
         internal string MinimizedName
         { get { return _minimizedName; } }
 
-        [JsonIgnore]
         internal DnsResourceRecordType MinimizedType
         {
             get
@@ -262,7 +269,6 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        [JsonIgnore]
         public ushort UncompressedLength
         { get { return Convert.ToUInt16(_name.Length + 2 + 2 + 2); } }
 
