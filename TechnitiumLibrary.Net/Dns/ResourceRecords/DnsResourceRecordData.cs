@@ -20,7 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -29,6 +29,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #region variables
 
         protected ushort _rdLength;
+        readonly bool _emptyRData;
 
         #endregion
 
@@ -45,6 +46,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             //read RDATA
             if (_rdLength > 0)
                 ReadRecordData(s);
+            else
+                _emptyRData = true;
         }
 
         #endregion
@@ -78,22 +81,30 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
         {
-            long originalPosition = s.Position;
+            if (_emptyRData)
+            {
+                Span<byte> buffer = stackalloc byte[2];
+                s.Write(buffer);
+            }
+            else
+            {
+                long originalPosition = s.Position;
 
-            //write dummy RDLENGTH
-            s.Position += 2;
+                //write dummy RDLENGTH
+                s.Position += 2;
 
-            //write RDATA
-            WriteRecordData(s, domainEntries, false);
+                //write RDATA
+                WriteRecordData(s, domainEntries, false);
 
-            long finalPosition = s.Position;
+                long finalPosition = s.Position;
 
-            //write actual RDLENGTH
-            ushort length = Convert.ToUInt16(finalPosition - originalPosition - 2);
-            s.Position = originalPosition;
-            DnsDatagram.WriteUInt16NetworkOrder(length, s);
+                //write actual RDLENGTH
+                ushort length = Convert.ToUInt16(finalPosition - originalPosition - 2);
+                s.Position = originalPosition;
+                DnsDatagram.WriteUInt16NetworkOrder(length, s);
 
-            s.Position = finalPosition;
+                s.Position = finalPosition;
+            }
         }
 
         public override abstract bool Equals(object obj);
@@ -102,15 +113,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override abstract string ToString();
 
+        public abstract void SerializeTo(Utf8JsonWriter jsonWriter);
+
         #endregion
 
         #region properties
 
-        [JsonIgnore]
         public ushort RDLENGTH
         { get { return _rdLength; } }
 
-        [JsonIgnore]
         public abstract ushort UncompressedLength
         { get; }
 
