@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -53,11 +52,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             if (_options is null)
                 _options = Array.Empty<EDnsOption>();
-        }
-
-        public DnsOPTRecordData(JsonElement jsonResourceRecord)
-        {
-            throw new NotSupportedException();
         }
 
         #endregion
@@ -139,6 +133,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return nameof(DnsOPTRecordData);
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WritePropertyName("Options");
+            jsonWriter.WriteStartArray();
+
+            foreach (EDnsOption option in _options)
+                option.SerializeTo(jsonWriter);
+
+            jsonWriter.WriteEndArray();
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -146,7 +155,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public IReadOnlyList<EDnsOption> Options
         { get { return _options; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         {
             get

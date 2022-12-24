@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -88,22 +87,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsDSRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsDSRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(' ');
-
-            _keyTag = ushort.Parse(parts[0]);
-            _algorithm = Enum.Parse<DnssecAlgorithm>(parts[1].Replace("-", "_"), true);
-            _digestType = Enum.Parse<DnssecDigestType>(parts[2], true);
-            _digest = Convert.FromHexString(parts[3]);
-
-            Serialize();
-        }
 
         #endregion
 
@@ -250,6 +233,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return _keyTag + " " + (byte)_algorithm + " " + (byte)_digestType + " " + Convert.ToHexString(_digest);
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteNumber("KeyTag", _keyTag);
+            jsonWriter.WriteString("Algorithm", _algorithm.ToString());
+            jsonWriter.WriteString("DigestType", _digestType.ToString());
+            jsonWriter.WriteString("Digest", Convert.ToHexString(_digest));
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -263,14 +258,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnssecDigestType DigestType
         { get { return _digestType; } }
 
-        [JsonIgnore]
-        public byte[] DigestValue
+        public byte[] Digest
         { get { return _digest; } }
 
-        public string Digest
-        { get { return Convert.ToHexString(_digest); } }
-
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + 1 + 1 + _digest.Length); } }
 

@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -66,32 +65,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsSOARecordData(Stream s)
             : base(s)
         { }
-
-        public DnsSOARecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(' ');
-
-            _primaryNameServer = parts[0].TrimEnd('.');
-            _responsiblePerson = parts[1].TrimEnd('.');
-            _serial = uint.Parse(parts[2]);
-            _refresh = uint.Parse(parts[3]);
-            _retry = uint.Parse(parts[4]);
-            _expire = uint.Parse(parts[5]);
-            _minimum = uint.Parse(parts[6]);
-
-            int i = _responsiblePerson.LastIndexOf("\\.");
-            if (i < 0)
-                i = _responsiblePerson.IndexOf('.');
-            else
-                i = _responsiblePerson.IndexOf('.', i + 2);
-
-            if (i > -1)
-                _responsiblePerson = _responsiblePerson.Substring(0, i).Replace("\\.", ".") + "@" + _responsiblePerson.Substring(i + 1);
-        }
 
         #endregion
 
@@ -204,6 +177,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return _primaryNameServer.ToLowerInvariant() + ". " + responsiblePerson.ToLowerInvariant() + ". " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("PrimaryNameServer", _primaryNameServer);
+            jsonWriter.WriteString("ResponsiblePerson", _responsiblePerson);
+            jsonWriter.WriteNumber("Serial", _serial);
+            jsonWriter.WriteNumber("Refresh", _refresh);
+            jsonWriter.WriteNumber("Retry", _retry);
+            jsonWriter.WriteNumber("Expire", _expire);
+            jsonWriter.WriteNumber("Minimum", _minimum);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -229,7 +217,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public uint Minimum
         { get { return _minimum; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_primaryNameServer) + DnsDatagram.GetSerializeDomainNameLength(_responsiblePerson) + 4 + 4 + 4 + 4 + 4); } }
 

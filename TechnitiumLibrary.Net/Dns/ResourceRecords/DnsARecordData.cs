@@ -17,12 +17,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -43,21 +42,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _address = address;
 
-            if (_address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            if (_address.AddressFamily != AddressFamily.InterNetwork)
                 throw new DnsClientException("Invalid IP address family.");
         }
 
         public DnsARecordData(Stream s)
             : base(s)
         { }
-
-        public DnsARecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-            _address = System.Net.IPAddress.Parse(rdata);
-        }
 
         #endregion
 
@@ -105,18 +96,22 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return _address.ToString();
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("IPAddress", _address.ToString());
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
 
-        [JsonIgnore]
         public IPAddress Address
         { get { return _address; } }
 
-        public string IPAddress
-        { get { return _address.ToString(); } }
-
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return 4; } }
 

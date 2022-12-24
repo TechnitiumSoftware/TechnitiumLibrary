@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -47,14 +46,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsTXTRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsTXTRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-            _text = DnsDatagram.DecodeCharacterString(rdata);
-        }
 
         #endregion
 
@@ -143,6 +134,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return DnsDatagram.EncodeCharacterString(_text);
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("Text", _text);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -150,7 +150,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Text
         { get { return _text; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(Convert.ToInt32(Math.Ceiling(_text.Length / 255d)) + _text.Length); } }
 

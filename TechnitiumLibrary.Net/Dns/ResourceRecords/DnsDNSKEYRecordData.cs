@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.Dnssec;
 
@@ -86,23 +85,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsDNSKEYRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsDNSKEYRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(' ');
-
-            _flags = Enum.Parse<DnsDnsKeyFlag>(parts[0], true);
-            _protocol = byte.Parse(parts[1]);
-            _algorithm = Enum.Parse<DnssecAlgorithm>(parts[2].Replace("-", "_"), true);
-            _publicKey = DnssecPublicKey.Parse(_algorithm, Convert.FromBase64String(parts[3]));
-
-            Serialize();
-            ComputeKeyTag();
-        }
 
         #endregion
 
@@ -235,7 +217,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             byte[] computedDigest = ComputeDigest(ownerName, ds.DigestType);
 
-            return BinaryNumber.Equals(computedDigest, ds.DigestValue);
+            return BinaryNumber.Equals(computedDigest, ds.Digest);
         }
 
         public DnsDSRecordData CreateDS(string ownerName, DnssecDigestType digestType)
@@ -283,6 +265,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return (ushort)_flags + " " + _protocol + " " + (byte)_algorithm + " " + Convert.ToBase64String(_publicKey.RawPublicKey);
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("Flags", _flags.ToString());
+            jsonWriter.WriteNumber("Protocol", _protocol);
+            jsonWriter.WriteString("Algorithm", _algorithm.ToString());
+            jsonWriter.WriteString("PublicKey", Convert.ToBase64String(_publicKey.RawPublicKey));
+            jsonWriter.WriteNumber("ComputedKeyTag", _computedKeyTag);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -302,7 +297,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public ushort ComputedKeyTag
         { get { return _computedKeyTag; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(_rData.Length); } }
 

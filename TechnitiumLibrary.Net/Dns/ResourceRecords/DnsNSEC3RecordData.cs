@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -83,30 +82,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsNSEC3RecordData(Stream s)
             : base(s)
         { }
-
-        public DnsNSEC3RecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.TrimEnd(' ').Split(' ');
-
-            _hashAlgorithm = Enum.Parse<DnssecNSEC3HashAlgorithm>(parts[0], true);
-            _flags = Enum.Parse<DnssecNSEC3Flags>(parts[1], true);
-            _iterations = ushort.Parse(parts[2]);
-            _salt = parts[3] == "-" ? Array.Empty<byte>() : Convert.FromHexString(parts[3]);
-            _nextHashedOwnerNameValue = Base32.FromBase32HexString(parts[4]);
-
-            DnsResourceRecordType[] types = new DnsResourceRecordType[parts.Length - 5];
-
-            for (int i = 0; i < types.Length; i++)
-                types[i] = Enum.Parse<DnsResourceRecordType>(parts[i + 5], true);
-
-            _types = types;
-
-            Serialize();
-        }
 
         #endregion
 
@@ -523,6 +498,27 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return str;
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("HashAlgorithm", _hashAlgorithm.ToString());
+            jsonWriter.WriteString("Flags", _flags.ToString());
+            jsonWriter.WriteNumber("Iterations", _iterations);
+            jsonWriter.WriteString("Salt", Convert.ToHexString(_salt));
+            jsonWriter.WriteString("NextHashedOwnerName", _nextHashedOwnerName);
+
+            jsonWriter.WritePropertyName("Types");
+            jsonWriter.WriteStartArray();
+
+            foreach (DnsResourceRecordType type in _types)
+                jsonWriter.WriteStringValue(type.ToString());
+
+            jsonWriter.WriteEndArray();
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -536,24 +532,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public ushort Iterations
         { get { return _iterations; } }
 
-        public string Salt
-        { get { return Convert.ToHexString(_salt); } }
-
-        [JsonIgnore]
-        public byte[] SaltValue
+        public byte[] Salt
         { get { return _salt; } }
 
         public string NextHashedOwnerName
         { get { return _nextHashedOwnerName; } }
 
-        [JsonIgnore]
         public byte[] NextHashedOwnerNameValue
         { get { return _nextHashedOwnerNameValue; } }
 
         public IReadOnlyList<DnsResourceRecordType> Types
         { get { return _types; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(_rData.Length); } }
 

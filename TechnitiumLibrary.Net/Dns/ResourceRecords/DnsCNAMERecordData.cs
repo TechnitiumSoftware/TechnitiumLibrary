@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -45,14 +44,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsCNAMERecordData(Stream s)
             : base(s)
         { }
-
-        public DnsCNAMERecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-            _domain = rdata.TrimEnd('.');
-        }
 
         #endregion
 
@@ -105,6 +96,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return _domain.ToLowerInvariant() + ".";
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("Domain", _domain);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -112,7 +112,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Domain
         { get { return _domain; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_domain)); } }
 

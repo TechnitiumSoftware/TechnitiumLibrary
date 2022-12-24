@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -51,20 +50,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsSRVRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsSRVRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(' ');
-
-            _priority = ushort.Parse(parts[0]);
-            _weight = ushort.Parse(parts[1]);
-            _port = ushort.Parse(parts[2]);
-            _target = parts[3].TrimEnd('.');
-        }
 
         #endregion
 
@@ -137,6 +122,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return _priority + " " + _weight + " " + _port + " " + _target.ToLowerInvariant() + ".";
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteNumber("Priority", _priority);
+            jsonWriter.WriteNumber("Weight", _weight);
+            jsonWriter.WriteNumber("Port", _port);
+            jsonWriter.WriteString("Target", _target);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -153,7 +150,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Target
         { get { return _target; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + 2 + 2 + DnsDatagram.GetSerializeDomainNameLength(_target)); } }
 

@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -87,11 +86,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsTSIGRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsTSIGRecordData(JsonElement jsonResourceRecord)
-        {
-            throw new NotSupportedException();
-        }
 
         #endregion
 
@@ -180,6 +174,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return _algorithmName + ". " + _timeSigned + " " + _fudge + " " + Convert.ToBase64String(_mac) + " " + _originalID + " " + _error + " " + Convert.ToBase64String(_otherData);
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("AlgorithmName", _algorithmName);
+            jsonWriter.WriteNumber("TimeSigned", _timeSigned);
+            jsonWriter.WriteNumber("Fudge", _fudge);
+            jsonWriter.WriteString("MAC", Convert.ToBase64String(_mac));
+            jsonWriter.WriteNumber("OriginalID", _originalID);
+            jsonWriter.WriteString("Error", _error.ToString());
+            jsonWriter.WriteString("OtherData", Convert.ToBase64String(_otherData));
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -205,7 +214,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public byte[] OtherData
         { get { return _otherData; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_algorithmName) + 6 + 2 + 2 + _mac.Length + 2 + 2 + 2 + _otherData.Length); } }
 

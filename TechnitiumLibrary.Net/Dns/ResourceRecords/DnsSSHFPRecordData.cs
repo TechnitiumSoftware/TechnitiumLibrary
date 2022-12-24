@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -84,19 +83,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsSSHFPRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(' ');
-
-            _algorithm = (DnsSSHFPAlgorithm)byte.Parse(parts[0]);
-            _fingerprintType = (DnsSSHFPFingerprintType)byte.Parse(parts[1]);
-            _fingerprint = Convert.FromHexString(parts[2]);
-        }
-
         #endregion
 
         #region protected
@@ -154,6 +140,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return (byte)_algorithm + " " + (byte)_fingerprintType + " " + Convert.ToHexString(_fingerprint);
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("Algorithm", _algorithm.ToString());
+            jsonWriter.WriteString("FingerprintType", _fingerprint.ToString());
+            jsonWriter.WriteString("Fingerprint", Convert.ToHexString(_fingerprint));
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -164,14 +161,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsSSHFPFingerprintType FingerprintType
         { get { return _fingerprintType; } }
 
-        [JsonIgnore]
-        public byte[] FingerprintValue
+        public byte[] Fingerprint
         { get { return _fingerprint; } }
 
-        public string Fingerprint
-        { get { return Convert.ToHexString(_fingerprint); } }
-
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(1 + 1 + _fingerprint.Length); } }
 

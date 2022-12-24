@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -54,14 +53,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsNSRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsNSRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-            _nameServer = rdata.TrimEnd('.');
-        }
 
         #endregion
 
@@ -114,6 +105,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return _nameServer.ToLowerInvariant() + ".";
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("NameServer", _nameServer);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -121,7 +121,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string NameServer
         { get { return _nameServer; } }
 
-        [JsonIgnore]
         public uint ParentSideTtl
         {
             get
@@ -151,11 +150,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        [JsonIgnore]
         public bool IsParentSideTtlSet
         { get { return _parentSideTtlExpirySet; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_nameServer)); } }
 

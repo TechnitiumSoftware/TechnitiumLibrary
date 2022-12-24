@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -54,22 +53,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsNSEC3PARAMRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsNSEC3PARAMRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(' ');
-
-            _hashAlgorithm = Enum.Parse<DnssecNSEC3HashAlgorithm>(parts[0], true);
-            _flags = Enum.Parse<DnssecNSEC3Flags>(parts[1], true);
-            _iterations = ushort.Parse(parts[2]);
-            _salt = parts[3] == "-" ? Array.Empty<byte>() : Convert.FromHexString(parts[3]);
-
-            Serialize();
-        }
 
         #endregion
 
@@ -163,6 +146,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return (byte)_hashAlgorithm + " " + (byte)_flags + " " + _iterations + " " + (_salt.Length == 0 ? "-" : Convert.ToHexString(_salt));
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("HashAlgorithm", _hashAlgorithm.ToString());
+            jsonWriter.WriteString("Flags", _flags.ToString());
+            jsonWriter.WriteNumber("Iterations", _iterations);
+            jsonWriter.WriteString("Salt", Convert.ToHexString(_salt));
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -176,14 +171,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public ushort Iterations
         { get { return _iterations; } }
 
-        public string Salt
-        { get { return Convert.ToHexString(_salt); } }
-
-        [JsonIgnore]
-        public byte[] SaltValue
+        public byte[] Salt
         { get { return _salt; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(_rData.Length); } }
 

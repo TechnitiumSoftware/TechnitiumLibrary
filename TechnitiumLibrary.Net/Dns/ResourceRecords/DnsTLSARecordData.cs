@@ -149,20 +149,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             : base(s)
         { }
 
-        public DnsTLSARecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(' ');
-
-            _certificateUsage = (DnsTLSACertificateUsage)byte.Parse(parts[0]);
-            _selector = (DnsTLSASelector)byte.Parse(parts[1]);
-            _matchingType = (DnsTLSAMatchingType)byte.Parse(parts[2]);
-            _certificateAssociationData = Convert.FromHexString(parts[3]);
-        }
-
         #endregion
 
         #region static
@@ -269,6 +255,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return (byte)_certificateUsage + " " + (byte)_selector + " " + (byte)_matchingType + " " + Convert.ToHexString(_certificateAssociationData);
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("CertificateUsage", _certificateUsage.ToString());
+            jsonWriter.WriteString("Selector", _selector.ToString());
+            jsonWriter.WriteString("MatchingType", _matchingType.ToString());
+            jsonWriter.WriteString("CertificateAssociationData", Convert.ToHexString(_certificateAssociationData));
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -282,14 +280,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsTLSAMatchingType MatchingType
         { get { return _matchingType; } }
 
-        [JsonIgnore]
-        public byte[] CertificateAssociationDataValue
+        public byte[] CertificateAssociationData
         { get { return _certificateAssociationData; } }
 
-        public string CertificateAssociationData
-        { get { return Convert.ToHexString(_certificateAssociationData); } }
-
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(1 + 1 + 1 + _certificateAssociationData.Length); } }
 

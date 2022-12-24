@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -72,27 +71,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsNSECRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsNSECRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.TrimEnd(' ').Split(' ');
-
-            _nextDomainName = parts[0].TrimEnd('.');
-
-            DnsResourceRecordType[] types = new DnsResourceRecordType[parts.Length - 1];
-
-            for (int i = 0; i < types.Length; i++)
-                types[i] = Enum.Parse<DnsResourceRecordType>(parts[i + 1], true);
-
-            _types = types;
-
-            Serialize();
-            CheckForDelegation();
-        }
 
         #endregion
 
@@ -512,6 +490,23 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return str;
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("NextDomainName", _nextDomainName);
+
+            jsonWriter.WritePropertyName("Types");
+            jsonWriter.WriteStartArray();
+
+            foreach (DnsResourceRecordType type in _types)
+                jsonWriter.WriteStringValue(type.ToString());
+
+            jsonWriter.WriteEndArray();
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -522,7 +517,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public IReadOnlyList<DnsResourceRecordType> Types
         { get { return _types; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(_rData.Length); } }
 

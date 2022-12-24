@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -47,18 +46,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsMXRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsMXRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(' ');
-
-            _preference = ushort.Parse(parts[0]);
-            _exchange = parts[1].TrimEnd('.');
-        }
 
         #endregion
 
@@ -123,6 +110,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return _preference + " " + _exchange.ToLowerInvariant() + ".";
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteNumber("Preference", _preference);
+            jsonWriter.WriteString("Exchange", _exchange);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -133,7 +130,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Exchange
         { get { return _exchange; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + DnsDatagram.GetSerializeDomainNameLength(_exchange)); } }
 

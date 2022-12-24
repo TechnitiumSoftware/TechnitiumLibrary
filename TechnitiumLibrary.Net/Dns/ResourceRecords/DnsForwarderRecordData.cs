@@ -23,7 +23,6 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -68,46 +67,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 _proxyPassword = proxyPassword;
             }
 
-            InitObjects();
+            if (_protocol == DnsTransportProtocol.HttpsJson)
+                _protocol = DnsTransportProtocol.Https;
+
+            _nameServer = new NameServerAddress(_forwarder, _protocol);
         }
 
         public DnsForwarderRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsForwarderRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(new char[] { ' ' });
-
-            _protocol = Enum.Parse<DnsTransportProtocol>(parts[0], true);
-            _forwarder = parts[1];
-
-            if (parts.Length > 2)
-            {
-                _dnssecValidation = bool.Parse(parts[2]);
-                _proxyType = Enum.Parse<NetProxyType>(parts[3], true);
-
-                if (_proxyType != NetProxyType.None)
-                {
-                    _proxyAddress = parts[4];
-                    _proxyPort = ushort.Parse(parts[5]);
-
-                    if (parts.Length > 6)
-                        _proxyUsername = parts[6];
-                    else
-                        _proxyUsername = "";
-
-                    if (parts.Length > 7)
-                        _proxyPassword = parts[7];
-                    else
-                        _proxyPassword = "";
-                }
-            }
-        }
 
         #endregion
 
@@ -135,7 +103,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 }
             }
 
-            InitObjects();
+            if (_protocol == DnsTransportProtocol.HttpsJson)
+                _protocol = DnsTransportProtocol.Https;
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
@@ -151,21 +120,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 DnsDatagram.WriteUInt16NetworkOrder(_proxyPort, s);
                 s.WriteShortString(_proxyUsername, Encoding.ASCII);
                 s.WriteShortString(_proxyPassword, Encoding.ASCII);
-            }
-        }
-
-        #endregion
-
-        #region private
-
-        private void InitObjects()
-        {
-            _nameServer = new NameServerAddress(_forwarder, _protocol);
-
-            if (_proxyType != NetProxyType.None)
-            {
-                _proxy = NetProxy.CreateProxy(_proxyType, _proxyAddress, _proxyPort, string.IsNullOrEmpty(_proxyUsername) ? null : new NetworkCredential(_proxyUsername, _proxyPassword));
-                _proxy.BypassList = null;
             }
         }
 
@@ -215,6 +169,26 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return str;
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("protocol", _protocol.ToString());
+            jsonWriter.WriteString("forwarder", _forwarder);
+            jsonWriter.WriteBoolean("dnssecValidation", _dnssecValidation);
+            jsonWriter.WriteString("proxyType", _proxyType.ToString());
+
+            if (_proxyType != NetProxyType.None)
+            {
+                jsonWriter.WriteString("proxyAddress", _proxyAddress);
+                jsonWriter.WriteNumber("proxyPort", _proxyPort);
+                jsonWriter.WriteString("proxyUsername", _proxyUsername);
+                jsonWriter.WriteString("proxyPassword", _proxyPassword);
+            }
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -243,15 +217,34 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string ProxyPassword
         { get { return _proxyPassword; } }
 
-        [JsonIgnore]
         public NameServerAddress NameServer
-        { get { return _nameServer; } }
+        {
+            get
+            {
+                if (_nameServer is null)
+                    _nameServer = new NameServerAddress(_forwarder, _protocol);
 
-        [JsonIgnore]
+                return _nameServer;
+            }
+        }
+
         public NetProxy Proxy
-        { get { return _proxy; } }
+        {
+            get
+            {
+                if (_proxyType == NetProxyType.None)
+                    return null;
 
-        [JsonIgnore]
+                if (_proxy is null)
+                {
+                    _proxy = NetProxy.CreateProxy(_proxyType, _proxyAddress, _proxyPort, string.IsNullOrEmpty(_proxyUsername) ? null : new NetworkCredential(_proxyUsername, _proxyPassword));
+                    _proxy.BypassList = null;
+                }
+
+                return _proxy;
+            }
+        }
+
         public override ushort UncompressedLength
         {
             get

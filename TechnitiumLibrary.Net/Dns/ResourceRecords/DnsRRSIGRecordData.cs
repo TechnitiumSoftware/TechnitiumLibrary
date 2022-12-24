@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
 
@@ -141,7 +140,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             using (MemoryStream mS = new MemoryStream(512))
             {
                 //RRSIG_RDATA
-                rrsigRecord.WriteTo(mS, true);
+                rrsigRecord.WriteTo(mS, false);
 
                 //RR(i) = owner | type | class | TTL | RDATA length | RDATA
 
@@ -327,7 +326,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             using (MemoryStream mS = new MemoryStream(2 + 1 + 1 + 4 + 4 + 4 + 2 + DnsDatagram.GetSerializeDomainNameLength(_signersName) + _signature.Length))
             {
-                WriteTo(mS, false);
+                WriteTo(mS, true);
 
                 _rData = mS.ToArray();
             }
@@ -362,7 +361,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region private
 
-        private void WriteTo(Stream s, bool canonicalForm)
+        private void WriteTo(Stream s, bool includeSignature)
         {
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_typeCovered, s);
             s.WriteByte((byte)_algorithm);
@@ -371,9 +370,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             DnsDatagram.WriteUInt32NetworkOrder(_signatureExpiration, s);
             DnsDatagram.WriteUInt32NetworkOrder(_signatureInception, s);
             DnsDatagram.WriteUInt16NetworkOrder(_keyTag, s);
-            DnsDatagram.SerializeDomainName(canonicalForm ? _signersName.ToLowerInvariant() : _signersName, s);
+            DnsDatagram.SerializeDomainName(_signersName.ToLowerInvariant(), s);
 
-            if (!canonicalForm)
+            if (includeSignature)
                 s.Write(_signature);
         }
 
@@ -550,6 +549,23 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return (ushort)_typeCovered + " " + (byte)_algorithm + " " + _labels + " " + _originalTtl + " " + _signatureExpiration + " " + _signatureInception + " " + _keyTag + " " + _signersName + ". " + Convert.ToBase64String(_signature) + " )";
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("TypeCovered", _typeCovered.ToString());
+            jsonWriter.WriteString("Algorithm", _algorithm.ToString());
+            jsonWriter.WriteNumber("Labels", _labels);
+            jsonWriter.WriteNumber("OriginalTtl", _originalTtl);
+            jsonWriter.WriteString("SignatureExpiration", DateTime.UnixEpoch.AddSeconds(_signatureExpiration));
+            jsonWriter.WriteString("SignatureInception", DateTime.UnixEpoch.AddSeconds(_signatureInception));
+            jsonWriter.WriteNumber("KeyTag", _keyTag);
+            jsonWriter.WriteString("SignersName", _signersName);
+            jsonWriter.WriteString("Signature", Convert.ToBase64String(_signature));
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -566,19 +582,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public uint OriginalTtl
         { get { return _originalTtl; } }
 
-        [JsonIgnore]
-        public uint SignatureExpirationValue
+        public uint SignatureExpiration
         { get { return _signatureExpiration; } }
 
-        public DateTime SignatureExpiration
-        { get { return DateTime.UnixEpoch.AddSeconds(_signatureExpiration); } }
-
-        [JsonIgnore]
-        public uint SignatureInceptionValue
+        public uint SignatureInception
         { get { return _signatureInception; } }
-
-        public DateTime SignatureInception
-        { get { return DateTime.UnixEpoch.AddSeconds(_signatureInception); } }
 
         public ushort KeyTag
         { get { return _keyTag; } }
@@ -589,7 +597,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public byte[] Signature
         { get { return _signature; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + 1 + 1 + 4 + 4 + 4 + 2 + DnsDatagram.GetSerializeDomainNameLength(_signersName) + _signature.Length); } }
 

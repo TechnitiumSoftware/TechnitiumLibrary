@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -47,26 +46,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsHINFORecordData(Stream s)
             : base(s)
         { }
-
-        public DnsHINFORecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string value = DnsDatagram.DecodeCharacterString(rdata);
-            string[] parts;
-
-            if (value.Contains("\" \""))
-                parts = value.Split(new string[] { "\" \"" }, StringSplitOptions.None);
-            else
-                parts = value.Split(new char[] { ' ' }, StringSplitOptions.None);
-
-            _cpu = parts[0];
-
-            if (parts.Length > 1)
-                _os = parts[1];
-        }
 
         #endregion
 
@@ -115,6 +94,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return HashCode.Combine(_cpu, _os);
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("CPU", _cpu);
+            jsonWriter.WriteString("OS", _os);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -125,7 +114,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string OS
         { get { return _os; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(1 + _cpu.Length + 1 + _os.Length); } }
 

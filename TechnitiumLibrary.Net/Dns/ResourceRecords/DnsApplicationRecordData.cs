@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -41,6 +40,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsApplicationRecordData(string appName, string classPath, string data)
         {
+            if (data.StartsWith('{') || data.StartsWith('['))
+            {
+                using (JsonDocument jsonDocument = JsonDocument.Parse(data))
+                { }
+            }
+
             _appName = appName;
             _classPath = classPath;
             _data = data;
@@ -49,21 +54,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsApplicationRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsApplicationRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(new char[] { ' ' }, 3);
-
-            _appName = parts[0];
-            _classPath = parts[1];
-
-            if (parts.Length > 2)
-                _data = Encoding.UTF8.GetString(Convert.FromBase64String(parts[2]));
-        }
 
         #endregion
 
@@ -135,6 +125,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return _appName + " " + _classPath + " " + Convert.ToBase64String(Encoding.UTF8.GetBytes(_data));
         }
 
+        public override void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("AppName", _appName);
+            jsonWriter.WriteString("ClassPath", _classPath);
+            jsonWriter.WriteString("Data", _data);
+
+            jsonWriter.WriteEndObject();
+        }
+
         #endregion
 
         #region properties
@@ -148,7 +149,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Data
         { get { return _data; } }
 
-        [JsonIgnore]
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(1 + 1 + _appName.Length + 1 + _classPath.Length + 2 + _data.Length); } }
 
