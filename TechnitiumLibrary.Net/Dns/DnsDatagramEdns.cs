@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
@@ -93,6 +94,30 @@ namespace TechnitiumLibrary.Net.Dns
                 opt = new DnsOPTRecordData(options);
 
             return new DnsResourceRecord("", DnsResourceRecordType.OPT, (DnsClass)udpPayloadSize, ((((uint)extendedRCODE) & 0x00000ff0u) << 20) | (((uint)version) << 16) | ((uint)flags), opt);
+        }
+
+        #endregion
+
+        #region public
+
+        public void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteNumber("UdpPayloadSize", _udpPayloadSize);
+            jsonWriter.WriteString("ExtendedRCODE", _extendedRCODE.ToString());
+            jsonWriter.WriteNumber("Version", _version);
+            jsonWriter.WriteString("Flags", _flags.ToString());
+
+            jsonWriter.WritePropertyName("Options");
+            jsonWriter.WriteStartArray();
+
+            foreach (EDnsOption option in _options)
+                option.SerializeTo(jsonWriter);
+
+            jsonWriter.WriteEndArray();
+
+            jsonWriter.WriteEndObject();
         }
 
         #endregion
