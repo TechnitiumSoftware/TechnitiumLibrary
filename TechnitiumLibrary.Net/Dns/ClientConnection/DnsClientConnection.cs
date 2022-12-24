@@ -43,7 +43,6 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>>();
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>>();
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsClientConnection>> _existingHttpsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsClientConnection>>();
-        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsJsonClientConnection>> _existingHttpsJsonConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsJsonClientConnection>>();
 
         #endregion
 
@@ -112,25 +111,6 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                         if (existingHttpsConnection.Value.IsEmpty)
                             _existingHttpsConnections.TryRemove(existingHttpsConnection.Key, out _);
-                    }
-
-                    //cleanup unused https json connections
-                    foreach (KeyValuePair<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsJsonClientConnection>> existingHttpsJsonConnection in _existingHttpsJsonConnections)
-                    {
-                        foreach (KeyValuePair<NetProxy, HttpsJsonClientConnection> connection in existingHttpsJsonConnection.Value)
-                        {
-                            if (connection.Value.LastQueried < expiryTime)
-                            {
-                                if (existingHttpsJsonConnection.Value.TryRemove(connection.Key, out HttpsJsonClientConnection removedConnection))
-                                {
-                                    removedConnection.Pooled = false;
-                                    removedConnection.Dispose();
-                                }
-                            }
-                        }
-
-                        if (existingHttpsJsonConnection.Value.IsEmpty)
-                            _existingHttpsJsonConnections.TryRemove(existingHttpsJsonConnection.Key, out _);
                     }
                 }
                 catch
@@ -231,26 +211,6 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         });
                     }
 
-                case DnsTransportProtocol.HttpsJson:
-                    {
-                        ConcurrentDictionary<NetProxy, HttpsJsonClientConnection> existingHttpsJsonConnection = _existingHttpsJsonConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
-                        {
-                            return new ConcurrentDictionary<NetProxy, HttpsJsonClientConnection>();
-                        });
-
-                        NetProxy proxyKey = proxy;
-
-                        if (proxyKey == null)
-                            proxyKey = NetProxy.NONE;
-
-                        return existingHttpsJsonConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
-                        {
-                            HttpsJsonClientConnection connection = new HttpsJsonClientConnection(server, proxy);
-                            connection.Pooled = true;
-                            return connection;
-                        });
-                    }
-
                 default:
                     throw new NotSupportedException("DnsClient protocol not supported: " + server.Protocol.ToString());
             }
@@ -302,7 +262,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         if (requestECS.SourcePrefixLength != responseECS.SourcePrefixLength)
                             throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
 
-                        if (!requestECS.AddressValue.Equals(responseECS.AddressValue))
+                        if (!requestECS.Address.Equals(responseECS.Address))
                             throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
                     }
                 }
