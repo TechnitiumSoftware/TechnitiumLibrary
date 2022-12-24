@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -149,7 +148,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         readonly DnsResourceRecordType _type;
         readonly DnsClass _class;
         uint _ttl;
-        readonly DnsResourceRecordData _data;
+        readonly DnsResourceRecordData _rData;
 
         readonly int _datagramOffset;
         bool _setExpiry;
@@ -162,7 +161,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsResourceRecord(string name, DnsResourceRecordType type, DnsClass @class, uint ttl, DnsResourceRecordData data)
+        public DnsResourceRecord(string name, DnsResourceRecordType type, DnsClass @class, uint ttl, DnsResourceRecordData rData)
         {
             DnsClient.IsDomainNameValid(name, true);
 
@@ -170,7 +169,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _type = type;
             _class = @class;
             _ttl = ttl;
-            _data = data;
+            _rData = rData;
         }
 
         public DnsResourceRecord(Stream s)
@@ -185,222 +184,107 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             switch (_type)
             {
                 case DnsResourceRecordType.A:
-                    _data = new DnsARecordData(s);
+                    _rData = new DnsARecordData(s);
                     break;
 
                 case DnsResourceRecordType.NS:
-                    _data = new DnsNSRecordData(s);
+                    _rData = new DnsNSRecordData(s);
                     break;
 
                 case DnsResourceRecordType.CNAME:
-                    _data = new DnsCNAMERecordData(s);
+                    _rData = new DnsCNAMERecordData(s);
                     break;
 
                 case DnsResourceRecordType.SOA:
-                    _data = new DnsSOARecordData(s);
+                    _rData = new DnsSOARecordData(s);
                     break;
 
                 case DnsResourceRecordType.PTR:
-                    _data = new DnsPTRRecordData(s);
+                    _rData = new DnsPTRRecordData(s);
                     break;
 
                 case DnsResourceRecordType.HINFO:
-                    _data = new DnsHINFORecordData(s);
+                    _rData = new DnsHINFORecordData(s);
                     break;
 
                 case DnsResourceRecordType.MX:
-                    _data = new DnsMXRecordData(s);
+                    _rData = new DnsMXRecordData(s);
                     break;
 
                 case DnsResourceRecordType.TXT:
-                    _data = new DnsTXTRecordData(s);
+                    _rData = new DnsTXTRecordData(s);
                     break;
 
                 case DnsResourceRecordType.AAAA:
-                    _data = new DnsAAAARecordData(s);
+                    _rData = new DnsAAAARecordData(s);
                     break;
 
                 case DnsResourceRecordType.SRV:
-                    _data = new DnsSRVRecordData(s);
+                    _rData = new DnsSRVRecordData(s);
                     break;
 
                 case DnsResourceRecordType.DNAME:
-                    _data = new DnsDNAMERecordData(s);
+                    _rData = new DnsDNAMERecordData(s);
                     break;
 
                 case DnsResourceRecordType.OPT:
-                    _data = new DnsOPTRecordData(s);
+                    _rData = new DnsOPTRecordData(s);
                     break;
 
                 case DnsResourceRecordType.DS:
-                    _data = new DnsDSRecordData(s);
+                    _rData = new DnsDSRecordData(s);
                     break;
 
                 case DnsResourceRecordType.SSHFP:
-                    _data = new DnsSSHFPRecordData(s);
+                    _rData = new DnsSSHFPRecordData(s);
                     break;
 
                 case DnsResourceRecordType.RRSIG:
-                    _data = new DnsRRSIGRecordData(s);
+                    _rData = new DnsRRSIGRecordData(s);
                     break;
 
                 case DnsResourceRecordType.NSEC:
-                    _data = new DnsNSECRecordData(s);
+                    _rData = new DnsNSECRecordData(s);
                     break;
 
                 case DnsResourceRecordType.DNSKEY:
-                    _data = new DnsDNSKEYRecordData(s);
+                    _rData = new DnsDNSKEYRecordData(s);
                     break;
 
                 case DnsResourceRecordType.NSEC3:
-                    _data = new DnsNSEC3RecordData(s);
+                    _rData = new DnsNSEC3RecordData(s);
                     break;
 
                 case DnsResourceRecordType.NSEC3PARAM:
-                    _data = new DnsNSEC3PARAMRecordData(s);
+                    _rData = new DnsNSEC3PARAMRecordData(s);
                     break;
 
                 case DnsResourceRecordType.TLSA:
-                    _data = new DnsTLSARecordData(s);
+                    _rData = new DnsTLSARecordData(s);
                     break;
 
                 case DnsResourceRecordType.TSIG:
-                    _data = new DnsTSIGRecordData(s);
+                    _rData = new DnsTSIGRecordData(s);
                     break;
 
                 case DnsResourceRecordType.CAA:
-                    _data = new DnsCAARecordData(s);
+                    _rData = new DnsCAARecordData(s);
                     break;
 
                 case DnsResourceRecordType.ANAME:
-                    _data = new DnsANAMERecordData(s);
+                    _rData = new DnsANAMERecordData(s);
                     break;
 
                 case DnsResourceRecordType.FWD:
-                    _data = new DnsForwarderRecordData(s);
+                    _rData = new DnsForwarderRecordData(s);
                     break;
 
                 case DnsResourceRecordType.APP:
-                    _data = new DnsApplicationRecordData(s);
+                    _rData = new DnsApplicationRecordData(s);
                     break;
 
                 default:
-                    _data = new DnsUnknownRecordData(s);
-                    break;
-            }
-        }
-
-        public DnsResourceRecord(JsonElement jsonResourceRecord)
-        {
-            _name = jsonResourceRecord.GetProperty("name").GetString().TrimEnd('.');
-            _type = (DnsResourceRecordType)jsonResourceRecord.GetProperty("type").GetUInt16();
-            _class = DnsClass.IN;
-            _ttl = jsonResourceRecord.GetProperty("TTL").GetUInt32();
-
-            switch (_type)
-            {
-                case DnsResourceRecordType.A:
-                    _data = new DnsARecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.NS:
-                    _data = new DnsNSRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.CNAME:
-                    _data = new DnsCNAMERecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.SOA:
-                    _data = new DnsSOARecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.PTR:
-                    _data = new DnsPTRRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.HINFO:
-                    _data = new DnsHINFORecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.MX:
-                    _data = new DnsMXRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.TXT:
-                    _data = new DnsTXTRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.AAAA:
-                    _data = new DnsAAAARecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.SRV:
-                    _data = new DnsSRVRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.DNAME:
-                    _data = new DnsDNAMERecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.OPT:
-                    _data = new DnsOPTRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.DS:
-                    _data = new DnsDSRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.SSHFP:
-                    _data = new DnsSSHFPRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.RRSIG:
-                    _data = new DnsRRSIGRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.NSEC:
-                    _data = new DnsNSECRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.DNSKEY:
-                    _data = new DnsDNSKEYRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.NSEC3:
-                    _data = new DnsNSEC3RecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.NSEC3PARAM:
-                    _data = new DnsNSEC3PARAMRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.TLSA:
-                    _data = new DnsTLSARecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.TSIG:
-                    _data = new DnsTSIGRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.CAA:
-                    _data = new DnsCAARecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.ANAME:
-                    _data = new DnsANAMERecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.FWD:
-                    _data = new DnsForwarderRecordData(jsonResourceRecord);
-                    break;
-
-                case DnsResourceRecordType.APP:
-                    _data = new DnsApplicationRecordData(jsonResourceRecord);
-                    break;
-
-                default:
-                    _data = new DnsUnknownRecordData(jsonResourceRecord);
+                    _rData = new DnsUnknownRecordData(s);
                     break;
             }
         }
@@ -472,7 +356,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         internal void NormalizeName()
         {
             _name = _name.ToLowerInvariant();
-            _data.NormalizeName();
+            _rData.NormalizeName();
         }
 
         internal void SetDnssecStatus(DnssecStatus dnssecStatus, bool force = false)
@@ -523,7 +407,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public bool IsExpired(bool serveStale)
         {
             if (serveStale)
-                return TtlValue < 1u;
+                return TTL < 1u;
 
             return IsStale;
         }
@@ -538,9 +422,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             DnsDatagram.SerializeDomainName(_name, s, domainEntries);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_class, s);
-            DnsDatagram.WriteUInt32NetworkOrder(TtlValue, s);
+            DnsDatagram.WriteUInt32NetworkOrder(TTL, s);
 
-            _data.WriteTo(s, domainEntries);
+            _rData.WriteTo(s, domainEntries);
         }
 
         public override bool Equals(object obj)
@@ -565,7 +449,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_ttl != other._ttl)
                     return false;
 
-                return _data.Equals(other._data);
+                return _rData.Equals(other._rData);
             }
 
             return false;
@@ -573,7 +457,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_name, _type, _class, _ttl, _data);
+            return HashCode.Combine(_name, _type, _class, _ttl, _rData);
         }
 
         public int CompareTo(DnsResourceRecord other)
@@ -593,7 +477,42 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _name.ToLowerInvariant() + ". " + _type.ToString() + " " + _class.ToString() + " " + _ttl + " " + _data.ToString();
+            return _name.ToLowerInvariant() + ". " + _type.ToString() + " " + _class.ToString() + " " + _ttl + " " + _rData.ToString();
+        }
+
+        public void SerializeTo(Utf8JsonWriter jsonWriter)
+        {
+            jsonWriter.WriteStartObject();
+
+            jsonWriter.WriteString("Name", _name);
+            jsonWriter.WriteString("Type", _type.ToString());
+            jsonWriter.WriteString("Class", _class.ToString());
+
+            if (_setExpiry)
+            {
+                DateTime utcNow = DateTime.UtcNow;
+                int ttl;
+
+                if (utcNow > _ttlExpires)
+                    ttl = 0;
+                else
+                    ttl = Convert.ToInt32((_ttlExpires - utcNow).TotalSeconds);
+
+                jsonWriter.WriteString("TTL", ttl + " (" + WebUtilities.GetFormattedTime(ttl) + ")");
+            }
+            else
+            {
+                jsonWriter.WriteString("TTL", _ttl + " (" + WebUtilities.GetFormattedTime((int)_ttl) + ")");
+            }
+
+            jsonWriter.WriteString("RDLENGTH", _rData.RDLENGTH + " bytes");
+
+            jsonWriter.WritePropertyName("RDATA");
+            _rData.SerializeTo(jsonWriter);
+
+            jsonWriter.WriteString("DnssecStatus", _dnssecStatus.ToString());
+
+            jsonWriter.WriteEndObject();
         }
 
         #endregion
@@ -609,8 +528,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsClass Class
         { get { return _class; } }
 
-        [JsonIgnore]
-        public uint TtlValue
+        public uint TTL
         {
             get
             {
@@ -631,7 +549,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        [JsonIgnore]
         public bool IsStale
         {
             get
@@ -643,52 +560,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        [JsonIgnore]
         public bool WasExpiryReset
         { get { return _wasExpiryReset; } }
 
-        public string TTL
-        {
-            get
-            {
-                if (_setExpiry)
-                {
-                    DateTime utcNow = DateTime.UtcNow;
-                    int ttl;
-
-                    if (utcNow > _ttlExpires)
-                        ttl = 0;
-                    else
-                        ttl = Convert.ToInt32((_ttlExpires - utcNow).TotalSeconds);
-
-                    return ttl + " (" + WebUtilities.GetFormattedTime(ttl) + ")";
-                }
-                else
-                {
-                    return _ttl + " (" + WebUtilities.GetFormattedTime((int)_ttl) + ")";
-                }
-            }
-        }
-
-        [JsonIgnore]
         public uint OriginalTtlValue
         { get { return _ttl; } }
 
-        public string RDLENGTH
-        { get { return _data.RDLENGTH + " bytes"; } }
-
         public DnsResourceRecordData RDATA
-        { get { return _data; } }
+        { get { return _rData; } }
 
-        [JsonIgnore]
         public int DatagramOffset
         { get { return _datagramOffset; } }
 
-        [JsonIgnore]
         public ushort UncompressedLength
-        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_name) + 2 + 2 + 4 + 2 + _data.UncompressedLength); } }
+        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_name) + 2 + 2 + 4 + 2 + _rData.UncompressedLength); } }
 
-        [JsonIgnore]
         public object Tag { get; set; }
 
         public DnssecStatus DnssecStatus
