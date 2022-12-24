@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -45,6 +45,8 @@ namespace TechnitiumLibrary.Net.Proxy
         readonly IPEndPoint _localEP;
         readonly IProxyServerConnectionManager _connectionManager;
         readonly TransparentProxyServerMethod _method;
+
+        IPAddress _staticRemoteAddress;
 
         readonly Socket _listener;
         readonly ConcurrentDictionary<ProxyServerSession, object> _sessions = new ConcurrentDictionary<ProxyServerSession, object>();
@@ -133,7 +135,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 {
                     Socket socket = await _listener.AcceptAsync();
 
-                    ProxyServerSession session = new ProxyServerSession(socket, _connectionManager, _method);
+                    ProxyServerSession session = new ProxyServerSession(this, socket, _connectionManager, _method);
 
                     session.Disposed += delegate (object sender, EventArgs e)
                     {
@@ -157,6 +159,12 @@ namespace TechnitiumLibrary.Net.Proxy
         public IPEndPoint LocalEndPoint
         { get { return _localEP; } }
 
+        public IPAddress StaticRemoteAddress
+        {
+            get { return _staticRemoteAddress; }
+            set { _staticRemoteAddress = value; }
+        }
+
         #endregion
 
         class ProxyServerSession : IDisposable
@@ -169,6 +177,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region variables
 
+            readonly TransparentProxyServer _server;
             readonly Socket _localSocket;
             readonly IProxyServerConnectionManager _connectionManager;
             readonly TransparentProxyServerMethod _method;
@@ -179,8 +188,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region constructor
 
-            public ProxyServerSession(Socket localSocket, IProxyServerConnectionManager connectionManager, TransparentProxyServerMethod method)
+            public ProxyServerSession(TransparentProxyServer server, Socket localSocket, IProxyServerConnectionManager connectionManager, TransparentProxyServerMethod method)
             {
+                _server = server;
                 _localSocket = localSocket;
                 _connectionManager = connectionManager;
                 _method = method;
@@ -241,25 +251,44 @@ namespace TechnitiumLibrary.Net.Proxy
                                         {
                                             Array.Reverse(buffer, 2, 2);
                                             int port = BitConverter.ToUInt16(buffer, 2);
-                                            IPAddress address = new IPAddress(new Span<byte>(buffer, 4, 4));
 
-                                            return new IPEndPoint(address, port);
+                                            if (_server._staticRemoteAddress is null)
+                                            {
+                                                IPAddress address = new IPAddress(new Span<byte>(buffer, 4, 4));
+
+                                                return new IPEndPoint(address, port);
+                                            }
+                                            else
+                                            {
+                                                return new IPEndPoint(_server._staticRemoteAddress, port);
+                                            }
                                         }
 
                                     case AddressFamily.InterNetworkV6:
                                         {
                                             Array.Reverse(buffer, 2, 2);
                                             int port = BitConverter.ToUInt16(buffer, 2);
-                                            IPAddress address = new IPAddress(new Span<byte>(buffer, 4, 16));
 
-                                            return new IPEndPoint(address, port);
+                                            if (_server._staticRemoteAddress is null)
+                                            {
+                                                IPAddress address = new IPAddress(new Span<byte>(buffer, 4, 16));
+
+                                                return new IPEndPoint(address, port);
+                                            }
+                                            else
+                                            {
+                                                return new IPEndPoint(_server._staticRemoteAddress, port);
+                                            }
                                         }
                                 }
                             }
                             break;
 
                         case TransparentProxyServerMethod.TPROXY:
-                            return _localSocket.LocalEndPoint as IPEndPoint;
+                            if (_server._staticRemoteAddress is null)
+                                return _localSocket.LocalEndPoint as IPEndPoint;
+                            else
+                                return new IPEndPoint(_server._staticRemoteAddress, (_localSocket.LocalEndPoint as IPEndPoint).Port);
                     }
                 }
                 catch
