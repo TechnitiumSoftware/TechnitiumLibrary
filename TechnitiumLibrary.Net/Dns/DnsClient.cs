@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -341,35 +341,15 @@ namespace TechnitiumLibrary.Net.Dns
         { }
 
         public DnsClient(string addresses)
-        {
-            string[] strServers = addresses.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-
-            if (strServers.Length == 0)
-                throw new DnsClientException("At least one name server must be available for DnsClient.");
-
-            NameServerAddress[] servers = new NameServerAddress[strServers.Length];
-
-            for (int i = 0; i < strServers.Length; i++)
-                servers[i] = new NameServerAddress(strServers[i]);
-
-            _servers = servers;
-        }
+            : this(addresses.Split(NameServerAddress.Parse, ','))
+        { }
 
         public DnsClient(params string[] addresses)
-        {
-            if (addresses.Length == 0)
-                throw new DnsClientException("At least one name server must be available for DnsClient.");
-
-            NameServerAddress[] servers = new NameServerAddress[addresses.Length];
-
-            for (int i = 0; i < addresses.Length; i++)
-                servers[i] = new NameServerAddress(addresses[i]);
-
-            _servers = servers;
-        }
+            : this(addresses.Convert(NameServerAddress.Parse))
+        { }
 
         public DnsClient(string address, DnsTransportProtocol protocol)
-            : this(new NameServerAddress(address, protocol))
+            : this(NameServerAddress.Parse(address, protocol))
         { }
 
         public DnsClient(NameServerAddress server)

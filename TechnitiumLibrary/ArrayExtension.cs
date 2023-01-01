@@ -41,7 +41,7 @@ namespace TechnitiumLibrary
             }
         }
 
-        public static T[] Parse<T>(this string[] array, Func<string, T> parse)
+        public static T[] Convert<T>(this string[] array, Func<string, T> parse)
         {
             T[] newArray = new T[array.Length];
 
