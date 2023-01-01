@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -57,6 +57,16 @@ namespace TechnitiumLibrary
         }
 
         public static T Sync<T>(this Task<T> task)
+        {
+            return task.ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public static void Sync(this ValueTask task)
+        {
+            task.ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public static T Sync<T>(this ValueTask<T> task)
         {
             return task.ConfigureAwait(false).GetAwaiter().GetResult();
         }
