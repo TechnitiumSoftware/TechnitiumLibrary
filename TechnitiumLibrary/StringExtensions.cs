@@ -25,11 +25,11 @@ namespace TechnitiumLibrary
     {
         public static T[] Split<T>(this string value, Func<string, T> parse, params char[] separator)
         {
-            string[] parts = value.Split(separator, StringSplitOptions.RemoveEmptyEntries);
+            string[] parts = value.Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             T[] array = new T[parts.Length];
 
             for (int i = 0; i < parts.Length; i++)
-                array[i] = parse(parts[i].Trim());
+                array[i] = parse(parts[i]);
 
             return array;
         }
