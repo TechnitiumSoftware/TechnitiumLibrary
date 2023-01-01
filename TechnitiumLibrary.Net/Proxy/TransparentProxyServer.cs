@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@ namespace TechnitiumLibrary.Net.Proxy
 {
     public enum TransparentProxyServerMethod
     {
+        Tunnel = 0, //simple tunnel
         DNAT = 1, //iptables -t nat -A PREROUTING -i ens32 -p tcp -j DNAT --to <proxy-interface-address-not-loopback>:<proxy-port>
         TPROXY = 2 //follow SQUID docs https://wiki.squid-cache.org/Features/Tproxy4
     }
@@ -46,6 +47,7 @@ namespace TechnitiumLibrary.Net.Proxy
         readonly IProxyServerConnectionManager _connectionManager;
         readonly TransparentProxyServerMethod _method;
 
+        EndPoint _remoteEP;
         IPAddress _staticRemoteAddress;
 
         readonly Socket _listener;
@@ -61,11 +63,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public TransparentProxyServer(IPEndPoint localEP, IProxyServerConnectionManager connectionManager = null, TransparentProxyServerMethod method = TransparentProxyServerMethod.DNAT, int backlog = 10)
         {
-            if (Environment.OSVersion.Platform != PlatformID.Unix)
-                throw new NotSupportedException("Only Unix/Linux is supported.");
+            if (_method != TransparentProxyServerMethod.Tunnel)
+            {
+                if (Environment.OSVersion.Platform != PlatformID.Unix)
+                    throw new NotSupportedException("Only Unix/Linux is supported.");
 
-            if ((method == TransparentProxyServerMethod.DNAT) && (localEP.AddressFamily != AddressFamily.InterNetwork))
-                throw new NotSupportedException("Only IPv4 is supported with DNAT.");
+                if ((method == TransparentProxyServerMethod.DNAT) && (localEP.AddressFamily != AddressFamily.InterNetwork))
+                    throw new NotSupportedException("Only IPv4 is supported with DNAT.");
+            }
 
             _listener = new Socket(localEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
@@ -159,6 +164,12 @@ namespace TechnitiumLibrary.Net.Proxy
         public IPEndPoint LocalEndPoint
         { get { return _localEP; } }
 
+        public EndPoint RemoteEndPoint
+        {
+            get { return _remoteEP; }
+            set { _remoteEP = value; }
+        }
+
         public IPAddress StaticRemoteAddress
         {
             get { return _staticRemoteAddress; }
@@ -233,12 +244,15 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region private
 
-            private IPEndPoint GetOriginalDestination()
+            private EndPoint GetOriginalDestination()
             {
                 try
                 {
                     switch (_method)
                     {
+                        case TransparentProxyServerMethod.Tunnel:
+                            return _server._remoteEP;
+
                         case TransparentProxyServerMethod.DNAT:
                             byte[] buffer = new byte[32];
                             int retVal = _localSocket.GetRawSocketOption(SOL_IP, SO_ORIGINAL_DST, buffer);
@@ -307,8 +321,8 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 try
                 {
-                    IPEndPoint originalDestinationEP = GetOriginalDestination();
-                    if (originalDestinationEP == null)
+                    EndPoint originalDestinationEP = GetOriginalDestination();
+                    if (originalDestinationEP is null)
                         return;
 
                     _remoteSocket = await _connectionManager.ConnectAsync(originalDestinationEP);
