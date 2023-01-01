@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -39,6 +39,16 @@ namespace TechnitiumLibrary
                 array[n] = array[k];
                 array[k] = temp;
             }
+        }
+
+        public static T[] Parse<T>(this string[] array, Func<string, T> parse)
+        {
+            T[] newArray = new T[array.Length];
+
+            for (int i = 0; i < array.Length; i++)
+                newArray[i] = parse(array[i]);
+
+            return newArray;
         }
     }
 }
