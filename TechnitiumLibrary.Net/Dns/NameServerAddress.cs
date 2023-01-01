@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -78,19 +78,6 @@ namespace TechnitiumLibrary.Net.Dns
                 _originalAddress = _dohEndPoint.AbsoluteUri + " (" + address.ToString() + ")";
 
             ValidateProtocol();
-        }
-
-        public NameServerAddress(string address, DnsTransportProtocol protocol)
-        {
-            Parse(address.Trim());
-            _protocol = protocol;
-            ValidateProtocol();
-        }
-
-        public NameServerAddress(string address)
-        {
-            Parse(address.Trim());
-            GuessProtocol();
         }
 
         public NameServerAddress(IPAddress address, DnsTransportProtocol protocol = DnsTransportProtocol.Udp)
@@ -185,13 +172,13 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
 
                 case 2:
-                    Parse(bR.ReadShortString());
+                    InternalParse(bR.ReadShortString());
                     GuessProtocol();
                     break;
 
                 case 3:
                     _protocol = (DnsTransportProtocol)bR.ReadByte();
-                    Parse(bR.ReadShortString());
+                    InternalParse(bR.ReadShortString());
                     break;
 
                 default:
@@ -262,7 +249,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        private void Parse(string address)
+        private void InternalParse(string address)
         {
             _originalAddress = address;
 
@@ -382,6 +369,27 @@ namespace TechnitiumLibrary.Net.Dns
         #endregion
 
         #region static
+
+        public static NameServerAddress Parse(string address, DnsTransportProtocol protocol)
+        {
+            NameServerAddress nameServerAddress = new NameServerAddress();
+
+            nameServerAddress.InternalParse(address.Trim());
+            nameServerAddress._protocol = protocol;
+            nameServerAddress.ValidateProtocol();
+
+            return nameServerAddress;
+        }
+
+        public static NameServerAddress Parse(string address)
+        {
+            NameServerAddress nameServerAddress = new NameServerAddress();
+
+            nameServerAddress.InternalParse(address.Trim());
+            nameServerAddress.GuessProtocol();
+
+            return nameServerAddress;
+        }
 
         public static List<NameServerAddress> GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool filterLoopbackAddresses)
         {
