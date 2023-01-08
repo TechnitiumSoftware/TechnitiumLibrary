@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -217,7 +217,7 @@ namespace TechnitiumLibrary.Net.Proxy
             if (_viaProxy != null)
                 throw new NotSupportedException("Cannot chain proxies for Udp protocol.");
 
-            using (SocksProxyUdpAssociateHandler proxyUdpRequestHandler = await UdpAssociateAsync())
+            using (SocksProxyUdpAssociateHandler proxyUdpRequestHandler = await UdpAssociateAsync(cancellationToken))
             {
                 return await proxyUdpRequestHandler.UdpQueryAsync(request, response, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
             }
@@ -298,6 +298,12 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 throw;
             }
+        }
+
+        public override async Task<UdpTunnelProxy> CreateUdpTunnelProxyAsync(EndPoint remoteEP, CancellationToken cancellationToken = default)
+        {
+            SocksProxyUdpAssociateHandler proxyUdpHandler = await UdpAssociateAsync(cancellationToken);
+            return new UdpTunnelProxy(proxyUdpHandler, remoteEP);
         }
 
         #endregion
