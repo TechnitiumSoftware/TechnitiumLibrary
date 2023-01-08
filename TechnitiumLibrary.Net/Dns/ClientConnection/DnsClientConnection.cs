@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
-    public abstract class DnsClientConnection : IDisposable
+    public abstract class DnsClientConnection : IDisposable, IAsyncDisposable
     {
         #region variables
 
@@ -43,6 +43,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>>();
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>>();
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsClientConnection>> _existingHttpsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsClientConnection>>();
+        static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, QuicClientConnection>> _existingQuicConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, QuicClientConnection>>();
 
         #endregion
 
@@ -50,7 +51,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         static DnsClientConnection()
         {
-            _maintenanceTimer = new Timer(delegate (object state)
+            _maintenanceTimer = new Timer(async delegate (object state)
             {
                 try
                 {
@@ -112,6 +113,25 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         if (existingHttpsConnection.Value.IsEmpty)
                             _existingHttpsConnections.TryRemove(existingHttpsConnection.Key, out _);
                     }
+
+                    //cleanup unused quic connections
+                    foreach (KeyValuePair<NameServerAddress, ConcurrentDictionary<NetProxy, QuicClientConnection>> existingQuicConnection in _existingQuicConnections)
+                    {
+                        foreach (KeyValuePair<NetProxy, QuicClientConnection> connection in existingQuicConnection.Value)
+                        {
+                            if (connection.Value.LastQueried < expiryTime)
+                            {
+                                if (existingQuicConnection.Value.TryRemove(connection.Key, out QuicClientConnection removedConnection))
+                                {
+                                    removedConnection.Pooled = false;
+                                    await removedConnection.DisposeAsync();
+                                }
+                            }
+                        }
+
+                        if (existingQuicConnection.Value.IsEmpty)
+                            _existingQuicConnections.TryRemove(existingQuicConnection.Key, out _);
+                    }
                 }
                 catch
                 { }
@@ -131,13 +151,37 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region IDisposable
 
+        bool _disposed;
+
         protected virtual void Dispose(bool disposing)
         { }
 
+        protected virtual ValueTask DisposeAsyncCore()
+        {
+            return ValueTask.CompletedTask;
+        }
+
         public void Dispose()
         {
+            if (_disposed)
+                return;
+
             Dispose(true);
             GC.SuppressFinalize(this);
+
+            _disposed = true;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_disposed)
+                return;
+
+            await DisposeAsyncCore();
+            Dispose(false);
+            GC.SuppressFinalize(this);
+
+            _disposed = true;
         }
 
         #endregion
@@ -160,7 +204,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                         NetProxy proxyKey = proxy;
 
-                        if (proxyKey == null)
+                        if (proxyKey is null)
                             proxyKey = NetProxy.NONE;
 
                         return existingTcpConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
@@ -180,7 +224,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                         NetProxy proxyKey = proxy;
 
-                        if (proxyKey == null)
+                        if (proxyKey is null)
                             proxyKey = NetProxy.NONE;
 
                         return existingTlsConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
@@ -200,12 +244,32 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                         NetProxy proxyKey = proxy;
 
-                        if (proxyKey == null)
+                        if (proxyKey is null)
                             proxyKey = NetProxy.NONE;
 
                         return existingHttpsConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
                         {
                             HttpsClientConnection connection = new HttpsClientConnection(server, proxy);
+                            connection.Pooled = true;
+                            return connection;
+                        });
+                    }
+
+                case DnsTransportProtocol.Quic:
+                    {
+                        ConcurrentDictionary<NetProxy, QuicClientConnection> existingQuicConnection = _existingQuicConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        {
+                            return new ConcurrentDictionary<NetProxy, QuicClientConnection>();
+                        });
+
+                        NetProxy proxyKey = proxy;
+
+                        if (proxyKey is null)
+                            proxyKey = NetProxy.NONE;
+
+                        return existingQuicConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
+                        {
+                            QuicClientConnection connection = new QuicClientConnection(server, proxy);
                             connection.Pooled = true;
                             return connection;
                         });
@@ -229,7 +293,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 for (int i = 0; i < response.Question.Count; i++)
                 {
-                    if (request.Question[i].ZoneCut == null)
+                    if (request.Question[i].ZoneCut is null)
                     {
                         if (!response.Question[i].Name.Equals(request.Question[i].Name, StringComparison.Ordinal))
                             throw new DnsClientResponseValidationException("Invalid response was received: QNAME mismatch.");
