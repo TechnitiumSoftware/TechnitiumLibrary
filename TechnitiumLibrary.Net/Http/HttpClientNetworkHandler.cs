@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -74,7 +74,7 @@ namespace TechnitiumLibrary.Net.Http
                             if (_dnsClient is null)
                                 _dnsClient = new DnsClient();
 
-                            IReadOnlyList<IPAddress> ipAddresses = await _dnsClient.ResolveIPAsync(request.RequestUri.Host);
+                            IReadOnlyList<IPAddress> ipAddresses = await _dnsClient.ResolveIPAsync(request.RequestUri.Host, false, cancellationToken);
 
                             foreach (IPAddress ipAddress in ipAddresses)
                             {
@@ -109,7 +109,7 @@ namespace TechnitiumLibrary.Net.Http
                             if (_dnsClient is null)
                                 _dnsClient = new DnsClient();
 
-                            IReadOnlyList<IPAddress> ipAddresses = await _dnsClient.ResolveIPAsync(request.RequestUri.Host, true);
+                            IReadOnlyList<IPAddress> ipAddresses = await _dnsClient.ResolveIPAsync(request.RequestUri.Host, true, cancellationToken);
 
                             foreach (IPAddress ipAddress in ipAddresses)
                             {
