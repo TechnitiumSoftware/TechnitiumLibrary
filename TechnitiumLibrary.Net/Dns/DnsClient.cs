@@ -45,7 +45,8 @@ namespace TechnitiumLibrary.Net.Dns
         Tcp = 1,
         Tls = 2, //RFC-7858
         Https = 3, //RFC-8484
-        HttpsJson = 4 //Google
+        HttpsJson = 4, //Google
+        Quic //RFC 9250
     }
 
     public class DnsClient : IDnsClient
@@ -4014,7 +4015,7 @@ namespace TechnitiumLibrary.Net.Dns
                             }
 
                             //get connection
-                            using (DnsClientConnection connection = DnsClientConnection.GetConnection(server, _proxy))
+                            await using (DnsClientConnection connection = DnsClientConnection.GetConnection(server, _proxy))
                             {
                                 try
                                 {
@@ -4211,7 +4212,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 using (CancellationTokenSource cancellationTokenSource = new CancellationTokenSource())
                 {
-                    using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { cancellationTokenSource.Cancel(); }))
+                    await using (CancellationTokenRegistration ctr = cancellationToken.Register(cancellationTokenSource.Cancel))
                     {
                         List<Task> tasks = new List<Task>(concurrency + 1);
 
