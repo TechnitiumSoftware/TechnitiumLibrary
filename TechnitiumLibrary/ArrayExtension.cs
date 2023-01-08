@@ -41,12 +41,12 @@ namespace TechnitiumLibrary
             }
         }
 
-        public static T[] Convert<T>(this string[] array, Func<string, T> parse)
+        public static T2[] Convert<T1, T2>(this T1[] array, Func<T1, T2> convert)
         {
-            T[] newArray = new T[array.Length];
+            T2[] newArray = new T2[array.Length];
 
             for (int i = 0; i < array.Length; i++)
-                newArray[i] = parse(array[i]);
+                newArray[i] = convert(array[i]);
 
             return newArray;
         }
