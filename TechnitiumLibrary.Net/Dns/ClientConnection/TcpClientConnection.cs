@@ -382,7 +382,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     _lastResponse = response;
 
-                    if ((_lastResponse.Answer.Count == 0) || (_lastResponse.Answer[_lastResponse.Answer.Count - 1].Type == DnsResourceRecordType.SOA))
+                    if ((_lastResponse.Answer.Count == 0) || (_lastResponse.Answer[_lastResponse.Answer.Count - 1].Type == DnsResourceRecordType.SOA && _firstResponse != _lastResponse))
                     {
                         //found last response
                         _stopwatch.Stop();
