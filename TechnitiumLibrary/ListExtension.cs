@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -40,6 +40,26 @@ namespace TechnitiumLibrary
                 array[n] = array[k];
                 array[k] = temp;
             }
+        }
+
+        public static IList<T2> Convert<T1, T2>(this IList<T1> array, Func<T1, T2> convert)
+        {
+            T2[] newArray = new T2[array.Count];
+
+            for (int i = 0; i < array.Count; i++)
+                newArray[i] = convert(array[i]);
+
+            return newArray;
+        }
+
+        public static IReadOnlyList<T2> Convert<T1, T2>(this IReadOnlyList<T1> array, Func<T1, T2> convert)
+        {
+            T2[] newArray = new T2[array.Count];
+
+            for (int i = 0; i < array.Count; i++)
+                newArray[i] = convert(array[i]);
+
+            return newArray;
         }
     }
 }
