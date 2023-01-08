@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
@@ -47,6 +48,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             if (proxy is null)
             {
                 SocketsHttpHandler handler = new SocketsHttpHandler();
+                handler.EnableMultipleHttp2Connections = true;
                 handler.UseProxy = false;
 
                 _httpClient = new HttpClient(handler);
@@ -54,6 +56,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             else
             {
                 SocketsHttpHandler handler = new SocketsHttpHandler();
+                handler.EnableMultipleHttp2Connections = true;
                 handler.Proxy = proxy;
 
                 _httpClient = new HttpClient(handler);
@@ -73,20 +76,18 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region IDisposable
 
-        bool _disposed;
-
         protected override void Dispose(bool disposing)
         {
-            if (_disposed)
-                return;
-
             if (disposing && !_pooled)
-            {
-                if (_httpClient != null)
-                    _httpClient.Dispose();
-            }
+                _httpClient?.Dispose();
+        }
 
-            _disposed = true;
+        protected override ValueTask DisposeAsyncCore()
+        {
+            if (!_pooled)
+                _httpClient?.Dispose();
+
+            return ValueTask.CompletedTask;
         }
 
         #endregion
@@ -128,12 +129,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 HttpRequestMessage httpRequest = new HttpRequestMessage(HttpMethod.Post, queryUri);
                 httpRequest.Content = new ByteArrayContent(requestBuffer);
                 httpRequest.Content.Headers.ContentType = new MediaTypeHeaderValue("application/dns-message");
+                httpRequest.Version = HttpVersion.Version30;
+                httpRequest.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
 
                 return httpRequest;
             }
 
             //DoH wire format request
             Stopwatch stopwatch = new Stopwatch();
+
+            stopwatch.Start();
+
             int retry = 0;
             while (retry < retries) //retry loop
             {
@@ -142,13 +148,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if (cancellationToken.IsCancellationRequested)
                     return await Task.FromCanceled<DnsDatagram>(cancellationToken); //task cancelled
 
-                stopwatch.Start();
-
                 Task<HttpResponseMessage> task = _httpClient.SendAsync(await GetHttpRequest(), cancellationToken);
 
                 using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                 {
-                    using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { timeoutCancellationTokenSource.Cancel(); }))
+                    await using (CancellationTokenRegistration ctr = cancellationToken.Register(timeoutCancellationTokenSource.Cancel))
                     {
                         if (await Task.WhenAny(task, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != task)
                             continue; //request timed out; retry
