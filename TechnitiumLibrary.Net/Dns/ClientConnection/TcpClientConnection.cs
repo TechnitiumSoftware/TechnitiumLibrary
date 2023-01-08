@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -65,16 +65,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region IDisposable
 
-        bool _disposed;
-
         protected override void Dispose(bool disposing)
         {
-            if (_disposed)
-                return;
-
             if (disposing && !_pooled)
             {
-                if (_socket != null)
+                if (_socket is not null)
                 {
                     try
                     {
@@ -87,20 +82,44 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     _socket.Dispose();
                 }
 
-                if (_tcpStream != null)
-                    _tcpStream.Dispose();
+                _tcpStream?.Dispose();
 
-                if (_sendBuffer != null)
-                    _sendBuffer.Dispose();
+                _sendBuffer?.Dispose();
 
-                if (_recvBuffer != null)
-                    _recvBuffer.Dispose();
+                _recvBuffer?.Dispose();
 
-                if (_sendRequestSemaphore != null)
-                    _sendRequestSemaphore.Dispose();
+                _sendRequestSemaphore?.Dispose();
             }
+        }
 
-            _disposed = true;
+        protected override async ValueTask DisposeAsyncCore()
+        {
+            if (!_pooled)
+            {
+                if (_socket is not null)
+                {
+                    try
+                    {
+                        if (_socket.Connected)
+                            _socket.Shutdown(SocketShutdown.Both);
+                    }
+                    catch
+                    { }
+
+                    _socket.Dispose();
+                }
+
+                if (_tcpStream is not null)
+                    await _tcpStream.DisposeAsync();
+
+                if (_sendBuffer is not null)
+                    await _sendBuffer.DisposeAsync();
+
+                if (_recvBuffer is not null)
+                    await _recvBuffer.DisposeAsync();
+
+                _sendRequestSemaphore?.Dispose();
+            }
         }
 
         #endregion
@@ -234,7 +253,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     //wait for request with timeout
                     using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                     {
-                        using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { timeoutCancellationTokenSource.Cancel(); }))
+                        await using (CancellationTokenRegistration ctr = cancellationToken.Register(timeoutCancellationTokenSource.Cancel))
                         {
                             if (await Task.WhenAny(new Task[] { sendAsyncTask, Task.Delay(timeout, timeoutCancellationTokenSource.Token) }) != sendAsyncTask)
                                 continue; //send timed out; retry
@@ -249,7 +268,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     //wait for response with timeout
                     using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                     {
-                        using (CancellationTokenRegistration ctr = cancellationToken.Register(delegate () { timeoutCancellationTokenSource.Cancel(); }))
+                        await using (CancellationTokenRegistration ctr = cancellationToken.Register(timeoutCancellationTokenSource.Cancel))
                         {
                             if (await Task.WhenAny(new Task[] { transaction.Response, Task.Delay(timeout, timeoutCancellationTokenSource.Token) }) != transaction.Response)
                                 continue; //timed out; retry
