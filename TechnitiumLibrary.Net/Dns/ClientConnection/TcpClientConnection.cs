@@ -375,14 +375,20 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 if (_isZoneTransferRequest)
                 {
+                    var firstResponse = false;
                     if (_firstResponse is null)
+                    {
                         _firstResponse = response;
+                        firstResponse = true;
+                    }
                     else
+                    {
                         _lastResponse.NextDatagram = response;
+                    }
 
                     _lastResponse = response;
 
-                    if ((_lastResponse.Answer.Count == 0) || (_lastResponse.Answer[_lastResponse.Answer.Count - 1].Type == DnsResourceRecordType.SOA && _firstResponse != _lastResponse))
+                    if ((_lastResponse.Answer.Count == 0) || (_lastResponse.Answer[_lastResponse.Answer.Count - 1].Type == DnsResourceRecordType.SOA && (_lastResponse.Answer.Count > 1 || !firstResponse)))
                     {
                         //found last response
                         _stopwatch.Stop();
