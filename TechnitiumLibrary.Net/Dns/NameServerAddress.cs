@@ -196,7 +196,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 case DnsTransportProtocol.Udp:
                 case DnsTransportProtocol.Tcp:
-                    if (_dohEndPoint != null)
+                    if (_dohEndPoint is not null)
                         throw new ArgumentException("Invalid DNS transport protocol was specified for current operation: " + _protocol.ToString());
 
                     if (Port == 853)
@@ -205,7 +205,8 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
 
                 case DnsTransportProtocol.Tls:
-                    if (_dohEndPoint != null)
+                case DnsTransportProtocol.Quic:
+                    if (_dohEndPoint is not null)
                         throw new ArgumentException("Invalid DNS transport protocol was specified for current operation: " + _protocol.ToString());
 
                     if (Port == 53)
@@ -214,7 +215,7 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
 
                 case DnsTransportProtocol.Https:
-                    if (_dohEndPoint == null)
+                    if (_dohEndPoint is null)
                         throw new ArgumentException("Invalid DNS transport protocol was specified for current operation: " + _protocol.ToString());
 
                     switch (Port)
@@ -230,7 +231,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         private void GuessProtocol()
         {
-            if (_dohEndPoint != null)
+            if (_dohEndPoint is not null)
             {
                 _protocol = DnsTransportProtocol.Https;
             }
