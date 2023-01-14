@@ -3990,7 +3990,17 @@ namespace TechnitiumLibrary.Net.Dns
                     if ((_proxy is not null) && (server.Protocol == DnsTransportProtocol.Udp) && !_proxy.IsBypassed(server.EndPoint) && !await _proxy.IsUdpAvailableAsync())
                         server = server.ChangeProtocol(DnsTransportProtocol.Tcp);
 
-                    asyncRequest.SetRandomIdentifier();
+                    switch (server.Protocol)
+                    {
+                        case DnsTransportProtocol.Https:
+                        case DnsTransportProtocol.Quic:
+                            asyncRequest.SetIdentifier(0);
+                            break;
+
+                        default:
+                            asyncRequest.SetRandomIdentifier();
+                            break;
+                    }
 
                     bool protocolWasSwitched = false;
                     try
