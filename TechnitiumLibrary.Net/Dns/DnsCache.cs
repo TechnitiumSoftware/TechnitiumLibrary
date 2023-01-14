@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -1113,7 +1113,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #endregion
 
-        public enum DnsSpecialCacheRecordType
+        public enum DnsSpecialCacheRecordType : byte
         {
             Unknown = 0,
             NegativeCache = 1,
@@ -1269,6 +1269,51 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
+            private DnsSpecialCacheRecordData(DnsSpecialCacheRecordType type, DnsResponseCode rcode, IReadOnlyList<DnsResourceRecord> answer, IReadOnlyList<DnsResourceRecord> authority, IReadOnlyList<DnsResourceRecord> additional, List<EDnsOption> ednsOptions, IReadOnlyList<DnsResourceRecord> noDnssecAuthority)
+            {
+                _type = type;
+                _rcode = rcode;
+                _answer = answer;
+                _authority = authority;
+                _additional = additional;
+                _ednsOptions = ednsOptions;
+                _noDnssecAuthority = noDnssecAuthority;
+            }
+
+            #endregion
+
+            #region static
+
+            public static DnsSpecialCacheRecordData ReadCacheRecordFrom(BinaryReader bR, Action<DnsResourceRecord> readTagInfo)
+            {
+                byte version = bR.ReadByte();
+                switch (version)
+                {
+                    case 1:
+                        DnsSpecialCacheRecordType type = (DnsSpecialCacheRecordType)bR.ReadByte();
+                        DnsResponseCode rcode = (DnsResponseCode)bR.ReadUInt16();
+                        IReadOnlyList<DnsResourceRecord> answer = ReadCacheRecordsFrom(bR, readTagInfo);
+                        IReadOnlyList<DnsResourceRecord> authority = ReadCacheRecordsFrom(bR, readTagInfo);
+                        IReadOnlyList<DnsResourceRecord> additional = ReadCacheRecordsFrom(bR, readTagInfo);
+
+                        List<EDnsOption> ednsOptions;
+                        {
+                            int count = bR.ReadByte();
+                            ednsOptions = new List<EDnsOption>(count);
+
+                            for (int i = 0; i < count; i++)
+                                ednsOptions.Add(new EDnsOption(bR.BaseStream));
+                        }
+
+                        IReadOnlyList<DnsResourceRecord> noDnssecAuthority = ReadCacheRecordsFrom(bR, readTagInfo);
+
+                        return new DnsSpecialCacheRecordData(type, rcode, answer, authority, additional, ednsOptions, noDnssecAuthority);
+
+                    default:
+                        throw new InvalidDataException("DnsCache.DnsSpecialCacheRecordData format version not supported.");
+                }
+            }
+
             #endregion
 
             #region protected
@@ -1285,7 +1330,65 @@ namespace TechnitiumLibrary.Net.Dns
 
             #endregion
 
+            #region private
+
+            private static IReadOnlyList<DnsResourceRecord> ReadCacheRecordsFrom(BinaryReader bR, Action<DnsResourceRecord> readTagInfo)
+            {
+                int count = bR.ReadByte();
+                if (count == 0)
+                    return Array.Empty<DnsResourceRecord>();
+
+                DnsResourceRecord[] records = new DnsResourceRecord[count];
+
+                for (int i = 0; i < count; i++)
+                    records[i] = DnsResourceRecord.ReadCacheRecordFrom(bR, readTagInfo);
+
+                return records;
+            }
+
+            private static void WriteCacheRecordsTo(IReadOnlyList<DnsResourceRecord> records, BinaryWriter bW, Action writeTagInfo)
+            {
+                if (records is null)
+                {
+                    bW.Write((byte)0);
+                }
+                else
+                {
+                    bW.Write(Convert.ToByte(records.Count));
+
+                    foreach (DnsResourceRecord record in records)
+                        record.WriteCacheRecordTo(bW, writeTagInfo);
+                }
+            }
+
+            #endregion
+
             #region public
+
+            public void WriteCacheRecordTo(BinaryWriter bW, Action writeTagInfo)
+            {
+                bW.Write((byte)1); //version
+
+                bW.Write((byte)_type);
+                bW.Write((ushort)_rcode);
+                WriteCacheRecordsTo(_answer, bW, writeTagInfo);
+                WriteCacheRecordsTo(_authority, bW, writeTagInfo);
+                WriteCacheRecordsTo(_additional, bW, writeTagInfo);
+
+                if (_ednsOptions is null)
+                {
+                    bW.Write((byte)0);
+                }
+                else
+                {
+                    bW.Write(Convert.ToByte(_ednsOptions.Count));
+
+                    foreach (EDnsOption ednsOption in _ednsOptions)
+                        ednsOption.WriteTo(bW.BaseStream);
+                }
+
+                WriteCacheRecordsTo(_noDnssecAuthority, bW, writeTagInfo);
+            }
 
             public void CopyExtendedDnsErrorsFrom(DnsSpecialCacheRecordData other)
             {
