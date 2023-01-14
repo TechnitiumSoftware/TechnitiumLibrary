@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -330,9 +330,9 @@ namespace TechnitiumLibrary.Net.Dns
             return datagram;
         }
 
-        public static async Task<DnsDatagram> ReadFromTcpAsync(Stream stream, CancellationToken cancellationToken = default)
+        public static async Task<DnsDatagram> ReadFromTcpAsync(Stream stream, int bufferSize = 4096, CancellationToken cancellationToken = default)
         {
-            using (MemoryStream mS = new MemoryStream(4096))
+            using (MemoryStream mS = new MemoryStream(bufferSize))
             {
                 return await ReadFromTcpAsync(stream, mS, cancellationToken);
             }
@@ -927,9 +927,9 @@ namespace TechnitiumLibrary.Net.Dns
                 additional.WriteTo(s, domainEntries);
         }
 
-        public async Task WriteToTcpAsync(Stream s, CancellationToken cancellationToken = default)
+        public async Task WriteToTcpAsync(Stream s, int bufferSize = 4096, CancellationToken cancellationToken = default)
         {
-            using (MemoryStream mS = new MemoryStream(4096))
+            using (MemoryStream mS = new MemoryStream(bufferSize))
             {
                 await WriteToTcpAsync(s, mS, cancellationToken);
             }
