@@ -506,6 +506,7 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
 
                 case DnsTransportProtocol.Tls:
+                case DnsTransportProtocol.Quic:
                     {
                         int port;
 
