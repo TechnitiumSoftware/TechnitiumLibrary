@@ -20,7 +20,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net;
 using System.Text;
 using System.Text.Json;
 using TechnitiumLibrary.IO;
@@ -70,7 +69,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (_protocol == DnsTransportProtocol.HttpsJson)
                 _protocol = DnsTransportProtocol.Https;
 
-            _nameServer = NameServerAddress.Parse(_forwarder, _protocol);
+            _nameServer = NameServerAddress.Parse(_forwarder);
+            if (_nameServer.Protocol != _protocol)
+                _nameServer = _nameServer.ChangeProtocol(_protocol);
         }
 
         public DnsForwarderRecordData(Stream s)
@@ -237,7 +238,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 if (_proxy is null)
                 {
-                    _proxy = NetProxy.CreateProxy(_proxyType, _proxyAddress, _proxyPort, string.IsNullOrEmpty(_proxyUsername) ? null : new NetworkCredential(_proxyUsername, _proxyPassword));
+                    _proxy = NetProxy.CreateProxy(_proxyType, _proxyAddress, _proxyPort, _proxyUsername, _proxyPassword);
                     _proxy.BypassList = null;
                 }
 
