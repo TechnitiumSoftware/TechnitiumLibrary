@@ -18,20 +18,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
-using System.Collections.Generic;
 using System.Security.Cryptography;
 
 namespace TechnitiumLibrary
 {
-    public static class ListExtension
+    public static class ArrayExtensions
     {
         readonly static RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
 
-        public static void Shuffle<T>(this IList<T> array)
+        public static void Shuffle<T>(this T[] array)
         {
             Span<byte> buffer = stackalloc byte[4];
 
-            int n = array.Count;
+            int n = array.Length;
             while (n > 1)
             {
                 _rnd.GetBytes(buffer);
@@ -42,21 +41,11 @@ namespace TechnitiumLibrary
             }
         }
 
-        public static IList<T2> Convert<T1, T2>(this IList<T1> array, Func<T1, T2> convert)
+        public static T2[] Convert<T1, T2>(this T1[] array, Func<T1, T2> convert)
         {
-            T2[] newArray = new T2[array.Count];
+            T2[] newArray = new T2[array.Length];
 
-            for (int i = 0; i < array.Count; i++)
-                newArray[i] = convert(array[i]);
-
-            return newArray;
-        }
-
-        public static IReadOnlyList<T2> Convert<T1, T2>(this IReadOnlyList<T1> array, Func<T1, T2> convert)
-        {
-            T2[] newArray = new T2[array.Count];
-
-            for (int i = 0; i < array.Count; i++)
+            for (int i = 0; i < array.Length; i++)
                 newArray[i] = convert(array[i]);
 
             return newArray;

@@ -23,7 +23,7 @@ using System.Threading.Tasks;
 
 namespace TechnitiumLibrary
 {
-    public static class TaskExtension
+    public static class TaskExtensions
     {
         public static async Task WithTimeout(this Task task, int timeout)
         {
