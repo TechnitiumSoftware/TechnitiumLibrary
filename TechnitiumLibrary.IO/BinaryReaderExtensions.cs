@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ using System.Text;
 
 namespace TechnitiumLibrary.IO
 {
-    public static class BinaryReaderExtension
+    public static class BinaryReaderExtensions
     {
         public static byte[] ReadBuffer(this BinaryReader bR)
         {
