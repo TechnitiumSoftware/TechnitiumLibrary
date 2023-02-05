@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -135,10 +135,7 @@ namespace TechnitiumLibrary
 
         public override int GetHashCode()
         {
-            if (_value.Length < 4)
-                return 0;
-            else
-                return BitConverter.ToInt32(_value, 0);
+            return HashCode.Combine(_value);
         }
 
         public int CompareTo(BinaryNumber other)
@@ -283,21 +280,16 @@ namespace TechnitiumLibrary
             if (b1._value.Length != b2._value.Length)
                 throw new ArgumentException("Operand value length not equal.");
 
-            bool eq = true;
-
             for (int i = 0; i < b1._value.Length; i++)
             {
+                if (b1._value[i] < b2._value[i])
+                    return true;
+
                 if (b1._value[i] > b2._value[i])
                     return false;
-
-                if (b1._value[i] != b2._value[i])
-                    eq = false;
             }
 
-            if (eq)
-                return false;
-
-            return true;
+            return false;
         }
 
         public static bool operator >(BinaryNumber b1, BinaryNumber b2)
@@ -305,21 +297,16 @@ namespace TechnitiumLibrary
             if (b1._value.Length != b2._value.Length)
                 throw new ArgumentException("Operand value length not equal.");
 
-            bool eq = true;
-
             for (int i = 0; i < b1._value.Length; i++)
             {
+                if (b1._value[i] > b2._value[i])
+                    return true;
+
                 if (b1._value[i] < b2._value[i])
                     return false;
-
-                if (b1._value[i] != b2._value[i])
-                    eq = false;
             }
 
-            if (eq)
-                return false;
-
-            return true;
+            return false;
         }
 
         public static bool operator <=(BinaryNumber b1, BinaryNumber b2)
@@ -329,6 +316,9 @@ namespace TechnitiumLibrary
 
             for (int i = 0; i < b1._value.Length; i++)
             {
+                if (b1._value[i] < b2._value[i])
+                    return true;
+
                 if (b1._value[i] > b2._value[i])
                     return false;
             }
@@ -343,6 +333,9 @@ namespace TechnitiumLibrary
 
             for (int i = 0; i < b1._value.Length; i++)
             {
+                if (b1._value[i] > b2._value[i])
+                    return true;
+
                 if (b1._value[i] < b2._value[i])
                     return false;
             }
@@ -355,9 +348,7 @@ namespace TechnitiumLibrary
             BinaryNumber obj = b1.Clone();
 
             for (int i = 0; i < obj._value.Length; i++)
-            {
                 obj._value[i] = (byte)~obj._value[i];
-            }
 
             return obj;
         }
