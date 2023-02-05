@@ -57,7 +57,7 @@ namespace TechnitiumLibrary.Net.Dns
             _dohEndPoint = dohEndPoint;
 
             if (IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address))
-                _ipEndPoint = new IPEndPoint(address, _dohEndPoint.Port);
+                _ipEndPoint = new IPEndPoint(address, GetDoHPort());
 
             _protocol = protocol;
             _originalAddress = _dohEndPoint.AbsoluteUri;
@@ -68,7 +68,7 @@ namespace TechnitiumLibrary.Net.Dns
         public NameServerAddress(Uri dohEndPoint, IPAddress address, DnsTransportProtocol protocol = DnsTransportProtocol.Https)
         {
             _dohEndPoint = dohEndPoint;
-            _ipEndPoint = new IPEndPoint(address, _dohEndPoint.Port);
+            _ipEndPoint = new IPEndPoint(address, GetDoHPort());
 
             _protocol = protocol;
 
@@ -156,16 +156,16 @@ namespace TechnitiumLibrary.Net.Dns
                         _dohEndPoint = new Uri(bR.ReadShortString());
 
                     if (bR.ReadBoolean())
-                        _domainEndPoint = EndPointExtension.ReadFrom(bR) as DomainEndPoint;
+                        _domainEndPoint = EndPointExtensions.ReadFrom(bR) as DomainEndPoint;
 
                     if (bR.ReadBoolean())
-                        _ipEndPoint = EndPointExtension.ReadFrom(bR) as IPEndPoint;
+                        _ipEndPoint = EndPointExtensions.ReadFrom(bR) as IPEndPoint;
 
-                    if (_dohEndPoint != null)
+                    if (_dohEndPoint is not null)
                         _originalAddress = _dohEndPoint.AbsoluteUri;
-                    else if (_ipEndPoint != null)
+                    else if (_ipEndPoint is not null)
                         _originalAddress = _ipEndPoint.ToString();
-                    else if (_domainEndPoint != null)
+                    else if (_domainEndPoint is not null)
                         _originalAddress = _domainEndPoint.ToString();
 
                     GuessProtocol();
@@ -235,6 +235,22 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 _protocol = DnsTransportProtocol.Https;
             }
+            else if (_originalAddress.StartsWith("udp://", StringComparison.OrdinalIgnoreCase))
+            {
+                _protocol = DnsTransportProtocol.Udp;
+            }
+            else if (_originalAddress.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase))
+            {
+                _protocol = DnsTransportProtocol.Tcp;
+            }
+            else if (_originalAddress.StartsWith("tls://", StringComparison.OrdinalIgnoreCase))
+            {
+                _protocol = DnsTransportProtocol.Tls;
+            }
+            else if (_originalAddress.StartsWith("quic://", StringComparison.OrdinalIgnoreCase))
+            {
+                _protocol = DnsTransportProtocol.Quic;
+            }
             else
             {
                 switch (Port)
@@ -271,9 +287,31 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     string strDomainPart = address.Substring(0, posRoundBracketStart).Trim();
 
-                    if (strDomainPart.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || strDomainPart.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                    if (strDomainPart.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || strDomainPart.StartsWith("h3://", StringComparison.OrdinalIgnoreCase) || strDomainPart.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
                     {
                         _dohEndPoint = new Uri(strDomainPart);
+                    }
+                    else if (strDomainPart.StartsWith("udp://", StringComparison.OrdinalIgnoreCase) || strDomainPart.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Uri uri = new Uri(strDomainPart);
+
+                        domainName = uri.Host;
+
+                        if (uri.Port == -1)
+                            domainPort = 53;
+                        else
+                            domainPort = uri.Port;
+                    }
+                    else if (strDomainPart.StartsWith("tls://", StringComparison.OrdinalIgnoreCase) || strDomainPart.StartsWith("quic://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Uri uri = new Uri(strDomainPart);
+
+                        domainName = uri.Host;
+
+                        if (uri.Port == -1)
+                            domainPort = 853;
+                        else
+                            domainPort = uri.Port;
                     }
                     else
                     {
@@ -289,9 +327,31 @@ namespace TechnitiumLibrary.Net.Dns
                 address = address.Substring(posRoundBracketStart + 1, posRoundBracketEnd - posRoundBracketStart - 1);
             }
 
-            if (address.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || address.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            if (address.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || address.StartsWith("h3://", StringComparison.OrdinalIgnoreCase) || address.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
             {
                 _dohEndPoint = new Uri(address);
+            }
+            else if (address.StartsWith("udp://", StringComparison.OrdinalIgnoreCase) || address.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase))
+            {
+                Uri uri = new Uri(address);
+
+                host = uri.Host;
+
+                if (uri.Port == -1)
+                    port = 53;
+                else
+                    port = uri.Port;
+            }
+            else if (address.StartsWith("tls://", StringComparison.OrdinalIgnoreCase) || address.StartsWith("quic://", StringComparison.OrdinalIgnoreCase))
+            {
+                Uri uri = new Uri(address);
+
+                host = uri.Host;
+
+                if (uri.Port == -1)
+                    port = 853;
+                else
+                    port = uri.Port;
             }
             else if (address.StartsWith("["))
             {
@@ -323,7 +383,7 @@ namespace TechnitiumLibrary.Net.Dns
                     port = int.Parse(strParts[1]);
             }
 
-            if (_dohEndPoint == null)
+            if (_dohEndPoint is null)
             {
                 if ((domainPort == 0) && (port == 0))
                 {
@@ -343,21 +403,21 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
                 }
 
-                if (domainName != null)
+                if (domainName is not null)
                     _domainEndPoint = new DomainEndPoint(domainName, domainPort);
 
                 if (IPAddress.TryParse(host, out IPAddress ipAddress))
                     _ipEndPoint = new IPEndPoint(ipAddress, port);
-                else if ((_domainEndPoint != null) || ipv6Host)
+                else if ((_domainEndPoint is not null) || ipv6Host)
                     throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
                 else
                     _domainEndPoint = new DomainEndPoint(host, port);
             }
-            else if (host != null)
+            else if (host is not null)
             {
                 if (port == 0)
-                    port = _dohEndPoint.Port;
-                else if (_dohEndPoint.Port != port)
+                    port = GetDoHPort();
+                else if (GetDoHPort() != port)
                     throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
 
                 if (IPAddress.TryParse(host, out IPAddress ipAddress))
@@ -365,6 +425,14 @@ namespace TechnitiumLibrary.Net.Dns
                 else
                     throw new ArgumentException("Invalid name server address was encountered: " + _originalAddress);
             }
+        }
+
+        private int GetDoHPort()
+        {
+            if ((_dohEndPoint.Port == -1) && _dohEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase))
+                return 443;
+
+            return _dohEndPoint.Port;
         }
 
         #endregion
@@ -571,9 +639,9 @@ namespace TechnitiumLibrary.Net.Dns
 
             string domain;
 
-            if (_dohEndPoint != null)
+            if (_dohEndPoint is not null)
                 domain = _dohEndPoint.Host;
-            else if (_domainEndPoint != null)
+            else if (_domainEndPoint is not null)
                 domain = _domainEndPoint.Address;
             else
                 return;
@@ -607,9 +675,9 @@ namespace TechnitiumLibrary.Net.Dns
 
             string domain;
 
-            if (_dohEndPoint != null)
+            if (_dohEndPoint is not null)
                 domain = _dohEndPoint.Host;
-            else if (_domainEndPoint != null)
+            else if (_domainEndPoint is not null)
                 domain = _domainEndPoint.Address;
             else
                 return;
@@ -642,7 +710,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public async Task ResolveDomainNameAsync(IDnsClient dnsClient, CancellationToken cancellationToken = default)
         {
-            if (_ipEndPoint != null)
+            if (_ipEndPoint is not null)
             {
                 try
                 {
@@ -657,7 +725,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public async Task RecursiveResolveDomainNameAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, int retries = 2, int timeout = 2000, CancellationToken cancellationToken = default)
         {
-            if (_ipEndPoint != null)
+            if (_ipEndPoint is not null)
             {
                 try
                 {
@@ -713,7 +781,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public int CompareTo(NameServerAddress other)
         {
-            if ((_ipEndPoint == null) || (other._ipEndPoint == null))
+            if ((_ipEndPoint is null) || (other._ipEndPoint is null))
                 return 0;
 
             if ((_ipEndPoint.AddressFamily == AddressFamily.InterNetwork) && (other._ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
@@ -768,14 +836,59 @@ namespace TechnitiumLibrary.Net.Dns
         public string OriginalAddress
         { get { return _originalAddress; } }
 
+        public bool IsDefaultPort
+        {
+            get
+            {
+                if (_dohEndPoint is not null)
+                {
+                    if (_dohEndPoint.Port == -1)
+                        return true;
+
+                    return _dohEndPoint.IsDefaultPort;
+                }
+
+                if (_domainEndPoint is not null)
+                {
+                    switch (_protocol)
+                    {
+                        case DnsTransportProtocol.Udp:
+                        case DnsTransportProtocol.Tcp:
+                            return _domainEndPoint.Port == 53;
+
+                        case DnsTransportProtocol.Tls:
+                        case DnsTransportProtocol.Quic:
+                            return _domainEndPoint.Port == 853;
+
+                        default:
+                            return false;
+                    }
+                }
+
+                switch (_protocol)
+                {
+                    case DnsTransportProtocol.Udp:
+                    case DnsTransportProtocol.Tcp:
+                        return _ipEndPoint.Port == 53;
+
+                    case DnsTransportProtocol.Tls:
+                    case DnsTransportProtocol.Quic:
+                        return _ipEndPoint.Port == 853;
+
+                    default:
+                        return false;
+                }
+            }
+        }
+
         public string Host
         {
             get
             {
-                if (_dohEndPoint != null)
+                if (_dohEndPoint is not null)
                     return _dohEndPoint.Host;
 
-                if (_domainEndPoint != null)
+                if (_domainEndPoint is not null)
                     return _domainEndPoint.Address;
 
                 return _ipEndPoint.Address.ToString();
@@ -786,10 +899,10 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get
             {
-                if (_dohEndPoint != null)
-                    return _dohEndPoint.Port;
+                if (_dohEndPoint is not null)
+                    return GetDoHPort();
 
-                if (_domainEndPoint != null)
+                if (_domainEndPoint is not null)
                     return _domainEndPoint.Port;
 
                 return _ipEndPoint.Port;
@@ -809,18 +922,18 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get
             {
-                if (_ipEndPoint != null)
+                if (_ipEndPoint is not null)
                     return _ipEndPoint; //IP endpoint is prefered
 
-                if (_dohEndPoint != null)
-                    return new DomainEndPoint(_dohEndPoint.Host, _dohEndPoint.Port);
+                if (_dohEndPoint is not null)
+                    return new DomainEndPoint(_dohEndPoint.Host, GetDoHPort());
 
                 return _domainEndPoint;
             }
         }
 
         public bool IsIPEndPointStale
-        { get { return (_ipEndPoint == null) || (_ipEndPointExpires && (DateTime.UtcNow > _ipEndPointExpiresOn)); } }
+        { get { return (_ipEndPoint is null) || (_ipEndPointExpires && (DateTime.UtcNow > _ipEndPointExpiresOn)); } }
 
         #endregion
     }
