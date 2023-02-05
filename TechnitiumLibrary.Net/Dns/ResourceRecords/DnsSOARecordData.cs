@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -163,7 +163,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return _primaryNameServer.GetHashCode();
+            return HashCode.Combine(_primaryNameServer, _responsiblePerson, _serial, _refresh, _retry, _expire, _minimum);
         }
 
         public override string ToString()
