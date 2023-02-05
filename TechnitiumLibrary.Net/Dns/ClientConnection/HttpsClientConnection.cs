@@ -64,10 +64,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             _httpClient.DefaultRequestHeaders.Add("accept", "application/dns-message");
 
-            if (_server.DoHEndPoint.IsDefaultPort)
-                _httpClient.DefaultRequestHeaders.Add("host", _server.DoHEndPoint.Host);
+            if (_server.IsDefaultPort)
+                _httpClient.DefaultRequestHeaders.Add("host", _server.Host);
             else
-                _httpClient.DefaultRequestHeaders.Add("host", _server.DoHEndPoint.Host + ":" + _server.DoHEndPoint.Port);
+                _httpClient.DefaultRequestHeaders.Add("host", _server.Host + ":" + _server.Port);
 
             _httpClient.DefaultRequestHeaders.Add("user-agent", "DoH client");
         }
@@ -109,6 +109,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     requestBuffer = mS.ToArray();
                 }
 
+                bool isHttp3 = _server.DoHEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase);
+                string scheme = isHttp3 ? "https" : _server.DoHEndPoint.Scheme;
+
                 Uri queryUri;
 
                 if (_proxy == null)
@@ -116,21 +119,25 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (_server.IsIPEndPointStale)
                         await _server.RecursiveResolveIPAddressAsync(null, null, false, DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, false, 2, 2000, cancellationToken);
 
-                    queryUri = new Uri(_server.DoHEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DoHEndPoint.PathAndQuery);
+                    queryUri = new Uri(scheme + "://" + _server.IPEndPoint.ToString() + _server.DoHEndPoint.PathAndQuery);
                 }
                 else
                 {
                     if (_server.IPEndPoint == null)
                         queryUri = _server.DoHEndPoint;
                     else
-                        queryUri = new Uri(_server.DoHEndPoint.Scheme + "://" + _server.IPEndPoint.ToString() + _server.DoHEndPoint.PathAndQuery);
+                        queryUri = new Uri(scheme + "://" + _server.IPEndPoint.ToString() + _server.DoHEndPoint.PathAndQuery);
                 }
 
                 HttpRequestMessage httpRequest = new HttpRequestMessage(HttpMethod.Post, queryUri);
                 httpRequest.Content = new ByteArrayContent(requestBuffer);
                 httpRequest.Content.Headers.ContentType = new MediaTypeHeaderValue("application/dns-message");
                 httpRequest.Version = HttpVersion.Version30;
-                httpRequest.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+
+                if (isHttp3)
+                    httpRequest.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                else
+                    httpRequest.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
 
                 return httpRequest;
             }
