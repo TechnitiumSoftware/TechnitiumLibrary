@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -73,19 +73,19 @@ namespace TechnitiumLibrary.Net
 
         #region static
 
-        public static NetworkAddress Parse(string cidr)
+        public static NetworkAddress Parse(string network)
         {
-            if (TryParse(cidr, out NetworkAddress networkAddress))
+            if (TryParse(network, out NetworkAddress networkAddress))
                 return networkAddress;
 
-            throw new FormatException("CIDR value was not in expected format: " + cidr);
+            throw new FormatException("Invalid network address was specified: " + network);
         }
 
-        public static bool TryParse(string cidr, out NetworkAddress networkAddress)
+        public static bool TryParse(string network, out NetworkAddress networkAddress)
         {
-            string[] network = cidr.Split(new char[] { '/' }, 2);
+            string[] parts = network.Split(new char[] { '/' }, 2);
 
-            if (!IPAddress.TryParse(network[0], out IPAddress address))
+            if (!IPAddress.TryParse(parts[0], out IPAddress address))
             {
                 networkAddress = null;
                 return false;
@@ -93,7 +93,7 @@ namespace TechnitiumLibrary.Net
 
             byte prefixLength = 255;
 
-            if ((network.Length > 1) && !byte.TryParse(network[1], out prefixLength))
+            if ((parts.Length > 1) && !byte.TryParse(parts[1], out prefixLength))
             {
                 networkAddress = null;
                 return false;
@@ -138,7 +138,7 @@ namespace TechnitiumLibrary.Net
 
         public static NetworkAddress ReadFrom(BinaryReader bR)
         {
-            IPAddress address = IPAddressExtension.ReadFrom(bR);
+            IPAddress address = IPAddressExtensions.ReadFrom(bR);
             byte prefixLength = bR.ReadByte();
 
             return new NetworkAddress(address, prefixLength, false);
@@ -147,6 +147,45 @@ namespace TechnitiumLibrary.Net
         #endregion
 
         #region public
+
+        public IPAddress GetLastAddress()
+        {
+            switch (_address.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    {
+                        uint addr = _address.ConvertIpToNumber();
+                        uint hostMask = ~(0xFFFFFFFFu << (32 - _prefixLength));
+                        uint broadcast = addr | hostMask;
+
+                        return IPAddressExtensions.ConvertNumberToIp(broadcast);
+                    }
+
+                case AddressFamily.InterNetworkV6:
+                    {
+                        byte[] network = _address.GetAddressBytes();
+                        byte[] broadcast = new byte[16];
+                        int copyBytes = _prefixLength / 8;
+                        int balanceBits = _prefixLength - (copyBytes * 8);
+
+                        Buffer.BlockCopy(network, 0, broadcast, 0, copyBytes);
+
+                        if (balanceBits > 0)
+                        {
+                            broadcast[copyBytes] = (byte)(network[copyBytes] | ~(0xFF << (8 - balanceBits)));
+                            copyBytes++;
+                        }
+
+                        for (int i = copyBytes; i < 16; i++)
+                            broadcast[i] = 0xFF;
+
+                        return new IPAddress(broadcast);
+                    }
+
+                default:
+                    throw new NotSupportedException();
+            }
+        }
 
         public bool Contains(IPAddress address)
         {
@@ -197,6 +236,9 @@ namespace TechnitiumLibrary.Net
         #endregion
 
         #region properties
+
+        public AddressFamily AddressFamily
+        { get { return _address.AddressFamily; } }
 
         public IPAddress Address
         { get { return _address; } }
