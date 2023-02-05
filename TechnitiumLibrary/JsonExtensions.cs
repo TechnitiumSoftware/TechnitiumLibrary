@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ using System.Text.Json;
 
 namespace TechnitiumLibrary
 {
-    public static class JsonExtension
+    public static class JsonExtensions
     {
         #region private
 
@@ -207,6 +207,14 @@ namespace TechnitiumLibrary
         {
             if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue))
                 return jsonValue.GetInt32();
+
+            return defaultValue;
+        }
+
+        public static T GetPropertyEnumValue<T>(this JsonElement jsonElement, string propertyName, T defaultValue) where T : struct
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue))
+                return Enum.Parse<T>(jsonValue.GetString().ToLower(), true);
 
             return defaultValue;
         }
