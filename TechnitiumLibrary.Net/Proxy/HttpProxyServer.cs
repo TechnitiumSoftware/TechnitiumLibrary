@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -223,9 +223,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 //connect to remote server
                 if (_connectionManager is IProxyServerExtendedConnectionManager extendedConnectionManager)
-                    _remoteSocket = await extendedConnectionManager.ConnectAsync(EndPointExtension.GetEndPoint(host, port), username);
+                    _remoteSocket = await extendedConnectionManager.ConnectAsync(EndPointExtensions.GetEndPoint(host, port), username);
                 else
-                    _remoteSocket = await _connectionManager.ConnectAsync(EndPointExtension.GetEndPoint(host, port));
+                    _remoteSocket = await _connectionManager.ConnectAsync(EndPointExtensions.GetEndPoint(host, port));
 
                 //signal client 200 OK
                 await localStream.WriteAsync(Encoding.ASCII.GetBytes(httpRequest.Protocol + " 200 OK\r\nConnection: close\r\n\r\n"));
@@ -410,9 +410,9 @@ namespace TechnitiumLibrary.Net.Proxy
                                 }
 
                                 if (_connectionManager is IProxyServerExtendedConnectionManager extendedConnectionManager)
-                                    _remoteSocket = await extendedConnectionManager.ConnectAsync(EndPointExtension.GetEndPoint(host, port), username);
+                                    _remoteSocket = await extendedConnectionManager.ConnectAsync(EndPointExtensions.GetEndPoint(host, port), username);
                                 else
-                                    _remoteSocket = await _connectionManager.ConnectAsync(EndPointExtension.GetEndPoint(host, port));
+                                    _remoteSocket = await _connectionManager.ConnectAsync(EndPointExtensions.GetEndPoint(host, port));
 
                                 remoteStream = new WriteBufferedStream(new NetworkStream(_remoteSocket), 512);
 

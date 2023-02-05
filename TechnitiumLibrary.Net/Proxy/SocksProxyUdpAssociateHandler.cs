@@ -189,7 +189,7 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             byte[] datagram = new byte[262 + buffer.Count];
 
-            SocketReceiveFromResult result = await _udpSocket.ReceiveFromAsync(datagram, SocketFlags.None, SocketExtension.GetEndPointAnyFor(_udpSocket.AddressFamily));
+            SocketReceiveFromResult result = await _udpSocket.ReceiveFromAsync(datagram, SocketFlags.None, SocketExtensions.GetEndPointAnyFor(_udpSocket.AddressFamily));
 
             if (result.ReceivedBytes < 10)
                 throw new SocksProxyException("Incomplete SOCKS5 datagram was received.");

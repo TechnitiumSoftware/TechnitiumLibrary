@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public static NetProxy CreateHttpProxy(string address, int port = 8080, NetworkCredential credential = null)
         {
-            return new HttpProxy(EndPointExtension.GetEndPoint(address, port), credential);
+            return new HttpProxy(EndPointExtensions.GetEndPoint(address, port), credential);
         }
 
         public static NetProxy CreateHttpProxy(EndPoint proxyEP, NetworkCredential credential = null)
@@ -89,12 +89,12 @@ namespace TechnitiumLibrary.Net.Proxy
             if (proxyAddress.Equals(testUri))
                 return null; //no proxy configured
 
-            return new HttpProxy(EndPointExtension.GetEndPoint(proxyAddress.Host, proxyAddress.Port), proxy.Credentials.GetCredential(proxyAddress, "BASIC"));
+            return new HttpProxy(EndPointExtensions.GetEndPoint(proxyAddress.Host, proxyAddress.Port), proxy.Credentials.GetCredential(proxyAddress, "BASIC"));
         }
 
         public static NetProxy CreateSocksProxy(string address, int port = 1080, NetworkCredential credential = null)
         {
-            return new SocksProxy(EndPointExtension.GetEndPoint(address, port), credential);
+            return new SocksProxy(EndPointExtensions.GetEndPoint(address, port), credential);
         }
 
         public static NetProxy CreateSocksProxy(EndPoint proxyEP, NetworkCredential credential = null)
@@ -102,15 +102,20 @@ namespace TechnitiumLibrary.Net.Proxy
             return new SocksProxy(proxyEP, credential);
         }
 
+        public static NetProxy CreateProxy(NetProxyType type, string address, int port, string username, string password)
+        {
+            return CreateProxy(type, address, port, string.IsNullOrEmpty(username) ? null : new NetworkCredential(username, password));
+        }
+
         public static NetProxy CreateProxy(NetProxyType type, string address, int port, NetworkCredential credential = null)
         {
             switch (type)
             {
                 case NetProxyType.Http:
-                    return new HttpProxy(EndPointExtension.GetEndPoint(address, port), credential);
+                    return new HttpProxy(EndPointExtensions.GetEndPoint(address, port), credential);
 
                 case NetProxyType.Socks5:
-                    return new SocksProxy(EndPointExtension.GetEndPoint(address, port), credential);
+                    return new SocksProxy(EndPointExtensions.GetEndPoint(address, port), credential);
 
                 default:
                     throw new NotSupportedException("Proxy type not supported.");
@@ -169,7 +174,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public bool IsBypassed(Uri host)
         {
-            return IsBypassed(EndPointExtension.GetEndPoint(host.Host, host.Port));
+            return IsBypassed(EndPointExtensions.GetEndPoint(host.Host, host.Port));
         }
 
         public bool IsBypassed(EndPoint ep)
@@ -208,7 +213,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public async Task<Socket> ConnectAsync(string address, int port, CancellationToken cancellationToken = default)
         {
-            return await ConnectAsync(EndPointExtension.GetEndPoint(address, port), cancellationToken);
+            return await ConnectAsync(EndPointExtensions.GetEndPoint(address, port), cancellationToken);
         }
 
         public async Task<Socket> ConnectAsync(EndPoint remoteEP, CancellationToken cancellationToken = default)
@@ -239,7 +244,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public Task<TunnelProxy> CreateTunnelProxyAsync(string address, int port, bool enableSsl = false, bool ignoreCertificateErrors = false, CancellationToken cancellationToken = default)
         {
-            return CreateTunnelProxyAsync(EndPointExtension.GetEndPoint(address, port), enableSsl, ignoreCertificateErrors, cancellationToken);
+            return CreateTunnelProxyAsync(EndPointExtensions.GetEndPoint(address, port), enableSsl, ignoreCertificateErrors, cancellationToken);
         }
 
         public async Task<TunnelProxy> CreateTunnelProxyAsync(EndPoint remoteEP, bool enableSsl = false, bool ignoreCertificateErrors = false, CancellationToken cancellationToken = default)

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -58,7 +58,7 @@ namespace TechnitiumLibrary.Net.Proxy
             }
             else if (NetworkAddress.TryParse(value, out _networkAddress))
             {
-                switch (_networkAddress.Address.AddressFamily)
+                switch (_networkAddress.AddressFamily)
                 {
                     case AddressFamily.InterNetwork:
                         if (_networkAddress.PrefixLength == 32)

@@ -92,7 +92,7 @@ namespace TechnitiumLibrary.Net.Proxy
             try
             {
                 byte[] buffer = new byte[64 * 1024];
-                EndPoint anyEP = SocketExtension.GetEndPointAnyFor(_tunnelSocket.AddressFamily);
+                EndPoint anyEP = SocketExtensions.GetEndPointAnyFor(_tunnelSocket.AddressFamily);
 
                 while (true)
                 {
