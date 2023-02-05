@@ -25,7 +25,7 @@ using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net
 {
-    public static class SocketExtension
+    public static class SocketExtensions
     {
         #region variables
 
