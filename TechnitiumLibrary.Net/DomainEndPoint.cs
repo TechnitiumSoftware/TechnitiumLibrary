@@ -89,7 +89,7 @@ namespace TechnitiumLibrary.Net
 
         public override int GetHashCode()
         {
-            return _address.GetHashCode() ^ _port.GetHashCode();
+            return HashCode.Combine(_address, _port);
         }
 
         public override string ToString()

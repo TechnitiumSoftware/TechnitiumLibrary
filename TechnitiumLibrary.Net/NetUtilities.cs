@@ -532,7 +532,7 @@ namespace TechnitiumLibrary.Net
 
         public override int GetHashCode()
         {
-            return BitConverter.ToInt32(_localIP.GetAddressBytes(), 0);
+            return HashCode.Combine(_nic, _localIP, _subnetMask, _broadcastIP);
         }
 
         #endregion
