@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -787,6 +788,59 @@ namespace TechnitiumLibrary.Net.Dns
         public void ShadowHideEDnsClientSubnetOption()
         {
             _shadowHideECSOption = true;
+        }
+
+        public bool IsBlockedResponse()
+        {
+            if ((_RD == 0) || (_AA == 1))
+                return false;
+
+            if (_edns is not null)
+            {
+                foreach (EDnsOption option in _edns.Options)
+                {
+                    if ((option.Code == EDnsOptionCode.EXTENDED_DNS_ERROR) && (option.Data is EDnsExtendedDnsErrorOptionData ede))
+                    {
+                        switch (ede.InfoCode)
+                        {
+                            case EDnsExtendedDnsErrorCode.Blocked:
+                            case EDnsExtendedDnsErrorCode.Censored:
+                            case EDnsExtendedDnsErrorCode.Filtered:
+                            case EDnsExtendedDnsErrorCode.Prohibited:
+                                return true;
+                        }
+                    }
+                }
+            }
+
+            if (_dnsClientExtendedErrors is not null)
+            {
+                foreach (EDnsExtendedDnsErrorOptionData ede in _dnsClientExtendedErrors)
+                {
+                    if (ede.InfoCode == EDnsExtendedDnsErrorCode.Blocked)
+                        return true;
+                }
+            }
+
+            if ((_RCODE == DnsResponseCode.NoError) && (_question.Count > 0) && (_answer.Count > 0))
+            {
+                switch (_question[0].Type)
+                {
+                    case DnsResourceRecordType.A:
+                        {
+                            DnsResourceRecord lastRR = _answer[_answer.Count - 1];
+                            return (lastRR.Type == DnsResourceRecordType.A) && (lastRR.RDATA is DnsARecordData aRecord) && aRecord.Address.Equals(IPAddress.Any);
+                        }
+
+                    case DnsResourceRecordType.AAAA:
+                        {
+                            DnsResourceRecord lastRR = _answer[_answer.Count - 1];
+                            return (lastRR.Type == DnsResourceRecordType.AAAA) && (lastRR.RDATA is DnsAAAARecordData aaaaRecord) && aaaaRecord.Address.Equals(IPAddress.IPv6Any);
+                        }
+                }
+            }
+
+            return false;
         }
 
         public void SetMetadata(NameServerAddress server = null, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, double rtt = 0.0)
