@@ -4076,9 +4076,17 @@ namespace TechnitiumLibrary.Net.Dns
                                             switch (response.RCODE)
                                             {
                                                 case DnsResponseCode.NoError:
-                                                case DnsResponseCode.NxDomain:
                                                 case DnsResponseCode.YXDomain:
                                                     response.SetIdentifier(request.Identifier);
+                                                    return response;
+
+                                                case DnsResponseCode.NxDomain:
+                                                    response.SetIdentifier(request.Identifier);
+
+                                                    //check for quad9 blocking signal
+                                                    if (request.RecursionDesired && !response.RecursionAvailable && !response.AuthoritativeAnswer)
+                                                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Blocked, response.Question[0].Name.ToLower() + " was blocked by " + response.Metadata.NameServer.ToString());
+
                                                     return response;
 
                                                 case DnsResponseCode.FormatError:
