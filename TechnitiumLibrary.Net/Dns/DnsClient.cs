@@ -4818,7 +4818,13 @@ namespace TechnitiumLibrary.Net.Dns
         public string ConditionalForwardingZoneCut
         {
             get { return _conditionalForwardingZoneCut; }
-            set { _conditionalForwardingZoneCut = value; }
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                    _conditionalForwardingZoneCut = null;
+                else
+                    _conditionalForwardingZoneCut = value;
+            }
         }
 
         public int Retries
