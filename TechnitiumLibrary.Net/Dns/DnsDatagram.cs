@@ -757,6 +757,31 @@ namespace TechnitiumLibrary.Net.Dns
             return Clone(null, null, newAdditional);
         }
 
+        public DnsDatagram CloneWithoutGlueRecords()
+        {
+            if (_additional.Count == 0)
+                return this;
+
+            List<DnsResourceRecord> newAdditionalList = new List<DnsResourceRecord>();
+
+            foreach (DnsResourceRecord record in _additional)
+            {
+                switch (record.Type)
+                {
+                    case DnsResourceRecordType.A:
+                    case DnsResourceRecordType.AAAA:
+                        //skip
+                        break;
+
+                    default:
+                        newAdditionalList.Add(record);
+                        break;
+                }
+            }
+
+            return Clone(null, null, newAdditionalList);
+        }
+
         public EDnsClientSubnetOptionData GetEDnsClientSubnetOption(bool noShadow = false)
         {
             if (!noShadow)
