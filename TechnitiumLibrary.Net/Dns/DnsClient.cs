@@ -46,7 +46,7 @@ namespace TechnitiumLibrary.Net.Dns
         Tls = 2, //RFC-7858
         Https = 3, //RFC-8484
         HttpsJson = 4, //Google
-        Quic //RFC 9250
+        Quic = 5 //RFC 9250
     }
 
     public class DnsClient : IDnsClient
@@ -1883,7 +1883,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientNoResponseException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
             }
         }
 
@@ -1922,7 +1922,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientNoResponseException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
             }
         }
 
@@ -1961,7 +1961,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientNoResponseException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
             }
         }
 
@@ -2000,7 +2000,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientNoResponseException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
             }
         }
 
@@ -2052,7 +2052,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientNoResponseException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
             }
         }
 
@@ -2087,7 +2087,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientNoResponseException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
             }
         }
 
@@ -2167,7 +2167,7 @@ namespace TechnitiumLibrary.Net.Dns
                     return null;
 
                 default:
-                    throw new DnsClientException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientNoResponseException("Failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
             }
         }
 
@@ -2834,7 +2834,7 @@ namespace TechnitiumLibrary.Net.Dns
                         throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DNSKEY records for owner name: " + dnsKeyQuestion.Name, cacheDnsKeyResponse);
 
                     default:
-                        throw new DnsClientException("Failed to resolve the request '" + cacheDnsKeyResponse.Question[0].ToString() + "'. Received a response with RCODE: " + cacheDnsKeyResponse.RCODE);
+                        throw new DnsClientResponseDnssecValidationException("Failed to resolve the request '" + cacheDnsKeyResponse.Question[0].ToString() + "'. Received a response with RCODE: " + cacheDnsKeyResponse.RCODE, cacheDnsKeyResponse);
                 }
             }
 
@@ -2851,8 +2851,9 @@ namespace TechnitiumLibrary.Net.Dns
                         throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DNSKEY records for owner name: " + dnsKeyQuestion.Name, dnsKeyResponse);
 
                     default:
+                        dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, dnsKeyResponse.Metadata.NameServer.ToString() + " returned RCODE=" + dnsKeyResponse.RCODE.ToString() + " for " + dnsKeyQuestion.ToString());
                         cache.CacheResponse(dnsKeyResponse, true);
-                        throw new DnsClientException("Failed to resolve the request '" + dnsKeyResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dnsKeyResponse.RCODE + (dnsKeyResponse.Metadata is null ? "" : " from Name server: " + dnsKeyResponse.Metadata.NameServer.ToString()));
+                        throw new DnsClientResponseDnssecValidationException("Failed to resolve the request '" + dnsKeyResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dnsKeyResponse.RCODE + (dnsKeyResponse.Metadata is null ? "" : " from Name server: " + dnsKeyResponse.Metadata.NameServer.ToString()), dnsKeyResponse);
                 }
             }
 
@@ -2951,7 +2952,7 @@ namespace TechnitiumLibrary.Net.Dns
                         throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DS records for owner name: " + ownerName, cacheDSResponse);
 
                     default:
-                        throw new DnsClientException("Failed to resolve the request '" + cacheDSResponse.Question[0].ToString() + "'. Received a response with RCODE: " + cacheDSResponse.RCODE);
+                        throw new DnsClientResponseDnssecValidationException("Failed to resolve the request '" + cacheDSResponse.Question[0].ToString() + "'. Received a response with RCODE: " + cacheDSResponse.RCODE, cacheDSResponse);
                 }
             }
 
@@ -2988,8 +2989,9 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DS records for owner name: " + ownerName, dsResponse);
 
                 default:
+                    dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, dsResponse.Metadata.NameServer.ToString() + " returned RCODE=" + dsResponse.RCODE.ToString() + " for " + dsQuestion.ToString());
                     cache.CacheResponse(dsResponse, true);
-                    throw new DnsClientException("Failed to resolve the request '" + dsResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dsResponse.RCODE + (dsResponse.Metadata is null ? "" : " from Name server: " + dsResponse.Metadata.NameServer.ToString()));
+                    throw new DnsClientResponseDnssecValidationException("Failed to resolve the request '" + dsResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dsResponse.RCODE + (dsResponse.Metadata is null ? "" : " from Name server: " + dsResponse.Metadata.NameServer.ToString()), dsResponse);
             }
         }
 
