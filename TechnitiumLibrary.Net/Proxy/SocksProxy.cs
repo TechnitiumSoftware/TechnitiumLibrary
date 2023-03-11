@@ -202,7 +202,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return await UdpAssociateAsync(localEP);
         }
 
-        public override async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
+        public override async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool> isResponseValid = null, CancellationToken cancellationToken = default)
         {
             if (IsBypassed(remoteEP))
             {
@@ -210,7 +210,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 using (Socket socket = new Socket(ep.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
                 {
-                    return await socket.UdpQueryAsync(request, response, ep, timeout, retries, expBackoffTimeout, cancellationToken);
+                    return await socket.UdpQueryAsync(request, response, ep, timeout, retries, expBackoffTimeout, isResponseValid, cancellationToken);
                 }
             }
 
@@ -219,7 +219,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             using (SocksProxyUdpAssociateHandler proxyUdpRequestHandler = await UdpAssociateAsync(cancellationToken))
             {
-                return await proxyUdpRequestHandler.UdpQueryAsync(request, response, remoteEP, timeout, retries, expBackoffTimeout, cancellationToken);
+                return await proxyUdpRequestHandler.UdpQueryAsync(request, response, remoteEP, timeout, retries, expBackoffTimeout, isResponseValid, cancellationToken);
             }
         }
 

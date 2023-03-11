@@ -278,7 +278,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return new SocketReceiveFromResult() { ReceivedBytes = dataSize, RemoteEndPoint = remoteEP };
         }
 
-        public async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, CancellationToken cancellationToken = default)
+        public async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool> isResponseValid = null, CancellationToken cancellationToken = default)
         {
             Task<SocketReceiveFromResult> recvTask = null;
 
@@ -317,7 +317,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     SocketReceiveFromResult result = await recvTask;
 
-                    if ((remoteEP is DomainEndPoint) || remoteEP.Equals(result.RemoteEndPoint)) //in case remoteEP is domain end point then returned response will contain the resolved IP address so cant compare it together
+                    if (((remoteEP is DomainEndPoint) || remoteEP.Equals(result.RemoteEndPoint)) && ((isResponseValid is null) || isResponseValid(result.ReceivedBytes))) //in case remoteEP is domain end point then returned response will contain the resolved IP address so cant compare it together
                     {
                         //got response
                         return result.ReceivedBytes;
