@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
@@ -42,30 +43,58 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout, int retries, CancellationToken cancellationToken)
         {
             //serialize request
-            byte[] buffer;
+            byte[] sendBuffer;
+            int sendBufferSize;
 
             if (request.EDNS is null)
-                buffer = new byte[512];
-            else if (request.EDNS.UdpPayloadSize > 4096)
-                buffer = new byte[4096];
+                sendBuffer = new byte[512];
+            else if (request.EDNS.UdpPayloadSize > DnsDatagram.EDNS_MAX_UDP_PAYLOAD_SIZE)
+                sendBuffer = new byte[DnsDatagram.EDNS_MAX_UDP_PAYLOAD_SIZE];
             else
-                buffer = new byte[request.EDNS.UdpPayloadSize];
-
-            MemoryStream bufferStream = new MemoryStream(buffer);
+                sendBuffer = new byte[request.EDNS.UdpPayloadSize];
 
             try
             {
-                request.WriteTo(bufferStream);
+                using (MemoryStream mS = new MemoryStream(sendBuffer))
+                {
+                    request.WriteTo(mS);
+                    sendBufferSize = (int)mS.Position;
+                }
             }
             catch (NotSupportedException)
             {
-                throw new DnsClientException("DnsClient cannot send the request: request exceeds the UDP payload size limit of " + buffer.Length + " bytes.");
+                throw new DnsClientException("DnsClient cannot send the request: request exceeds the UDP payload size limit of " + sendBuffer.Length + " bytes.");
             }
 
-            int bufferSize = (int)bufferStream.Position;
+            byte[] receiveBuffer = new byte[sendBuffer.Length];
             Stopwatch stopwatch = new Stopwatch();
+            DnsDatagram lastResponse = null;
+            Exception lastException = null;
 
-            if (_proxy == null)
+            bool IsResponseValid(int receivedBytes)
+            {
+                try
+                {
+                    //parse response
+                    using (MemoryStream mS = new MemoryStream(receiveBuffer, 0, receivedBytes))
+                    {
+                        DnsDatagram response = DnsDatagram.ReadFrom(mS);
+                        response.SetMetadata(_server, _protocol, stopwatch.Elapsed.TotalMilliseconds);
+
+                        ValidateResponse(request, response);
+
+                        lastResponse = response;
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    return false;
+                }
+            }
+
+            if (_proxy is null)
             {
                 if (_server.IsIPEndPointStale)
                     await _server.RecursiveResolveIPAddressAsync(null, null, false, DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, false, 2, 2000, cancellationToken);
@@ -74,7 +103,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     stopwatch.Start();
 
-                    bufferSize = await socket.UdpQueryAsync(new ArraySegment<byte>(buffer, 0, bufferSize), buffer, _server.IPEndPoint, timeout, retries, false, cancellationToken);
+                    _ = await socket.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.IPEndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
 
                     stopwatch.Stop();
                 }
@@ -83,22 +112,18 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 stopwatch.Start();
 
-                bufferSize = await _proxy.UdpQueryAsync(new ArraySegment<byte>(buffer, 0, bufferSize), buffer, _server.EndPoint, timeout, retries, false, cancellationToken);
+                _ = await _proxy.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.EndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
 
                 stopwatch.Stop();
             }
 
-            //parse response
-            bufferStream.Position = 0;
-            bufferStream.SetLength(bufferSize);
+            if (lastResponse is not null)
+                return lastResponse;
 
-            DnsDatagram response = DnsDatagram.ReadFrom(bufferStream);
+            if (lastException is not null)
+                ExceptionDispatchInfo.Throw(lastException);
 
-            response.SetMetadata(_server, _protocol, stopwatch.Elapsed.TotalMilliseconds);
-
-            ValidateResponse(request, response);
-
-            return response;
+            throw new InvalidOperationException();
         }
 
         #endregion
