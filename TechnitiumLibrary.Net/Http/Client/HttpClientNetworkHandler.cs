@@ -26,7 +26,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns;
 
-namespace TechnitiumLibrary.Net.Http
+namespace TechnitiumLibrary.Net.Http.Client
 {
     public enum HttpClientNetworkType
     {
