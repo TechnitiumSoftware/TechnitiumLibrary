@@ -64,6 +64,7 @@ namespace TechnitiumLibrary.Net.Dns
         #region variables
 
         public const ushort EDNS_DEFAULT_UDP_PAYLOAD_SIZE = 1232;
+        public const ushort EDNS_MAX_UDP_PAYLOAD_SIZE = 4096;
 
         const int MAX_XFR_RESPONSE_SIZE = 16384; //since the compressed name pointer offset can only address 16384 bytes in datagram
 
