@@ -351,8 +351,7 @@ namespace TechnitiumLibrary.Net
             SocketsHttpHandler handler = new SocketsHttpHandler();
             handler.Proxy = proxy;
 
-            HttpClientNetworkHandler networkHandler = new HttpClientNetworkHandler(handler);
-            networkHandler.NetworkType = networkType;
+            HttpClientNetworkHandler networkHandler = new HttpClientNetworkHandler(handler, networkType);
 
             using (HttpClient http = new HttpClient(networkHandler))
             {
