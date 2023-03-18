@@ -25,6 +25,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns;
+using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Http.Client
 {
@@ -32,24 +33,92 @@ namespace TechnitiumLibrary.Net.Http.Client
     {
         Default = 0,
         IPv4Only = 1,
-        IPv6Only = 2
+        IPv6Only = 2,
+        PreferIPv6 = 3
     }
 
     public class HttpClientNetworkHandler : DelegatingHandler
     {
         #region variables
 
-        HttpClientNetworkType _networkType = HttpClientNetworkType.Default;
+        static bool _publicIpv6Available;
+        static DateTime _publicIpv6AvailableLastCheckedOn;
+        const int PUBLIC_IPv6_CHECK_FREQUENCY = 300000;
 
-        DnsClient _dnsClient;
+        readonly SocketsHttpHandler _innerHandler;
+        HttpClientNetworkType _networkType = HttpClientNetworkType.Default;
+        IDnsClient _dnsClient;
+        int _retries = 3;
 
         #endregion
 
         #region constructor
 
-        public HttpClientNetworkHandler(HttpMessageHandler innerHandler)
+        public HttpClientNetworkHandler(SocketsHttpHandler innerHandler, HttpClientNetworkType networkType = HttpClientNetworkType.Default, IDnsClient dnsClient = null)
             : base(innerHandler)
-        { }
+        {
+            _innerHandler = innerHandler;
+            _dnsClient = dnsClient ?? new DnsClient((_networkType == HttpClientNetworkType.IPv6Only) || (_networkType == HttpClientNetworkType.PreferIPv6));
+            _networkType = networkType;
+
+            _innerHandler.AllowAutoRedirect = false;
+        }
+
+        #endregion
+
+        #region private
+
+        private static bool IsPublicIPv6Available()
+        {
+            if (!Socket.OSSupportsIPv6)
+                return false;
+
+            if (DateTime.UtcNow > _publicIpv6AvailableLastCheckedOn.AddMilliseconds(PUBLIC_IPv6_CHECK_FREQUENCY))
+            {
+                _publicIpv6Available = NetUtilities.GetDefaultIPv6NetworkInfo() is not null;
+                _publicIpv6AvailableLastCheckedOn = DateTime.UtcNow;
+            }
+
+            return _publicIpv6Available;
+        }
+
+        private async Task<HttpResponseMessage> InternalSendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            int retry = 0;
+
+            while (retry++ < _retries)
+            {
+                try
+                {
+                    return await base.SendAsync(request, cancellationToken);
+                }
+                catch (HttpRequestException ex)
+                {
+                    if (ex.InnerException is SocketException ex2)
+                    {
+                        switch (ex2.SocketErrorCode)
+                        {
+                            case SocketError.ConnectionRefused:
+                                throw;
+
+                            case SocketError.NetworkUnreachable:
+                                if (_publicIpv6Available && (_networkType == HttpClientNetworkType.Default))
+                                {
+                                    _publicIpv6Available = false;
+                                    _publicIpv6AvailableLastCheckedOn = default;
+                                }
+
+                                throw;
+                        }
+                    }
+
+                    if (retry >= _retries)
+                        throw;
+                }
+            }
+
+            throw new InvalidOperationException();
+        }
 
         #endregion
 
@@ -57,81 +126,128 @@ namespace TechnitiumLibrary.Net.Http.Client
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            switch (_networkType)
+            HttpResponseMessage response;
+            int redirections = 0;
+
+            do
             {
-                case HttpClientNetworkType.IPv4Only:
-                    if (IPAddress.TryParse(request.RequestUri.Host, out IPAddress ipv4))
-                    {
-                        if (ipv4.AddressFamily != AddressFamily.InterNetwork)
-                            throw new HttpRequestException("HttpClient current network type allows only IPv4 addresses.");
+                string host = request.RequestUri.Host;
 
-                        return await base.SendAsync(request, cancellationToken);
+                if (IPAddress.TryParse(host, out IPAddress ip))
+                {
+                    switch (_networkType)
+                    {
+                        case HttpClientNetworkType.IPv4Only:
+                            if (ip.AddressFamily != AddressFamily.InterNetwork)
+                                throw new HttpRequestException("HttpClient current network type allows only IPv4 access.");
+
+                            break;
+
+                        case HttpClientNetworkType.IPv6Only:
+                            if (ip.AddressFamily != AddressFamily.InterNetworkV6)
+                                throw new HttpRequestException("HttpClient current network type allows only IPv6 access.");
+
+                            break;
                     }
-                    else
+
+                    response = await InternalSendAsync(request, cancellationToken);
+                }
+                else
+                {
+                    IReadOnlyList<IPAddress> addresses = null;
+
+                    try
                     {
-                        try
+                        switch (_networkType)
                         {
-                            if (_dnsClient is null)
-                                _dnsClient = new DnsClient();
+                            case HttpClientNetworkType.IPv4Only:
+                                addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
+                                if (addresses.Count < 1)
+                                    throw new HttpRequestException("HttpClient could not resolve IPv4 address for host: " + host);
 
-                            IReadOnlyList<IPAddress> ipAddresses = await _dnsClient.ResolveIPAsync(request.RequestUri.Host, false, cancellationToken);
+                                break;
 
-                            foreach (IPAddress ipAddress in ipAddresses)
-                            {
-                                if (ipAddress.AddressFamily == AddressFamily.InterNetwork)
+                            case HttpClientNetworkType.IPv6Only:
+                                addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
+                                if (addresses.Count < 1)
+                                    throw new HttpRequestException("HttpClient could not resolve IPv6 address for host: " + host);
+
+                                break;
+
+                            case HttpClientNetworkType.PreferIPv6:
+                                addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
+                                if (addresses.Count < 1)
                                 {
-                                    request.Headers.Host = request.RequestUri.Host;
-                                    request.RequestUri = new Uri(request.RequestUri.Scheme + "://" + ipAddress.ToString() + ":" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
-                                    return await base.SendAsync(request, cancellationToken);
+                                    addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
+                                    if (addresses.Count < 1)
+                                        throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host);
                                 }
-                            }
 
-                            throw new HttpRequestException("HttpClient could not resolve IPv4 address for host: " + request.RequestUri.Host);
-                        }
-                        catch (DnsClientException ex)
-                        {
-                            throw new HttpRequestException("HttpClient could not resolve IPv4 address for host: " + request.RequestUri.Host, ex);
-                        }
-                    }
+                                break;
 
-                case HttpClientNetworkType.IPv6Only:
-                    if (IPAddress.TryParse(request.RequestUri.Host, out IPAddress ipv6))
-                    {
-                        if (ipv6.AddressFamily != AddressFamily.InterNetworkV6)
-                            throw new HttpRequestException("HttpClient current network type allows only IPv6 addresses.");
+                            default:
+                                if (IsPublicIPv6Available())
+                                    addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
 
-                        return await base.SendAsync(request, cancellationToken);
-                    }
-                    else
-                    {
-                        try
-                        {
-                            if (_dnsClient is null)
-                                _dnsClient = new DnsClient();
-
-                            IReadOnlyList<IPAddress> ipAddresses = await _dnsClient.ResolveIPAsync(request.RequestUri.Host, true, cancellationToken);
-
-                            foreach (IPAddress ipAddress in ipAddresses)
-                            {
-                                if (ipAddress.AddressFamily == AddressFamily.InterNetworkV6)
+                                if ((addresses is null) || (addresses.Count < 1))
                                 {
-                                    request.Headers.Host = request.RequestUri.Host;
-                                    request.RequestUri = new Uri(request.RequestUri.Scheme + "://[" + ipAddress.ToString() + "]:" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
-                                    return await base.SendAsync(request, cancellationToken);
+                                    addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
+                                    if (addresses.Count < 1)
+                                        throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host);
                                 }
-                            }
 
-                            throw new HttpRequestException("HttpClient could not resolve IPv6 address for host: " + request.RequestUri.Host);
-                        }
-                        catch (DnsClientException ex)
-                        {
-                            throw new HttpRequestException("HttpClient could not resolve IPv6 address for host: " + request.RequestUri.Host, ex);
+                                break;
                         }
                     }
+                    catch (DnsClientException ex)
+                    {
+                        throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host, ex);
+                    }
 
-                default:
-                    return await base.SendAsync(request, cancellationToken);
+                    switch (addresses[0].AddressFamily)
+                    {
+                        case AddressFamily.InterNetwork:
+                            request.RequestUri = new Uri(request.RequestUri.Scheme + "://" + addresses[0].ToString() + ":" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
+                            break;
+
+                        case AddressFamily.InterNetworkV6:
+                            request.RequestUri = new Uri(request.RequestUri.Scheme + "://[" + addresses[0].ToString() + "]:" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
+                            break;
+
+                        default:
+                            throw new NotSupportedException("AddressFamily was not supported.");
+                    }
+
+                    if (request.RequestUri.IsDefaultPort)
+                        request.Headers.Host = host;
+                    else
+                        request.Headers.Host = host + ":" + request.RequestUri.Port;
+
+                    response = await InternalSendAsync(request, cancellationToken);
+                }
+
+                switch (response.StatusCode)
+                {
+                    case HttpStatusCode.MovedPermanently:
+                    case HttpStatusCode.PermanentRedirect:
+                    case HttpStatusCode.Found:
+                    case HttpStatusCode.RedirectKeepVerb:
+                        request.RequestUri = response.Headers.Location;
+                        break;
+
+                    case HttpStatusCode.RedirectMethod:
+                        request.Method = HttpMethod.Get;
+                        request.RequestUri = response.Headers.Location;
+                        request.Content = null;
+                        break;
+
+                    default:
+                        return response;
+                }
             }
+            while (redirections++ < _innerHandler.MaxAutomaticRedirections);
+
+            return response;
         }
 
         #endregion
@@ -142,6 +258,24 @@ namespace TechnitiumLibrary.Net.Http.Client
         {
             get { return _networkType; }
             set { _networkType = value; }
+        }
+
+        public IDnsClient DnsClient
+        {
+            get { return _dnsClient; }
+            set { _dnsClient = value; }
+        }
+
+        public int Retries
+        {
+            get { return _retries; }
+            set
+            {
+                if (value < 1)
+                    throw new ArgumentOutOfRangeException("HttpClient retries value cannot be less than 1.");
+
+                _retries = value;
+            }
         }
 
         #endregion
