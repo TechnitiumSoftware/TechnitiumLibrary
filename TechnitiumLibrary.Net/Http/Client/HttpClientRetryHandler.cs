@@ -65,7 +65,7 @@ namespace TechnitiumLibrary.Net.Http.Client
                         }
                     }
 
-                    if (retry == _retries)
+                    if (retry >= _retries)
                         throw;
                 }
             }
