@@ -49,6 +49,8 @@ namespace TechnitiumLibrary.Net.Http.Client
         HttpClientNetworkType _networkType = HttpClientNetworkType.Default;
         IDnsClient _dnsClient;
         int _retries = 3;
+        bool _allowAutoRedirect;
+        int _maxAutomaticRedirections;
 
         #endregion
 
@@ -60,6 +62,9 @@ namespace TechnitiumLibrary.Net.Http.Client
             _innerHandler = innerHandler;
             _dnsClient = dnsClient ?? new DnsClient((_networkType == HttpClientNetworkType.IPv6Only) || (_networkType == HttpClientNetworkType.PreferIPv6));
             _networkType = networkType;
+
+            _allowAutoRedirect = _innerHandler.AllowAutoRedirect;
+            _maxAutomaticRedirections = _innerHandler.MaxAutomaticRedirections;
 
             _innerHandler.AllowAutoRedirect = false;
         }
@@ -126,6 +131,8 @@ namespace TechnitiumLibrary.Net.Http.Client
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            _innerHandler.AllowAutoRedirect = false;
+
             HttpResponseMessage response;
             int redirections = 0;
 
@@ -245,7 +252,7 @@ namespace TechnitiumLibrary.Net.Http.Client
                         return response;
                 }
             }
-            while (redirections++ < _innerHandler.MaxAutomaticRedirections);
+            while (_allowAutoRedirect && (redirections++ < _maxAutomaticRedirections));
 
             return response;
         }
@@ -276,6 +283,18 @@ namespace TechnitiumLibrary.Net.Http.Client
 
                 _retries = value;
             }
+        }
+
+        public bool AllowAutoRedirect
+        {
+            get { return _allowAutoRedirect; }
+            set { _allowAutoRedirect = value; }
+        }
+
+        public int MaxAutomaticRedirections
+        {
+            get { return _maxAutomaticRedirections; }
+            set { _maxAutomaticRedirections = value; }
         }
 
         #endregion
