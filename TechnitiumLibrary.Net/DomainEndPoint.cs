@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -43,6 +43,9 @@ namespace TechnitiumLibrary.Net
 
             if (IPAddress.TryParse(address, out _))
                 throw new ArgumentException("Address must be a domain name: " + address, nameof(address));
+
+            if (DnsClient.IsDomainNameUnicode(address))
+                address = DnsClient.ConvertDomainNameToAscii(address);
 
             DnsClient.IsDomainNameValid(address, true);
 
