@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -49,12 +49,15 @@ namespace TechnitiumLibrary.Net.Dns
         string _zoneCut;
         string _minimizedName;
 
-        #endregion
+        #endregion  
 
         #region constructor
 
         public DnsQuestionRecord(string name, DnsResourceRecordType type, DnsClass @class, bool validateName = true)
         {
+            if (DnsClient.IsDomainNameUnicode(name))
+                name = DnsClient.ConvertDomainNameToAscii(name);
+
             if (validateName)
                 DnsClient.IsDomainNameValid(name, true);
 
@@ -215,6 +218,10 @@ namespace TechnitiumLibrary.Net.Dns
             jsonWriter.WriteStartObject();
 
             jsonWriter.WriteString("Name", _name);
+
+            if (_name.Contains("xn--", StringComparison.OrdinalIgnoreCase))
+                jsonWriter.WriteString("NameIDN", DnsClient.ConvertDomainNameToUnicode(_name));
+
             jsonWriter.WriteString("Type", _type.ToString());
             jsonWriter.WriteString("Class", _class.ToString());
 

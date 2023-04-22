@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -36,6 +36,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsPTRRecordData(string domain)
         {
+            if (DnsClient.IsDomainNameUnicode(domain))
+                domain = DnsClient.ConvertDomainNameToAscii(domain);
+
             DnsClient.IsDomainNameValid(domain, true);
 
             _domain = domain;
@@ -101,6 +104,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteStartObject();
 
             jsonWriter.WriteString("Domain", _domain);
+
+            if (_domain.Contains("xn--", StringComparison.OrdinalIgnoreCase))
+                jsonWriter.WriteString("DomainIDN", DnsClient.ConvertDomainNameToUnicode(_domain));
 
             jsonWriter.WriteEndObject();
         }

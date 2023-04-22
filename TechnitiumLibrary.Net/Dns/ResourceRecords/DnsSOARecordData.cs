@@ -42,6 +42,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsSOARecordData(string primaryNameServer, string responsiblePerson, uint serial, uint refresh, uint retry, uint expire, uint minimum)
         {
+            if (DnsClient.IsDomainNameUnicode(primaryNameServer))
+                primaryNameServer = DnsClient.ConvertDomainNameToAscii(primaryNameServer);
+
             DnsClient.IsDomainNameValid(primaryNameServer, true);
 
             if (!responsiblePerson.Contains('@'))
@@ -182,6 +185,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteStartObject();
 
             jsonWriter.WriteString("PrimaryNameServer", _primaryNameServer);
+
+            if (_primaryNameServer.Contains("xn--", StringComparison.OrdinalIgnoreCase))
+                jsonWriter.WriteString("PrimaryNameServerIDN", DnsClient.ConvertDomainNameToUnicode(_primaryNameServer));
+
             jsonWriter.WriteString("ResponsiblePerson", _responsiblePerson);
             jsonWriter.WriteNumber("Serial", _serial);
             jsonWriter.WriteNumber("Refresh", _refresh);

@@ -167,6 +167,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsResourceRecord(string name, DnsResourceRecordType type, DnsClass @class, uint ttl, DnsResourceRecordData rData)
         {
+            if (DnsClient.IsDomainNameUnicode(name))
+                name = DnsClient.ConvertDomainNameToAscii(name);
+
             DnsClient.IsDomainNameValid(name, true);
 
             _name = name;
@@ -533,6 +536,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteStartObject();
 
             jsonWriter.WriteString("Name", _name);
+
+            if (_name.Contains("xn--", StringComparison.OrdinalIgnoreCase))
+                jsonWriter.WriteString("NameIDN", DnsClient.ConvertDomainNameToUnicode(_name));
+
             jsonWriter.WriteString("Type", _type.ToString());
             jsonWriter.WriteString("Class", _class.ToString());
             jsonWriter.WriteString("TTL", _ttl + " (" + WebUtilities.GetFormattedTime((int)_ttl) + ")");

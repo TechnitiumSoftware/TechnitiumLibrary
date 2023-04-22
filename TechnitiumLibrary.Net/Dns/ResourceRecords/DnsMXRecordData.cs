@@ -37,6 +37,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsMXRecordData(ushort preference, string exchange)
         {
+            if (DnsClient.IsDomainNameUnicode(exchange))
+                exchange = DnsClient.ConvertDomainNameToAscii(exchange);
+
             DnsClient.IsDomainNameValid(exchange, true);
 
             _preference = preference;
@@ -116,6 +119,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             jsonWriter.WriteNumber("Preference", _preference);
             jsonWriter.WriteString("Exchange", _exchange);
+
+            if (_exchange.Contains("xn--", StringComparison.OrdinalIgnoreCase))
+                jsonWriter.WriteString("ExchangeIDN", DnsClient.ConvertDomainNameToUnicode(_exchange));
 
             jsonWriter.WriteEndObject();
         }
