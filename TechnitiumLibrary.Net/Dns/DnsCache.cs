@@ -151,6 +151,14 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
+        protected static bool GetConditionalForwardingClientSubnetFrom(DnsResourceRecord record)
+        {
+            if (record.Tag is DnsResourceRecordInfo recordInfo)
+                return recordInfo.ConditionalForwardingClientSubnet;
+
+            return false;
+        }
+
         #endregion
 
         #region private
@@ -207,7 +215,7 @@ namespace TechnitiumLibrary.Net.Dns
             recordInfo.NSECRecords.Add(nsecRecord);
         }
 
-        private static void SetEDnsClientSubnetTo(DnsResourceRecord record, NetworkAddress eDnsClientSubnet)
+        private static void SetEDnsClientSubnetTo(DnsResourceRecord record, NetworkAddress eDnsClientSubnet, bool conditionalForwardingClientSubnet)
         {
             if (record.Tag is not DnsResourceRecordInfo recordInfo)
             {
@@ -216,6 +224,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             recordInfo.EDnsClientSubnet = eDnsClientSubnet;
+            recordInfo.ConditionalForwardingClientSubnet = conditionalForwardingClientSubnet;
         }
 
         private void InternalCacheRecords(IReadOnlyList<DnsResourceRecord> resourceRecords)
@@ -608,13 +617,15 @@ namespace TechnitiumLibrary.Net.Dns
 
             //set ECS for answer
             NetworkAddress eDnsClientSubnet = null;
+            bool conditionalForwardingClientSubnet = false;
             EDnsClientSubnetOptionData ecs = response.GetEDnsClientSubnetOption();
             if (ecs is not null)
             {
                 eDnsClientSubnet = new NetworkAddress(ecs.Address, Math.Min(ecs.SourcePrefixLength, ecs.ScopePrefixLength));
+                conditionalForwardingClientSubnet = ecs.ConditionalForwardingClientSubnet;
 
                 foreach (DnsResourceRecord record in response.Answer)
-                    SetEDnsClientSubnetTo(record, eDnsClientSubnet);
+                    SetEDnsClientSubnetTo(record, eDnsClientSubnet, conditionalForwardingClientSubnet);
             }
 
             if (isDnssecBadCache)
@@ -626,7 +637,7 @@ namespace TechnitiumLibrary.Net.Dns
                     record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                     if (eDnsClientSubnet is not null)
-                        SetEDnsClientSubnetTo(record, eDnsClientSubnet);
+                        SetEDnsClientSubnetTo(record, eDnsClientSubnet, conditionalForwardingClientSubnet);
 
                     InternalCacheRecords(new DnsResourceRecord[] { record });
                 }
@@ -650,7 +661,7 @@ namespace TechnitiumLibrary.Net.Dns
                         record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                         if (eDnsClientSubnet is not null)
-                            SetEDnsClientSubnetTo(record, eDnsClientSubnet);
+                            SetEDnsClientSubnetTo(record, eDnsClientSubnet, conditionalForwardingClientSubnet);
 
                         InternalCacheRecords(new DnsResourceRecord[] { record });
                     }
@@ -900,7 +911,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                                 if (eDnsClientSubnet is not null)
-                                    SetEDnsClientSubnetTo(record, eDnsClientSubnet);
+                                    SetEDnsClientSubnetTo(record, eDnsClientSubnet, conditionalForwardingClientSubnet);
 
                                 InternalCacheRecords(new DnsResourceRecord[] { record });
                             }
@@ -920,7 +931,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                                         if (eDnsClientSubnet is not null)
-                                            SetEDnsClientSubnetTo(record, eDnsClientSubnet);
+                                            SetEDnsClientSubnetTo(record, eDnsClientSubnet, conditionalForwardingClientSubnet);
 
                                         InternalCacheRecords(new DnsResourceRecord[] { record });
                                     }
@@ -952,7 +963,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                                             if (eDnsClientSubnet is not null)
-                                                SetEDnsClientSubnetTo(record, eDnsClientSubnet);
+                                                SetEDnsClientSubnetTo(record, eDnsClientSubnet, conditionalForwardingClientSubnet);
 
                                             InternalCacheRecords(new DnsResourceRecord[] { record });
                                             isReferralResponse = false;
@@ -1044,7 +1055,7 @@ namespace TechnitiumLibrary.Net.Dns
                         record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
                         if (eDnsClientSubnet is not null)
-                            SetEDnsClientSubnetTo(record, eDnsClientSubnet);
+                            SetEDnsClientSubnetTo(record, eDnsClientSubnet, conditionalForwardingClientSubnet);
 
                         InternalCacheRecords(new DnsResourceRecord[] { record });
                     }
@@ -1751,6 +1762,8 @@ namespace TechnitiumLibrary.Net.Dns
             public List<DnsResourceRecord> NSECRecords { get; set; }
 
             public NetworkAddress EDnsClientSubnet { get; set; }
+
+            public bool ConditionalForwardingClientSubnet { get; set; }
         }
     }
 }
