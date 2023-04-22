@@ -647,12 +647,9 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        internal void SetEmptyShadowEDnsClientSubnetOption(EDnsClientSubnetOptionData requestECS)
+        internal void SetShadowEDnsClientSubnetOption(EDnsClientSubnetOptionData shadowECSOption)
         {
-            if (_QR != 1)
-                throw new InvalidOperationException("DnsDatagram must be response.");
-
-            _shadowECSOption = new EDnsClientSubnetOptionData(requestECS.SourcePrefixLength, 0, requestECS.Address);
+            _shadowECSOption = shadowECSOption;
         }
 
         #endregion
@@ -806,9 +803,12 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
-        public void SetShadowEDnsClientSubnetOption(NetworkAddress eDnsClientSubnet)
+        public void SetShadowEDnsClientSubnetOption(NetworkAddress eDnsClientSubnet, bool conditionalForwardingClientSubnet = false)
         {
-            _shadowECSOption = new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, 0, eDnsClientSubnet.Address);
+            if (conditionalForwardingClientSubnet)
+                _shadowECSOption = new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address) { ConditionalForwardingClientSubnet = true };
+            else
+                _shadowECSOption = new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, 0, eDnsClientSubnet.Address);
         }
 
         public void ShadowHideEDnsClientSubnetOption()
