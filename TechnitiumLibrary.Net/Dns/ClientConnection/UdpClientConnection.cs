@@ -253,7 +253,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         case AddressFamily.InterNetworkV6:
                             try
                             {
-                                _socket.Bind(new IPEndPoint(IPAddress.Any, RandomNumberGenerator.GetInt32(1000, ushort.MaxValue)));
+                                _socket.Bind(new IPEndPoint(IPAddress.IPv6Any, RandomNumberGenerator.GetInt32(1000, ushort.MaxValue)));
                             }
                             catch (SocketException)
                             {
