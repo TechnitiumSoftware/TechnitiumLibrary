@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -209,6 +209,8 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         public override ushort UncompressedLength
         { get { return Convert.ToUInt16(2 + 1 + 1 + (_family == EDnsClientSubnetAddressFamily.IPv4 ? 4 : 16)); } }
+
+        public bool ConditionalForwardingClientSubnet { get; set; }
 
         #endregion
     }
