@@ -377,10 +377,16 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 string[] strParts = address.Split(':');
 
-                host = strParts[0].Trim();
-
-                if (strParts.Length > 1)
+                if (strParts.Length == 2)
+                {
+                    host = strParts[0].Trim();
                     port = int.Parse(strParts[1]);
+                }
+                else
+                {
+                    //ipv6 or domain
+                    host = address;
+                }
             }
 
             if (_dohEndPoint is null)
