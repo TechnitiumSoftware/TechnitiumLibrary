@@ -48,10 +48,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     nameServer = DnsClient.ConvertDomainNameToAscii(nameServer);
 
                 DnsClient.IsDomainNameValid(nameServer, true);
-            }
 
-            if (IPAddress.TryParse(nameServer, out _))
-                throw new DnsClientException("Invalid domain name [" + nameServer + "]: IP address cannot be used for name server domain name.");
+                if (IPAddress.TryParse(nameServer, out _))
+                    throw new DnsClientException("Invalid domain name [" + nameServer + "]: IP address cannot be used for name server domain name.");
+            }
 
             _nameServer = nameServer;
         }
