@@ -40,12 +40,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsNSRecordData(string nameServer)
+        public DnsNSRecordData(string nameServer, bool validateName = true)
         {
-            if (DnsClient.IsDomainNameUnicode(nameServer))
-                nameServer = DnsClient.ConvertDomainNameToAscii(nameServer);
+            if (validateName)
+            {
+                if (DnsClient.IsDomainNameUnicode(nameServer))
+                    nameServer = DnsClient.ConvertDomainNameToAscii(nameServer);
 
-            DnsClient.IsDomainNameValid(nameServer, true);
+                DnsClient.IsDomainNameValid(nameServer, true);
+            }
 
             if (IPAddress.TryParse(nameServer, out _))
                 throw new DnsClientException("Invalid domain name [" + nameServer + "]: IP address cannot be used for name server domain name.");
