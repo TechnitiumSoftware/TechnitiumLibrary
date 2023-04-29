@@ -191,7 +191,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     stopwatch.Start();
 
-                    _ = await pooledSocket.Socket.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.IPEndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
+                    try
+                    {
+                        _ = await pooledSocket.Socket.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.IPEndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
+                    }
+                    catch (SocketException ex)
+                    {
+                        if (ex.SocketErrorCode == SocketError.TimedOut)
+                            throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out.", ex);
+
+                        throw;
+                    }
 
                     stopwatch.Stop();
                 }
@@ -200,7 +210,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 stopwatch.Start();
 
-                _ = await _proxy.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.EndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
+                try
+                {
+                    _ = await _proxy.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.EndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
+                }
+                catch (SocketException ex)
+                {
+                    if (ex.SocketErrorCode == SocketError.TimedOut)
+                        throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out.", ex);
+
+                    throw;
+                }
 
                 stopwatch.Stop();
             }
