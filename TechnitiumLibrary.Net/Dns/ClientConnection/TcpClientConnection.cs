@@ -301,7 +301,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
             }
 
-            throw new DnsClientNoResponseException("DnsClient failed to resolve the request: request timed out.");
+            throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out.");
         }
 
         #endregion
