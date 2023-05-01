@@ -88,7 +88,6 @@ namespace TechnitiumLibrary.Net
 
         public static async Task<int> UdpQueryAsync(this Socket socket, ArraySegment<byte> request, ArraySegment<byte> response, IPEndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool> isResponseValid = null, CancellationToken cancellationToken = default)
         {
-            Task<SocketReceiveFromResult> recvTask = null;
             EndPoint epAny = GetEndPointAnyFor(remoteEP.AddressFamily);
 
             int timeoutValue = timeout;
@@ -104,24 +103,31 @@ namespace TechnitiumLibrary.Net
                     return await Task.FromCanceled<int>(cancellationToken); //task cancelled
 
                 //send request
-                await socket.SendToAsync(request, SocketFlags.None, remoteEP);
+                await socket.SendToAsync(request, SocketFlags.None, remoteEP, cancellationToken);
 
                 while (true)
                 {
-                    //receive request
-                    if (recvTask == null)
-                        recvTask = socket.ReceiveFromAsync(response, SocketFlags.None, epAny);
-
                     //receive with timeout
-                    using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
-                    {
-                        await using (CancellationTokenRegistration ctr = cancellationToken.Register(timeoutCancellationTokenSource.Cancel))
-                        {
-                            if (await Task.WhenAny(recvTask, Task.Delay(timeoutValue, timeoutCancellationTokenSource.Token)) != recvTask)
-                                break; //recv timed out
-                        }
+                    Task<SocketReceiveFromResult> recvTask;
 
-                        timeoutCancellationTokenSource.Cancel(); //to stop delay task
+                    using (CancellationTokenSource cancellationTokenSource = new CancellationTokenSource())
+                    {
+                        await using (CancellationTokenRegistration ctr = cancellationToken.Register(cancellationTokenSource.Cancel))
+                        {
+                            CancellationToken currentCancellationToken = cancellationTokenSource.Token;
+
+                            try
+                            {
+                                recvTask = socket.ReceiveFromAsync(response, SocketFlags.None, epAny, currentCancellationToken).AsTask();
+
+                                if (await Task.WhenAny(recvTask, Task.Delay(timeoutValue, currentCancellationToken)) != recvTask)
+                                    break; //recv timed out
+                            }
+                            finally
+                            {
+                                cancellationTokenSource.Cancel(); //to stop recv/delay task
+                            }
+                        }
                     }
 
                     SocketReceiveFromResult result = await recvTask;
@@ -131,13 +137,9 @@ namespace TechnitiumLibrary.Net
                         //got response
                         return result.ReceivedBytes;
                     }
-
-                    //recv task is complete; set recvTask to null so that another task is used to read next response packet
-                    recvTask = null;
                 }
             }
 
-            socket.Dispose();
             throw new SocketException((int)SocketError.TimedOut);
         }
 
