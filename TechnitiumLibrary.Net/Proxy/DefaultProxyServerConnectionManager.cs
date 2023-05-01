@@ -250,14 +250,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region public
 
-            public Task<int> SendToAsync(ArraySegment<byte> buffer, EndPoint remoteEP)
+            public Task<int> SendToAsync(ArraySegment<byte> buffer, EndPoint remoteEP, CancellationToken cancellationToken = default)
             {
-                return _socket.SendToAsync(buffer, SocketFlags.None, remoteEP);
+                return _socket.SendToAsync(buffer, SocketFlags.None, remoteEP, cancellationToken).AsTask();
             }
 
-            public Task<SocketReceiveFromResult> ReceiveFromAsync(ArraySegment<byte> buffer)
+            public Task<SocketReceiveFromResult> ReceiveFromAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken = default)
             {
-                return _socket.ReceiveFromAsync(buffer, SocketFlags.None, SocketExtensions.GetEndPointAnyFor(_socket.AddressFamily));
+                return _socket.ReceiveFromAsync(buffer, SocketFlags.None, SocketExtensions.GetEndPointAnyFor(_socket.AddressFamily), cancellationToken).AsTask();
             }
 
             #endregion

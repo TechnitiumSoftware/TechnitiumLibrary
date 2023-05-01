@@ -121,7 +121,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public Task<int> SendToAsync(ArraySegment<byte> buffer, EndPoint remoteEP)
+        public Task<int> SendToAsync(ArraySegment<byte> buffer, EndPoint remoteEP, CancellationToken cancellationToken = default)
         {
             if (_relayEP == null)
                 return Task.FromResult(0); //relay ep not known yet
@@ -182,14 +182,14 @@ namespace TechnitiumLibrary.Net.Proxy
             buffer.CopyTo(datagram, 4 + address.Length + 2);
 
             //send datagram
-            return _udpSocket.SendToAsync(datagram, SocketFlags.None, _relayEP);
+            return _udpSocket.SendToAsync(datagram, SocketFlags.None, _relayEP, cancellationToken).AsTask();
         }
 
-        public async Task<SocketReceiveFromResult> ReceiveFromAsync(ArraySegment<byte> buffer)
+        public async Task<SocketReceiveFromResult> ReceiveFromAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken = default)
         {
             byte[] datagram = new byte[262 + buffer.Count];
 
-            SocketReceiveFromResult result = await _udpSocket.ReceiveFromAsync(datagram, SocketFlags.None, SocketExtensions.GetEndPointAnyFor(_udpSocket.AddressFamily));
+            SocketReceiveFromResult result = await _udpSocket.ReceiveFromAsync(datagram, SocketFlags.None, SocketExtensions.GetEndPointAnyFor(_udpSocket.AddressFamily), cancellationToken);
 
             if (result.ReceivedBytes < 10)
                 throw new SocksProxyException("Incomplete SOCKS5 datagram was received.");
@@ -280,8 +280,6 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool> isResponseValid = null, CancellationToken cancellationToken = default)
         {
-            Task<SocketReceiveFromResult> recvTask = null;
-
             int timeoutValue = timeout;
             int retry = 0;
             while (retry < retries) //retry loop
@@ -295,24 +293,31 @@ namespace TechnitiumLibrary.Net.Proxy
                     return await Task.FromCanceled<int>(cancellationToken); //task cancelled
 
                 //send request
-                await SendToAsync(request, remoteEP);
+                await SendToAsync(request, remoteEP, cancellationToken);
 
                 while (true)
                 {
-                    //receive request
-                    if (recvTask == null)
-                        recvTask = ReceiveFromAsync(response);
-
                     //receive with timeout
-                    using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
-                    {
-                        await using (CancellationTokenRegistration ctr = cancellationToken.Register(timeoutCancellationTokenSource.Cancel))
-                        {
-                            if (await Task.WhenAny(recvTask, Task.Delay(timeoutValue, timeoutCancellationTokenSource.Token)) != recvTask)
-                                break; //recv timed out
-                        }
+                    Task<SocketReceiveFromResult> recvTask;
 
-                        timeoutCancellationTokenSource.Cancel(); //to stop delay task
+                    using (CancellationTokenSource cancellationTokenSource = new CancellationTokenSource())
+                    {
+                        await using (CancellationTokenRegistration ctr = cancellationToken.Register(cancellationTokenSource.Cancel))
+                        {
+                            CancellationToken currentCancellationToken = cancellationTokenSource.Token;
+
+                            try
+                            {
+                                recvTask = ReceiveFromAsync(response, currentCancellationToken);
+
+                                if (await Task.WhenAny(recvTask, Task.Delay(timeoutValue, currentCancellationToken)) != recvTask)
+                                    break; //recv timed out
+                            }
+                            finally
+                            {
+                                cancellationTokenSource.Cancel(); //to stop recv/delay task
+                            }
+                        }
                     }
 
                     SocketReceiveFromResult result = await recvTask;
@@ -322,13 +327,9 @@ namespace TechnitiumLibrary.Net.Proxy
                         //got response
                         return result.ReceivedBytes;
                     }
-
-                    //recv task is complete; set recvTask to null so that another task is used to read next response packet
-                    recvTask = null;
                 }
             }
 
-            _udpSocket.Dispose();
             throw new SocketException((int)SocketError.TimedOut);
         }
 
