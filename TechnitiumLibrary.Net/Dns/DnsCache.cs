@@ -875,6 +875,58 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
                                 break;
 
+                            case DnsResourceRecordType.SVCB:
+                            case DnsResourceRecordType.HTTPS:
+                                if ((question.Type == DnsResourceRecordType.SVCB) || (question.Type == DnsResourceRecordType.HTTPS) || (question.Type == DnsResourceRecordType.ANY))
+                                {
+                                    cachableRecords.Add(answer);
+
+                                    //add glue from additional section
+                                    DnsSVCBRecordData svcb = answer.RDATA as DnsSVCBRecordData;
+                                    string targetName = svcb.TargetName;
+
+                                    if (svcb.SvcPriority == 0)
+                                    {
+                                        //Alias mode
+                                        if ((targetName.Length == 0) || targetName.Equals(answer.Name, StringComparison.OrdinalIgnoreCase))
+                                            break; //For AliasMode SVCB RRs, a TargetName of "." indicates that the service is not available or does not exist [draft-ietf-dnsop-svcb-https-12]
+                                    }
+                                    else
+                                    {
+                                        //Service mode
+                                        if (targetName.Length == 0)
+                                            targetName = answer.Name; //For ServiceMode SVCB RRs, if TargetName has the value ".", then the owner name of this record MUST be used as the effective TargetName [draft-ietf-dnsop-svcb-https-12]
+                                    }
+
+                                    foreach (DnsResourceRecord additional in response.Additional)
+                                    {
+                                        switch (additional.DnssecStatus)
+                                        {
+                                            case DnssecStatus.Disabled:
+                                            case DnssecStatus.Secure:
+                                            case DnssecStatus.Insecure:
+                                                break;
+
+                                            default:
+                                                continue;
+                                        }
+
+                                        if (targetName.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            switch (additional.Type)
+                                            {
+                                                case DnsResourceRecordType.A:
+                                                case DnsResourceRecordType.AAAA:
+                                                case DnsResourceRecordType.SVCB:
+                                                case DnsResourceRecordType.HTTPS:
+                                                    AddGlueRecordTo(answer, additional);
+                                                    break;
+                                            }
+                                        }
+                                    }
+                                }
+                                break;
+
                             case DnsResourceRecordType.RRSIG:
                                 if ((question.Type == DnsResourceRecordType.RRSIG) || (question.Type == DnsResourceRecordType.ANY))
                                     cachableRecords.Add(answer);
