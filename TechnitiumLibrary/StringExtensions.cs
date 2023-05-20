@@ -18,6 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Globalization;
+using System.IO;
 
 namespace TechnitiumLibrary
 {
@@ -32,6 +34,38 @@ namespace TechnitiumLibrary
                 array[i] = parse(parts[i]);
 
             return array;
+        }
+
+        public static byte[] ParseColonHexString(this string value)
+        {
+            int i;
+            int j = -1;
+            string strHex;
+            int b;
+
+            using (MemoryStream mS = new MemoryStream())
+            {
+                while (true)
+                {
+                    i = value.IndexOf(':', j + 1);
+                    if (i < 0)
+                        i = value.Length;
+
+                    strHex = value.Substring(j + 1, i - j - 1);
+
+                    if (!int.TryParse(strHex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out b) || (b < byte.MinValue) || (b > byte.MaxValue))
+                        throw new ArgumentException("The input string data must be a colon (:) separated hex string.");
+
+                    mS.WriteByte((byte)b);
+
+                    if (i == value.Length)
+                        break;
+
+                    j = i;
+                }
+
+                return mS.ToArray();
+            }
         }
     }
 }
