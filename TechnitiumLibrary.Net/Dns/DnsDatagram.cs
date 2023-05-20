@@ -760,24 +760,20 @@ namespace TechnitiumLibrary.Net.Dns
             if (_additional.Count == 0)
                 return this;
 
-            List<DnsResourceRecord> newAdditionalList = new List<DnsResourceRecord>();
+            IReadOnlyList<DnsResourceRecord> newAdditional = null;
 
-            foreach (DnsResourceRecord record in _additional)
+            for (int i = _additional.Count - 1; i > -1; i--)
             {
-                switch (record.Type)
-                {
-                    case DnsResourceRecordType.A:
-                    case DnsResourceRecordType.AAAA:
-                        //skip
-                        break;
+                DnsResourceRecord record = _additional[i];
 
-                    default:
-                        newAdditionalList.Add(record);
-                        break;
+                if (record.Type == DnsResourceRecordType.OPT)
+                {
+                    newAdditional = new DnsResourceRecord[] { record };
+                    break;
                 }
             }
 
-            return Clone(null, null, newAdditionalList);
+            return Clone(null, null, newAdditional);
         }
 
         public EDnsClientSubnetOptionData GetEDnsClientSubnetOption(bool noShadow = false)
