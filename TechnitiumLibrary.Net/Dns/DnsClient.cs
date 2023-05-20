@@ -1023,8 +1023,39 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             if (proxy is null)
                             {
-                                PushStack(nameServer.Host, preferIPv6 ? DnsResourceRecordType.AAAA : DnsResourceRecordType.A);
-                                goto stackLoop;
+                                if (preferIPv6)
+                                {
+                                    bool wasIPv6Attempted = false;
+
+                                    for (int i = 0; i < nameServerIndex; i++)
+                                    {
+                                        NameServerAddress ns = nameServers[i];
+
+                                        if (ns.Host.Equals(nameServer.Host, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            wasIPv6Attempted = true;
+                                            break;
+                                        }
+                                    }
+
+                                    if (wasIPv6Attempted)
+                                    {
+                                        PushStack(nameServer.Host, DnsResourceRecordType.A);
+                                        goto stackLoop;
+                                    }
+                                    else
+                                    {
+                                        nameServers.Add(new NameServerAddress(nameServer.DomainEndPoint)); //add to allow future IPv4 address resolution if needed
+
+                                        PushStack(nameServer.Host, DnsResourceRecordType.AAAA);
+                                        goto stackLoop;
+                                    }
+                                }
+                                else
+                                {
+                                    PushStack(nameServer.Host, DnsResourceRecordType.A);
+                                    goto stackLoop;
+                                }
                             }
                         }
 
@@ -4353,7 +4384,10 @@ namespace TechnitiumLibrary.Net.Dns
             response = SanitizeResponseAnswerForQName(response);
 
             if (_conditionalForwardingZoneCut is not null)
+            {
                 response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
+                response = SanitizeResponseAdditionalForZoneCut(response, _conditionalForwardingZoneCut); //keep additional section within zone cut
+            }
 
             return response;
         }
@@ -4381,7 +4415,10 @@ namespace TechnitiumLibrary.Net.Dns
             response = SanitizeResponseAnswerForQName(response);
 
             if (_conditionalForwardingZoneCut is not null)
+            {
                 response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
+                response = SanitizeResponseAdditionalForZoneCut(response, _conditionalForwardingZoneCut); //keep additional section within zone cut
+            }
 
             return response;
         }
@@ -4450,7 +4487,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     return newResponse;
                 }
-                catch (DnsClientException ex)
+                catch (Exception ex)
                 {
                     if (ex is DnsClientResponseDnssecValidationException ex2)
                     {
@@ -4487,12 +4524,43 @@ namespace TechnitiumLibrary.Net.Dns
 
                         _cache.CacheResponse(failureResponse);
                     }
+                    else if (ex is SocketException ex4)
+                    {
+                        //cache as failure
+                        DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+
+                        if (ex4.SocketErrorCode == SocketError.TimedOut)
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString());
+                        else
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error for " + question.ToString() + ": " + ex4.SocketErrorCode.ToString());
+
+                        _cache.CacheResponse(failureResponse);
+                    }
+                    else if (ex is IOException ex5)
+                    {
+                        //cache as failure
+                        DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+
+                        if (ex5.InnerException is SocketException ex4a)
+                        {
+                            if (ex4a.SocketErrorCode == SocketError.TimedOut)
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString());
+                            else
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error for " + question.ToString() + ": " + ex4a.SocketErrorCode.ToString());
+                        }
+                        else
+                        {
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "IO error for " + question.ToString() + ": " + ex5.Message);
+                        }
+
+                        _cache.CacheResponse(failureResponse);
+                    }
                     else
                     {
+                        //cache as failure
                         DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { q });
                         failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server exception for " + q.ToString());
 
-                        //cache as failure
                         _cache.CacheResponse(failureResponse);
                     }
 
