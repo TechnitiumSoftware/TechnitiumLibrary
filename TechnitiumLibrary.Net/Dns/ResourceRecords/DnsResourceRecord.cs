@@ -351,6 +351,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnsResourceRecordType.TLSA:
                     return new DnsTLSARecordData(s);
 
+                case DnsResourceRecordType.SVCB:
+                    return new DnsSVCBRecordData(s);
+
+                case DnsResourceRecordType.HTTPS:
+                    return new DnsHTTPSRecordData(s);
+
                 case DnsResourceRecordType.TSIG:
                     return new DnsTSIGRecordData(s);
 
@@ -528,7 +534,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _name.ToLowerInvariant() + ". " + _type.ToString() + " " + _class.ToString() + " " + _ttl + " " + _rData.ToString();
+            return _name.ToLowerInvariant() + ". " + _type.ToString() + " " + _class.ToString() + " " + (IsStale ? 0 : TTL) + " " + _rData.ToString();
         }
 
         public void SerializeTo(Utf8JsonWriter jsonWriter)
