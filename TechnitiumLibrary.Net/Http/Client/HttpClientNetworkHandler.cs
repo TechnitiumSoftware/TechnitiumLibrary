@@ -66,7 +66,8 @@ namespace TechnitiumLibrary.Net.Http.Client
             _allowAutoRedirect = _innerHandler.AllowAutoRedirect;
             _maxAutomaticRedirections = _innerHandler.MaxAutomaticRedirections;
 
-            _innerHandler.AllowAutoRedirect = false;
+            if (_innerHandler.AllowAutoRedirect)
+                _innerHandler.AllowAutoRedirect = false;
         }
 
         #endregion
@@ -131,7 +132,8 @@ namespace TechnitiumLibrary.Net.Http.Client
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            _innerHandler.AllowAutoRedirect = false;
+            if (_innerHandler.AllowAutoRedirect)
+                throw new InvalidOperationException("Inner HTTP handler must not be configured to perform auto redirection.");
 
             HttpResponseMessage response;
             int redirections = 0;
