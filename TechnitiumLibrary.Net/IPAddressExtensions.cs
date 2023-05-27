@@ -339,6 +339,14 @@ namespace TechnitiumLibrary.Net
 
         public static IPAddress ParseReverseDomain(string ptrDomain)
         {
+            if (TryParseReverseDomain(ptrDomain, out IPAddress address))
+                return address;
+
+            throw new NotSupportedException("Invalid reverse domain: " + ptrDomain);
+        }
+
+        public static bool TryParseReverseDomain(string ptrDomain, out IPAddress address)
+        {
             if (ptrDomain.EndsWith(".in-addr.arpa"))
             {
                 //1.10.168.192.in-addr.arpa
@@ -350,7 +358,8 @@ namespace TechnitiumLibrary.Net
                 for (int i = 0, j = parts.Length - 3; (i < 4) && (j > -1); i++, j--)
                     buffer[i] = byte.Parse(parts[j]);
 
-                return new IPAddress(buffer);
+                address = new IPAddress(buffer);
+                return true;
             }
             else if (ptrDomain.EndsWith(".ip6.arpa"))
             {
@@ -363,11 +372,13 @@ namespace TechnitiumLibrary.Net
                 for (int i = 0, j = parts.Length - 3; (i < 16) && (j > 0); i++, j -= 2)
                     buffer[i] = (byte)(byte.Parse(parts[j], NumberStyles.HexNumber) << 4 | byte.Parse(parts[j - 1], NumberStyles.HexNumber));
 
-                return new IPAddress(buffer);
+                address = new IPAddress(buffer);
+                return true;
             }
             else
             {
-                throw new NotSupportedException("Invalid reverse domain: " + ptrDomain);
+                address = null;
+                return false;
             }
         }
 
