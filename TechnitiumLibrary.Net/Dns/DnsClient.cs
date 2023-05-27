@@ -2591,6 +2591,9 @@ namespace TechnitiumLibrary.Net.Dns
             //check if DNSKEYs are marked as insecure
             foreach (DnsResourceRecord dnsKeyRecord in dnsKeyRecords)
             {
+                if (dnsKeyRecord.Type != DnsResourceRecordType.DNSKEY)
+                    continue;
+
                 if (dnsKeyRecord.DnssecStatus == DnssecStatus.Insecure)
                 {
                     //DNSKEY with insecure status found; mark response as Insecure
