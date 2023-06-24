@@ -53,6 +53,53 @@ namespace TechnitiumLibrary.Net
             _port = port;
         }
 
+        private DomainEndPoint()
+        { }
+
+        #endregion
+
+        #region static
+
+        public static bool TryParse(string value, out DomainEndPoint ep)
+        {
+            string[] parts = value.Split(':');
+            if (parts.Length > 2)
+            {
+                ep = null;
+                return false;
+            }
+
+            if (IPAddress.TryParse(parts[0], out _))
+            {
+                ep = null;
+                return false;
+            }
+
+            if (DnsClient.IsDomainNameUnicode(parts[0]))
+                parts[0] = DnsClient.ConvertDomainNameToAscii(parts[0]);
+
+            if (!DnsClient.IsDomainNameValid(parts[0]))
+            {
+                ep = null;
+                return false;
+            }
+
+            ushort port;
+
+            if (parts.Length == 1)
+            {
+                port = 0;
+            }
+            else if (!ushort.TryParse(parts[1], out port))
+            {
+                ep = null;
+                return false;
+            }
+
+            ep = new DomainEndPoint() { _address = parts[0], _port = port };
+            return true;
+        }
+
         #endregion
 
         #region public
