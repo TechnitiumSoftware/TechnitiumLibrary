@@ -208,24 +208,17 @@ namespace TechnitiumLibrary.Net.Proxy
 
             private async Task DoConnectAsync(NetworkStream localStream, HttpRequest httpRequest, string username)
             {
-                string host;
-                int port;
-                {
-                    string[] parts = httpRequest.RequestPath.Split(':');
+                if (!EndPointExtensions.TryParse(httpRequest.RequestPath, out EndPoint ep))
+                    throw new HttpProxyServerException("Invalid CONNECT request: " + httpRequest.RequestPath);
 
-                    host = parts[0];
-
-                    if (parts.Length > 1)
-                        port = int.Parse(parts[1]);
-                    else
-                        port = 80;
-                }
+                if (ep.GetPort() == 0)
+                    ep.SetPort(80);
 
                 //connect to remote server
                 if (_connectionManager is IProxyServerExtendedConnectionManager extendedConnectionManager)
-                    _remoteSocket = await extendedConnectionManager.ConnectAsync(EndPointExtensions.GetEndPoint(host, port), username);
+                    _remoteSocket = await extendedConnectionManager.ConnectAsync(ep, username);
                 else
-                    _remoteSocket = await _connectionManager.ConnectAsync(EndPointExtensions.GetEndPoint(host, port));
+                    _remoteSocket = await _connectionManager.ConnectAsync(ep);
 
                 //signal client 200 OK
                 await localStream.WriteAsync(Encoding.ASCII.GetBytes(httpRequest.Protocol + " 200 OK\r\nConnection: close\r\n\r\n"));
@@ -288,8 +281,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     NetworkStream localStream = new NetworkStream(_localSocket);
                     Stream remoteStream = null;
 
-                    string lastHost = null;
-                    int lastPort = 0;
+                    EndPoint lastEP = null;
 
                     while (true)
                     {
@@ -364,35 +356,27 @@ namespace TechnitiumLibrary.Net.Proxy
                         {
                             #region connect to remote server
 
-                            string host;
-                            int port;
+                            EndPoint ep;
                             string requestPathAndQuery;
 
                             if (Uri.TryCreate(httpRequest.RequestPathAndQuery, UriKind.Absolute, out Uri requestUri))
                             {
-                                host = requestUri.Host;
-                                port = requestUri.Port;
+                                ep = EndPointExtensions.GetEndPoint(requestUri.Host, requestUri.Port);
                                 requestPathAndQuery = requestUri.PathAndQuery;
                             }
                             else
                             {
                                 string hostHeader = httpRequest.Headers[HttpRequestHeader.Host];
-                                if (string.IsNullOrEmpty(hostHeader))
+                                if (string.IsNullOrEmpty(hostHeader) || !EndPointExtensions.TryParse(hostHeader, out ep))
                                     throw new HttpProxyServerException("Invalid proxy request.");
 
-                                string[] parts = hostHeader.Split(':');
-
-                                host = parts[0];
-
-                                if (parts.Length > 1)
-                                    port = int.Parse(parts[1]);
-                                else
-                                    port = 80;
+                                if (ep.GetPort() == 0)
+                                    ep.SetPort(80);
 
                                 requestPathAndQuery = httpRequest.RequestPathAndQuery;
                             }
 
-                            if (!host.Equals(lastHost) || port != lastPort || !_remoteSocket.Connected)
+                            if (!ep.IsEquals(lastEP) || !_remoteSocket.Connected)
                             {
                                 if (_remoteSocket != null)
                                 {
@@ -410,14 +394,13 @@ namespace TechnitiumLibrary.Net.Proxy
                                 }
 
                                 if (_connectionManager is IProxyServerExtendedConnectionManager extendedConnectionManager)
-                                    _remoteSocket = await extendedConnectionManager.ConnectAsync(EndPointExtensions.GetEndPoint(host, port), username);
+                                    _remoteSocket = await extendedConnectionManager.ConnectAsync(ep, username);
                                 else
-                                    _remoteSocket = await _connectionManager.ConnectAsync(EndPointExtensions.GetEndPoint(host, port));
+                                    _remoteSocket = await _connectionManager.ConnectAsync(ep);
 
                                 remoteStream = new WriteBufferedStream(new NetworkStream(_remoteSocket), 512);
 
-                                lastHost = host;
-                                lastPort = port;
+                                lastEP = ep;
 
                                 //copy remote socket to local socket
                                 _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask)
