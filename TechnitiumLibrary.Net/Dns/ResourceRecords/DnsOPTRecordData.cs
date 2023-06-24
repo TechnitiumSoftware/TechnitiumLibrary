@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -155,11 +155,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public IReadOnlyList<EDnsOption> Options
         { get { return _options; } }
 
-        public override ushort UncompressedLength
+        public override int UncompressedLength
         {
             get
             {
-                ushort length = 0;
+                int length = 0;
 
                 foreach (EDnsOption option in _options)
                     length += option.UncompressedLength;

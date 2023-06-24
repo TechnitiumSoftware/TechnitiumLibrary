@@ -126,8 +126,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Domain
         { get { return _domain; } }
 
-        public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_domain)); } }
+        public override int UncompressedLength
+        { get { return DnsDatagram.GetSerializeDomainNameLength(_domain); } }
 
         #endregion
     }

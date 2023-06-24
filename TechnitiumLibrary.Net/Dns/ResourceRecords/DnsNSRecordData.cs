@@ -162,8 +162,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public bool IsParentSideTtlSet
         { get { return _parentSideTtlExpirySet; } }
 
-        public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_nameServer)); } }
+        public override int UncompressedLength
+        { get { return DnsDatagram.GetSerializeDomainNameLength(_nameServer); } }
 
         #endregion
     }

@@ -136,8 +136,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Exchange
         { get { return _exchange; } }
 
-        public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(2 + DnsDatagram.GetSerializeDomainNameLength(_exchange)); } }
+        public override int UncompressedLength
+        { get { return 2 + DnsDatagram.GetSerializeDomainNameLength(_exchange); } }
 
         #endregion
     }

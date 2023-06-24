@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -214,8 +214,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public byte[] OtherData
         { get { return _otherData; } }
 
-        public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_algorithmName) + 6 + 2 + 2 + _mac.Length + 2 + 2 + 2 + _otherData.Length); } }
+        public override int UncompressedLength
+        { get { return DnsDatagram.GetSerializeDomainNameLength(_algorithmName) + 6 + 2 + 2 + _mac.Length + 2 + 2 + 2 + _otherData.Length; } }
 
         #endregion
     }

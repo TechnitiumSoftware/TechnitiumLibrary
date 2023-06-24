@@ -224,8 +224,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public uint Minimum
         { get { return _minimum; } }
 
-        public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_primaryNameServer) + DnsDatagram.GetSerializeDomainNameLength(_responsiblePerson) + 4 + 4 + 4 + 4 + 4); } }
+        public override int UncompressedLength
+        { get { return DnsDatagram.GetSerializeDomainNameLength(_primaryNameServer) + DnsDatagram.GetSerializeDomainNameLength(_responsiblePerson) + 4 + 4 + 4 + 4 + 4; } }
 
         #endregion
     }

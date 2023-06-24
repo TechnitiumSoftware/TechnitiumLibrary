@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -283,8 +282,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public byte[] CertificateAssociationData
         { get { return _certificateAssociationData; } }
 
-        public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(1 + 1 + 1 + _certificateAssociationData.Length); } }
+        public override int UncompressedLength
+        { get { return 1 + 1 + 1 + _certificateAssociationData.Length; } }
 
         #endregion
     }

@@ -246,7 +246,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        public override ushort UncompressedLength
+        public override int UncompressedLength
         {
             get
             {
@@ -255,7 +255,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_proxyType != NetProxyType.None)
                     length += 1 + _proxyAddress.Length + 2 + 1 + _proxyUsername.Length + 1 + _proxyPassword.Length;
 
-                return Convert.ToUInt16(length);
+                return length;
             }
         }
 

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -150,8 +150,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Text
         { get { return _text; } }
 
-        public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(Convert.ToInt32(Math.Ceiling(_text.Length / 255d)) + _text.Length); } }
+        public override int UncompressedLength
+        { get { return Convert.ToInt32(Math.Ceiling(_text.Length / 255d)) + _text.Length; } }
 
         #endregion
     }

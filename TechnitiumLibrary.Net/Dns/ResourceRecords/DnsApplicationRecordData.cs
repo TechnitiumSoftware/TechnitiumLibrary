@@ -149,8 +149,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string Data
         { get { return _data; } }
 
-        public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(1 + 1 + _appName.Length + 1 + _classPath.Length + 2 + _data.Length); } }
+        public override int UncompressedLength
+        { get { return 1 + 1 + _appName.Length + 1 + _classPath.Length + 2 + _data.Length; } }
 
         #endregion
     }
