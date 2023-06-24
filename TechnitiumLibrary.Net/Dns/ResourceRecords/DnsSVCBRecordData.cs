@@ -31,6 +31,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     //Service binding and parameter specification via the DNS (DNS SVCB and HTTPS RRs)
     //https://datatracker.ietf.org/doc/draft-ietf-dnsop-svcb-https/12/
 
+    //Service Binding Mapping for DNS Servers
+    //https://www.ietf.org/archive/id/draft-ietf-add-svcb-dns-08.html
+
     public enum DnsSvcParamKey : ushort
     {
         Mandatory = 0,
@@ -40,6 +43,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         IPv4Hint = 4,
         ECH = 5,
         IPv6Hint = 6,
+        DoHPath = 7,
         InvalidKey = 65535
     }
 
@@ -109,6 +113,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                         case DnsSvcParamKey.IPv6Hint:
                             svcParamValue = new DnsSvcIPv6HintParamValue(mS);
+                            break;
+
+                        case DnsSvcParamKey.DoHPath:
+                            svcParamValue = new DnsSvcDoHPathParamValue(mS);
                             break;
 
                         default:
@@ -247,7 +255,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public IReadOnlyDictionary<DnsSvcParamKey, DnsSvcParamValue> SvcParams
         { get { return _svcParams; } }
 
-        public override ushort UncompressedLength
+        public override int UncompressedLength
         {
             get
             {
@@ -256,7 +264,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 foreach (KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> svcParam in _svcParams)
                     scvParamLength += 2 + 2 + svcParam.Value.UncompressedLength;
 
-                return Convert.ToUInt16(2 + DnsDatagram.GetSerializeDomainNameLength(_targetName) + scvParamLength);
+                return 2 + DnsDatagram.GetSerializeDomainNameLength(_targetName) + scvParamLength;
             }
         }
 
@@ -308,6 +316,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnsSvcParamKey.IPv6Hint:
                     return DnsSvcIPv6HintParamValue.Parse(svcParamValue);
+
+                case DnsSvcParamKey.DoHPath:
+                    return new DnsSvcDoHPathParamValue(svcParamValue);
 
                 default:
                     return DnsSvcUnknownParamValue.Parse(svcParamValue);
@@ -1039,6 +1050,86 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int UncompressedLength
         { get { return _addresses.Count * 16; } }
+
+        #endregion
+    }
+
+    public class DnsSvcDoHPathParamValue : DnsSvcParamValue
+    {
+        #region variables
+
+        string _dohPath;
+
+        #endregion
+
+        #region constructor
+
+        public DnsSvcDoHPathParamValue(string dohPath)
+        {
+            if (!dohPath.StartsWith('/'))
+                throw new ArgumentException("DoH path template must be relative and start with a '/'.");
+
+            if (!dohPath.Contains("{?dns}"))
+                throw new ArgumentException("DoH path template must contain a 'dns' variable.");
+
+            _dohPath = dohPath;
+        }
+
+        public DnsSvcDoHPathParamValue(Stream s)
+            : base(s)
+        { }
+
+        #endregion
+
+        #region protected
+
+        protected override void ReadSvcParamValue(Stream s)
+        {
+            _dohPath = Encoding.UTF8.GetString(s.ReadBytes(_length));
+        }
+
+        protected override void WriteSvcParamValue(Stream s)
+        {
+            s.Write(Encoding.UTF8.GetBytes(_dohPath));
+        }
+
+        #endregion
+
+        #region public
+
+        public override bool Equals(object obj)
+        {
+            if (obj is null)
+                return false;
+
+            if (ReferenceEquals(this, obj))
+                return true;
+
+            if (obj is DnsSvcDoHPathParamValue other)
+                return _dohPath.Equals(other._dohPath);
+
+            return false;
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(_dohPath);
+        }
+
+        public override string ToString()
+        {
+            return _dohPath;
+        }
+
+        #endregion
+
+        #region properties
+
+        public string DoHPath
+        { get { return _dohPath; } }
+
+        public override int UncompressedLength
+        { get { return Encoding.UTF8.GetByteCount(_dohPath); } }
 
         #endregion
     }
