@@ -360,6 +360,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnsResourceRecordType.TSIG:
                     return new DnsTSIGRecordData(s);
 
+                case DnsResourceRecordType.URI:
+                    return new DnsURIRecordData(s);
+
                 case DnsResourceRecordType.CAA:
                     return new DnsCAARecordData(s);
 
@@ -616,8 +619,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public int DatagramOffset
         { get { return _datagramOffset; } }
 
-        public ushort UncompressedLength
-        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_name) + 2 + 2 + 4 + 2 + _rData.UncompressedLength); } }
+        public int UncompressedLength
+        { get { return DnsDatagram.GetSerializeDomainNameLength(_name) + 2 + 2 + 4 + 2 + _rData.UncompressedLength; } }
 
         public object Tag { get; set; }
 
