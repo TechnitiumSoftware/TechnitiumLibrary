@@ -1628,7 +1628,7 @@ namespace TechnitiumLibrary.Net.Dns
             public IReadOnlyList<EDnsOption> EDnsOptions
             { get { return _ednsOptions; } }
 
-            public override ushort UncompressedLength
+            public override int UncompressedLength
             { get { throw new InvalidOperationException(); } }
 
             #endregion
