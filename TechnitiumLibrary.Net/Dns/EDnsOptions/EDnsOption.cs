@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -144,8 +144,8 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public EDnsOptionData Data
         { get { return _data; } }
 
-        public ushort UncompressedLength
-        { get { return (ushort)(2 + 2 + _data.UncompressedLength); } }
+        public int UncompressedLength
+        { get { return 2 + 2 + _data.UncompressedLength; } }
 
         #endregion
     }

@@ -207,8 +207,8 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public IPAddress Address
         { get { return _address; } }
 
-        public override ushort UncompressedLength
-        { get { return Convert.ToUInt16(2 + 1 + 1 + (_family == EDnsClientSubnetAddressFamily.IPv4 ? 4 : 16)); } }
+        public override int UncompressedLength
+        { get { return 2 + 1 + 1 + (_family == EDnsClientSubnetAddressFamily.IPv4 ? 4 : 16); } }
 
         public bool ConditionalForwardingClientSubnet { get; set; }
 
