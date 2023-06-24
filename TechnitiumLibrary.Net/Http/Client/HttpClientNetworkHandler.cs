@@ -140,99 +140,107 @@ namespace TechnitiumLibrary.Net.Http.Client
 
             do
             {
-                string host = request.RequestUri.Host;
-
-                if (IPAddress.TryParse(host, out IPAddress ip))
+                if (_innerHandler.UseProxy && (_innerHandler.Proxy is not null))
                 {
-                    switch (_networkType)
-                    {
-                        case HttpClientNetworkType.IPv4Only:
-                            if (ip.AddressFamily != AddressFamily.InterNetwork)
-                                throw new HttpRequestException("HttpClient current network type allows only IPv4 access.");
-
-                            break;
-
-                        case HttpClientNetworkType.IPv6Only:
-                            if (ip.AddressFamily != AddressFamily.InterNetworkV6)
-                                throw new HttpRequestException("HttpClient current network type allows only IPv6 access.");
-
-                            break;
-                    }
-
+                    //no DNS resolution when proxy is used
                     response = await InternalSendAsync(request, cancellationToken);
                 }
                 else
                 {
-                    IReadOnlyList<IPAddress> addresses = null;
+                    string host = request.RequestUri.Host;
 
-                    try
+                    if (IPAddress.TryParse(host, out IPAddress ip))
                     {
                         switch (_networkType)
                         {
                             case HttpClientNetworkType.IPv4Only:
-                                addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
-                                if (addresses.Count < 1)
-                                    throw new HttpRequestException("HttpClient could not resolve IPv4 address for host: " + host);
+                                if (ip.AddressFamily != AddressFamily.InterNetwork)
+                                    throw new HttpRequestException("HttpClient current network type allows only IPv4 access.");
 
                                 break;
 
                             case HttpClientNetworkType.IPv6Only:
-                                addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
-                                if (addresses.Count < 1)
-                                    throw new HttpRequestException("HttpClient could not resolve IPv6 address for host: " + host);
-
-                                break;
-
-                            case HttpClientNetworkType.PreferIPv6:
-                                addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
-                                if (addresses.Count < 1)
-                                {
-                                    addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
-                                    if (addresses.Count < 1)
-                                        throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host);
-                                }
-
-                                break;
-
-                            default:
-                                if (IsPublicIPv6Available())
-                                    addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
-
-                                if ((addresses is null) || (addresses.Count < 1))
-                                {
-                                    addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
-                                    if (addresses.Count < 1)
-                                        throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host);
-                                }
+                                if (ip.AddressFamily != AddressFamily.InterNetworkV6)
+                                    throw new HttpRequestException("HttpClient current network type allows only IPv6 access.");
 
                                 break;
                         }
+
+                        response = await InternalSendAsync(request, cancellationToken);
                     }
-                    catch (DnsClientException ex)
-                    {
-                        throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host, ex);
-                    }
-
-                    switch (addresses[0].AddressFamily)
-                    {
-                        case AddressFamily.InterNetwork:
-                            request.RequestUri = new Uri(request.RequestUri.Scheme + "://" + addresses[0].ToString() + ":" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
-                            break;
-
-                        case AddressFamily.InterNetworkV6:
-                            request.RequestUri = new Uri(request.RequestUri.Scheme + "://[" + addresses[0].ToString() + "]:" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
-                            break;
-
-                        default:
-                            throw new NotSupportedException("AddressFamily was not supported.");
-                    }
-
-                    if (request.RequestUri.IsDefaultPort)
-                        request.Headers.Host = host;
                     else
-                        request.Headers.Host = host + ":" + request.RequestUri.Port;
+                    {
+                        IReadOnlyList<IPAddress> addresses = null;
 
-                    response = await InternalSendAsync(request, cancellationToken);
+                        try
+                        {
+                            switch (_networkType)
+                            {
+                                case HttpClientNetworkType.IPv4Only:
+                                    addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
+                                    if (addresses.Count < 1)
+                                        throw new HttpRequestException("HttpClient could not resolve IPv4 address for host: " + host);
+
+                                    break;
+
+                                case HttpClientNetworkType.IPv6Only:
+                                    addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
+                                    if (addresses.Count < 1)
+                                        throw new HttpRequestException("HttpClient could not resolve IPv6 address for host: " + host);
+
+                                    break;
+
+                                case HttpClientNetworkType.PreferIPv6:
+                                    addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
+                                    if (addresses.Count < 1)
+                                    {
+                                        addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
+                                        if (addresses.Count < 1)
+                                            throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host);
+                                    }
+
+                                    break;
+
+                                default:
+                                    if (IsPublicIPv6Available())
+                                        addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
+
+                                    if ((addresses is null) || (addresses.Count < 1))
+                                    {
+                                        addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
+                                        if (addresses.Count < 1)
+                                            throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host);
+                                    }
+
+                                    break;
+                            }
+                        }
+                        catch (DnsClientException ex)
+                        {
+                            throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host, ex);
+                        }
+
+                        switch (addresses[0].AddressFamily)
+                        {
+                            case AddressFamily.InterNetwork:
+                                request.RequestUri = new Uri(request.RequestUri.Scheme + "://" + addresses[0].ToString() + ":" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
+                                break;
+
+                            case AddressFamily.InterNetworkV6:
+                                request.RequestUri = new Uri(request.RequestUri.Scheme + "://[" + addresses[0].ToString() + "]:" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
+                                break;
+
+                            default:
+                                throw new NotSupportedException("AddressFamily was not supported.");
+                        }
+
+                        if (request.RequestUri.IsDefaultPort)
+                            request.Headers.Host = host;
+                        else
+                            request.Headers.Host = host + ":" + request.RequestUri.Port;
+
+                        response = await InternalSendAsync(request, cancellationToken);
+                    }
                 }
 
                 switch (response.StatusCode)
