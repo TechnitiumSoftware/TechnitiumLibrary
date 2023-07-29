@@ -135,7 +135,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     case "A":
                                         if (rootServers.Contains(name))
                                         {
-                                            if (name.EndsWith("."))
+                                            if (name.EndsWith('.'))
                                                 name = name.Substring(0, name.Length - 1);
 
                                             string strAddress = PopWord(ref line);
@@ -147,7 +147,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     case "AAAA":
                                         if (rootServers.Contains(name))
                                         {
-                                            if (name.EndsWith("."))
+                                            if (name.EndsWith('.'))
                                                 name = name.Substring(0, name.Length - 1);
 
                                             string strAddress = PopWord(ref line);
@@ -1094,6 +1094,12 @@ namespace TechnitiumLibrary.Net.Dns
                                 response.SetDnssecStatusForAllRecords(DnssecStatus.Disabled);
                             }
                         }
+                        catch (DnsClientResponseDnssecValidationException ex)
+                        {
+                            //continue for loop to next name server since current name server may be out of sync
+                            lastException = ex;
+                            continue; //try next name server
+                        }
                         catch (DnsClientResponseValidationException ex)
                         {
                             if (question.ZoneCut is not null)
@@ -1713,7 +1719,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
                             if (lastException is not null)
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server exception for " + question.ToString());
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Resolver exception for " + question.ToString() + ": " + lastException.Message);
 
                             cache.CacheResponse(failureResponse);
                         }
@@ -3453,6 +3459,9 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 DnsResourceRecord answer = response.Answer[i];
 
+                if ((answer.Type == DnsResourceRecordType.DNAME) && qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                    continue; //found DNAME, continue next
+
                 if (answer.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || answer.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
                 {
                     if (answer.Name.Equals(qName, StringComparison.OrdinalIgnoreCase))
@@ -4150,7 +4159,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     return response;
 
                                                 case DnsResponseCode.FormatError:
-                                                    if ((response.EDNS is null) && (asyncRequest.EDNS is not null) && !asyncRequest.EDNS.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
+                                                    if ((asyncRequest.EDNS is not null) && !asyncRequest.EDNS.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
                                                     {
                                                         //response does not contain EDNS which indicates that the server does not support EDNS
                                                         //disable EDNS and retry the request
@@ -4490,6 +4499,11 @@ namespace TechnitiumLibrary.Net.Dns
 
                     return newResponse;
                 }
+                catch (TaskCanceledException)
+                {
+                    //catch to prevent caching failure record
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     if (ex is DnsClientResponseDnssecValidationException ex2)
@@ -4562,7 +4576,7 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         //cache as failure
                         DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { q });
-                        failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Server exception for " + q.ToString());
+                        failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Resolver exception for " + q.ToString() + ": " + ex.Message);
 
                         _cache.CacheResponse(failureResponse);
                     }
