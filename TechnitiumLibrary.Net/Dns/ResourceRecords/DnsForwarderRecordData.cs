@@ -223,7 +223,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             get
             {
                 if (_nameServer is null)
-                    _nameServer = NameServerAddress.Parse(_forwarder, _protocol);
+                {
+                    _nameServer = NameServerAddress.Parse(_forwarder);
+                    if (_nameServer.Protocol != _protocol)
+                        _nameServer = _nameServer.ChangeProtocol(_protocol);
+                }
 
                 return _nameServer;
             }
