@@ -347,7 +347,7 @@ namespace TechnitiumLibrary.Net
 
         public static bool TryParseReverseDomain(string ptrDomain, out IPAddress address)
         {
-            if (ptrDomain.EndsWith(".in-addr.arpa"))
+            if (ptrDomain.EndsWith(".in-addr.arpa", StringComparison.OrdinalIgnoreCase))
             {
                 //1.10.168.192.in-addr.arpa
                 //192.168.10.1
@@ -356,21 +356,36 @@ namespace TechnitiumLibrary.Net
                 byte[] buffer = new byte[4];
 
                 for (int i = 0, j = parts.Length - 3; (i < 4) && (j > -1); i++, j--)
-                    buffer[i] = byte.Parse(parts[j]);
+                {
+                    if (!byte.TryParse(parts[j], out buffer[i]))
+                    {
+                        address = null;
+                        return false;
+                    }
+                }
 
                 address = new IPAddress(buffer);
                 return true;
             }
-            else if (ptrDomain.EndsWith(".ip6.arpa"))
+            else if (ptrDomain.EndsWith(".ip6.arpa", StringComparison.OrdinalIgnoreCase))
             {
                 //B.E.3.0.B.3.B.8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.B.9.F.F.4.6.0.0.ip6.arpa
                 //64:ff9b::8b3b:3eb
 
                 string[] parts = ptrDomain.Split('.');
                 byte[] buffer = new byte[16];
+                byte p1, p2;
 
                 for (int i = 0, j = parts.Length - 3; (i < 16) && (j > 0); i++, j -= 2)
-                    buffer[i] = (byte)(byte.Parse(parts[j], NumberStyles.HexNumber) << 4 | byte.Parse(parts[j - 1], NumberStyles.HexNumber));
+                {
+                    if (!byte.TryParse(parts[j], NumberStyles.HexNumber, null, out p1) || !byte.TryParse(parts[j - 1], NumberStyles.HexNumber, null, out p2))
+                    {
+                        address = null;
+                        return false;
+                    }
+
+                    buffer[i] = (byte)(p1 << 4 | p2);
+                }
 
                 address = new IPAddress(buffer);
                 return true;
