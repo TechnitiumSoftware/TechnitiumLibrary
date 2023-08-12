@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.IO
 {
@@ -81,6 +83,9 @@ namespace TechnitiumLibrary.IO
         public override bool CanWrite
         { get { return _stream.CanWrite && !_readOnly; } }
 
+        public override bool CanTimeout
+        { get { return _stream.CanTimeout; } }
+
         public override long Length
         { get { return _length; } }
 
@@ -114,6 +119,14 @@ namespace TechnitiumLibrary.IO
             _stream.Flush();
         }
 
+        public override Task FlushAsync(CancellationToken cancellationToken)
+        {
+            if (_readOnly)
+                throw new InvalidOperationException("OffsetStream is read only.");
+
+            return _stream.FlushAsync(cancellationToken);
+        }
+
         public override int Read(byte[] buffer, int offset, int count)
         {
             if (count < 1)
@@ -131,6 +144,28 @@ namespace TechnitiumLibrary.IO
                 _stream.Position = _offset + _position;
 
             int bytesRead = _stream.Read(buffer, offset, count);
+            _position += bytesRead;
+
+            return bytesRead;
+        }
+
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            if (count < 1)
+                return 0;
+
+            if (_position >= _length)
+                return 0;
+
+            int available = Convert.ToInt32(_length - _position);
+
+            if (count > available)
+                count = available;
+
+            if (_stream.CanSeek)
+                _stream.Position = _offset + _position;
+
+            int bytesRead = await _stream.ReadAsync(buffer, offset, count, cancellationToken);
             _position += bytesRead;
 
             return bytesRead;
@@ -206,6 +241,24 @@ namespace TechnitiumLibrary.IO
                 _length = _position;
         }
 
+        public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            if (_readOnly)
+                throw new InvalidOperationException("OffsetStream is read only.");
+
+            if (count < 1)
+                return;
+
+            if (_stream.CanSeek)
+                _stream.Position = _offset + _position;
+
+            await _stream.WriteAsync(buffer, offset, count, cancellationToken);
+            _position += count;
+
+            if (_position > _length)
+                _length = _position;
+        }
+
         #endregion
 
         #region public special
@@ -236,6 +289,34 @@ namespace TechnitiumLibrary.IO
             try
             {
                 CopyTo(stream, bufferSize);
+            }
+            finally
+            {
+                _position = previousPosition;
+                _stream.Position = _offset + _position;
+            }
+        }
+
+        public Task WriteToAsync(Stream s)
+        {
+            return WriteToAsync(s, 4096);
+        }
+
+        public async Task WriteToAsync(Stream stream, int bufferSize)
+        {
+            if (!_stream.CanSeek)
+                throw new InvalidOperationException("Stream is not seekable.");
+
+            if (_length < bufferSize)
+                bufferSize = Convert.ToInt32(_length);
+
+            long previousPosition = _position;
+            _position = 0;
+            _stream.Position = _offset;
+
+            try
+            {
+                await CopyToAsync(stream, bufferSize);
             }
             finally
             {
