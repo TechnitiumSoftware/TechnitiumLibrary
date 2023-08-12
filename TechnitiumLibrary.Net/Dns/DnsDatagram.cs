@@ -206,7 +206,7 @@ namespace TechnitiumLibrary.Net.Dns
         public static DnsDatagram ReadFrom(Stream s)
         {
             if (s.Position > 0)
-                s = new OffsetStream(s, s.Position); //for handling datagram compression pointer offsets correctly
+                s = new OffsetStream(s, s.Position, s.Length - s.Position); //for handling datagram compression pointer offsets correctly
 
             DnsDatagram datagram = new DnsDatagram();
 
