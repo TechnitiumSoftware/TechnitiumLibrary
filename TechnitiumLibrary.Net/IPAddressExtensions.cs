@@ -102,6 +102,9 @@ namespace TechnitiumLibrary.Net
             if (prefixLength > 32)
                 throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid prefix length.");
 
+            if (prefixLength == 0)
+                return IPAddress.Any;
+
             byte[] subnetMaskBuffer = BitConverter.GetBytes(0xFFFFFFFFu << (32 - prefixLength));
             Array.Reverse(subnetMaskBuffer);
 
