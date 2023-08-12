@@ -46,7 +46,9 @@ namespace TechnitiumLibrary.Net.Dns
         Tls = 2, //RFC-7858
         Https = 3, //RFC-8484
         HttpsJson = 4, //Google
-        Quic = 5 //RFC 9250
+        Quic = 5, //RFC 9250
+        UdpProxy = 253, //PROXY Protocol over UDP
+        TcpProxy = 254 //PROXY Protocol over TCP
     }
 
     public class DnsClient : IDnsClient
