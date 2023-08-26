@@ -638,6 +638,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                     failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Iteration limit reached for " + question.ToString());
 
+                    if (eDnsClientSubnet is not null)
+                        failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
+
                     cache.CacheResponse(failureResponse);
 
                     throw new DnsClientException("DnsClient recursive resolution exceeded the maximum stack count for domain: " + question.Name);
@@ -1639,6 +1642,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + question.ToString());
 
+                            if (eDnsClientSubnet is not null)
+                                failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
+
                             cache.CacheResponse(failureResponse);
                         }
                         else if (lastException is DnsClientResponseDnssecValidationException ex)
@@ -1657,6 +1663,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 failureResponse.AddDnsClientExtendedErrorFrom(ex.Response);
 
+                                if (eDnsClientSubnet is not null)
+                                    failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
+
                                 //cache as failure
                                 cache.CacheResponse(failureResponse);
                             }
@@ -1673,6 +1682,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + question.ToString());
 
+                            if (eDnsClientSubnet is not null)
+                                failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
+
                             cache.CacheResponse(failureResponse);
                         }
                         else if (lastException is SocketException ex2)
@@ -1687,6 +1699,9 @@ namespace TechnitiumLibrary.Net.Dns
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString());
                             else
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error for " + question.ToString() + ": " + ex2.SocketErrorCode.ToString());
+
+                            if (eDnsClientSubnet is not null)
+                                failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
 
                             cache.CacheResponse(failureResponse);
                         }
@@ -1710,6 +1725,9 @@ namespace TechnitiumLibrary.Net.Dns
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "IO error for " + question.ToString() + ": " + ex3.Message);
                             }
 
+                            if (eDnsClientSubnet is not null)
+                                failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
+
                             cache.CacheResponse(failureResponse);
                         }
                         else
@@ -1722,6 +1740,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                             if (lastException is not null)
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Resolver exception for " + question.ToString() + ": " + lastException.Message);
+
+                            if (eDnsClientSubnet is not null)
+                                failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
 
                             cache.CacheResponse(failureResponse);
                         }
@@ -1761,6 +1782,9 @@ namespace TechnitiumLibrary.Net.Dns
                                     failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Unable to resolve DS for " + lastQuestion.Name);
+
+                                if (eDnsClientSubnet is not null)
+                                    failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
 
                                 cache.CacheResponse(failureResponse);
 
@@ -4520,6 +4544,9 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { q });
                             failureResponse.AddDnsClientExtendedErrorFrom(ex2.Response);
 
+                            if (_eDnsClientSubnet is not null)
+                                failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(_eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.Address));
+
                             //cache as failure
                             _cache.CacheResponse(failureResponse);
                         }
@@ -4541,6 +4568,9 @@ namespace TechnitiumLibrary.Net.Dns
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + q.ToString());
                         }
 
+                        if (_eDnsClientSubnet is not null)
+                            failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(_eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.Address));
+
                         _cache.CacheResponse(failureResponse);
                     }
                     else if (ex is SocketException ex4)
@@ -4552,6 +4582,9 @@ namespace TechnitiumLibrary.Net.Dns
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + q.ToString());
                         else
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error for " + q.ToString() + ": " + ex4.SocketErrorCode.ToString());
+
+                        if (_eDnsClientSubnet is not null)
+                            failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(_eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.Address));
 
                         _cache.CacheResponse(failureResponse);
                     }
@@ -4572,6 +4605,9 @@ namespace TechnitiumLibrary.Net.Dns
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "IO error for " + q.ToString() + ": " + ex5.Message);
                         }
 
+                        if (_eDnsClientSubnet is not null)
+                            failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(_eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.Address));
+
                         _cache.CacheResponse(failureResponse);
                     }
                     else
@@ -4579,6 +4615,9 @@ namespace TechnitiumLibrary.Net.Dns
                         //cache as failure
                         DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { q });
                         failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Resolver exception for " + q.ToString() + ": " + ex.Message);
+
+                        if (_eDnsClientSubnet is not null)
+                            failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(_eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.Address));
 
                         _cache.CacheResponse(failureResponse);
                     }
