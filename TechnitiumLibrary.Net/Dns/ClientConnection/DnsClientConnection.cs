@@ -321,13 +321,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (responseECS is not null)
                     {
                         if (requestECS.Family != responseECS.Family)
-                            throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
+                            throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch (address family).");
 
                         if (requestECS.SourcePrefixLength != responseECS.SourcePrefixLength)
-                            throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
+                            throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch (source prefix).");
 
                         if (!requestECS.Address.Equals(responseECS.Address))
-                            throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch.");
+                            throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch (address).");
                     }
                 }
             }
