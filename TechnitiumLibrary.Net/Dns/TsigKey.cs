@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Security.Cryptography;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -69,6 +70,40 @@ namespace TechnitiumLibrary.Net.Dns
                 _algorithmName = DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5;
 
             _algorithm = GetTsigAlgorithm(_algorithmName);
+        }
+
+        public TsigKey(string keyName, string algorithmName)
+        {
+            _keyName = keyName;
+            _algorithmName = algorithmName;
+
+            if (_algorithmName.Equals("hmac-md5", StringComparison.OrdinalIgnoreCase))
+                _algorithmName = DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5;
+
+            _algorithm = GetTsigAlgorithm(_algorithmName);
+
+            byte[] key;
+
+            switch (_algorithm)
+            {
+                case TsigAlgorithm.HMAC_SHA384:
+                case TsigAlgorithm.HMAC_SHA384_192:
+                    key = new byte[48];
+                    break;
+
+                case TsigAlgorithm.HMAC_SHA512:
+                case TsigAlgorithm.HMAC_SHA512_256:
+                    key = new byte[64];
+                    break;
+
+                default:
+                    key = new byte[32];
+                    break;
+            }
+
+            RandomNumberGenerator.Fill(key);
+
+            _sharedSecret = Convert.ToBase64String(key);
         }
 
         #endregion
