@@ -27,6 +27,15 @@ using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
+    public enum DnsForwarderRecordProxyType : byte
+    {
+        DefaultProxy = 0,
+        None = 0,
+        Http = 1,
+        Socks5 = 2,
+        NoProxy = 254
+    }
+
     public class DnsForwarderRecordData : DnsResourceRecordData
     {
         #region variables
@@ -34,7 +43,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         DnsTransportProtocol _protocol;
         string _forwarder;
         bool _dnssecValidation;
-        NetProxyType _proxyType;
+        DnsForwarderRecordProxyType _proxyType;
         string _proxyAddress;
         ushort _proxyPort;
         string _proxyUsername;
@@ -48,22 +57,25 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #region constructor
 
         public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder)
-            : this(protocol, forwarder, false, NetProxyType.None, null, 0, null, null)
+            : this(protocol, forwarder, false, DnsForwarderRecordProxyType.DefaultProxy, null, 0, null, null)
         { }
 
-        public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder, bool dnssecValidation, NetProxyType proxyType, string proxyAddress, ushort proxyPort, string proxyUsername, string proxyPassword)
+        public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder, bool dnssecValidation, DnsForwarderRecordProxyType proxyType, string proxyAddress, ushort proxyPort, string proxyUsername, string proxyPassword)
         {
             _protocol = protocol;
             _forwarder = forwarder;
             _dnssecValidation = dnssecValidation;
             _proxyType = proxyType;
 
-            if (_proxyType != NetProxyType.None)
+            switch (proxyType)
             {
-                _proxyAddress = proxyAddress;
-                _proxyPort = proxyPort;
-                _proxyUsername = proxyUsername;
-                _proxyPassword = proxyPassword;
+                case DnsForwarderRecordProxyType.Http:
+                case DnsForwarderRecordProxyType.Socks5:
+                    _proxyAddress = proxyAddress;
+                    _proxyPort = proxyPort;
+                    _proxyUsername = proxyUsername;
+                    _proxyPassword = proxyPassword;
+                    break;
             }
 
             if (_protocol == DnsTransportProtocol.HttpsJson)
@@ -93,14 +105,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (bytesRead < _rdLength)
             {
                 _dnssecValidation = s.ReadByteValue() == 1;
-                _proxyType = (NetProxyType)s.ReadByteValue();
+                _proxyType = (DnsForwarderRecordProxyType)s.ReadByteValue();
 
-                if (_proxyType != NetProxyType.None)
+                switch (_proxyType)
                 {
-                    _proxyAddress = s.ReadShortString(Encoding.ASCII);
-                    _proxyPort = DnsDatagram.ReadUInt16NetworkOrder(s);
-                    _proxyUsername = s.ReadShortString(Encoding.ASCII);
-                    _proxyPassword = s.ReadShortString(Encoding.ASCII);
+                    case DnsForwarderRecordProxyType.Http:
+                    case DnsForwarderRecordProxyType.Socks5:
+                        _proxyAddress = s.ReadShortString(Encoding.ASCII);
+                        _proxyPort = DnsDatagram.ReadUInt16NetworkOrder(s);
+                        _proxyUsername = s.ReadShortString(Encoding.ASCII);
+                        _proxyPassword = s.ReadShortString(Encoding.ASCII);
+                        break;
                 }
             }
 
@@ -115,18 +130,43 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             s.WriteByte(_dnssecValidation ? (byte)1 : byte.MinValue);
             s.WriteByte((byte)_proxyType);
 
-            if (_proxyType != NetProxyType.None)
+            switch (_proxyType)
             {
-                s.WriteShortString(_proxyAddress, Encoding.ASCII);
-                DnsDatagram.WriteUInt16NetworkOrder(_proxyPort, s);
-                s.WriteShortString(_proxyUsername, Encoding.ASCII);
-                s.WriteShortString(_proxyPassword, Encoding.ASCII);
+                case DnsForwarderRecordProxyType.Http:
+                case DnsForwarderRecordProxyType.Socks5:
+                    s.WriteShortString(_proxyAddress, Encoding.ASCII);
+                    DnsDatagram.WriteUInt16NetworkOrder(_proxyPort, s);
+                    s.WriteShortString(_proxyUsername, Encoding.ASCII);
+                    s.WriteShortString(_proxyPassword, Encoding.ASCII);
+                    break;
             }
         }
 
         #endregion
 
         #region public
+
+        public NetProxy GetProxy(NetProxy defaultProxy)
+        {
+            switch (_proxyType)
+            {
+                case DnsForwarderRecordProxyType.DefaultProxy:
+                    return defaultProxy;
+
+                case DnsForwarderRecordProxyType.Http:
+                case DnsForwarderRecordProxyType.Socks5:
+                    if (_proxy is null)
+                    {
+                        _proxy = NetProxy.CreateProxy((NetProxyType)_proxyType, _proxyAddress, _proxyPort, _proxyUsername, _proxyPassword);
+                        _proxy.BypassList = null;
+                    }
+
+                    return _proxy;
+
+                default:
+                    return null;
+            }
+        }
 
         public override bool Equals(object obj)
         {
@@ -156,15 +196,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             string str = _protocol.ToString() + " " + _forwarder + " " + _dnssecValidation + " " + _proxyType.ToString();
 
-            if (_proxyType != NetProxyType.None)
+            switch (_proxyType)
             {
-                str += " " + _proxyAddress + " " + _proxyPort;
+                case DnsForwarderRecordProxyType.Http:
+                case DnsForwarderRecordProxyType.Socks5:
+                    str += " " + _proxyAddress + " " + _proxyPort;
 
-                if (string.IsNullOrEmpty(_proxyUsername))
-                    str += " " + _proxyUsername;
+                    if (string.IsNullOrEmpty(_proxyUsername))
+                        str += " " + _proxyUsername;
 
-                if (string.IsNullOrEmpty(_proxyPassword))
-                    str += " " + _proxyPassword;
+                    if (string.IsNullOrEmpty(_proxyPassword))
+                        str += " " + _proxyPassword;
+
+                    break;
             }
 
             return str;
@@ -179,12 +223,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteBoolean("dnssecValidation", _dnssecValidation);
             jsonWriter.WriteString("proxyType", _proxyType.ToString());
 
-            if (_proxyType != NetProxyType.None)
+            switch (_proxyType)
             {
-                jsonWriter.WriteString("proxyAddress", _proxyAddress);
-                jsonWriter.WriteNumber("proxyPort", _proxyPort);
-                jsonWriter.WriteString("proxyUsername", _proxyUsername);
-                jsonWriter.WriteString("proxyPassword", _proxyPassword);
+                case DnsForwarderRecordProxyType.Http:
+                case DnsForwarderRecordProxyType.Socks5:
+                    jsonWriter.WriteString("proxyAddress", _proxyAddress);
+                    jsonWriter.WriteNumber("proxyPort", _proxyPort);
+                    jsonWriter.WriteString("proxyUsername", _proxyUsername);
+                    jsonWriter.WriteString("proxyPassword", _proxyPassword);
+                    break;
             }
 
             jsonWriter.WriteEndObject();
@@ -203,7 +250,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public bool DnssecValidation
         { get { return _dnssecValidation; } }
 
-        public NetProxyType ProxyType
+        public DnsForwarderRecordProxyType ProxyType
         { get { return _proxyType; } }
 
         public string ProxyAddress
@@ -233,31 +280,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        public NetProxy Proxy
-        {
-            get
-            {
-                if (_proxyType == NetProxyType.None)
-                    return null;
-
-                if (_proxy is null)
-                {
-                    _proxy = NetProxy.CreateProxy(_proxyType, _proxyAddress, _proxyPort, _proxyUsername, _proxyPassword);
-                    _proxy.BypassList = null;
-                }
-
-                return _proxy;
-            }
-        }
-
         public override int UncompressedLength
         {
             get
             {
                 int length = 1 + 1 + _forwarder.Length + 1 + 1;
 
-                if (_proxyType != NetProxyType.None)
-                    length += 1 + _proxyAddress.Length + 2 + 1 + _proxyUsername.Length + 1 + _proxyPassword.Length;
+                switch (_proxyType)
+                {
+                    case DnsForwarderRecordProxyType.Http:
+                    case DnsForwarderRecordProxyType.Socks5:
+                        length += 1 + _proxyAddress.Length + 2 + 1 + _proxyUsername.Length + 1 + _proxyPassword.Length;
+                        break;
+                }
 
                 return length;
             }
