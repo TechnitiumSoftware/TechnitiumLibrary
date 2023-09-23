@@ -1575,7 +1575,16 @@ namespace TechnitiumLibrary.Net.Dns
                             return DnsResponseCode.ServerFailure;
 
                         default:
-                            return _rcode;
+                            switch (_rcode)
+                            {
+                                case DnsResponseCode.NoError:
+                                case DnsResponseCode.NxDomain:
+                                case DnsResponseCode.YXDomain:
+                                    return _rcode;
+
+                                default:
+                                    return DnsResponseCode.ServerFailure;
+                            }
                     }
                 }
             }
