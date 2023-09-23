@@ -28,6 +28,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
     public class TlsClientConnection : TcpClientConnection
     {
+        #region variables
+
+        const int TLS_WAIT_TIMEOUT = 10000;
+
+        #endregion
+
         #region constructor
 
         public TlsClientConnection(NameServerAddress server, NetProxy proxy)
@@ -41,7 +47,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         protected override async Task<Stream> GetNetworkStreamAsync(Socket socket, CancellationToken cancellationToken)
         {
             SslStream tlsStream = new SslStream(new NetworkStream(socket, true));
-            await tlsStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions() { TargetHost = _server.Host }, cancellationToken);
+            await tlsStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions() { TargetHost = _server.Host }, cancellationToken).WithTimeout(TLS_WAIT_TIMEOUT);
 
             return tlsStream;
         }
