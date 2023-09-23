@@ -236,6 +236,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             _lastQueried = DateTime.UtcNow;
 
+            Task<bool> firstSendAsyncTask = null;
+
             int retry = 0;
             while (retry < retries) //retry loop
             {
@@ -249,6 +251,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     Transaction transaction = new Transaction(request.IsZoneTransfer);
 
                     Task<bool> sendAsyncTask = SendDnsDatagramAsync(request, timeout, transaction, cancellationToken);
+                    if (firstSendAsyncTask is null)
+                        firstSendAsyncTask = sendAsyncTask;
 
                     //wait for request with timeout
                     using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
@@ -300,6 +304,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         transaction.Dispose();
                 }
             }
+
+            if ((firstSendAsyncTask is not null) && firstSendAsyncTask.IsFaulted)
+                await firstSendAsyncTask; //await to throw relevent exception
 
             throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out.");
         }
