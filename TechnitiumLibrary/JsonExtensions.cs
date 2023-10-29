@@ -92,6 +92,11 @@ namespace TechnitiumLibrary
 
         #region public
 
+        public static string[] GetArray(this JsonElement jsonElement)
+        {
+            return ReadArray(jsonElement);
+        }
+
         public static string[] ReadArray(this JsonElement jsonElement, string propertyName)
         {
             return ReadArray(jsonElement.GetProperty(propertyName));
@@ -207,6 +212,22 @@ namespace TechnitiumLibrary
         {
             if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue))
                 return jsonValue.GetInt32();
+
+            return defaultValue;
+        }
+
+        public static uint GetPropertyValue(this JsonElement jsonElement, string propertyName, uint defaultValue)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue))
+                return jsonValue.GetUInt32();
+
+            return defaultValue;
+        }
+
+        public static long GetPropertyValue(this JsonElement jsonElement, string propertyName, long defaultValue)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue))
+                return jsonValue.GetInt64();
 
             return defaultValue;
         }
