@@ -219,8 +219,8 @@ namespace TechnitiumLibrary.Net.Dns
 
             jsonWriter.WriteString("Name", _name);
 
-            if (_name.Contains("xn--", StringComparison.OrdinalIgnoreCase))
-                jsonWriter.WriteString("NameIDN", DnsClient.ConvertDomainNameToUnicode(_name));
+            if (DnsClient.TryConvertDomainNameToUnicode(_name, out string nameIDN))
+                jsonWriter.WriteString("NameIDN", nameIDN);
 
             jsonWriter.WriteString("Type", _type.ToString());
             jsonWriter.WriteString("Class", _class.ToString());
