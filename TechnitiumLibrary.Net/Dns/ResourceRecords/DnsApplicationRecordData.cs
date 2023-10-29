@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -91,6 +92,33 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsApplicationRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsApplicationRecordData(rdata);
+
+            string appName = await zoneFile.PopItemAsync();
+            string classPath = await zoneFile.PopItemAsync();
+            string data = await zoneFile.PopItemAsync();
+
+            if (data == "-")
+                data = string.Empty;
+            else
+                data = Encoding.UTF8.GetString(Convert.FromBase64String(data));
+
+            return new DnsApplicationRecordData(appName, classPath, data);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return DnsDatagram.EncodeCharacterString(_appName) + " " + DnsDatagram.EncodeCharacterString(_classPath) + " " + (_data.Length == 0 ? "-" : Convert.ToBase64String(Encoding.UTF8.GetBytes(_data)));
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)
@@ -118,11 +146,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_appName, _classPath, _data);
-        }
-
-        public override string ToString()
-        {
-            return _appName + " " + _classPath + " " + Convert.ToBase64String(Encoding.UTF8.GetBytes(_data));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

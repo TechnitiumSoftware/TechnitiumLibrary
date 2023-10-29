@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -71,6 +72,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _domain = _domain.ToLowerInvariant();
         }
 
+        internal static async Task<DnsCNAMERecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsCNAMERecordData(rdata);
+
+            return new DnsCNAMERecordData(await zoneFile.PopDomainAsync());
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return DnsResourceRecord.GetRelativeDomainName(_domain, originDomain).ToLowerInvariant();
+        }
+
         #endregion
 
         #region public
@@ -94,19 +109,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return _domain.GetHashCode();
         }
 
-        public override string ToString()
-        {
-            return _domain.ToLowerInvariant() + ".";
-        }
-
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
         {
             jsonWriter.WriteStartObject();
 
             jsonWriter.WriteString("Domain", _domain);
 
-            if (_domain.Contains("xn--", StringComparison.OrdinalIgnoreCase))
-                jsonWriter.WriteString("DomainIDN", DnsClient.ConvertDomainNameToUnicode(_domain));
+            if (DnsClient.TryConvertDomainNameToUnicode(_domain, out string domainIDN))
+                jsonWriter.WriteString("DomainIDN", domainIDN);
 
             jsonWriter.WriteEndObject();
         }

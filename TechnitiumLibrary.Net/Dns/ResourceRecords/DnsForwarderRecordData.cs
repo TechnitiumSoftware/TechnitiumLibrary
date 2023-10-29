@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -75,6 +76,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     _proxyPort = proxyPort;
                     _proxyUsername = proxyUsername;
                     _proxyPassword = proxyPassword;
+
+                    if (_proxyUsername is null)
+                        _proxyUsername = string.Empty;
+
+                    if (_proxyPassword is null)
+                        _proxyPassword = string.Empty;
+
                     break;
             }
 
@@ -144,6 +152,62 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsForwarderRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsForwarderRecordData(rdata);
+
+            DnsTransportProtocol protocol = Enum.Parse<DnsTransportProtocol>(await zoneFile.PopItemAsync(), true);
+            string forwarder = await zoneFile.PopItemAsync();
+            bool dnssecValidation = bool.Parse(await zoneFile.PopItemAsync());
+            DnsForwarderRecordProxyType proxyType = Enum.Parse<DnsForwarderRecordProxyType>(await zoneFile.PopItemAsync(), true);
+
+            string proxyAddress = null;
+            ushort proxyPort = 0;
+            string proxyUsername = null;
+            string proxyPassword = null;
+
+            switch (proxyType)
+            {
+                case DnsForwarderRecordProxyType.Http:
+                case DnsForwarderRecordProxyType.Socks5:
+                    proxyAddress = await zoneFile.PopItemAsync();
+                    proxyPort = ushort.Parse(await zoneFile.PopItemAsync());
+                    proxyUsername = await zoneFile.PopItemAsync();
+                    proxyPassword = await zoneFile.PopItemAsync();
+                    break;
+            }
+
+            return new DnsForwarderRecordData(protocol, forwarder, dnssecValidation, proxyType, proxyAddress, proxyPort, proxyUsername, proxyPassword);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            string str = _protocol.ToString() + " " + DnsDatagram.EncodeCharacterString(_forwarder) + " " + _dnssecValidation + " " + _proxyType.ToString();
+
+            switch (_proxyType)
+            {
+                case DnsForwarderRecordProxyType.Http:
+                case DnsForwarderRecordProxyType.Socks5:
+                    str += " " + DnsDatagram.EncodeCharacterString(_proxyAddress) + " " + _proxyPort;
+
+                    if (!string.IsNullOrEmpty(_proxyUsername))
+                        str += " " + DnsDatagram.EncodeCharacterString(_proxyUsername);
+
+                    if (!string.IsNullOrEmpty(_proxyPassword))
+                        str += " " + DnsDatagram.EncodeCharacterString(_proxyPassword);
+
+                    break;
+            }
+
+            return str;
+        }
+
+        #endregion
+
         #region public
 
         public NetProxy GetProxy(NetProxy defaultProxy)
@@ -190,28 +254,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_protocol, _forwarder);
-        }
-
-        public override string ToString()
-        {
-            string str = _protocol.ToString() + " " + _forwarder + " " + _dnssecValidation + " " + _proxyType.ToString();
-
-            switch (_proxyType)
-            {
-                case DnsForwarderRecordProxyType.Http:
-                case DnsForwarderRecordProxyType.Socks5:
-                    str += " " + _proxyAddress + " " + _proxyPort;
-
-                    if (string.IsNullOrEmpty(_proxyUsername))
-                        str += " " + _proxyUsername;
-
-                    if (string.IsNullOrEmpty(_proxyPassword))
-                        str += " " + _proxyPassword;
-
-                    break;
-            }
-
-            return str;
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

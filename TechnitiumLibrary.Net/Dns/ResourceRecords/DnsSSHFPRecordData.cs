@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -103,6 +104,28 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsSSHFPRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsSSHFPRecordData(rdata);
+
+            DnsSSHFPAlgorithm algorithm = (DnsSSHFPAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
+            DnsSSHFPFingerprintType fingerprintType = (DnsSSHFPFingerprintType)byte.Parse(await zoneFile.PopItemAsync());
+            byte[] fingerprint = Convert.FromHexString(await zoneFile.PopItemAsync());
+
+            return new DnsSSHFPRecordData(algorithm, fingerprintType, fingerprint);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return (byte)_algorithm + " " + (byte)_fingerprintType + " " + Convert.ToHexString(_fingerprint);
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)
@@ -133,11 +156,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_algorithm, _fingerprintType, _fingerprint);
-        }
-
-        public override string ToString()
-        {
-            return (byte)_algorithm + " " + (byte)_fingerprintType + " " + Convert.ToHexString(_fingerprint);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

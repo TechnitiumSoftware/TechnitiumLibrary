@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -193,6 +194,29 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsDSRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsDSRecordData(rdata);
+
+            ushort keyTag = ushort.Parse(await zoneFile.PopItemAsync());
+            DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
+            DnssecDigestType digestType = (DnssecDigestType)byte.Parse(await zoneFile.PopItemAsync());
+            byte[] digest = Convert.FromHexString(await zoneFile.PopItemAsync());
+
+            return new DnsDSRecordData(keyTag, algorithm, digestType, digest);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return _keyTag + " " + (byte)_algorithm + " " + (byte)_digestType + " " + Convert.ToHexString(_digest);
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)
@@ -226,11 +250,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_keyTag, _algorithm, _digestType, _digest);
-        }
-
-        public override string ToString()
-        {
-            return _keyTag + " " + (byte)_algorithm + " " + (byte)_digestType + " " + Convert.ToHexString(_digest);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

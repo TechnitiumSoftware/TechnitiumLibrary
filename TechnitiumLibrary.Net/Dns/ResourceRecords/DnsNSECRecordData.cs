@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -65,7 +66,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _types = types;
 
             Serialize();
-            CheckForDelegation();
         }
 
         public DnsNSECRecordData(Stream s)
@@ -385,6 +385,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 _rData = mS.ToArray();
             }
+
+            CheckForDelegation();
         }
 
         private void CheckForDelegation()
@@ -445,6 +447,43 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsNSECRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsNSECRecordData(rdata);
+
+            string nextDomainName = await zoneFile.PopDomainAsync();
+
+            List<DnsResourceRecordType> types = new List<DnsResourceRecordType>();
+
+            do
+            {
+                string type = await zoneFile.PopItemAsync();
+                if (type is null)
+                    break;
+
+                types.Add(Enum.Parse<DnsResourceRecordType>(type, true));
+            }
+            while (true);
+
+            return new DnsNSECRecordData(nextDomainName, types);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            string str = DnsResourceRecord.GetRelativeDomainName(_nextDomainName, originDomain).ToLowerInvariant();
+
+            foreach (DnsResourceRecordType type in _types)
+                str += " " + type.ToString();
+
+            return str;
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)
@@ -478,16 +517,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_nextDomainName, _types);
-        }
-
-        public override string ToString()
-        {
-            string str = _nextDomainName + ".";
-
-            foreach (DnsResourceRecordType type in _types)
-                str += " " + type.ToString();
-
-            return str;
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

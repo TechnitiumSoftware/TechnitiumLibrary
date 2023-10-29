@@ -23,6 +23,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -214,6 +215,29 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsTLSARecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsTLSARecordData(rdata);
+
+            DnsTLSACertificateUsage certificateUsage = (DnsTLSACertificateUsage)byte.Parse(await zoneFile.PopItemAsync());
+            DnsTLSASelector selector = (DnsTLSASelector)byte.Parse(await zoneFile.PopItemAsync());
+            DnsTLSAMatchingType matchingType = (DnsTLSAMatchingType)byte.Parse(await zoneFile.PopItemAsync());
+            byte[] certificateAssociationData = Convert.FromHexString(await zoneFile.PopItemAsync());
+
+            return new DnsTLSARecordData(certificateUsage, selector, matchingType, certificateAssociationData);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return (byte)_certificateUsage + " " + (byte)_selector + " " + (byte)_matchingType + " " + Convert.ToHexString(_certificateAssociationData);
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)
@@ -247,11 +271,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_certificateUsage, _selector, _matchingType, _certificateAssociationData);
-        }
-
-        public override string ToString()
-        {
-            return (byte)_certificateUsage + " " + (byte)_selector + " " + (byte)_matchingType + " " + Convert.ToHexString(_certificateAssociationData);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

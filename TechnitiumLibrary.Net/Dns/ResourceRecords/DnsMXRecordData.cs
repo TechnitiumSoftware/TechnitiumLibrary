@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -75,6 +76,23 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _exchange = _exchange.ToLowerInvariant();
         }
 
+        internal static async Task<DnsMXRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsMXRecordData(rdata);
+
+            ushort preference = ushort.Parse(await zoneFile.PopItemAsync());
+            string exchange = await zoneFile.PopDomainAsync();
+
+            return new DnsMXRecordData(preference, exchange);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return _preference + " " + DnsResourceRecord.GetRelativeDomainName(_exchange, originDomain).ToLowerInvariant();
+        }
+
         #endregion
 
         #region public
@@ -108,11 +126,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return HashCode.Combine(_preference, _exchange);
         }
 
-        public override string ToString()
-        {
-            return _preference + " " + _exchange.ToLowerInvariant() + ".";
-        }
-
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
         {
             jsonWriter.WriteStartObject();
@@ -120,8 +133,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteNumber("Preference", _preference);
             jsonWriter.WriteString("Exchange", _exchange);
 
-            if (_exchange.Contains("xn--", StringComparison.OrdinalIgnoreCase))
-                jsonWriter.WriteString("ExchangeIDN", DnsClient.ConvertDomainNameToUnicode(_exchange));
+            if (DnsClient.TryConvertDomainNameToUnicode(_exchange, out string exchangeIDN))
+                jsonWriter.WriteString("ExchangeIDN", exchangeIDN);
 
             jsonWriter.WriteEndObject();
         }

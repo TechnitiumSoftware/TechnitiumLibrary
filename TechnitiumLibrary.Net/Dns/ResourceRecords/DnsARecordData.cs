@@ -22,6 +22,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -70,6 +71,24 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsARecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsARecordData(rdata);
+
+            return new DnsARecordData(IPAddress.Parse(await zoneFile.PopItemAsync()));
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return _address.ToString();
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)
@@ -89,11 +108,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return _address.GetHashCode();
-        }
-
-        public override string ToString()
-        {
-            return _address.ToString();
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

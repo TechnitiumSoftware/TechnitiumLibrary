@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -96,6 +97,36 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsNSEC3PARAMRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsNSEC3PARAMRecordData(rdata);
+
+            DnssecNSEC3HashAlgorithm hashAlgorithm = (DnssecNSEC3HashAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
+            DnssecNSEC3Flags flags = (DnssecNSEC3Flags)byte.Parse(await zoneFile.PopItemAsync());
+            ushort iterations = ushort.Parse(await zoneFile.PopItemAsync());
+            byte[] salt;
+            {
+                string value = await zoneFile.PopItemAsync();
+                if (value == "-")
+                    salt = Array.Empty<byte>();
+                else
+                    salt = Convert.FromHexString(value);
+            }
+
+            return new DnsNSEC3PARAMRecordData(hashAlgorithm, flags, iterations, salt);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return (byte)_hashAlgorithm + " " + (byte)_flags + " " + _iterations + " " + (_salt.Length == 0 ? "-" : Convert.ToHexString(_salt));
+        }
+
+        #endregion
+
         #region public
 
         public string ComputeHashedOwnerNameBase32HexString(string ownerName)
@@ -139,11 +170,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_hashAlgorithm, _flags, _iterations, _salt);
-        }
-
-        public override string ToString()
-        {
-            return (byte)_hashAlgorithm + " " + (byte)_flags + " " + _iterations + " " + (_salt.Length == 0 ? "-" : Convert.ToHexString(_salt));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

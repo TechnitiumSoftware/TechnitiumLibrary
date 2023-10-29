@@ -125,6 +125,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            throw new InvalidOperationException();
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)

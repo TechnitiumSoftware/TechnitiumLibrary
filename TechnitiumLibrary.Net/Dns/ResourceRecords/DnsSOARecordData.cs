@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -47,17 +48,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             DnsClient.IsDomainNameValid(primaryNameServer, true);
 
-            if (!responsiblePerson.Contains('@'))
-            {
-                int i = responsiblePerson.IndexOf('.');
-                if (i < 1)
-                    throw new ArgumentException("Please enter a valid email address.", nameof(responsiblePerson));
-
-                responsiblePerson = responsiblePerson.Substring(0, i) + "@" + responsiblePerson.Substring(i + 1);
-            }
-
             _primaryNameServer = primaryNameServer;
-            _responsiblePerson = responsiblePerson;
+            _responsiblePerson = GetResponsiblePersonEmailFormat(responsiblePerson);
             _serial = serial;
             _refresh = refresh;
             _retry = retry;
@@ -118,6 +110,72 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _responsiblePerson = _responsiblePerson.ToLowerInvariant();
         }
 
+        internal static async Task<DnsSOARecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsSOARecordData(rdata);
+
+            string primaryNameServer = await zoneFile.PopDomainAsync();
+            string responsiblePerson = await zoneFile.PopDomainAsync();
+            uint serial = uint.Parse(await zoneFile.PopItemAsync());
+            uint refresh = uint.Parse(await zoneFile.PopItemAsync());
+            uint retry = uint.Parse(await zoneFile.PopItemAsync());
+            uint expire = uint.Parse(await zoneFile.PopItemAsync());
+            uint minimum = uint.Parse(await zoneFile.PopItemAsync());
+
+            return new DnsSOARecordData(primaryNameServer, responsiblePerson, serial, refresh, retry, expire, minimum);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return DnsResourceRecord.GetRelativeDomainName(_primaryNameServer, originDomain).ToLowerInvariant() + " " + DnsResourceRecord.GetRelativeDomainName(GetResponsiblePersonDomainFormat(_responsiblePerson), originDomain).ToLowerInvariant() + " " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
+        }
+
+        #endregion
+
+        #region private
+
+        private static string GetResponsiblePersonEmailFormat(string responsiblePerson)
+        {
+            if (!responsiblePerson.Contains('@'))
+            {
+                int i = 0;
+
+                while (true)
+                {
+                    i = responsiblePerson.IndexOf('.', i);
+                    if (i < 1)
+                        throw new ArgumentException("Please enter a valid email address.", nameof(responsiblePerson));
+
+                    if ((i > 0) && (responsiblePerson[i - 1] == '\\'))
+                    {
+                        i++;
+
+                        if (i >= responsiblePerson.Length)
+                            throw new ArgumentException("Please enter a valid email address.", nameof(responsiblePerson));
+
+                        continue;
+                    }
+
+                    break;
+                }
+
+                responsiblePerson = responsiblePerson.Substring(0, i) + "@" + responsiblePerson.Substring(i + 1);
+            }
+
+            return responsiblePerson;
+        }
+
+        private static string GetResponsiblePersonDomainFormat(string responsiblePerson)
+        {
+            int i = responsiblePerson.IndexOf('@');
+            if (i > -1)
+                responsiblePerson = responsiblePerson.Substring(0, i).Replace(".", "\\.") + "." + responsiblePerson.Substring(i + 1);
+
+            return responsiblePerson;
+        }
+
         #endregion
 
         #region public
@@ -169,25 +227,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return HashCode.Combine(_primaryNameServer, _responsiblePerson, _serial, _refresh, _retry, _expire, _minimum);
         }
 
-        public override string ToString()
-        {
-            string responsiblePerson = _responsiblePerson;
-
-            int i = responsiblePerson.IndexOf('@');
-            if (i > -1)
-                responsiblePerson = responsiblePerson.Substring(0, i).Replace(".", "\\.") + "." + responsiblePerson.Substring(i + 1);
-
-            return _primaryNameServer.ToLowerInvariant() + ". " + responsiblePerson.ToLowerInvariant() + ". " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
-        }
-
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
         {
             jsonWriter.WriteStartObject();
 
             jsonWriter.WriteString("PrimaryNameServer", _primaryNameServer);
 
-            if (_primaryNameServer.Contains("xn--", StringComparison.OrdinalIgnoreCase))
-                jsonWriter.WriteString("PrimaryNameServerIDN", DnsClient.ConvertDomainNameToUnicode(_primaryNameServer));
+            if (DnsClient.TryConvertDomainNameToUnicode(_primaryNameServer, out string primaryNameServerIDN))
+                jsonWriter.WriteString("PrimaryNameServerIDN", primaryNameServerIDN);
 
             jsonWriter.WriteString("ResponsiblePerson", _responsiblePerson);
             jsonWriter.WriteNumber("Serial", _serial);

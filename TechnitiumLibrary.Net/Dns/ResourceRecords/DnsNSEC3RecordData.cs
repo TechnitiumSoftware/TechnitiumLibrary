@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -436,6 +437,55 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsNSEC3RecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsNSEC3RecordData(rdata);
+
+            DnssecNSEC3HashAlgorithm hashAlgorithm = (DnssecNSEC3HashAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
+            DnssecNSEC3Flags flags = (DnssecNSEC3Flags)byte.Parse(await zoneFile.PopItemAsync());
+            ushort iterations = ushort.Parse(await zoneFile.PopItemAsync());
+            byte[] salt;
+            {
+                string value = await zoneFile.PopItemAsync();
+                if (value == "-")
+                    salt = Array.Empty<byte>();
+                else
+                    salt = Convert.FromHexString(value);
+            }
+
+            byte[] nextHashedOwnerName = Base32.FromBase32HexString(await zoneFile.PopItemAsync());
+
+            List<DnsResourceRecordType> types = new List<DnsResourceRecordType>();
+
+            do
+            {
+                string type = await zoneFile.PopItemAsync();
+                if (type is null)
+                    break;
+
+                types.Add(Enum.Parse<DnsResourceRecordType>(type, true));
+            }
+            while (true);
+
+            return new DnsNSEC3RecordData(hashAlgorithm, flags, iterations, salt, nextHashedOwnerName, types);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            string str = (byte)_hashAlgorithm + " " + (byte)_flags + " " + _iterations + " " + (_salt.Length == 0 ? "-" : Convert.ToHexString(_salt)) + " " + Base32.ToBase32HexString(_nextHashedOwnerNameValue);
+
+            foreach (DnsResourceRecordType type in _types)
+                str += " " + type.ToString();
+
+            return str;
+        }
+
+        #endregion
+
         #region public
 
         public string ComputeHashedOwnerName(string ownerName)
@@ -486,16 +536,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_hashAlgorithm, _flags, _iterations, _salt, _nextHashedOwnerNameValue, _types);
-        }
-
-        public override string ToString()
-        {
-            string str = (byte)_hashAlgorithm + " " + (byte)_flags + " " + _iterations + " " + (_salt.Length == 0 ? "-" : Convert.ToHexString(_salt)) + " " + Base32.ToBase32HexString(_nextHashedOwnerNameValue);
-
-            foreach (DnsResourceRecordType type in _types)
-                str += " " + type.ToString();
-
-            return str;
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

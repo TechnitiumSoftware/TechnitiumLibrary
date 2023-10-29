@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.Dnssec;
 
@@ -211,6 +212,29 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsDNSKEYRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsDNSKEYRecordData(rdata);
+
+            DnsDnsKeyFlag flags = (DnsDnsKeyFlag)ushort.Parse(await zoneFile.PopItemAsync());
+            byte protocol = byte.Parse(await zoneFile.PopItemAsync());
+            DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
+            DnssecPublicKey publicKey = DnssecPublicKey.Parse(algorithm, Convert.FromBase64String(await zoneFile.PopItemAsync()));
+
+            return new DnsDNSKEYRecordData(flags, protocol, algorithm, publicKey);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return (ushort)_flags + " " + _protocol + " " + (byte)_algorithm + " " + Convert.ToBase64String(_publicKey.RawPublicKey);
+        }
+
+        #endregion
+
         #region public
 
         public bool IsDnsKeyValid(string ownerName, DnsDSRecordData ds)
@@ -258,11 +282,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_flags, _protocol, _algorithm, _publicKey.RawPublicKey);
-        }
-
-        public override string ToString()
-        {
-            return (ushort)_flags + " " + _protocol + " " + (byte)_algorithm + " " + Convert.ToBase64String(_publicKey.RawPublicKey);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

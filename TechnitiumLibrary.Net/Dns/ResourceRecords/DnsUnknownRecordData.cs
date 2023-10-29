@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -42,7 +43,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsUnknownRecordData(Stream s)
             : base(s)
-        { }
+        {
+            if (_data is null)
+                _data = Array.Empty<byte>();
+        }
 
         #endregion
 
@@ -56,6 +60,24 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
             s.Write(_data, 0, _data.Length);
+        }
+
+        #endregion
+
+        #region internal
+
+        internal static async Task<DnsUnknownRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsUnknownRecordData(rdata);
+
+            throw new FormatException("Unabled to parse Unknown record data: unsupported format.");
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return "\\# " + _rdLength + (_data.Length > 0 ? " " + Convert.ToHexString(_data) : "");
         }
 
         #endregion
@@ -90,11 +112,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return _data.GetHashCode();
-        }
-
-        public override string ToString()
-        {
-            return Convert.ToBase64String(_data);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

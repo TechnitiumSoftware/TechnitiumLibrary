@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -108,6 +109,61 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsTXTRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsTXTRecordData(rdata);
+
+            string text = null;
+
+            do
+            {
+                string value = await zoneFile.PopItemAsync();
+                if (value is null)
+                    break;
+
+                if (text is null)
+                    text = value;
+                else
+                    text += value;
+            }
+            while (true);
+
+            return new DnsTXTRecordData(text);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            string value = null;
+
+            int startIndex = 0;
+            int length;
+
+            do
+            {
+                length = _text.Length - startIndex;
+                if (length > 255)
+                    length = 255;
+
+                string part = _text.Substring(startIndex, length);
+
+                if (value is null)
+                    value = DnsDatagram.EncodeCharacterString(part);
+                else
+                    value += " " + DnsDatagram.EncodeCharacterString(part);
+
+                startIndex += length;
+            }
+            while (startIndex < _text.Length);
+
+            return value;
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)
@@ -127,11 +183,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return _text.GetHashCode();
-        }
-
-        public override string ToString()
-        {
-            return DnsDatagram.EncodeCharacterString(_text);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

@@ -24,6 +24,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -162,6 +163,67 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsSVCBRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsSVCBRecordData(rdata);
+
+            ushort svcPriority = ushort.Parse(await zoneFile.PopItemAsync());
+            string targetName = await zoneFile.PopDomainAsync();
+
+            Dictionary<DnsSvcParamKey, DnsSvcParamValue> svcParams = new Dictionary<DnsSvcParamKey, DnsSvcParamValue>();
+            string param;
+            int i;
+            DnsSvcParamKey svcParamKey;
+            DnsSvcParamValue svcParamValue;
+
+            do
+            {
+                param = await zoneFile.PopItemAsync();
+                if (param is null)
+                    break;
+
+                i = param.IndexOf('=');
+                if (i < 0)
+                    svcParamKey = Enum.Parse<DnsSvcParamKey>(param.Replace('-', '_'), true);
+                else
+                    svcParamKey = Enum.Parse<DnsSvcParamKey>(param.Substring(0, i).Replace('-', '_'), true);
+
+                svcParamValue = DnsSvcParamValue.Parse(svcParamKey, param.Substring(i + 1));
+
+                svcParams.Add(svcParamKey, svcParamValue);
+            }
+            while (true);
+
+            return new DnsSVCBRecordData(svcPriority, targetName, svcParams);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            string svcParams = string.Empty;
+
+            foreach (KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> svcParam in _svcParams)
+            {
+                switch (svcParam.Key)
+                {
+                    case DnsSvcParamKey.No_Default_ALPN:
+                        svcParams += " " + svcParam.Key.ToString().ToLower().Replace('_', '-');
+                        break;
+
+                    default:
+                        svcParams += " " + svcParam.Key.ToString().ToLower().Replace('_', '-') + "=" + svcParam.Value.ToString();
+                        break;
+                }
+            }
+
+            return _svcPriority + " " + DnsResourceRecord.GetRelativeDomainName(_targetName, originDomain).ToLowerInvariant() + svcParams;
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)
@@ -201,27 +263,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_svcPriority, _targetName, _svcParams);
-        }
-
-        public override string ToString()
-        {
-            string svcParams = string.Empty;
-
-            foreach (KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> svcParam in _svcParams)
-            {
-                switch (svcParam.Key)
-                {
-                    case DnsSvcParamKey.No_Default_ALPN:
-                        svcParams += " " + svcParam.Key.ToString().ToLower().Replace('_', '-');
-                        break;
-
-                    default:
-                        svcParams += " " + svcParam.Key.ToString().ToLower().Replace('_', '-') + "=" + svcParam.Value.ToString();
-                        break;
-                }
-            }
-
-            return _svcPriority + " " + _targetName.ToLowerInvariant() + "." + svcParams;
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -86,6 +87,28 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsURIRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsURIRecordData(rdata);
+
+            ushort priority = ushort.Parse(await zoneFile.PopItemAsync());
+            ushort weight = ushort.Parse(await zoneFile.PopItemAsync());
+            Uri uri = new Uri(await zoneFile.PopItemAsync());
+
+            return new DnsURIRecordData(priority, weight, uri);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return _priority + " " + _weight + " \"" + _uri.AbsoluteUri + "\"";
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)
@@ -113,11 +136,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             return HashCode.Combine(_priority, _weight, _uri);
-        }
-
-        public override string ToString()
-        {
-            return _priority + " " + _weight + " \"" + _uri.AbsoluteUri + "\"";
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

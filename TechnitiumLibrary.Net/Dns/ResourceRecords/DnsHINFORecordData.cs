@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -68,6 +69,27 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsHINFORecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsHINFORecordData(rdata);
+
+            string cpu = await zoneFile.PopItemAsync();
+            string os = await zoneFile.PopItemAsync();
+
+            return new DnsHINFORecordData(cpu, os);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return DnsDatagram.EncodeCharacterString(_cpu) + " " + DnsDatagram.EncodeCharacterString(_os);
+        }
+
+        #endregion
+
         #region public
 
         public override bool Equals(object obj)
@@ -82,11 +104,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return _cpu.Equals(other._cpu) && _os.Equals(other._os);
 
             return false;
-        }
-
-        public override string ToString()
-        {
-            return DnsDatagram.EncodeCharacterString(_cpu) + " " + DnsDatagram.EncodeCharacterString(_cpu);
         }
 
         public override int GetHashCode()

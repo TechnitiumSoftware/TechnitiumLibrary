@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
 
@@ -63,25 +64,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsRRSIGRecordData(Stream s)
             : base(s)
         { }
-
-        public DnsRRSIGRecordData(JsonElement jsonResourceRecord)
-        {
-            string rdata = jsonResourceRecord.GetProperty("data").GetString();
-
-            _rdLength = Convert.ToUInt16(rdata.Length);
-
-            string[] parts = rdata.Split(' ');
-
-            _typeCovered = Enum.Parse<DnsResourceRecordType>(parts[0], true);
-            _algorithm = Enum.Parse<DnssecAlgorithm>(parts[1].Replace("-", "_"), true);
-            _labels = byte.Parse(parts[2]);
-            _originalTtl = uint.Parse(parts[3]);
-            _signatureExpiration = uint.Parse(parts[4]);
-            _signatureInception = uint.Parse(parts[5]);
-            _keyTag = ushort.Parse(parts[6]);
-            _signersName = parts[7].TrimEnd('.');
-            _signature = Convert.FromBase64String(parts[8]);
-        }
 
         #endregion
 
@@ -359,6 +341,34 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #endregion
 
+        #region internal
+
+        internal static async Task<DnsRRSIGRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsRRSIGRecordData(rdata);
+
+            DnsResourceRecordType typeCovered = (DnsResourceRecordType)ushort.Parse(await zoneFile.PopItemAsync());
+            DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
+            byte labels = byte.Parse(await zoneFile.PopItemAsync());
+            uint originalTtl = uint.Parse(await zoneFile.PopItemAsync());
+            uint signatureExpiration = uint.Parse(await zoneFile.PopItemAsync());
+            uint signatureInception = uint.Parse(await zoneFile.PopItemAsync());
+            ushort keyTag = ushort.Parse(await zoneFile.PopItemAsync());
+            string signersName = await zoneFile.PopDomainAsync();
+            byte[] signature = Convert.FromBase64String(await zoneFile.PopItemAsync());
+
+            return new DnsRRSIGRecordData(typeCovered, algorithm, labels, originalTtl, signatureExpiration, signatureInception, keyTag, signersName, signature);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return (ushort)_typeCovered + " " + (byte)_algorithm + " " + _labels + " " + _originalTtl + " " + _signatureExpiration + " " + _signatureInception + " " + _keyTag + " " + DnsResourceRecord.GetRelativeDomainName(_signersName, originDomain).ToLowerInvariant() + " " + Convert.ToBase64String(_signature);
+        }
+
+        #endregion
+
         #region private
 
         private void WriteTo(Stream s, bool includeSignature)
@@ -542,11 +552,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             hash.Add(_signature);
 
             return hash.ToHashCode();
-        }
-
-        public override string ToString()
-        {
-            return (ushort)_typeCovered + " " + (byte)_algorithm + " " + _labels + " " + _originalTtl + " " + _signatureExpiration + " " + _signatureInception + " " + _keyTag + " " + _signersName + ". " + Convert.ToBase64String(_signature) + " )";
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 {
@@ -83,6 +84,25 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _target = _target.ToLowerInvariant();
         }
 
+        internal static async Task<DnsSRVRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
+        {
+            Stream rdata = await zoneFile.GetRData();
+            if (rdata is not null)
+                return new DnsSRVRecordData(rdata);
+
+            ushort priority = ushort.Parse(await zoneFile.PopItemAsync());
+            ushort weight = ushort.Parse(await zoneFile.PopItemAsync());
+            ushort port = ushort.Parse(await zoneFile.PopItemAsync());
+            string target = await zoneFile.PopDomainAsync();
+
+            return new DnsSRVRecordData(priority, weight, port, target);
+        }
+
+        internal override string ToZoneFileEntry(string originDomain = null)
+        {
+            return _priority + " " + _weight + " " + _port + " " + DnsResourceRecord.GetRelativeDomainName(_target, originDomain).ToLowerInvariant();
+        }
+
         #endregion
 
         #region public
@@ -120,11 +140,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return HashCode.Combine(_priority, _weight, _port, _target);
         }
 
-        public override string ToString()
-        {
-            return _priority + " " + _weight + " " + _port + " " + _target.ToLowerInvariant() + ".";
-        }
-
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
         {
             jsonWriter.WriteStartObject();
@@ -134,8 +149,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteNumber("Port", _port);
             jsonWriter.WriteString("Target", _target);
 
-            if (_target.Contains("xn--", StringComparison.OrdinalIgnoreCase))
-                jsonWriter.WriteString("TargetIDN", DnsClient.ConvertDomainNameToUnicode(_target));
+            if (DnsClient.TryConvertDomainNameToUnicode(_target, out string targetIDN))
+                jsonWriter.WriteString("TargetIDN", targetIDN);
 
             jsonWriter.WriteEndObject();
         }
