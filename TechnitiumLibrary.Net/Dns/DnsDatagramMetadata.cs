@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,7 +27,6 @@ namespace TechnitiumLibrary.Net.Dns
         #region variables
 
         readonly NameServerAddress _server;
-        readonly DnsTransportProtocol _protocol;
         readonly int _size;
         readonly double _rtt;
 
@@ -35,10 +34,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region constructor
 
-        public DnsDatagramMetadata(NameServerAddress server, DnsTransportProtocol protocol, int size, double rtt)
+        public DnsDatagramMetadata(NameServerAddress server, int size, double rtt)
         {
             _server = server;
-            _protocol = protocol;
             _size = size;
             _rtt = rtt;
 
@@ -55,7 +53,7 @@ namespace TechnitiumLibrary.Net.Dns
             jsonWriter.WriteStartObject();
 
             jsonWriter.WriteString("NameServer", _server?.ToString());
-            jsonWriter.WriteString("Protocol", _protocol.ToString());
+            jsonWriter.WriteString("Protocol", (_server is null ? DnsTransportProtocol.Udp : _server.Protocol).ToString());
             jsonWriter.WriteString("DatagramSize", _size + " bytes");
             jsonWriter.WriteString("RoundTripTime", Math.Round(_rtt, 2) + " ms");
 
@@ -70,7 +68,7 @@ namespace TechnitiumLibrary.Net.Dns
         { get { return _server; } }
 
         public DnsTransportProtocol Protocol
-        { get { return _protocol; } }
+        { get { return _server is null ? DnsTransportProtocol.Udp : _server.Protocol; } }
 
         public int DatagramSize
         { get { return _size; } }
