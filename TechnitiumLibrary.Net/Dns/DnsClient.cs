@@ -2388,6 +2388,23 @@ namespace TechnitiumLibrary.Net.Dns
             return _idnMapping.GetUnicode(domain);
         }
 
+        public static bool TryConvertDomainNameToUnicode(string domain, out string idn)
+        {
+            if (domain.Contains("xn--", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    idn = _idnMapping.GetUnicode(domain);
+                    return true;
+                }
+                catch
+                { }
+            }
+
+            idn = null;
+            return false;
+        }
+
         #endregion
 
         #region private
@@ -3974,7 +3991,7 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsDatagram compositeResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, lastResponse.RCODE, new DnsQuestionRecord[] { question }, newAnswer, authority, lastResponse.Additional);
 
                     if (lastResponse.Metadata is not null)
-                        compositeResponse.SetMetadata(lastResponse.Metadata.NameServer, lastResponse.Metadata.Protocol, lastResponse.Metadata.RoundTripTime);
+                        compositeResponse.SetMetadata(lastResponse.Metadata.NameServer, lastResponse.Metadata.RoundTripTime);
 
                     return compositeResponse;
                 }
