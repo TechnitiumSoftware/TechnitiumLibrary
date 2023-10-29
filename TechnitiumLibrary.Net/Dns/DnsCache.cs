@@ -1415,6 +1415,15 @@ namespace TechnitiumLibrary.Net.Dns
 
             #endregion
 
+            #region internal
+
+            internal override string ToZoneFileEntry(string originDomain = null)
+            {
+                throw new InvalidOperationException();
+            }
+
+            #endregion
+
             #region public
 
             public void WriteCacheRecordTo(BinaryWriter bW, Action writeTagInfo)
