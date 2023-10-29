@@ -54,12 +54,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region constructor
 
         public TcpClientConnection(NameServerAddress server, NetProxy proxy)
-            : base(DnsTransportProtocol.Tcp, server, proxy)
-        { }
-
-        protected TcpClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
-            : base(protocol, server, proxy)
-        { }
+            : base(server, proxy)
+        {
+            if (server.Protocol != DnsTransportProtocol.Tcp)
+                throw new ArgumentException("Name server protocol does not match.", nameof(server));
+        }
 
         #endregion
 
@@ -167,7 +166,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     //signal response
                     if (_transactions.TryGetValue(response.Identifier, out Transaction transaction))
-                        transaction.SetResponse(response, _server, _protocol);
+                        transaction.SetResponse(response, _server);
                 }
             }
             catch (Exception ex)
@@ -378,7 +377,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             #region public
 
-            public void SetResponse(DnsDatagram response, NameServerAddress server, DnsTransportProtocol protocol)
+            public void SetResponse(DnsDatagram response, NameServerAddress server)
             {
                 if (_isZoneTransferRequest)
                 {
@@ -400,7 +399,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         //found last response
                         _stopwatch.Stop();
 
-                        _firstResponse.SetMetadata(server, protocol, _stopwatch.Elapsed.TotalMilliseconds);
+                        _firstResponse.SetMetadata(server, _stopwatch.Elapsed.TotalMilliseconds);
 
                         _responseTask.TrySetResult(_firstResponse);
                     }
@@ -409,7 +408,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     _stopwatch.Stop();
 
-                    response.SetMetadata(server, protocol, _stopwatch.Elapsed.TotalMilliseconds);
+                    response.SetMetadata(server, _stopwatch.Elapsed.TotalMilliseconds);
 
                     _responseTask.TrySetResult(response);
                 }
