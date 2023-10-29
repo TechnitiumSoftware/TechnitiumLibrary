@@ -89,8 +89,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region constructor
 
         public QuicClientConnection(NameServerAddress server, NetProxy proxy)
-            : base(DnsTransportProtocol.Quic, server, proxy)
-        { }
+            : base(server, proxy)
+        {
+            if (server.Protocol != DnsTransportProtocol.Quic)
+                throw new ArgumentException("Name server protocol does not match.", nameof(server));
+        }
 
         #endregion
 
@@ -325,7 +328,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 stopwatch.Stop();
 
-                response.SetMetadata(_server, _protocol, stopwatch.Elapsed.TotalMilliseconds);
+                response.SetMetadata(_server, stopwatch.Elapsed.TotalMilliseconds);
 
                 ValidateResponse(request, response);
 
