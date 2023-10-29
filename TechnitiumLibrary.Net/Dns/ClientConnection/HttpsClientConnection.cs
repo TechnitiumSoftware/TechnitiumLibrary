@@ -43,8 +43,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region constructor
 
         public HttpsClientConnection(NameServerAddress server, NetProxy proxy)
-            : base(DnsTransportProtocol.Https, server, proxy)
+            : base(server, proxy)
         {
+            if (server.Protocol != DnsTransportProtocol.Https)
+                throw new ArgumentException("Name server protocol does not match.", nameof(server));
+
             if (proxy is null)
             {
                 SocketsHttpHandler handler = new SocketsHttpHandler();
@@ -180,7 +183,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     DnsDatagram response = DnsDatagram.ReadFrom(mS);
 
-                    response.SetMetadata(_server, _protocol, stopwatch.Elapsed.TotalMilliseconds);
+                    response.SetMetadata(_server, stopwatch.Elapsed.TotalMilliseconds);
 
                     ValidateResponse(request, response);
 
