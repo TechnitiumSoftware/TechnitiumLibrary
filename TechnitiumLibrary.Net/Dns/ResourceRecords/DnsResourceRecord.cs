@@ -117,10 +117,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         ANAME = 65280, //private use - draft-ietf-dnsop-aname-04
         FWD = 65281, //private use - conditional forwarder
         APP = 65282, //private use - application
+        ALIAS = 65357 //private use - SimpleDNS ALIAS
     }
 
     public enum DnsClass : ushort
     {
+        Unknown = 0,
         IN = 1, //the Internet
         CS = 2, //the CSNET class (Obsolete - used only for examples in some obsolete RFCs)
         CH = 3, //the CHAOS class
@@ -187,7 +189,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _type = (DnsResourceRecordType)DnsDatagram.ReadUInt16NetworkOrder(s);
             _class = (DnsClass)DnsDatagram.ReadUInt16NetworkOrder(s);
             _ttl = DnsDatagram.ReadUInt32NetworkOrder(s);
-            _rData = ReadRecordData(s, _type);
+            _rData = ReadRecordDataFrom(s, _type);
         }
 
         #endregion
@@ -210,7 +212,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (bR.ReadBoolean())
                         record._rData = DnsCache.DnsSpecialCacheRecordData.ReadCacheRecordFrom(bR, readTagInfo);
                     else
-                        record._rData = ReadRecordData(bR.BaseStream, record._type);
+                        record._rData = ReadRecordDataFrom(bR.BaseStream, record._type);
 
                     record._setExpiry = bR.ReadBoolean();
                     record._wasExpiryReset = bR.ReadBoolean();
@@ -283,11 +285,23 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return false;
         }
 
+        public static DnsResourceRecordData ReadRecordDataFrom(DnsResourceRecordType type, byte[] rdata)
+        {
+            using MemoryStream mS = new MemoryStream(2 + rdata.Length);
+            {
+                DnsDatagram.WriteUInt16NetworkOrder((ushort)rdata.Length, mS);
+                mS.Write(rdata);
+                mS.Position = 0;
+
+                return ReadRecordDataFrom(mS, type);
+            }
+        }
+
         #endregion
 
         #region private
 
-        private static DnsResourceRecordData ReadRecordData(Stream s, DnsResourceRecordType type)
+        private static DnsResourceRecordData ReadRecordDataFrom(Stream s, DnsResourceRecordType type)
         {
             switch (type)
             {
@@ -375,6 +389,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnsResourceRecordType.APP:
                     return new DnsApplicationRecordData(s);
 
+                case DnsResourceRecordType.ALIAS:
+                    return new DnsALIASRecordData(s);
+
                 default:
                     return new DnsUnknownRecordData(s);
             }
@@ -402,6 +419,22 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 throw new InvalidOperationException();
 
             _name = wildcardName;
+        }
+
+        internal static string GetRelativeDomainName(string domain, string originDomain = null)
+        {
+            string value;
+
+            if (string.IsNullOrEmpty(originDomain))
+                value = domain.ToLowerInvariant() + ".";
+            else if (domain.Equals(originDomain, StringComparison.OrdinalIgnoreCase))
+                value = "@";
+            else if (domain.EndsWith("." + originDomain, StringComparison.OrdinalIgnoreCase))
+                value = domain.Substring(0, domain.Length - originDomain.Length - 1);
+            else
+                value = domain.ToLowerInvariant() + ".";
+
+            return value;
         }
 
         #endregion
@@ -537,7 +570,26 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            return _name.ToLowerInvariant() + ". " + _type.ToString() + " " + _class.ToString() + " " + (IsStale ? 0 : TTL) + " " + _rData.ToString();
+            return ToZoneFileEntry();
+        }
+
+        public string ToZoneFileEntry(string originDomain = null)
+        {
+            string value = GetRelativeDomainName(_name, originDomain).ToLowerInvariant().PadRight(20) + "  " + _ttl.ToString().PadRight(8);
+
+            if (Enum.IsDefined(_class))
+                value += "  " + _class.ToString();
+            else
+                value += "  CLASS" + (ushort)_class;
+
+            if (Enum.IsDefined(_type))
+                value += "  " + _type.ToString().PadRight(12);
+            else
+                value += "  TYPE" + (ushort)_type;
+
+            value += "  " + _rData.ToZoneFileEntry(originDomain);
+
+            return value;
         }
 
         public void SerializeTo(Utf8JsonWriter jsonWriter)
@@ -546,8 +598,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             jsonWriter.WriteString("Name", _name);
 
-            if (_name.Contains("xn--", StringComparison.OrdinalIgnoreCase))
-                jsonWriter.WriteString("NameIDN", DnsClient.ConvertDomainNameToUnicode(_name));
+            if (DnsClient.TryConvertDomainNameToUnicode(_name, out string nameIDN))
+                jsonWriter.WriteString("NameIDN", nameIDN);
 
             jsonWriter.WriteString("Type", _type.ToString());
             jsonWriter.WriteString("Class", _class.ToString());
