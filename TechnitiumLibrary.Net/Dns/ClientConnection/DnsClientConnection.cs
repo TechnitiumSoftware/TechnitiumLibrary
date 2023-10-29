@@ -36,7 +36,6 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         const int MAINTENANCE_TIMER_PERIODIC_INTERVAL = CONNECTION_EXPIRY;
         const int CONNECTION_EXPIRY = 15 * 60 * 1000;
 
-        protected readonly DnsTransportProtocol _protocol;
         protected readonly NameServerAddress _server;
         protected readonly NetProxy _proxy;
 
@@ -140,9 +139,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             _maintenanceTimer.Change(MAINTENANCE_TIMER_INITIAL_INTERVAL, MAINTENANCE_TIMER_PERIODIC_INTERVAL);
         }
 
-        protected DnsClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
+        protected DnsClientConnection(NameServerAddress server, NetProxy proxy)
         {
-            _protocol = protocol;
             _server = server;
             _proxy = proxy;
         }
@@ -356,7 +354,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region properties
 
         public DnsTransportProtocol Protocol
-        { get { return _protocol; } }
+        { get { return _server.Protocol; } }
 
         public NameServerAddress Server
         { get { return _server; } }
