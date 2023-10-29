@@ -564,10 +564,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal static string EncodeCharacterString(string value)
         {
-            if (value.Contains(' ') || value.Contains('\t'))
-                value = "\"" + value.Replace("\"", "\\\"") + "\"";
-
-            return value;
+            return "\"" + value.Replace("\"", "\\\"") + "\"";
         }
 
         internal static string DecodeCharacterString(string value)
@@ -865,12 +862,12 @@ namespace TechnitiumLibrary.Net.Dns
             return false;
         }
 
-        public void SetMetadata(NameServerAddress server = null, DnsTransportProtocol protocol = DnsTransportProtocol.Udp, double rtt = 0.0)
+        public void SetMetadata(NameServerAddress server, double rtt = 0.0)
         {
-            if (_metadata != null)
+            if (_metadata is not null)
                 throw new InvalidOperationException("Cannot overwrite existing Metadata.");
 
-            _metadata = new DnsDatagramMetadata(server, protocol, _size, rtt);
+            _metadata = new DnsDatagramMetadata(server, _size, rtt);
         }
 
         public void SetIdentifier(ushort id)
@@ -1257,7 +1254,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             DnsDatagram joinedDatagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, _authority, _additional);
             joinedDatagram._size = size;
-            joinedDatagram.SetMetadata(_metadata.NameServer, _metadata.Protocol, _metadata.RoundTripTime);
+            joinedDatagram.SetMetadata(_metadata.NameServer, _metadata.RoundTripTime);
             joinedDatagram.Tag = Tag;
 
             return joinedDatagram;
