@@ -225,6 +225,21 @@ namespace TechnitiumLibrary.Net
 
         public override string ToString()
         {
+            switch (_address.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    if (_prefixLength == 32)
+                        return _address.ToString();
+
+                    break;
+
+                case AddressFamily.InterNetworkV6:
+                    if (_prefixLength == 128)
+                        return _address.ToString();
+
+                    break;
+            }
+
             return _address.ToString() + "/" + _prefixLength;
         }
 
