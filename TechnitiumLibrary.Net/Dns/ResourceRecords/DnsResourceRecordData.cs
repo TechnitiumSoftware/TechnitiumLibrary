@@ -70,6 +70,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             WriteRecordData(s, null, true);
         }
 
+        internal abstract string ToZoneFileEntry(string originDomain = null);
+
         #endregion
 
         #region public
@@ -111,7 +113,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override abstract int GetHashCode();
 
-        public override abstract string ToString();
+        public override string ToString()
+        {
+            return ToZoneFileEntry();
+        }
 
         public abstract void SerializeTo(Utf8JsonWriter jsonWriter);
 
