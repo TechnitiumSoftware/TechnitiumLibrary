@@ -44,8 +44,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region constructor
 
         public UdpClientConnection(NameServerAddress server, NetProxy proxy)
-            : base(DnsTransportProtocol.Udp, server, proxy)
-        { }
+            : base(server, proxy)
+        {
+            if (server.Protocol != DnsTransportProtocol.Udp)
+                throw new ArgumentException("Name server protocol does not match.", nameof(server));
+        }
 
         #endregion
 
@@ -167,7 +170,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     using (MemoryStream mS = new MemoryStream(receiveBuffer, 0, receivedBytes))
                     {
                         DnsDatagram response = DnsDatagram.ReadFrom(mS);
-                        response.SetMetadata(_server, _protocol, stopwatch.Elapsed.TotalMilliseconds);
+                        response.SetMetadata(_server, stopwatch.Elapsed.TotalMilliseconds);
 
                         ValidateResponse(request, response);
 
