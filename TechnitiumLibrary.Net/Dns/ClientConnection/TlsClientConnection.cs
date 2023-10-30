@@ -17,7 +17,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-using System;
 using System.IO;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -38,11 +37,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region constructor
 
         public TlsClientConnection(NameServerAddress server, NetProxy proxy)
-            : base(server, proxy)
-        {
-            if (server.Protocol != DnsTransportProtocol.Tls)
-                throw new ArgumentException("Name server protocol does not match.", nameof(server));
-        }
+            : base(DnsTransportProtocol.Tls, server, proxy)
+        { }
 
         #endregion
 
