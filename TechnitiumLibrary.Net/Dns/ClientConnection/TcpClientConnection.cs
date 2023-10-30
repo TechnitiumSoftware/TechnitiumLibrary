@@ -60,6 +60,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 throw new ArgumentException("Name server protocol does not match.", nameof(server));
         }
 
+        protected TcpClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
+            : base(server, proxy)
+        {
+            if (server.Protocol != protocol)
+                throw new ArgumentException("Name server protocol does not match.", nameof(server));
+        }
+
         #endregion
 
         #region IDisposable
