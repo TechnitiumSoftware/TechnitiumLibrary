@@ -229,17 +229,17 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public virtual Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
         {
-            throw new NotSupportedException();
+            throw new NotSupportedException("Bind feature is not supported by the proxy protocol.");
         }
 
         public virtual Task<IProxyServerUdpAssociateHandler> GetUdpAssociateHandlerAsync(EndPoint localEP)
         {
-            throw new NotSupportedException();
+            throw new NotSupportedException("UDP transport is not supported by the proxy protocol.");
         }
 
         public virtual Task<UdpTunnelProxy> CreateUdpTunnelProxyAsync(EndPoint remoteEP, CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            throw new NotSupportedException("UDP transport is not supported by the proxy protocol.");
         }
 
         public Task<TunnelProxy> CreateTunnelProxyAsync(string address, int port, bool enableSsl = false, bool ignoreCertificateErrors = false, CancellationToken cancellationToken = default)
@@ -254,7 +254,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public virtual Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool> isResponseValid = null, CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            throw new NotSupportedException("UDP transport is not supported by the proxy protocol.");
         }
 
         #endregion
