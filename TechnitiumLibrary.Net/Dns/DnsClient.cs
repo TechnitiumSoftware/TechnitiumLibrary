@@ -4033,19 +4033,7 @@ namespace TechnitiumLibrary.Net.Dns
                 lock (nextServerLock)
                 {
                     if (nextServerIndex < servers.Count)
-                    {
-                        NameServerAddress server = servers[nextServerIndex++];
-
-                        if ((nsResolveCache is null) && server.IsIPEndPointStale && (_proxy is null))
-                        {
-                            if (_cache is null)
-                                nsResolveCache = new DnsCache();
-                            else
-                                nsResolveCache = _cache;
-                        }
-
-                        return server;
-                    }
+                        return servers[nextServerIndex++];
 
                     return null; //no next server available; stop thread
                 }
@@ -4084,23 +4072,36 @@ namespace TechnitiumLibrary.Net.Dns
                         throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": no response from name servers [" + strNameServers + "].");
                     }
 
-                    if (server.IsIPEndPointStale && (_proxy is null))
+                    NetProxy proxy = _proxy;
+
+                    if ((proxy is not null) && proxy.IsBypassed(server.EndPoint))
+                        proxy = null;
+
+                    if (proxy is null)
                     {
-                        //recursive resolve name server via root servers when proxy is null else let proxy resolve it
-                        try
+                        if (server.IsIPEndPointStale)
                         {
-                            await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _preferIPv6, _udpPayloadSize, _randomizeName, _retries, _timeout, cancellationToken);
-                        }
-                        catch (Exception ex)
-                        {
-                            lastException = ex;
-                            continue; //failed to resolve name server; try next server
+                            if (nsResolveCache is null)
+                                nsResolveCache = _cache is null ? new DnsCache() : _cache;
+
+                            //recursive resolve name server via root servers when proxy is null else let proxy resolve it
+                            try
+                            {
+                                await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _preferIPv6, _udpPayloadSize, _randomizeName, _retries, _timeout, cancellationToken);
+                            }
+                            catch (Exception ex)
+                            {
+                                lastException = ex;
+                                continue; //failed to resolve name server; try next server
+                            }
                         }
                     }
-
-                    //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
-                    if ((_proxy is not null) && (server.Protocol == DnsTransportProtocol.Udp) && !_proxy.IsBypassed(server.EndPoint) && !await _proxy.IsUdpAvailableAsync())
-                        server = server.ChangeProtocol(DnsTransportProtocol.Tcp);
+                    else
+                    {
+                        //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
+                        if ((server.Protocol == DnsTransportProtocol.Udp) && !await proxy.IsUdpAvailableAsync())
+                            server = server.ChangeProtocol(DnsTransportProtocol.Tcp);
+                    }
 
                     switch (server.Protocol)
                     {
@@ -4137,7 +4138,7 @@ namespace TechnitiumLibrary.Net.Dns
                             }
 
                             //get connection
-                            await using (DnsClientConnection connection = DnsClientConnection.GetConnection(server, _proxy))
+                            await using (DnsClientConnection connection = DnsClientConnection.GetConnection(server, proxy))
                             {
                                 try
                                 {
