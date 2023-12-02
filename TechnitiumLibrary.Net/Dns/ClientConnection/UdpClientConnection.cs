@@ -35,6 +35,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region variables
 
         const int SOCKET_POOL_SIZE = 2500;
+        static int[] _socketPoolExcludedPorts;
         static PooledSocket[] _ipv4PooledSockets;
         static PooledSocket[] _ipv6PooledSockets;
         static readonly object _poolLock = new object();
@@ -125,6 +126,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             //no free pooled socket available; return new socket
             return new PooledSocket(addressFamily);
+        }
+
+        public static int[] SocketPoolExcludedPorts
+        {
+            get { return _socketPoolExcludedPorts; }
+            set { _socketPoolExcludedPorts = value; }
         }
 
         #endregion
@@ -275,7 +282,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                             try
                             {
-                                _socket.Bind(new IPEndPoint(IPAddress.Any, RandomNumberGenerator.GetInt32(1000, ushort.MaxValue)));
+                                _socket.Bind(new IPEndPoint(IPAddress.Any, GetRandomPort()));
                             }
                             catch (SocketException)
                             {
@@ -286,7 +293,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         case AddressFamily.InterNetworkV6:
                             try
                             {
-                                _socket.Bind(new IPEndPoint(IPAddress.IPv6Any, RandomNumberGenerator.GetInt32(1000, ushort.MaxValue)));
+                                _socket.Bind(new IPEndPoint(IPAddress.IPv6Any, GetRandomPort()));
                             }
                             catch (SocketException)
                             {
@@ -307,6 +314,26 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     _socket.Dispose(); //dispose non-pooled socket
                 else
                     _inUse = 0; //free pooled socket
+            }
+
+            #endregion
+
+            #region private
+
+            private static int GetRandomPort()
+            {
+                int port = RandomNumberGenerator.GetInt32(1000, ushort.MaxValue);
+
+                if (_socketPoolExcludedPorts is not null)
+                {
+                    foreach (int excludedPort in _socketPoolExcludedPorts)
+                    {
+                        if (port == excludedPort)
+                            return 0;
+                    }
+                }
+
+                return port;
             }
 
             #endregion
