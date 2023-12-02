@@ -219,8 +219,10 @@ namespace TechnitiumLibrary.Net
                     break;
                 case ".html":
                 case ".htm":
-                case ".hta":
                     mimeType = "text/html";
+                    break;
+                case ".hta":
+                    mimeType = "application/hta";
                     break;
                 case ".xml":
                     mimeType = "text/xml";
