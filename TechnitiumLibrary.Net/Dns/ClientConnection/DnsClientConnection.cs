@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
@@ -31,6 +35,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
     {
         #region variables
 
+        protected const int SOL_SOCKET = 1;
+        protected const int SO_BINDTODEVICE = 25;
+
         readonly static Timer _maintenanceTimer;
         const int MAINTENANCE_TIMER_INITIAL_INTERVAL = CONNECTION_EXPIRY;
         const int MAINTENANCE_TIMER_PERIODIC_INTERVAL = CONNECTION_EXPIRY;
@@ -38,6 +45,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         protected readonly NameServerAddress _server;
         protected readonly NetProxy _proxy;
+
+        protected static IPEndPoint _ipv4BindEP;
+        protected static IPEndPoint _ipv6BindEP;
+        protected static byte[] _ipv4BindToInterfaceName;
+        protected static byte[] _ipv6BindToInterfaceName;
 
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>>();
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>>();
@@ -361,6 +373,106 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         public NetProxy NetProxy
         { get { return _proxy; } }
+
+        public static IPAddress IPv4SourceAddress
+        {
+            get
+            {
+                return _ipv4BindEP is null ? IPAddress.Any : _ipv4BindEP.Address;
+            }
+            set
+            {
+                if ((value is null) || IPAddress.Any.Equals(value))
+                {
+                    _ipv4BindEP = null;
+                    _ipv4BindToInterfaceName = null;
+
+                    UdpClientConnection.ReCreateSocketPoolIPv4();
+                }
+                else
+                {
+                    if (value.AddressFamily != AddressFamily.InterNetwork)
+                        throw new ArgumentException("Source address must be an IPv4 address.", nameof(IPv4SourceAddress));
+
+                    if ((_ipv4BindEP is null) || !_ipv4BindEP.Address.Equals(value))
+                    {
+                        _ipv4BindEP = new IPEndPoint(value, 0);
+                        _ipv4BindToInterfaceName = null;
+
+                        if (Environment.OSVersion.Platform == PlatformID.Unix)
+                        {
+                            //find interface name
+                            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
+                            {
+                                foreach (UnicastIPAddressInformation ip in nic.GetIPProperties().UnicastAddresses)
+                                {
+                                    if (ip.Address.Equals(value))
+                                    {
+                                        _ipv4BindToInterfaceName = Encoding.ASCII.GetBytes(nic.Name);
+                                        break;
+                                    }
+                                }
+
+                                if (_ipv4BindToInterfaceName is not null)
+                                    break;
+                            }
+                        }
+
+                        UdpClientConnection.ReCreateSocketPoolIPv4();
+                    }
+                }
+            }
+        }
+
+        public static IPAddress IPv6SourceAddress
+        {
+            get
+            {
+                return _ipv6BindEP is null ? IPAddress.IPv6Any : _ipv6BindEP.Address;
+            }
+            set
+            {
+                if ((value is null) || IPAddress.IPv6Any.Equals(value))
+                {
+                    _ipv6BindEP = null;
+                    _ipv6BindToInterfaceName = null;
+
+                    UdpClientConnection.ReCreateSocketPoolIPv6();
+                }
+                else
+                {
+                    if (value.AddressFamily != AddressFamily.InterNetworkV6)
+                        throw new ArgumentException("Source address must be an IPv6 address.", nameof(IPv6SourceAddress));
+
+                    if ((_ipv6BindEP is null) || !_ipv6BindEP.Address.Equals(value))
+                    {
+                        _ipv6BindEP = new IPEndPoint(value, 0);
+                        _ipv6BindToInterfaceName = null;
+
+                        if (Environment.OSVersion.Platform == PlatformID.Unix)
+                        {
+                            //find interface name
+                            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
+                            {
+                                foreach (UnicastIPAddressInformation ip in nic.GetIPProperties().UnicastAddresses)
+                                {
+                                    if (ip.Address.Equals(value))
+                                    {
+                                        _ipv6BindToInterfaceName = Encoding.ASCII.GetBytes(nic.Name);
+                                        break;
+                                    }
+                                }
+
+                                if (_ipv6BindToInterfaceName is not null)
+                                    break;
+                            }
+                        }
+
+                        UdpClientConnection.ReCreateSocketPoolIPv6();
+                    }
+                }
+            }
+        }
 
         #endregion
     }
