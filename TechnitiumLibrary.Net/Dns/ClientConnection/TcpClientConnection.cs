@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -142,9 +142,35 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             if (_proxy == null)
             {
                 if (_server.IsIPEndPointStale)
-                    await _server.RecursiveResolveIPAddressAsync(null, null, false, DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, false, 2, 2000, cancellationToken);
+                    await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
 
                 socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+                switch (_server.IPEndPoint.AddressFamily)
+                {
+                    case AddressFamily.InterNetwork:
+                        if (_ipv4BindEP is not null)
+                        {
+                            if (_ipv4BindToInterfaceName is not null)
+                                socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv4BindToInterfaceName);
+
+                            socket.Bind(_ipv4BindEP);
+                        }
+
+                        break;
+
+                    case AddressFamily.InterNetworkV6:
+                        if (_ipv6BindEP is not null)
+                        {
+                            if (_ipv6BindToInterfaceName is not null)
+                                socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv6BindToInterfaceName);
+
+                            socket.Bind(_ipv6BindEP);
+                        }
+
+                        break;
+                }
+
                 await socket.ConnectAsync(_server.IPEndPoint, cancellationToken);
             }
             else
