@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -52,32 +52,28 @@ namespace TechnitiumLibrary.Net.Dns
         private NameServerAddress()
         { }
 
-        public NameServerAddress(Uri dohEndPoint, DnsTransportProtocol protocol = DnsTransportProtocol.Https)
+        public NameServerAddress(Uri dohEndPoint)
         {
             _dohEndPoint = dohEndPoint;
 
             if (IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address))
                 _ipEndPoint = new IPEndPoint(address, GetDoHPort());
 
-            _protocol = protocol;
+            _protocol = DnsTransportProtocol.Https;
             _originalAddress = _dohEndPoint.AbsoluteUri;
-
-            ValidateProtocol();
         }
 
-        public NameServerAddress(Uri dohEndPoint, IPAddress address, DnsTransportProtocol protocol = DnsTransportProtocol.Https)
+        public NameServerAddress(Uri dohEndPoint, IPAddress address)
         {
             _dohEndPoint = dohEndPoint;
             _ipEndPoint = new IPEndPoint(address, GetDoHPort());
 
-            _protocol = protocol;
+            _protocol = DnsTransportProtocol.Https;
 
             if (address.AddressFamily == AddressFamily.InterNetworkV6)
                 _originalAddress = _dohEndPoint.AbsoluteUri + " ([" + address.ToString() + "])";
             else
                 _originalAddress = _dohEndPoint.AbsoluteUri + " (" + address.ToString() + ")";
-
-            ValidateProtocol();
         }
 
         public NameServerAddress(IPAddress address, DnsTransportProtocol protocol = DnsTransportProtocol.Udp)
