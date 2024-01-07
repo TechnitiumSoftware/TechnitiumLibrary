@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,17 +23,22 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Quic;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
+#pragma warning disable CA2252 // This API requires opting into preview features
+#pragma warning disable CA1416 // Validate platform compatibility
     public class HttpsClientConnection : DnsClientConnection
     {
         #region variables
 
         readonly HttpClient _httpClient;
+        UdpTunnelProxy _udpTunnelProxy;
 
         bool _pooled;
         DateTime _lastQueried;
@@ -48,30 +53,24 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             if (server.Protocol != DnsTransportProtocol.Https)
                 throw new ArgumentException("Name server protocol does not match.", nameof(server));
 
-            if (proxy is null)
-            {
-                SocketsHttpHandler handler = new SocketsHttpHandler();
-                handler.EnableMultipleHttp2Connections = true;
-                handler.UseProxy = false;
+            SocketsHttpHandler handler = new SocketsHttpHandler();
+            handler.EnableMultipleHttp2Connections = true;
+            handler.UseProxy = false;
 
-                _httpClient = new HttpClient(handler);
+            if (_proxy is null)
+            {
+                handler.ConnectCallback += ConnectCallback;
             }
             else
             {
-                SocketsHttpHandler handler = new SocketsHttpHandler();
-                handler.EnableMultipleHttp2Connections = true;
-                handler.Proxy = proxy;
-
-                _httpClient = new HttpClient(handler);
+                if (_server.DoHEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase))
+                    handler.AllowAutoRedirect = false; //disable redirect since next call may bypass proxy tunnel
+                else
+                    handler.ConnectCallback += ProxyConnectCallback;
             }
 
+            _httpClient = new HttpClient(handler);
             _httpClient.DefaultRequestHeaders.Add("accept", "application/dns-message");
-
-            if (_server.IsDefaultPort)
-                _httpClient.DefaultRequestHeaders.Add("host", _server.Host);
-            else
-                _httpClient.DefaultRequestHeaders.Add("host", _server.Host + ":" + _server.Port);
-
             _httpClient.DefaultRequestHeaders.Add("user-agent", "DoH client");
         }
 
@@ -82,15 +81,155 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         protected override void Dispose(bool disposing)
         {
             if (disposing && !_pooled)
+            {
                 _httpClient?.Dispose();
+                _udpTunnelProxy?.Dispose();
+            }
         }
 
         protected override ValueTask DisposeAsyncCore()
         {
             if (!_pooled)
+            {
                 _httpClient?.Dispose();
+                _udpTunnelProxy?.Dispose();
+            }
 
             return ValueTask.CompletedTask;
+        }
+
+        #endregion
+
+        #region private
+
+        private async ValueTask<Stream> ConnectCallback(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+        {
+            IPEndPoint remoteEP;
+
+            if (_server.DoHEndPoint.Host.Equals(context.DnsEndPoint.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                if (_server.IsIPEndPointStale)
+                    await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
+
+                if (_server.IPEndPoint.Port == context.DnsEndPoint.Port)
+                    remoteEP = _server.IPEndPoint;
+                else
+                    remoteEP = new IPEndPoint(_server.IPEndPoint.Address, context.DnsEndPoint.Port);
+            }
+            else
+            {
+                remoteEP = await EndPointExtensions.GetEndPoint(context.DnsEndPoint.Host, context.DnsEndPoint.Port).GetIPEndPointAsync(_server.IPEndPoint is null ? AddressFamily.InterNetwork : _server.IPEndPoint.AddressFamily, true, cancellationToken);
+            }
+
+            Socket socket = new Socket(remoteEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+            switch (remoteEP.AddressFamily)
+            {
+                case AddressFamily.InterNetwork:
+                    if (_ipv4BindEP is not null)
+                    {
+                        if (_ipv4BindToInterfaceName is not null)
+                            socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv4BindToInterfaceName);
+
+                        socket.Bind(_ipv4BindEP);
+                    }
+
+                    break;
+
+                case AddressFamily.InterNetworkV6:
+                    if (_ipv6BindEP is not null)
+                    {
+                        if (_ipv6BindToInterfaceName is not null)
+                            socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv6BindToInterfaceName);
+
+                        socket.Bind(_ipv6BindEP);
+                    }
+
+                    break;
+            }
+
+            await socket.ConnectAsync(remoteEP, cancellationToken);
+
+            return new NetworkStream(socket, true);
+        }
+
+        private async ValueTask<Stream> ProxyConnectCallback(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+        {
+            EndPoint remoteEP;
+
+            if (!_server.IsIPEndPointStale && _server.DoHEndPoint.Host.Equals(context.DnsEndPoint.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                if (_server.IPEndPoint.Port == context.DnsEndPoint.Port)
+                    remoteEP = _server.IPEndPoint;
+                else
+                    remoteEP = new IPEndPoint(_server.IPEndPoint.Address, context.DnsEndPoint.Port);
+            }
+            else
+            {
+                remoteEP = EndPointExtensions.GetEndPoint(context.DnsEndPoint.Host, context.DnsEndPoint.Port);
+            }
+
+            Socket socket = await _proxy.ConnectAsync(remoteEP, cancellationToken);
+
+            return new NetworkStream(socket, true);
+        }
+
+        private async Task<HttpRequestMessage> GetHttpRequestAsync(byte[] requestBuffer, CancellationToken cancellationToken)
+        {
+            bool isH3 = _server.DoHEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase);
+            Uri queryUri;
+            Version httpVersion;
+            HttpVersionPolicy httpVersionPolicy;
+
+            if (_proxy is null)
+            {
+                httpVersion = HttpVersion.Version30;
+
+                if (isH3)
+                {
+                    queryUri = new Uri("https://" + _server.DoHEndPoint.Authority + _server.DoHEndPoint.PathAndQuery);
+                    httpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                }
+                else
+                {
+                    queryUri = _server.DoHEndPoint;
+                    httpVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+                }
+            }
+            else
+            {
+                if (isH3)
+                {
+                    if (!await _proxy.IsUdpAvailableAsync())
+                        throw new DnsClientException("Unable to connect: The configured proxy server does not support UDP transport required by HTTP/3 protocol.");
+
+                    if ((_udpTunnelProxy is null) || _udpTunnelProxy.IsBroken)
+                        _udpTunnelProxy = await _proxy.CreateUdpTunnelProxyAsync(_server.EndPoint, cancellationToken);
+
+                    queryUri = new Uri("https://" + _udpTunnelProxy.TunnelEndPoint + _server.DoHEndPoint.PathAndQuery);
+                    httpVersion = HttpVersion.Version30;
+                    httpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                }
+                else
+                {
+                    queryUri = _server.DoHEndPoint;
+                    httpVersion = HttpVersion.Version20;
+                    httpVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+                }
+            }
+
+            HttpRequestMessage httpRequest = new HttpRequestMessage(HttpMethod.Post, queryUri);
+
+            httpRequest.Version = httpVersion;
+            httpRequest.VersionPolicy = httpVersionPolicy;
+
+            if ((_proxy is not null) && isH3)
+                httpRequest.Headers.Host = _server.DoHEndPoint.Authority; //override host header since URI now has udp tunnel end point
+
+            httpRequest.Content = new ByteArrayContent(requestBuffer);
+            httpRequest.Content.Headers.ContentType = new MediaTypeHeaderValue("application/dns-message");
+
+            return httpRequest;
         }
 
         #endregion
@@ -101,48 +240,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             _lastQueried = DateTime.UtcNow;
 
-            async Task<HttpRequestMessage> GetHttpRequest()
+            //serialize request
+            byte[] requestBuffer;
+
+            using (MemoryStream mS = new MemoryStream(32))
             {
-                //serialize request
-                byte[] requestBuffer;
-
-                using (MemoryStream mS = new MemoryStream(32))
-                {
-                    request.WriteTo(mS);
-                    requestBuffer = mS.ToArray();
-                }
-
-                bool isHttp3 = _server.DoHEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase);
-                string scheme = isHttp3 ? "https" : _server.DoHEndPoint.Scheme;
-
-                Uri queryUri;
-
-                if (_proxy == null)
-                {
-                    if (_server.IsIPEndPointStale)
-                        await _server.RecursiveResolveIPAddressAsync(null, null, false, DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, false, 2, 2000, cancellationToken);
-
-                    queryUri = new Uri(scheme + "://" + _server.IPEndPoint.ToString() + _server.DoHEndPoint.PathAndQuery);
-                }
-                else
-                {
-                    if (_server.IPEndPoint == null)
-                        queryUri = _server.DoHEndPoint;
-                    else
-                        queryUri = new Uri(scheme + "://" + _server.IPEndPoint.ToString() + _server.DoHEndPoint.PathAndQuery);
-                }
-
-                HttpRequestMessage httpRequest = new HttpRequestMessage(HttpMethod.Post, queryUri);
-                httpRequest.Content = new ByteArrayContent(requestBuffer);
-                httpRequest.Content.Headers.ContentType = new MediaTypeHeaderValue("application/dns-message");
-                httpRequest.Version = HttpVersion.Version30;
-
-                if (isHttp3)
-                    httpRequest.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
-                else
-                    httpRequest.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
-
-                return httpRequest;
+                request.WriteTo(mS);
+                requestBuffer = mS.ToArray();
             }
 
             //DoH wire format request
@@ -150,6 +254,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             stopwatch.Start();
 
+            bool quicHostUnreachableRetryDone = false;
             int retry = 0;
             while (retry < retries) //retry loop
             {
@@ -158,7 +263,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if (cancellationToken.IsCancellationRequested)
                     return await Task.FromCanceled<DnsDatagram>(cancellationToken); //task cancelled
 
-                Task<HttpResponseMessage> task = _httpClient.SendAsync(await GetHttpRequest(), cancellationToken);
+                Task<HttpResponseMessage> task = _httpClient.SendAsync(await GetHttpRequestAsync(requestBuffer, cancellationToken), cancellationToken);
 
                 using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                 {
@@ -171,7 +276,45 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     timeoutCancellationTokenSource.Cancel(); //to stop delay task
                 }
 
-                HttpResponseMessage httpResponse = await task;
+                HttpResponseMessage httpResponse;
+
+                try
+                {
+                    httpResponse = await task;
+                }
+                catch (HttpRequestException ex)
+                {
+                    if ((retry == 1) && (_udpTunnelProxy is not null) && ex.InnerException is QuicException qex)
+                    {
+                        switch (qex.QuicError)
+                        {
+                            case QuicError.HostUnreachable:
+                                if (!quicHostUnreachableRetryDone)
+                                {
+                                    //host unreachable on first attempt; retry to reconnect
+                                    retry = 0;
+                                    quicHostUnreachableRetryDone = true;
+                                }
+                                else
+                                {
+                                    //close existing connection to allow reconnection later
+                                    _udpTunnelProxy.Dispose();
+                                }
+
+                                continue;
+
+                            case QuicError.ConnectionIdle:
+                                //close existing connection to allow reconnection later
+                                _udpTunnelProxy.Dispose();
+
+                                //connection idle on first attempt; retry to reconnect
+                                retry = 0;
+                                continue;
+                        }
+                    }
+
+                    throw;
+                }
 
                 stopwatch.Stop();
                 httpResponse.EnsureSuccessStatusCode();
@@ -209,4 +352,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #endregion
     }
+
+#pragma warning restore CA2252 // This API requires opting into preview features
+#pragma warning restore CA1416 // Validate platform compatibility
 }
