@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -47,7 +47,7 @@ namespace TechnitiumLibrary.Net.Proxy
             _remoteEP = remoteEP;
 
             //start local tunnel socket
-            _tunnelSocket = new Socket(_remoteEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+            _tunnelSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _tunnelSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
 
             _tunnelLocalEP = _tunnelSocket.LocalEndPoint as IPEndPoint;
@@ -98,8 +98,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 {
                     SocketReceiveFromResult result = await _tunnelSocket.ReceiveFromAsync(buffer, SocketFlags.None, anyEP);
 
-                    if (_tunnelRemoteEP is null)
-                        _tunnelRemoteEP = result.RemoteEndPoint;
+                    _tunnelRemoteEP = result.RemoteEndPoint; //client EP may change in case of HTTP/3 SocketsHttpHandler
 
                     await _proxyUdpHandler.SendToAsync(new ArraySegment<byte>(buffer, 0, result.ReceivedBytes), _remoteEP);
                 }
