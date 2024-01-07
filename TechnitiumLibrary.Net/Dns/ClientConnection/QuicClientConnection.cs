@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@ using System.IO;
 using System.Net;
 using System.Net.Quic;
 using System.Net.Security;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
@@ -153,14 +154,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if (_proxy is null)
                 {
                     if (_server.IsIPEndPointStale)
-                        await _server.RecursiveResolveIPAddressAsync(null, null, false, DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, false, 2, 2000, cancellationToken);
+                        await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
 
                     remoteEP = _server.IPEndPoint;
                 }
                 else
                 {
                     if (!await _proxy.IsUdpAvailableAsync())
-                        throw new DnsClientException("The configured proxy server does not support UDP transport required by QUIC protocol.");
+                        throw new DnsClientException("Unable to connect: The configured proxy server does not support UDP transport required by QUIC protocol.");
 
                     if ((_udpTunnelProxy is null) || _udpTunnelProxy.IsBroken)
                         _udpTunnelProxy = await _proxy.CreateUdpTunnelProxyAsync(_server.EndPoint, cancellationToken);
@@ -181,6 +182,21 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         TargetHost = _server.Host
                     }
                 };
+
+                switch (remoteEP.AddressFamily)
+                {
+                    case AddressFamily.InterNetwork:
+                        if (_ipv4BindEP is not null)
+                            connectionOptions.LocalEndPoint = _ipv4BindEP;
+
+                        break;
+
+                    case AddressFamily.InterNetworkV6:
+                        if (_ipv6BindEP is not null)
+                            connectionOptions.LocalEndPoint = _ipv6BindEP;
+
+                        break;
+                }
 
                 _quicConnection = await QuicConnection.ConnectAsync(connectionOptions, cancellationToken);
                 return _quicConnection;
