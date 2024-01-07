@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,11 +18,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Dns;
 
 namespace TechnitiumLibrary.Net
 {
@@ -125,7 +128,7 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        public static async Task<IPEndPoint> GetIPEndPointAsync(this EndPoint ep, AddressFamily family = AddressFamily.Unspecified)
+        public static async Task<IPEndPoint> GetIPEndPointAsync(this EndPoint ep, AddressFamily family = AddressFamily.Unspecified, bool useRecursiveResolver = false, CancellationToken cancellationToken = default)
         {
             switch (ep.AddressFamily)
             {
@@ -137,8 +140,14 @@ namespace TechnitiumLibrary.Net
                     if (ep is not DomainEndPoint dep)
                         throw new NotSupportedException("AddressFamily not supported.");
 
-                    IPAddress[] ipAddresses = await System.Net.Dns.GetHostAddressesAsync(dep.Address);
-                    if (ipAddresses.Length == 0)
+                    IReadOnlyList<IPAddress> ipAddresses;
+
+                    if (useRecursiveResolver)
+                        ipAddresses = await DnsClient.RecursiveResolveIPAsync(dep.Address, preferIPv6: family == AddressFamily.InterNetworkV6, cancellationToken: cancellationToken);
+                    else
+                        ipAddresses = await System.Net.Dns.GetHostAddressesAsync(dep.Address, cancellationToken);
+
+                    if (ipAddresses.Count == 0)
                         throw new SocketException((int)SocketError.HostNotFound);
 
                     switch (family)
