@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -59,38 +59,93 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             lock (_poolLock)
             {
-                if (_ipv4PooledSockets is null)
-                {
-                    PooledSocket[] pooledSockets = new PooledSocket[SOCKET_POOL_SIZE];
-
-                    for (int i = 0; i < SOCKET_POOL_SIZE; i++)
-                        pooledSockets[i] = new PooledSocket(AddressFamily.InterNetwork, i);
-
-                    _ipv4PooledSockets = pooledSockets;
-                }
+                CreateSocketPoolIPv4();
 
                 if (enableIPv6)
-                {
-                    if (_ipv6PooledSockets is null)
-                    {
-                        PooledSocket[] pooledSockets = new PooledSocket[SOCKET_POOL_SIZE];
-
-                        for (int i = 0; i < SOCKET_POOL_SIZE; i++)
-                            pooledSockets[i] = new PooledSocket(AddressFamily.InterNetworkV6, i);
-
-                        _ipv6PooledSockets = pooledSockets;
-                    }
-                }
+                    CreateSocketPoolIPv6();
                 else
-                {
-                    if (_ipv6PooledSockets is not null)
-                    {
-                        foreach (PooledSocket pooledSocket in _ipv6PooledSockets)
-                            pooledSocket.DisposePooled();
+                    DisposeSocketPoolIPv6();
+            }
+        }
 
-                        _ipv6PooledSockets = null;
-                    }
+        public static void DisposeSocketPool()
+        {
+            lock (_poolLock)
+            {
+                DisposeSocketPoolIPv4();
+                DisposeSocketPoolIPv6();
+            }
+        }
+
+        public static void ReCreateSocketPoolIPv4()
+        {
+            lock (_poolLock)
+            {
+                if (_ipv4PooledSockets is not null)
+                {
+                    DisposeSocketPoolIPv4();
+                    CreateSocketPoolIPv4();
                 }
+            }
+        }
+
+        public static void ReCreateSocketPoolIPv6()
+        {
+            lock (_poolLock)
+            {
+                if (_ipv6PooledSockets is not null)
+                {
+                    DisposeSocketPoolIPv6();
+                    CreateSocketPoolIPv6();
+                }
+            }
+        }
+
+        private static void CreateSocketPoolIPv4()
+        {
+            if (_ipv4PooledSockets is null)
+            {
+                PooledSocket[] pooledSockets = new PooledSocket[SOCKET_POOL_SIZE];
+
+                for (int i = 0; i < SOCKET_POOL_SIZE; i++)
+                    pooledSockets[i] = new PooledSocket(AddressFamily.InterNetwork, i);
+
+                _ipv4PooledSockets = pooledSockets;
+            }
+        }
+
+        private static void DisposeSocketPoolIPv4()
+        {
+            if (_ipv4PooledSockets is not null)
+            {
+                foreach (PooledSocket pooledSocket in _ipv4PooledSockets)
+                    pooledSocket.DisposePooled();
+
+                _ipv4PooledSockets = null;
+            }
+        }
+
+        private static void CreateSocketPoolIPv6()
+        {
+            if (_ipv6PooledSockets is null)
+            {
+                PooledSocket[] pooledSockets = new PooledSocket[SOCKET_POOL_SIZE];
+
+                for (int i = 0; i < SOCKET_POOL_SIZE; i++)
+                    pooledSockets[i] = new PooledSocket(AddressFamily.InterNetworkV6, i);
+
+                _ipv6PooledSockets = pooledSockets;
+            }
+        }
+
+        private static void DisposeSocketPoolIPv6()
+        {
+            if (_ipv6PooledSockets is not null)
+            {
+                foreach (PooledSocket pooledSocket in _ipv6PooledSockets)
+                    pooledSocket.DisposePooled();
+
+                _ipv6PooledSockets = null;
             }
         }
 
@@ -195,7 +250,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             if (_proxy is null)
             {
                 if (_server.IsIPEndPointStale)
-                    await _server.RecursiveResolveIPAddressAsync(null, null, false, DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, false, 2, 2000, cancellationToken);
+                    await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
 
                 using (PooledSocket pooledSocket = GetPooledSocket(_server.IPEndPoint.AddressFamily))
                 {
@@ -260,10 +315,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             #region variables
 
+            readonly static IPEndPoint _ipv4Any = new IPEndPoint(IPAddress.Any, 0);
+            readonly static IPEndPoint _ipv6Any = new IPEndPoint(IPAddress.IPv6Any, 0);
+
             readonly Socket _socket;
             readonly int _index;
 
-            int _inUse;
+            volatile int _inUse;
 
             #endregion
 
@@ -274,33 +332,101 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 _socket = new Socket(addressFamily, SocketType.Dgram, ProtocolType.Udp);
                 _index = index;
 
-                if (index > -1)
+                switch (addressFamily)
                 {
-                    switch (addressFamily)
-                    {
-                        case AddressFamily.InterNetwork:
+                    case AddressFamily.InterNetwork:
+                        {
+                            if (index < 0)
+                            {
+                                if (_ipv4BindEP is null)
+                                {
+                                    _socket.Bind(_ipv4Any);
+                                }
+                                else
+                                {
+                                    if (_ipv4BindToInterfaceName is not null)
+                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv4BindToInterfaceName);
 
-                            try
-                            {
-                                _socket.Bind(new IPEndPoint(IPAddress.Any, GetRandomPort()));
+                                    _socket.Bind(_ipv4BindEP);
+                                }
                             }
-                            catch (SocketException)
+                            else
                             {
-                                _socket.Bind(new IPEndPoint(IPAddress.Any, 0));
-                            }
-                            break;
+                                if (_ipv4BindEP is null)
+                                {
+                                    try
+                                    {
+                                        _socket.Bind(new IPEndPoint(IPAddress.Any, GetRandomPort()));
+                                    }
+                                    catch (SocketException)
+                                    {
+                                        _socket.Bind(_ipv4Any);
+                                    }
+                                }
+                                else
+                                {
+                                    if (_ipv4BindToInterfaceName is not null)
+                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv4BindToInterfaceName);
 
-                        case AddressFamily.InterNetworkV6:
-                            try
-                            {
-                                _socket.Bind(new IPEndPoint(IPAddress.IPv6Any, GetRandomPort()));
+                                    try
+                                    {
+                                        _socket.Bind(new IPEndPoint(_ipv4BindEP.Address, GetRandomPort()));
+                                    }
+                                    catch (SocketException)
+                                    {
+                                        _socket.Bind(_ipv4BindEP);
+                                    }
+                                }
                             }
-                            catch (SocketException)
+                        }
+                        break;
+
+                    case AddressFamily.InterNetworkV6:
+                        {
+                            if (index < 0)
                             {
-                                _socket.Bind(new IPEndPoint(IPAddress.IPv6Any, 0));
+                                if (_ipv6BindEP is null)
+                                {
+                                    _socket.Bind(_ipv6Any);
+                                }
+                                else
+                                {
+                                    if (_ipv6BindToInterfaceName is not null)
+                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv6BindToInterfaceName);
+
+                                    _socket.Bind(_ipv6BindEP);
+                                }
                             }
-                            break;
-                    }
+                            else
+                            {
+                                if (_ipv6BindEP is null)
+                                {
+                                    try
+                                    {
+                                        _socket.Bind(new IPEndPoint(IPAddress.IPv6Any, GetRandomPort()));
+                                    }
+                                    catch (SocketException)
+                                    {
+                                        _socket.Bind(_ipv6Any);
+                                    }
+                                }
+                                else
+                                {
+                                    if (_ipv6BindToInterfaceName is not null)
+                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv6BindToInterfaceName);
+
+                                    try
+                                    {
+                                        _socket.Bind(new IPEndPoint(_ipv6BindEP.Address, GetRandomPort()));
+                                    }
+                                    catch (SocketException)
+                                    {
+                                        _socket.Bind(_ipv6BindEP);
+                                    }
+                                }
+                            }
+                        }
+                        break;
                 }
             }
 
