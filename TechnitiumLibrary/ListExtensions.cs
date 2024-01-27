@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,8 +25,6 @@ namespace TechnitiumLibrary
 {
     public static class ListExtensions
     {
-        readonly static RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
-
         public static void Shuffle<T>(this IList<T> array)
         {
             Span<byte> buffer = stackalloc byte[4];
@@ -34,7 +32,7 @@ namespace TechnitiumLibrary
             int n = array.Count;
             while (n > 1)
             {
-                _rnd.GetBytes(buffer);
+                RandomNumberGenerator.Fill(buffer);
                 int k = (BitConverter.ToInt32(buffer) & 0x7FFFFFFF) % n--;
                 T temp = array[n];
                 array[n] = array[k];
@@ -60,6 +58,26 @@ namespace TechnitiumLibrary
                 newArray[i] = convert(array[i]);
 
             return newArray;
+        }
+
+        public static bool Equals<T>(this IReadOnlyList<T> value1, IReadOnlyList<T> value2)
+        {
+            if (ReferenceEquals(value1, value2))
+                return true;
+
+            if ((value1 is null) || (value2 is null))
+                return false;
+
+            if (value1.Count != value2.Count)
+                return false;
+
+            for (int i = 0; i < value1.Count; i++)
+            {
+                if (!value1[i].Equals(value2[i]))
+                    return false;
+            }
+
+            return true;
         }
     }
 }
