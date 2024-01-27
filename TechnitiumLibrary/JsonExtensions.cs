@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -238,6 +238,20 @@ namespace TechnitiumLibrary
                 return Enum.Parse<T>(jsonValue.GetString().ToLower(), true);
 
             return defaultValue;
+        }
+
+        public static void WriteStringArray<T>(this Utf8JsonWriter jsonWriter, string propertyName, IReadOnlyCollection<T> values)
+        {
+            jsonWriter.WritePropertyName(propertyName);
+            jsonWriter.WriteStartArray();
+
+            if (values is not null)
+            {
+                foreach (T value in values)
+                    jsonWriter.WriteStringValue(value.ToString());
+            }
+
+            jsonWriter.WriteEndArray();
         }
 
         #endregion
