@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -51,24 +51,14 @@ namespace TechnitiumLibrary
 
         #region static
 
-        static readonly RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
-
         public static BinaryNumber GenerateRandomNumber160()
         {
-            byte[] buffer = new byte[20];
-
-            _rnd.GetBytes(buffer);
-
-            return new BinaryNumber(buffer);
+            return new BinaryNumber(RandomNumberGenerator.GetBytes(20));
         }
 
         public static BinaryNumber GenerateRandomNumber256()
         {
-            byte[] buffer = new byte[32];
-
-            _rnd.GetBytes(buffer);
-
-            return new BinaryNumber(buffer);
+            return new BinaryNumber(RandomNumberGenerator.GetBytes(32));
         }
 
         public static BinaryNumber MaxValueNumber160()
