@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -168,7 +168,6 @@ namespace TechnitiumLibrary.Database
         #endregion
     }
 
-    [Serializable()]
     public class TDatabaseException : Exception
     {
         #region constructor
@@ -182,10 +181,6 @@ namespace TechnitiumLibrary.Database
 
         public TDatabaseException(string Message, Exception innerException)
             : base(Message, innerException)
-        { }
-
-        protected TDatabaseException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base(info, context)
         { }
 
         #endregion
