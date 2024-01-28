@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -49,7 +49,7 @@ namespace TechnitiumLibrary.IO
 
         #region IDisposable
 
-        private bool _disposed = false;
+        bool _disposed;
 
         protected override void Dispose(bool disposing)
         {
@@ -57,10 +57,7 @@ namespace TechnitiumLibrary.IO
                 return;
 
             if (disposing)
-            {
-                if (_baseStream != null)
-                    _baseStream.Dispose();
-            }
+                _baseStream?.Dispose();
 
             _disposed = true;
 
@@ -97,8 +94,7 @@ namespace TechnitiumLibrary.IO
 
         public override void Flush()
         {
-            if (_disposed)
-                throw new ObjectDisposedException("WriteBufferedStream");
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
             if (_writeBufferPosition > 0)
             {
@@ -111,12 +107,11 @@ namespace TechnitiumLibrary.IO
 
         public override async Task FlushAsync(CancellationToken cancellationToken)
         {
-            if (_disposed)
-                throw new ObjectDisposedException("WriteBufferedStream");
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
             if (_writeBufferPosition > 0)
             {
-                await _baseStream.WriteAsync(_writeBuffer, 0, _writeBufferPosition, cancellationToken);
+                await _baseStream.WriteAsync(_writeBuffer.AsMemory(0, _writeBufferPosition), cancellationToken);
                 await _baseStream.FlushAsync(cancellationToken);
 
                 _writeBufferPosition = 0;
@@ -128,10 +123,8 @@ namespace TechnitiumLibrary.IO
 
         public override long Position
         {
-            get
-            { return _baseStream.Position; }
-            set
-            { throw new NotSupportedException(); }
+            get { return _baseStream.Position; }
+            set { throw new NotSupportedException(); }
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -139,9 +132,19 @@ namespace TechnitiumLibrary.IO
             return _baseStream.Read(buffer, offset, count);
         }
 
+        public override int Read(Span<byte> buffer)
+        {
+            return _baseStream.Read(buffer);
+        }
+
         public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
             return _baseStream.ReadAsync(buffer, offset, count, cancellationToken);
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            return _baseStream.ReadAsync(buffer, cancellationToken);
         }
 
         public override long Seek(long offset, SeekOrigin origin)
@@ -156,8 +159,7 @@ namespace TechnitiumLibrary.IO
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            if (_disposed)
-                throw new ObjectDisposedException("WriteBufferedStream");
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
             int bytesAvailable;
 
@@ -171,28 +173,24 @@ namespace TechnitiumLibrary.IO
                     Buffer.BlockCopy(buffer, offset, _writeBuffer, _writeBufferPosition, count);
 
                     _writeBufferPosition += count;
-                    offset += count;
-                    count = 0;
+                    break;
                 }
-                else
-                {
-                    //fill buffer to brim                    
-                    Buffer.BlockCopy(buffer, offset, _writeBuffer, _writeBufferPosition, bytesAvailable);
 
-                    _writeBufferPosition += bytesAvailable;
-                    offset += bytesAvailable;
-                    count -= bytesAvailable;
+                //fill buffer to brim                    
+                Buffer.BlockCopy(buffer, offset, _writeBuffer, _writeBufferPosition, bytesAvailable);
 
-                    //flush buffer
-                    Flush();
-                }
+                _writeBufferPosition += bytesAvailable;
+                offset += bytesAvailable;
+                count -= bytesAvailable;
+
+                //flush buffer
+                Flush();
             }
         }
 
         public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            if (_disposed)
-                throw new ObjectDisposedException("WriteBufferedStream");
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
             int bytesAvailable;
 
@@ -206,21 +204,49 @@ namespace TechnitiumLibrary.IO
                     Buffer.BlockCopy(buffer, offset, _writeBuffer, _writeBufferPosition, count);
 
                     _writeBufferPosition += count;
-                    offset += count;
-                    count = 0;
+                    break;
                 }
-                else
+
+                //fill buffer to brim                    
+                Buffer.BlockCopy(buffer, offset, _writeBuffer, _writeBufferPosition, bytesAvailable);
+
+                _writeBufferPosition += bytesAvailable;
+                offset += bytesAvailable;
+                count -= bytesAvailable;
+
+                //flush buffer
+                await FlushAsync(cancellationToken);
+            }
+        }
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            int bytesAvailable;
+
+            while (buffer.Length > 0)
+            {
+                bytesAvailable = _writeBuffer.Length - _writeBufferPosition;
+
+                if (bytesAvailable > buffer.Length)
                 {
-                    //fill buffer to brim                    
-                    Buffer.BlockCopy(buffer, offset, _writeBuffer, _writeBufferPosition, bytesAvailable);
+                    //copy to buffer
+                    buffer.CopyTo(_writeBuffer.AsMemory(_writeBufferPosition));
 
-                    _writeBufferPosition += bytesAvailable;
-                    offset += bytesAvailable;
-                    count -= bytesAvailable;
-
-                    //flush buffer
-                    await FlushAsync(cancellationToken);
+                    _writeBufferPosition += buffer.Length;
+                    break;
                 }
+
+                //fill buffer to brim
+                buffer.Slice(0, bytesAvailable).CopyTo(_writeBuffer.AsMemory(_writeBufferPosition));
+
+                _writeBufferPosition += bytesAvailable;
+
+                buffer = buffer.Slice(bytesAvailable);
+
+                //flush buffer
+                await FlushAsync(cancellationToken);
             }
         }
 
