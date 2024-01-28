@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2015  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@ using System;
 
 namespace TechnitiumLibrary.Security.Cryptography
 {
-    [System.Serializable()]
     public class InvalidCertificateException : CryptoException
     {
         #region Constructors
@@ -35,10 +34,6 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public InvalidCertificateException(string msg, Exception innerException)
             : base(msg, innerException)
-        { }
-
-        protected InvalidCertificateException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base(info, context)
         { }
 
         #endregion

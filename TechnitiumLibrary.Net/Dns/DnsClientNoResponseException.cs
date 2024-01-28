@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -35,10 +35,6 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsClientNoResponseException(string message, Exception innerException)
             : base(message, innerException)
-        { }
-
-        protected DnsClientNoResponseException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base(info, context)
         { }
 
         #endregion
