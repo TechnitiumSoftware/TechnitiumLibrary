@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Buffers.Binary;
 using System.IO;
 using System.Text;
 
@@ -32,7 +33,12 @@ namespace TechnitiumLibrary.IO
 
         public static string ReadShortString(this BinaryReader bR)
         {
-            return Encoding.UTF8.GetString(bR.ReadBytes(bR.ReadByte()));
+            return ReadShortString(bR, Encoding.UTF8);
+        }
+
+        public static string ReadShortString(this BinaryReader bR, Encoding encoding)
+        {
+            return encoding.GetString(bR.ReadBytes(bR.ReadByte()));
         }
 
         public static DateTime ReadDateTime(this BinaryReader bR)
@@ -46,30 +52,13 @@ namespace TechnitiumLibrary.IO
             if (length1 > 127)
             {
                 int numberLenBytes = length1 & 0x7F;
+                if (numberLenBytes > 4)
+                    throw new IOException("BinaryReaderExtension encoding length not supported.");
 
-                byte[] valueBytes = new byte[4];
-                bR.BaseStream.ReadBytes(valueBytes, 0, numberLenBytes);
+                Span<byte> valueBytes = stackalloc byte[4];
+                bR.BaseStream.ReadExactly(valueBytes.Slice(4 - numberLenBytes, numberLenBytes));
 
-                switch (numberLenBytes)
-                {
-                    case 1:
-                        return valueBytes[0];
-
-                    case 2:
-                        Array.Reverse(valueBytes, 0, 2);
-                        return BitConverter.ToInt32(valueBytes, 0);
-
-                    case 3:
-                        Array.Reverse(valueBytes, 0, 3);
-                        return BitConverter.ToInt32(valueBytes, 0);
-
-                    case 4:
-                        Array.Reverse(valueBytes, 0, 4);
-                        return BitConverter.ToInt32(valueBytes, 0);
-
-                    default:
-                        throw new IOException("BinaryReaderExtension encoding length not supported.");
-                }
+                return BinaryPrimitives.ReadInt32BigEndian(valueBytes);
             }
             else
             {
