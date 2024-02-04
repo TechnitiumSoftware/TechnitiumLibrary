@@ -22,6 +22,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -134,12 +135,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         private async Task<Stream> GetConnectionAsync(CancellationToken cancellationToken)
         {
-            if (_tcpStream != null)
+            if (_tcpStream is not null)
                 return _tcpStream;
 
             Socket socket;
 
-            if (_proxy == null)
+            if (_proxy is null)
             {
                 if (_server.IsIPEndPointStale)
                     await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
@@ -149,23 +150,25 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 switch (_server.IPEndPoint.AddressFamily)
                 {
                     case AddressFamily.InterNetwork:
-                        if (_ipv4BindEP is not null)
+                        Tuple<IPEndPoint, byte[]> ipv4SourceEP = IPAddress.IsLoopback(_server.IPEndPoint.Address) ? null : GetIPv4SourceEP();
+                        if (ipv4SourceEP is not null)
                         {
-                            if (_ipv4BindToInterfaceName is not null)
-                                socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv4BindToInterfaceName);
+                            if (ipv4SourceEP.Item2 is not null)
+                                socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, ipv4SourceEP.Item2);
 
-                            socket.Bind(_ipv4BindEP);
+                            socket.Bind(ipv4SourceEP.Item1);
                         }
 
                         break;
 
                     case AddressFamily.InterNetworkV6:
-                        if (_ipv6BindEP is not null)
+                        Tuple<IPEndPoint, byte[]> ipv6SourceEP = IPAddress.IsLoopback(_server.IPEndPoint.Address) ? null : GetIPv6SourceEP();
+                        if (ipv6SourceEP is not null)
                         {
-                            if (_ipv6BindToInterfaceName is not null)
-                                socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv6BindToInterfaceName);
+                            if (ipv6SourceEP.Item2 is not null)
+                                socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, ipv6SourceEP.Item2);
 
-                            socket.Bind(_ipv6BindEP);
+                            socket.Bind(ipv6SourceEP.Item1);
                         }
 
                         break;
