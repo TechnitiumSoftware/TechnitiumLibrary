@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -37,8 +37,6 @@ namespace TechnitiumLibrary.Net.Dns
     public class DnsQuestionRecord
     {
         #region variables
-
-        readonly static RandomNumberGenerator _rng = RandomNumberGenerator.Create();
 
         string _name;
         readonly DnsResourceRecordType _type;
@@ -99,7 +97,7 @@ namespace TechnitiumLibrary.Net.Dns
             byte[] asciiName = Encoding.ASCII.GetBytes(name);
             Span<byte> r = stackalloc byte[asciiName.Length];
 
-            _rng.GetBytes(r);
+            RandomNumberGenerator.Fill(r);
 
             for (int i = 0; i < asciiName.Length; i++)
             {
