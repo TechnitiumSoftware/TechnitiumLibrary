@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -87,6 +87,7 @@ namespace TechnitiumLibrary.Net.Proxy
         public void Dispose()
         {
             Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         protected virtual void Dispose(bool disposing)
@@ -145,7 +146,7 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             byte[] buffer = new byte[2];
 
-            await s.ReadBytesAsync(buffer, 0, 1);
+            await s.ReadExactlyAsync(buffer, 0, 1);
             SocksAddressType addressType = (SocksAddressType)buffer[0];
 
             switch (addressType)
@@ -153,8 +154,8 @@ namespace TechnitiumLibrary.Net.Proxy
                 case SocksAddressType.IPv4Address:
                     {
                         byte[] addressBytes = new byte[4];
-                        await s.ReadBytesAsync(addressBytes, 0, 4);
-                        await s.ReadBytesAsync(buffer, 0, 2);
+                        await s.ReadExactlyAsync(addressBytes, 0, 4);
+                        await s.ReadExactlyAsync(buffer, 0, 2);
                         Array.Reverse(buffer, 0, 2);
 
                         return new IPEndPoint(new IPAddress(addressBytes), BitConverter.ToUInt16(buffer, 0));
@@ -163,8 +164,8 @@ namespace TechnitiumLibrary.Net.Proxy
                 case SocksAddressType.IPv6Address:
                     {
                         byte[] addressBytes = new byte[16];
-                        await s.ReadBytesAsync(addressBytes, 0, 16);
-                        await s.ReadBytesAsync(buffer, 0, 2);
+                        await s.ReadExactlyAsync(addressBytes, 0, 16);
+                        await s.ReadExactlyAsync(buffer, 0, 2);
                         Array.Reverse(buffer, 0, 2);
 
                         return new IPEndPoint(new IPAddress(addressBytes), BitConverter.ToUInt16(buffer, 0));
@@ -172,12 +173,12 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 case SocksAddressType.DomainName:
                     {
-                        await s.ReadBytesAsync(buffer, 0, 1);
+                        await s.ReadExactlyAsync(buffer, 0, 1);
                         byte[] addressBytes = new byte[buffer[0]];
-                        await s.ReadBytesAsync(addressBytes, 0, addressBytes.Length);
+                        await s.ReadExactlyAsync(addressBytes, 0, addressBytes.Length);
                         string domain = Encoding.ASCII.GetString(addressBytes);
 
-                        await s.ReadBytesAsync(buffer, 0, 2);
+                        await s.ReadExactlyAsync(buffer, 0, 2);
                         Array.Reverse(buffer, 0, 2);
 
                         if (IPAddress.TryParse(domain, out IPAddress address)) //some socks clients send ip address with domain address type
@@ -240,8 +241,8 @@ namespace TechnitiumLibrary.Net.Proxy
             Array.Reverse(portBytes);
 
             await s.WriteAsync(new byte[] { (byte)addressType });
-            await s.WriteAsync(address, 0, address.Length);
-            await s.WriteAsync(portBytes, 0, 2);
+            await s.WriteAsync(address);
+            await s.WriteAsync(portBytes.AsMemory(0, 2));
         }
 
         #endregion

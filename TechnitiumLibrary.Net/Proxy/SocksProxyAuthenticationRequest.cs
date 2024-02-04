@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
@@ -58,7 +57,7 @@ namespace TechnitiumLibrary.Net.Proxy
             SocksProxyAuthenticationRequest request = new SocksProxyAuthenticationRequest();
 
             byte[] buffer = new byte[256];
-            await s.ReadBytesAsync(buffer, 0, 1);
+            await s.ReadExactlyAsync(buffer, 0, 1);
 
             request._version = buffer[0];
 
@@ -67,16 +66,16 @@ namespace TechnitiumLibrary.Net.Proxy
                 case AUTH_VERSION:
                     int length;
 
-                    await s.ReadBytesAsync(buffer, 0, 1);
+                    await s.ReadExactlyAsync(buffer, 0, 1);
                     length = buffer[0];
 
-                    await s.ReadBytesAsync(buffer, 0, length);
+                    await s.ReadExactlyAsync(buffer, 0, length);
                     request._username = Encoding.ASCII.GetString(buffer, 0, length);
 
-                    await s.ReadBytesAsync(buffer, 0, 1);
+                    await s.ReadExactlyAsync(buffer, 0, 1);
                     length = buffer[0];
 
-                    await s.ReadBytesAsync(buffer, 0, length);
+                    await s.ReadExactlyAsync(buffer, 0, length);
                     request._password = Encoding.ASCII.GetString(buffer, 0, length);
                     break;
             }

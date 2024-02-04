@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System.IO;
 using System.Threading.Tasks;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
@@ -54,7 +53,7 @@ namespace TechnitiumLibrary.Net.Proxy
             SocksProxyNegotiationReply reply = new SocksProxyNegotiationReply();
 
             byte[] buffer = new byte[2];
-            await s.ReadBytesAsync(buffer, 0, buffer.Length);
+            await s.ReadExactlyAsync(buffer);
 
             reply._version = buffer[0];
             reply._method = (SocksProxyAuthenticationMethod)buffer[1];
