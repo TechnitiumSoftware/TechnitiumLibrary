@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -59,7 +59,9 @@ namespace TechnitiumLibrary.Net
             if (address.AddressFamily != AddressFamily.InterNetwork)
                 throw new ArgumentException("IPv4 address expected.");
 
-            byte[] ip = address.GetAddressBytes();
+            Span<byte> ip = stackalloc byte[4];
+            if (!address.TryWriteBytes(ip, out _))
+                throw new InvalidOperationException();
 
             switch (ip[0])
             {
@@ -71,13 +73,13 @@ namespace TechnitiumLibrary.Net
                     return (ip[1] & 192) == 64;
 
                 case 169:
-                    return (ip[1] == 254);
+                    return ip[1] == 254;
 
                 case 172:
-                    return ((ip[1] & 240) == 16);
+                    return (ip[1] & 240) == 16;
 
                 case 192:
-                    return (ip[1] == 168);
+                    return ip[1] == 168;
 
                 default:
                     return false;
@@ -91,9 +93,11 @@ namespace TechnitiumLibrary.Net
             if (address.AddressFamily != AddressFamily.InterNetworkV6)
                 throw new ArgumentException("IPv6 address expected.");
 
-            byte[] ip = address.GetAddressBytes();
+            Span<byte> ip = stackalloc byte[16];
+            if (!address.TryWriteBytes(ip, out _))
+                throw new InvalidOperationException();
 
-            return ((ip[0] & 0xE0) == 0x20);
+            return (ip[0] & 0xE0) == 0x20;
         }
 
         public static NetworkInfo GetDefaultIPv4NetworkInfo()
