@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,8 +25,6 @@ namespace TechnitiumLibrary.Security.Cryptography
     public class DiffieHellman : KeyAgreement
     {
         #region variables
-
-        static readonly RandomNumberGenerator _rng = RandomNumberGenerator.Create();
 
         readonly DiffieHellmanGroupType _group;
         readonly int _keySize;
@@ -69,7 +67,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         {
             byte[] buffer = new byte[p.ToByteArray().Length - 1];
 
-            _rng.GetBytes(buffer);
+            RandomNumberGenerator.Fill(buffer);
             buffer[buffer.Length - 1] &= 0x7F; //to keep BigInteger positive
             BigInteger privateKey = new BigInteger(buffer);
 

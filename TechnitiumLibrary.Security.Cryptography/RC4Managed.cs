@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,12 +24,6 @@ namespace TechnitiumLibrary.Security.Cryptography
 {
     public class RC4Managed : SymmetricAlgorithm
     {
-        #region variables
-
-        static readonly RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
-
-        #endregion
-
         #region constructor
 
         public RC4Managed()
@@ -76,7 +70,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         public override void GenerateIV()
         {
             byte[] iv = new byte[this.KeySizeValue / 8];
-            _rnd.GetBytes(iv);
+            RandomNumberGenerator.Fill(iv);
 
             this.IVValue = iv;
         }
@@ -84,7 +78,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         public override void GenerateKey()
         {
             byte[] key = new byte[this.KeySizeValue / 8];
-            _rnd.GetBytes(key);
+            RandomNumberGenerator.Fill(key);
 
             this.KeyValue = key;
         }
