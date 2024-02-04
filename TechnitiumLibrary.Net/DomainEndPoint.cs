@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -38,8 +38,7 @@ namespace TechnitiumLibrary.Net
 
         public DomainEndPoint(string address, int port)
         {
-            if (address == null)
-                throw new ArgumentNullException(nameof(address));
+            ArgumentNullException.ThrowIfNull(address);
 
             if (IPAddress.TryParse(address, out _))
                 throw new ArgumentException("Address must be a domain name: " + address, nameof(address));
