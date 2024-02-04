@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -98,13 +98,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _fudge = DnsDatagram.ReadUInt16NetworkOrder(s);
 
             ushort macSize = DnsDatagram.ReadUInt16NetworkOrder(s);
-            _mac = s.ReadBytes(macSize);
+            _mac = s.ReadExactly(macSize);
 
             _originalID = DnsDatagram.ReadUInt16NetworkOrder(s);
             _error = (DnsTsigError)DnsDatagram.ReadUInt16NetworkOrder(s);
 
             ushort otherLen = DnsDatagram.ReadUInt16NetworkOrder(s);
-            _otherData = s.ReadBytes(otherLen);
+            _otherData = s.ReadExactly(otherLen);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)

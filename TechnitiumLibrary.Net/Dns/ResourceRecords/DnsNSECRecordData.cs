@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -310,7 +310,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (bitmapLength < 0)
                     throw new EndOfStreamException();
 
-                byte[] bitmap = s.ReadBytes(bitmapLength);
+                byte[] bitmap = s.ReadExactly(bitmapLength);
 
                 windowBlockNumber <<= 8;
 
@@ -429,7 +429,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _rData = s.ReadBytes(_rdLength);
+            _rData = s.ReadExactly(_rdLength);
 
             using (MemoryStream mS = new MemoryStream(_rData))
             {

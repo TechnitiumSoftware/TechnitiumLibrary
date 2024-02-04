@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -92,7 +92,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _algorithm = (DnsSSHFPAlgorithm)s.ReadByteValue();
             _fingerprintType = (DnsSSHFPFingerprintType)s.ReadByteValue();
-            _fingerprint = s.ReadBytes(_rdLength - 2);
+            _fingerprint = s.ReadExactly(_rdLength - 2);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -79,14 +79,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _rData = s.ReadBytes(_rdLength);
+            _rData = s.ReadExactly(_rdLength);
 
             using (MemoryStream mS = new MemoryStream(_rData))
             {
                 _hashAlgorithm = (DnssecNSEC3HashAlgorithm)mS.ReadByteValue();
                 _flags = (DnssecNSEC3Flags)mS.ReadByteValue();
                 _iterations = DnsDatagram.ReadUInt16NetworkOrder(mS);
-                _salt = mS.ReadBytes(mS.ReadByteValue());
+                _salt = mS.ReadExactly(mS.ReadByteValue());
             }
         }
 

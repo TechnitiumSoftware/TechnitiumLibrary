@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _rData = s.ReadBytes(_rdLength);
+            _rData = s.ReadExactly(_rdLength);
 
             using (MemoryStream mS = new MemoryStream(_rData))
             {
@@ -68,9 +68,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         throw new EndOfStreamException();
 
                     if (_text == null)
-                        _text = Encoding.ASCII.GetString(mS.ReadBytes(length));
+                        _text = Encoding.ASCII.GetString(mS.ReadExactly(length));
                     else
-                        _text += Encoding.ASCII.GetString(mS.ReadBytes(length));
+                        _text += Encoding.ASCII.GetString(mS.ReadExactly(length));
 
                     bytesRead += length + 1;
                 }

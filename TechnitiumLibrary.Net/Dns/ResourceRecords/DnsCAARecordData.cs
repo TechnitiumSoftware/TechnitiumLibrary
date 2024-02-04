@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -72,8 +72,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (tagLength < 1)
                 throw new InvalidDataException("CAA tag length must be at least 1.");
 
-            _tag = Encoding.ASCII.GetString(s.ReadBytes(tagLength)).ToLowerInvariant();
-            _value = Encoding.ASCII.GetString(s.ReadBytes(_rdLength - tagLength - 2));
+            _tag = Encoding.ASCII.GetString(s.ReadExactly(tagLength)).ToLowerInvariant();
+            _value = Encoding.ASCII.GetString(s.ReadExactly(_rdLength - tagLength - 2));
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)

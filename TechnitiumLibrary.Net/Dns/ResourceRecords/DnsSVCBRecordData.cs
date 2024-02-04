@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -79,7 +79,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _rData = s.ReadBytes(_rdLength);
+            _rData = s.ReadExactly(_rdLength);
 
             using (MemoryStream mS = new MemoryStream(_rData))
             {
@@ -451,7 +451,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadSvcParamValue(Stream s)
         {
-            _value = s.ReadBytes(_length);
+            _value = s.ReadExactly(_length);
         }
 
         protected override void WriteSvcParamValue(Stream s)
@@ -672,7 +672,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (alpnLength < 0)
                     throw new EndOfStreamException();
 
-                alpnIds.Add(Encoding.ASCII.GetString(s.ReadBytes(alpnLength)));
+                alpnIds.Add(Encoding.ASCII.GetString(s.ReadExactly(alpnLength)));
 
                 bytesRead += alpnLength + 1;
             }
@@ -896,7 +896,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             for (int i = 0; i < count; i++)
             {
-                s.ReadBytes(buffer, 0, 4);
+                s.ReadExactly(buffer, 0, 4);
                 addresses[i] = new IPAddress(buffer);
             }
 
@@ -1020,7 +1020,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             for (int i = 0; i < count; i++)
             {
-                s.ReadBytes(buffer, 0, 16);
+                s.ReadExactly(buffer, 0, 16);
                 addresses[i] = new IPAddress(buffer);
             }
 
@@ -1126,7 +1126,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadSvcParamValue(Stream s)
         {
-            _dohPath = Encoding.UTF8.GetString(s.ReadBytes(_length));
+            _dohPath = Encoding.UTF8.GetString(s.ReadExactly(_length));
         }
 
         protected override void WriteSvcParamValue(Stream s)

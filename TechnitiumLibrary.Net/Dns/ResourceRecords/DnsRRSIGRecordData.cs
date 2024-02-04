@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -328,7 +328,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _signatureInception = DnsDatagram.ReadUInt32NetworkOrder(s);
             _keyTag = DnsDatagram.ReadUInt16NetworkOrder(s);
             _signersName = DnsDatagram.DeserializeDomainName(s);
-            _signature = s.ReadBytes(_rdLength - 2 - 1 - 1 - 4 - 4 - 4 - 2 - DnsDatagram.GetSerializeDomainNameLength(_signersName));
+            _signature = s.ReadExactly(_rdLength - 2 - 1 - 1 - 4 - 4 - 4 - 2 - DnsDatagram.GetSerializeDomainNameLength(_signersName));
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
