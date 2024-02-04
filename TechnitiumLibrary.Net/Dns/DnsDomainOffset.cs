@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
+
 namespace TechnitiumLibrary.Net.Dns
 {
     public class DnsDomainOffset
@@ -24,16 +26,16 @@ namespace TechnitiumLibrary.Net.Dns
         #region variables
 
         readonly ushort _offset;
-        readonly string _domain;
+        readonly ReadOnlyMemory<char> _domain;
 
         #endregion
 
         #region constructor
 
-        public DnsDomainOffset(ushort offset, string domain)
+        public DnsDomainOffset(ushort offset, ReadOnlySpan<char> domain)
         {
             _offset = offset;
-            _domain = domain;
+            _domain = domain.ToArray();
         }
 
         #endregion
@@ -42,7 +44,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public override string ToString()
         {
-            return _domain;
+            return new string(_domain.Span);
         }
 
         #endregion
@@ -52,7 +54,7 @@ namespace TechnitiumLibrary.Net.Dns
         public ushort Offset
         { get { return _offset; } }
 
-        public string Domain
+        public ReadOnlyMemory<char> Domain
         { get { return _domain; } }
 
         #endregion
