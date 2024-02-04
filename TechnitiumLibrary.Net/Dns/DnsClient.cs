@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -55,10 +55,10 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        readonly static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv4;
-        readonly static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv6;
+        static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv4;
+        static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv6;
 
-        readonly static IReadOnlyList<DnsResourceRecord> ROOT_TRUST_ANCHORS;
+        static IReadOnlyList<DnsResourceRecord> ROOT_TRUST_ANCHORS;
 
         readonly static IdnMapping _idnMapping = new IdnMapping() { AllowUnassigned = true };
 
@@ -82,7 +82,7 @@ namespace TechnitiumLibrary.Net.Dns
         int _timeout = 2000;
         int _concurrency = 2;
 
-        IDictionary<string, IReadOnlyList<DnsResourceRecord>> _trustAnchors;
+        Dictionary<string, IReadOnlyList<DnsResourceRecord>> _trustAnchors;
 
         #endregion
 
@@ -90,205 +90,57 @@ namespace TechnitiumLibrary.Net.Dns
 
         static DnsClient()
         {
+            //set default root name servers
+            ROOT_NAME_SERVERS_IPv4 = new NameServerAddress[]
+            {
+                new NameServerAddress("a.root-servers.net", IPAddress.Parse("198.41.0.4")), //VeriSign, Inc.
+                new NameServerAddress("b.root-servers.net", IPAddress.Parse("170.247.170.2")), //University of Southern California (ISI)
+                new NameServerAddress("c.root-servers.net", IPAddress.Parse("192.33.4.12")), //Cogent Communications
+                new NameServerAddress("d.root-servers.net", IPAddress.Parse("199.7.91.13")), //University of Maryland
+                new NameServerAddress("e.root-servers.net", IPAddress.Parse("192.203.230.10")), //NASA (Ames Research Center)
+                new NameServerAddress("f.root-servers.net", IPAddress.Parse("192.5.5.241")), //Internet Systems Consortium, Inc.
+                new NameServerAddress("g.root-servers.net", IPAddress.Parse("192.112.36.4")), //US Department of Defense (NIC)
+                new NameServerAddress("h.root-servers.net", IPAddress.Parse("198.97.190.53")), //US Army (Research Lab)
+                new NameServerAddress("i.root-servers.net", IPAddress.Parse("192.36.148.17")), //Netnod
+                new NameServerAddress("j.root-servers.net", IPAddress.Parse("192.58.128.30")), //VeriSign, Inc.
+                new NameServerAddress("k.root-servers.net", IPAddress.Parse("193.0.14.129")), //RIPE NCC
+                new NameServerAddress("l.root-servers.net", IPAddress.Parse("199.7.83.42")), //ICANN
+                new NameServerAddress("m.root-servers.net", IPAddress.Parse("202.12.27.33")) //WIDE Project
+            };
+
+            ROOT_NAME_SERVERS_IPv6 = new NameServerAddress[]
+            {
+                new NameServerAddress("a.root-servers.net", IPAddress.Parse("2001:503:ba3e::2:30")), //VeriSign, Inc.
+                new NameServerAddress("b.root-servers.net", IPAddress.Parse("2801:1b8:10::b")), //University of Southern California (ISI)
+                new NameServerAddress("c.root-servers.net", IPAddress.Parse("2001:500:2::c")), //Cogent Communications
+                new NameServerAddress("d.root-servers.net", IPAddress.Parse("2001:500:2d::d")), //University of Maryland
+                new NameServerAddress("e.root-servers.net", IPAddress.Parse("2001:500:a8::e")), //NASA (Ames Research Center)
+                new NameServerAddress("f.root-servers.net", IPAddress.Parse("2001:500:2f::f")), //Internet Systems Consortium, Inc.
+                new NameServerAddress("g.root-servers.net", IPAddress.Parse("2001:500:12::d0d")), //US Department of Defense (NIC)
+                new NameServerAddress("h.root-servers.net", IPAddress.Parse("2001:500:1::53")), //US Army (Research Lab)
+                new NameServerAddress("i.root-servers.net", IPAddress.Parse("2001:7fe::53")), //Netnod
+                new NameServerAddress("j.root-servers.net", IPAddress.Parse("2001:503:c27::2:30")), //VeriSign, Inc.
+                new NameServerAddress("k.root-servers.net", IPAddress.Parse("2001:7fd::1")), //RIPE NCC
+                new NameServerAddress("l.root-servers.net", IPAddress.Parse("2001:500:9f::42")), //ICANN
+                new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")) //WIDE Project
+            };
+
+            //set default root trust anchors
+            ROOT_TRUST_ANCHORS = new DnsResourceRecord[]
+            {
+                new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecordData(20326, DnssecAlgorithm.RSASHA256, DnssecDigestType.SHA256, Convert.FromHexString("E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D")))
+            };
+
+            //load root hints file async
+            _ = Task.Run(ReloadRootHintsAsync);
+
+            //load root trust anchors file
             try
             {
-                string rootHintsFile = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "named.root");
-
-                if (File.Exists(rootHintsFile))
-                {
-                    using (StreamReader sR = new StreamReader(rootHintsFile))
-                    {
-                        List<string> rootServers = new List<string>();
-                        List<NameServerAddress> ipv4RootNameServers = new List<NameServerAddress>(13);
-                        List<NameServerAddress> ipv6RootNameServers = new List<NameServerAddress>(13);
-
-                        while (true)
-                        {
-                            string line = sR.ReadLine();
-                            if (line is null)
-                                break;
-
-                            if (line.Length == 0)
-                                continue;
-
-                            if (line.StartsWith(";"))
-                                continue;
-
-                            string name = PopWord(ref line);
-                            if (name.Equals("."))
-                            {
-                                _ = PopWord(ref line); //TTL
-                                string type = PopWord(ref line);
-
-                                if (type.Equals("NS", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    string rootServer = PopWord(ref line);
-                                    rootServers.Add(rootServer.ToLowerInvariant());
-                                }
-                            }
-                            else
-                            {
-                                name = name.ToLowerInvariant();
-                                _ = PopWord(ref line); //TTL
-                                string type = PopWord(ref line);
-
-                                switch (type.ToUpper())
-                                {
-                                    case "A":
-                                        if (rootServers.Contains(name))
-                                        {
-                                            if (name.EndsWith('.'))
-                                                name = name.Substring(0, name.Length - 1);
-
-                                            string strAddress = PopWord(ref line);
-                                            if (IPAddress.TryParse(strAddress, out IPAddress address) && address.AddressFamily == AddressFamily.InterNetwork)
-                                                ipv4RootNameServers.Add(new NameServerAddress(name, address));
-                                        }
-                                        break;
-
-                                    case "AAAA":
-                                        if (rootServers.Contains(name))
-                                        {
-                                            if (name.EndsWith('.'))
-                                                name = name.Substring(0, name.Length - 1);
-
-                                            string strAddress = PopWord(ref line);
-                                            if (IPAddress.TryParse(strAddress, out IPAddress address) && address.AddressFamily == AddressFamily.InterNetworkV6)
-                                                ipv6RootNameServers.Add(new NameServerAddress(name, address));
-                                        }
-                                        break;
-                                }
-                            }
-                        }
-
-                        ROOT_NAME_SERVERS_IPv4 = ipv4RootNameServers;
-                        ROOT_NAME_SERVERS_IPv6 = ipv6RootNameServers;
-                    }
-                }
+                ReloadRootTrustAnchors();
             }
             catch
             { }
-
-            try
-            {
-                string rootTrustXmlFile = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "root-anchors.xml");
-
-                XmlDocument rootTrustXml = new XmlDocument();
-                rootTrustXml.Load(rootTrustXmlFile);
-
-                XmlNamespaceManager nsMgr = new XmlNamespaceManager(rootTrustXml.NameTable);
-                XmlNodeList nodeList = rootTrustXml.SelectNodes("//TrustAnchor/KeyDigest", nsMgr);
-
-                const string dateFormat = "yyyy-MM-ddTHH:mm:sszzz";
-                List<DnsResourceRecord> rootTrustAnchors = new List<DnsResourceRecord>();
-
-                foreach (XmlNode keyDigestNode in nodeList)
-                {
-                    DateTime validFrom = DateTime.MinValue;
-                    DateTime validUntil = DateTime.MinValue;
-
-                    foreach (XmlAttribute attribute in keyDigestNode.Attributes)
-                    {
-                        switch (attribute.Name)
-                        {
-                            case "validFrom":
-                                validFrom = DateTime.ParseExact(attribute.Value, dateFormat, CultureInfo.CurrentCulture);
-                                break;
-
-                            case "validUntil":
-                                validUntil = DateTime.ParseExact(attribute.Value, dateFormat, CultureInfo.CurrentCulture);
-                                break;
-                        }
-                    }
-
-                    if ((validFrom != DateTime.MinValue) && (validFrom > DateTime.UtcNow))
-                        continue;
-
-                    if ((validUntil != DateTime.MinValue) && (validUntil < DateTime.UtcNow))
-                        continue;
-
-                    ushort keyTag = 0;
-                    DnssecAlgorithm algorithm = DnssecAlgorithm.Unknown;
-                    DnssecDigestType digestType = DnssecDigestType.Unknown;
-                    string digest = null;
-
-                    foreach (XmlNode childNode in keyDigestNode.ChildNodes)
-                    {
-                        switch (childNode.Name.ToLowerInvariant())
-                        {
-                            case "keytag":
-                                keyTag = ushort.Parse(childNode.InnerText);
-                                break;
-
-                            case "algorithm":
-                                algorithm = (DnssecAlgorithm)byte.Parse(childNode.InnerText);
-                                break;
-
-                            case "digesttype":
-                                digestType = (DnssecDigestType)byte.Parse(childNode.InnerText);
-                                break;
-
-                            case "digest":
-                                digest = childNode.InnerText;
-                                break;
-                        }
-                    }
-
-                    rootTrustAnchors.Add(new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecordData(keyTag, algorithm, digestType, Convert.FromHexString(digest))));
-                }
-
-                ROOT_TRUST_ANCHORS = rootTrustAnchors;
-            }
-            catch
-            { }
-
-            if (ROOT_NAME_SERVERS_IPv4 is null)
-            {
-                ROOT_NAME_SERVERS_IPv4 = new NameServerAddress[]
-                {
-                    new NameServerAddress("a.root-servers.net", IPAddress.Parse("198.41.0.4")), //VeriSign, Inc.
-                    new NameServerAddress("b.root-servers.net", IPAddress.Parse("199.9.14.201")), //University of Southern California (ISI)
-                    new NameServerAddress("c.root-servers.net", IPAddress.Parse("192.33.4.12")), //Cogent Communications
-                    new NameServerAddress("d.root-servers.net", IPAddress.Parse("199.7.91.13")), //University of Maryland
-                    new NameServerAddress("e.root-servers.net", IPAddress.Parse("192.203.230.10")), //NASA (Ames Research Center)
-                    new NameServerAddress("f.root-servers.net", IPAddress.Parse("192.5.5.241")), //Internet Systems Consortium, Inc.
-                    new NameServerAddress("g.root-servers.net", IPAddress.Parse("192.112.36.4")), //US Department of Defense (NIC)
-                    new NameServerAddress("h.root-servers.net", IPAddress.Parse("198.97.190.53")), //US Army (Research Lab)
-                    new NameServerAddress("i.root-servers.net", IPAddress.Parse("192.36.148.17")), //Netnod
-                    new NameServerAddress("j.root-servers.net", IPAddress.Parse("192.58.128.30")), //VeriSign, Inc.
-                    new NameServerAddress("k.root-servers.net", IPAddress.Parse("193.0.14.129")), //RIPE NCC
-                    new NameServerAddress("l.root-servers.net", IPAddress.Parse("199.7.83.42")), //ICANN
-                    new NameServerAddress("m.root-servers.net", IPAddress.Parse("202.12.27.33")) //WIDE Project
-                };
-            }
-
-            if (ROOT_NAME_SERVERS_IPv6 is null)
-            {
-                ROOT_NAME_SERVERS_IPv6 = new NameServerAddress[]
-                {
-                    new NameServerAddress("a.root-servers.net", IPAddress.Parse("2001:503:ba3e::2:30")), //VeriSign, Inc.
-                    new NameServerAddress("b.root-servers.net", IPAddress.Parse("2001:500:200::b")), //University of Southern California (ISI)
-                    new NameServerAddress("c.root-servers.net", IPAddress.Parse("2001:500:2::c")), //Cogent Communications
-                    new NameServerAddress("d.root-servers.net", IPAddress.Parse("2001:500:2d::d")), //University of Maryland
-                    new NameServerAddress("e.root-servers.net", IPAddress.Parse("2001:500:a8::e")), //NASA (Ames Research Center)
-                    new NameServerAddress("f.root-servers.net", IPAddress.Parse("2001:500:2f::f")), //Internet Systems Consortium, Inc.
-                    new NameServerAddress("g.root-servers.net", IPAddress.Parse("2001:500:12::d0d")), //US Department of Defense (NIC)
-                    new NameServerAddress("h.root-servers.net", IPAddress.Parse("2001:500:1::53")), //US Army (Research Lab)
-                    new NameServerAddress("i.root-servers.net", IPAddress.Parse("2001:7fe::53")), //Netnod
-                    new NameServerAddress("j.root-servers.net", IPAddress.Parse("2001:503:c27::2:30")), //VeriSign, Inc.
-                    new NameServerAddress("k.root-servers.net", IPAddress.Parse("2001:7fd::1")), //RIPE NCC
-                    new NameServerAddress("l.root-servers.net", IPAddress.Parse("2001:500:9f::42")), //ICANN
-                    new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")) //WIDE Project
-                };
-            }
-
-            if (ROOT_TRUST_ANCHORS is null)
-            {
-                ROOT_TRUST_ANCHORS = new DnsResourceRecord[]
-                {
-                    new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecordData(20326, DnssecAlgorithm.RSASHA256, DnssecDigestType.SHA256, Convert.FromHexString("E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D")))
-                };
-            }
         }
 
         public DnsClient(Uri dohEndPoint)
@@ -383,10 +235,182 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
+        public static async Task ReloadRootHintsAsync()
+        {
+            string rootHintsFile = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "named.root");
+            if (!File.Exists(rootHintsFile))
+                return;
+
+            List<DnsResourceRecord> rootZoneRecords = await ZoneFile.ReadZoneFileFromAsync(rootHintsFile);
+
+            List<NameServerAddress> ipv4RootNameServers = new List<NameServerAddress>(13);
+            List<NameServerAddress> ipv6RootNameServers = new List<NameServerAddress>(13);
+
+            foreach (DnsResourceRecord nsRecord in rootZoneRecords)
+            {
+                if (nsRecord.Type != DnsResourceRecordType.NS)
+                    continue;
+
+                if (nsRecord.Name.Length != 0)
+                    continue;
+
+                string name = (nsRecord.RDATA as DnsNSRecordData).NameServer;
+
+                foreach (DnsResourceRecord record in rootZoneRecords)
+                {
+                    switch (record.Type)
+                    {
+                        case DnsResourceRecordType.A:
+                            if (name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                                ipv4RootNameServers.Add(new NameServerAddress(name, (record.RDATA as DnsARecordData).Address));
+
+                            break;
+
+                        case DnsResourceRecordType.AAAA:
+                            if (name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                                ipv6RootNameServers.Add(new NameServerAddress(name, (record.RDATA as DnsAAAARecordData).Address));
+
+                            break;
+                    }
+                }
+            }
+
+            ROOT_NAME_SERVERS_IPv4 = ipv4RootNameServers;
+            ROOT_NAME_SERVERS_IPv6 = ipv6RootNameServers;
+        }
+
+        public static async Task UpdateRootServersAsync(NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, CancellationToken cancellationToken = default)
+        {
+            DnsClient dnsClient = new DnsClient(GetShuffledRootServers(preferIPv6));
+
+            dnsClient._proxy = proxy;
+            dnsClient._preferIPv6 = preferIPv6;
+            dnsClient._retries = retries;
+            dnsClient._timeout = timeout;
+
+            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord("", DnsResourceRecordType.NS, DnsClass.IN) }, udpPayloadSize: DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE);
+            DnsDatagram response = await dnsClient.ResolveAsync(request, cancellationToken);
+
+            if (response.RCODE != DnsResponseCode.NoError)
+                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+
+            if (!response.AuthoritativeAnswer)
+                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response without AuthoritativeAnswer flag set from Name server: " + response.Metadata.NameServer.ToString());
+
+            if ((response.Answer.Count == 0) || (response.Authority.Count > 0) || (response.Additional.Count == 0))
+                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response without any answer from Name server: " + response.Metadata.NameServer.ToString());
+
+            List<NameServerAddress> ipv4RootNameServers = new List<NameServerAddress>(13);
+            List<NameServerAddress> ipv6RootNameServers = new List<NameServerAddress>(13);
+
+            foreach (DnsResourceRecord nsRecord in response.Answer)
+            {
+                if (nsRecord.Type != DnsResourceRecordType.NS)
+                    continue;
+
+                if (nsRecord.Name.Length != 0)
+                    continue;
+
+                string name = (nsRecord.RDATA as DnsNSRecordData).NameServer;
+
+                foreach (DnsResourceRecord record in response.Additional)
+                {
+                    switch (record.Type)
+                    {
+                        case DnsResourceRecordType.A:
+                            if (name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                                ipv4RootNameServers.Add(new NameServerAddress(name, (record.RDATA as DnsARecordData).Address));
+
+                            break;
+
+                        case DnsResourceRecordType.AAAA:
+                            if (name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
+                                ipv6RootNameServers.Add(new NameServerAddress(name, (record.RDATA as DnsAAAARecordData).Address));
+
+                            break;
+                    }
+                }
+            }
+
+            ROOT_NAME_SERVERS_IPv4 = ipv4RootNameServers;
+            ROOT_NAME_SERVERS_IPv6 = ipv6RootNameServers;
+        }
+
+        public static void ReloadRootTrustAnchors()
+        {
+            string rootTrustXmlFile = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "root-anchors.xml");
+
+            XmlDocument rootTrustXml = new XmlDocument();
+            rootTrustXml.Load(rootTrustXmlFile);
+
+            XmlNamespaceManager nsMgr = new XmlNamespaceManager(rootTrustXml.NameTable);
+            XmlNodeList nodeList = rootTrustXml.SelectNodes("//TrustAnchor/KeyDigest", nsMgr);
+
+            const string dateFormat = "yyyy-MM-ddTHH:mm:sszzz";
+            List<DnsResourceRecord> rootTrustAnchors = new List<DnsResourceRecord>();
+
+            foreach (XmlNode keyDigestNode in nodeList)
+            {
+                DateTime validFrom = DateTime.MinValue;
+                DateTime validUntil = DateTime.MinValue;
+
+                foreach (XmlAttribute attribute in keyDigestNode.Attributes)
+                {
+                    switch (attribute.Name)
+                    {
+                        case "validFrom":
+                            validFrom = DateTime.ParseExact(attribute.Value, dateFormat, CultureInfo.CurrentCulture);
+                            break;
+
+                        case "validUntil":
+                            validUntil = DateTime.ParseExact(attribute.Value, dateFormat, CultureInfo.CurrentCulture);
+                            break;
+                    }
+                }
+
+                if ((validFrom != DateTime.MinValue) && (validFrom > DateTime.UtcNow))
+                    continue;
+
+                if ((validUntil != DateTime.MinValue) && (validUntil < DateTime.UtcNow))
+                    continue;
+
+                ushort keyTag = 0;
+                DnssecAlgorithm algorithm = DnssecAlgorithm.Unknown;
+                DnssecDigestType digestType = DnssecDigestType.Unknown;
+                string digest = null;
+
+                foreach (XmlNode childNode in keyDigestNode.ChildNodes)
+                {
+                    switch (childNode.Name.ToLowerInvariant())
+                    {
+                        case "keytag":
+                            keyTag = ushort.Parse(childNode.InnerText);
+                            break;
+
+                        case "algorithm":
+                            algorithm = (DnssecAlgorithm)byte.Parse(childNode.InnerText);
+                            break;
+
+                        case "digesttype":
+                            digestType = (DnssecDigestType)byte.Parse(childNode.InnerText);
+                            break;
+
+                        case "digest":
+                            digest = childNode.InnerText;
+                            break;
+                    }
+                }
+
+                rootTrustAnchors.Add(new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecordData(keyTag, algorithm, digestType, Convert.FromHexString(digest))));
+            }
+
+            ROOT_TRUST_ANCHORS = rootTrustAnchors;
+        }
+
         public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool asyncNsRevalidation = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int maxStackCount = 16, bool cleanupResponse = false, bool asyncNsResolution = false, CancellationToken cancellationToken = default)
         {
             if ((udpPayloadSize < 512) && (dnssecValidation || (eDnsClientSubnet is not null)))
-                throw new ArgumentOutOfRangeException(nameof(UdpPayloadSize), "EDNS cannot be disabled by setting UDP payload size to less than 512 when DNSSEC validation or EDNS Client Subnet is enabled.");
+                throw new ArgumentOutOfRangeException(nameof(udpPayloadSize), "EDNS cannot be disabled by setting UDP payload size to less than 512 when DNSSEC validation or EDNS Client Subnet is enabled.");
 
             EDnsOption[] eDnsClientSubnetOption = EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(eDnsClientSubnet);
 
@@ -982,30 +1006,8 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if ((nameServers is null) || (nameServers.Count == 0))
                 {
-                    //create copy of root name servers array so that the values in original array are not messed due to shuffling feature
-                    IList<NameServerAddress> nameServersCopy;
-
-                    if (preferIPv6)
-                    {
-                        List<NameServerAddress> nameServersList = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv6.Count + ROOT_NAME_SERVERS_IPv4.Count);
-
-                        nameServersList.AddRange(ROOT_NAME_SERVERS_IPv6);
-                        nameServersList.AddRange(ROOT_NAME_SERVERS_IPv4);
-                        nameServersList.Shuffle();
-                        nameServersList.Sort();
-
-                        nameServersCopy = nameServersList;
-                    }
-                    else
-                    {
-                        List<NameServerAddress> nameServersList = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv4);
-                        nameServersList.Shuffle();
-
-                        nameServersCopy = nameServersList;
-                    }
-
                     zoneCut = "";
-                    nameServers = nameServersCopy;
+                    nameServers = GetShuffledRootServers(preferIPv6);
                     nameServerIndex = 0;
                     lastResponse = null;
                 }
@@ -2409,28 +2411,31 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region private
 
-        private static string PopWord(ref string line)
+        private static List<NameServerAddress> GetShuffledRootServers(bool preferIPv6)
         {
-            if (line.Length == 0)
-                return line;
+            //create copy of root name servers array so that the values in original array are not messed due to shuffling feature
+            List<NameServerAddress> nameServersCopy;
 
-            line = line.TrimStart(' ', '\t');
-
-            int i = line.IndexOfAny(new char[] { ' ', '\t' });
-            string word;
-
-            if (i < 0)
+            if (preferIPv6)
             {
-                word = line;
-                line = "";
+                List<NameServerAddress> nameServersList = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv6.Count + ROOT_NAME_SERVERS_IPv4.Count);
+
+                nameServersList.AddRange(ROOT_NAME_SERVERS_IPv6);
+                nameServersList.AddRange(ROOT_NAME_SERVERS_IPv4);
+                nameServersList.Shuffle();
+                nameServersList.Sort();
+
+                nameServersCopy = nameServersList;
             }
             else
             {
-                word = line.Substring(0, i);
-                line = line.Substring(i + 1);
+                List<NameServerAddress> nameServersList = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv4);
+                nameServersList.Shuffle();
+
+                nameServersCopy = nameServersList;
             }
 
-            return word;
+            return nameServersCopy;
         }
 
         private static async Task DnssecValidateResponseAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, CancellationToken cancellationToken)
@@ -3074,6 +3079,19 @@ namespace TechnitiumLibrary.Net.Dns
             }
             catch (DnsClientResponseDnssecValidationException ex)
             {
+                //check if owner name is a CNAME
+                foreach (DnsResourceRecord record in dsResponse.Answer)
+                {
+                    if ((record.Type == DnsResourceRecordType.CNAME) && record.Name.Equals(ownerName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (record.DnssecStatus == DnssecStatus.Secure)
+                            return []; //NO DATA case since a secure CNAME was found instead of DS
+
+                        //CNAME found but is not secure
+                        break;
+                    }
+                }
+
                 cache.CacheResponse(ex.Response, true);
                 throw;
             }
@@ -3254,7 +3272,7 @@ namespace TechnitiumLibrary.Net.Dns
             return false;
         }
 
-        private static IReadOnlyList<DnsResourceRecord> GetFilterdDSRecords(IReadOnlyList<DnsResourceRecord> records, string ownerName)
+        private static List<DnsResourceRecord> GetFilterdDSRecords(IReadOnlyList<DnsResourceRecord> records, string ownerName)
         {
             List<DnsResourceRecord> dsRecords = new List<DnsResourceRecord>(2);
 
