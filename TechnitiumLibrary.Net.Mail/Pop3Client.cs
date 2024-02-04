@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Security;
 using System.Net.Sockets;
-using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -68,6 +67,7 @@ namespace TechnitiumLibrary.Net.Mail
         public void Dispose()
         {
             Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         bool _disposed = false;
@@ -147,7 +147,7 @@ namespace TechnitiumLibrary.Net.Mail
             if (_preferSecureAuth && secureAuthAvailable)
             {
                 string timestamp = response.Substring(i, j - i + 1);
-                string digest = Convert.ToHexString(HashAlgorithm.Create("MD5").ComputeHash(Encoding.ASCII.GetBytes(timestamp + _password))).ToLower();
+                string digest = Convert.ToHexString(MD5.HashData(Encoding.ASCII.GetBytes(timestamp + _password))).ToLowerInvariant();
 
                 _sW.WriteLine("APOP " + _username + " " + digest);
                 response = _sR.ReadLine();
@@ -331,7 +331,6 @@ namespace TechnitiumLibrary.Net.Mail
         public int MessageSize;
     }
 
-    [System.Serializable()]
     public class Pop3Exception : Exception
     {
         public Pop3Exception()
@@ -345,13 +344,8 @@ namespace TechnitiumLibrary.Net.Mail
         public Pop3Exception(string message, Exception innerException)
             : base(message, innerException)
         { }
-
-        protected Pop3Exception(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-        { }
     }
 
-    [System.Serializable()]
     public class Pop3InvalidUsernamePasswordException : Pop3Exception
     {
         public Pop3InvalidUsernamePasswordException()
@@ -364,10 +358,6 @@ namespace TechnitiumLibrary.Net.Mail
 
         public Pop3InvalidUsernamePasswordException(string message, Exception innerException)
             : base(message, innerException)
-        { }
-
-        protected Pop3InvalidUsernamePasswordException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
         { }
     }
 }

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,7 +26,6 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
-using TechnitiumLibrary.IO;
 using TechnitiumLibrary.Net.Dns;
 using TechnitiumLibrary.Net.Proxy;
 
@@ -36,7 +35,6 @@ namespace TechnitiumLibrary.Net.Mail
     {
         #region variables
 
-        readonly static RandomNumberGenerator _rng = RandomNumberGenerator.Create();
         readonly static RemoteCertificateValidationCallback _existingServerCertificateValidationCallback;
         static bool _ignoreCertificateErrorsForProxy;
 
@@ -152,8 +150,8 @@ namespace TechnitiumLibrary.Net.Mail
 
         public void SetRandomLocalHostName()
         {
-            byte[] buffer = new byte[4];
-            _rng.GetBytes(buffer);
+            Span<byte> buffer = stackalloc byte[4];
+            RandomNumberGenerator.Fill(buffer);
 
             LocalHostName = Convert.ToHexString(buffer);
         }
@@ -180,8 +178,7 @@ namespace TechnitiumLibrary.Net.Mail
 
         public new async Task SendMailAsync(MailMessage message)
         {
-            if (_disposed)
-                throw new ObjectDisposedException("SmtpClientEx");
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
             if (message.To.Count == 0)
                 throw new ArgumentException("Message does not contain receipent email address.");
