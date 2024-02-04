@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -39,8 +39,6 @@ namespace TechnitiumLibrary.Net.Tor
     public class TorController : IDisposable
     {
         #region variables
-
-        static readonly RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
 
         readonly object _lock = new object();
 
@@ -91,6 +89,7 @@ namespace TechnitiumLibrary.Net.Tor
         public void Dispose()
         {
             Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         #endregion
@@ -137,8 +136,8 @@ namespace TechnitiumLibrary.Net.Tor
                 string password;
 
                 {
-                    byte[] buffer = new byte[32];
-                    _rnd.GetBytes(buffer);
+                    Span<byte> buffer = stackalloc byte[32];
+                    RandomNumberGenerator.Fill(buffer);
 
                     password = Convert.ToHexString(buffer).ToLower();
                 }
@@ -216,7 +215,7 @@ namespace TechnitiumLibrary.Net.Tor
                         if (!response.StartsWith("250 "))
                             throw new TorControllerException("Authentication failed: " + response);
 
-                        _sW.WriteLine("SETCONF __OwningControllerProcess=" + Process.GetCurrentProcess().Id);
+                        _sW.WriteLine("SETCONF __OwningControllerProcess=" + Environment.ProcessId);
                         response = _sR.ReadLine();
                         if (!response.StartsWith("250 "))
                             throw new TorControllerException("Server returned: " + response);
