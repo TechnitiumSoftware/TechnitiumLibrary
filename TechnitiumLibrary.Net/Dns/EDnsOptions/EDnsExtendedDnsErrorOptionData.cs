@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -187,7 +187,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
             int textLength = _length - 2;
             if (textLength > 0)
-                _extraText = Encoding.UTF8.GetString(s.ReadBytes(textLength));
+                _extraText = Encoding.UTF8.GetString(s.ReadExactly(textLength));
         }
 
         protected override void WriteOptionData(Stream s)
