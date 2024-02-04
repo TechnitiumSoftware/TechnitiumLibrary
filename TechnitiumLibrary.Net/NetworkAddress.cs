@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,6 +27,8 @@ namespace TechnitiumLibrary.Net
     public class NetworkAddress : IEquatable<NetworkAddress>
     {
         #region variables
+
+        static readonly char[] _slashSeparator = new char[] { '/' };
 
         readonly IPAddress _address;
         readonly byte _prefixLength;
@@ -83,7 +85,7 @@ namespace TechnitiumLibrary.Net
 
         public static bool TryParse(string network, out NetworkAddress networkAddress)
         {
-            string[] parts = network.Split(new char[] { '/' }, 2);
+            string[] parts = network.Split(_slashSeparator, 2);
 
             if (!IPAddress.TryParse(parts[0], out IPAddress address))
             {
@@ -163,12 +165,15 @@ namespace TechnitiumLibrary.Net
 
                 case AddressFamily.InterNetworkV6:
                     {
-                        byte[] network = _address.GetAddressBytes();
-                        byte[] broadcast = new byte[16];
+                        Span<byte> network = stackalloc byte[16];
+                        if (!_address.TryWriteBytes(network, out _))
+                            throw new InvalidOperationException();
+
+                        Span<byte> broadcast = stackalloc byte[16];
                         int copyBytes = _prefixLength / 8;
                         int balanceBits = _prefixLength - (copyBytes * 8);
 
-                        Buffer.BlockCopy(network, 0, broadcast, 0, copyBytes);
+                        network.Slice(0, copyBytes).CopyTo(broadcast);
 
                         if (balanceBits > 0)
                         {
@@ -260,6 +265,24 @@ namespace TechnitiumLibrary.Net
 
         public byte PrefixLength
         { get { return _prefixLength; } }
+
+        public bool IsHostAddress
+        {
+            get
+            {
+                switch (_address.AddressFamily)
+                {
+                    case AddressFamily.InterNetwork:
+                        return _prefixLength == 32;
+
+                    case AddressFamily.InterNetworkV6:
+                        return _prefixLength == 128;
+
+                    default:
+                        throw new InvalidOperationException();
+                }
+            }
+        }
 
         #endregion
     }
