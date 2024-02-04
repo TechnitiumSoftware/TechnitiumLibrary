@@ -126,23 +126,25 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             switch (remoteEP.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    if (_ipv4BindEP is not null)
+                    Tuple<IPEndPoint, byte[]> ipv4SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv4SourceEP();
+                    if (ipv4SourceEP is not null)
                     {
-                        if (_ipv4BindToInterfaceName is not null)
-                            socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv4BindToInterfaceName);
+                        if (ipv4SourceEP.Item2 is not null)
+                            socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, ipv4SourceEP.Item2);
 
-                        socket.Bind(_ipv4BindEP);
+                        socket.Bind(ipv4SourceEP.Item1);
                     }
 
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    if (_ipv6BindEP is not null)
+                    Tuple<IPEndPoint, byte[]> ipv6SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv6SourceEP();
+                    if (ipv6SourceEP is not null)
                     {
-                        if (_ipv6BindToInterfaceName is not null)
-                            socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv6BindToInterfaceName);
+                        if (ipv6SourceEP.Item2 is not null)
+                            socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, ipv6SourceEP.Item2);
 
-                        socket.Bind(_ipv6BindEP);
+                        socket.Bind(ipv6SourceEP.Item1);
                     }
 
                     break;
@@ -284,32 +286,40 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
                 catch (HttpRequestException ex)
                 {
-                    if ((retry == 1) && (_udpTunnelProxy is not null) && ex.InnerException is QuicException qex)
+                    if ((retry == 1) && (_udpTunnelProxy is not null))
                     {
-                        switch (qex.QuicError)
+                        if (ex.InnerException is SocketException ex1)
                         {
-                            case QuicError.HostUnreachable:
-                                if (!quicHostUnreachableRetryDone)
-                                {
-                                    //host unreachable on first attempt; retry to reconnect
-                                    retry = 0;
-                                    quicHostUnreachableRetryDone = true;
-                                }
-                                else
-                                {
+                            switch (ex1.SocketErrorCode)
+                            {
+                                case SocketError.HostUnreachable:
+                                    if (!quicHostUnreachableRetryDone)
+                                    {
+                                        //host unreachable on first attempt; retry to reconnect
+                                        retry = 0;
+                                        quicHostUnreachableRetryDone = true;
+                                    }
+                                    else
+                                    {
+                                        //close existing connection to allow reconnection later
+                                        _udpTunnelProxy.Dispose();
+                                    }
+
+                                    continue;
+                            }
+                        }
+                        else if (ex.InnerException is QuicException ex2)
+                        {
+                            switch (ex2.QuicError)
+                            {
+                                case QuicError.ConnectionIdle:
                                     //close existing connection to allow reconnection later
                                     _udpTunnelProxy.Dispose();
-                                }
 
-                                continue;
-
-                            case QuicError.ConnectionIdle:
-                                //close existing connection to allow reconnection later
-                                _udpTunnelProxy.Dispose();
-
-                                //connection idle on first attempt; retry to reconnect
-                                retry = 0;
-                                continue;
+                                    //connection idle on first attempt; retry to reconnect
+                                    retry = 0;
+                                    continue;
+                            }
                         }
                     }
 
