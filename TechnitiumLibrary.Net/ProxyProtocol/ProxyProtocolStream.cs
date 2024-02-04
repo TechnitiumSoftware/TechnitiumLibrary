@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -87,7 +87,7 @@ namespace TechnitiumLibrary.Net.ProxyProtocol
 
             do
             {
-                bytesRead = await baseStream.ReadAsync(proxy._buffer, proxy._length, proxy._buffer.Length - proxy._length);
+                bytesRead = await baseStream.ReadAsync(proxy._buffer.AsMemory(proxy._length, proxy._buffer.Length - proxy._length));
                 if (bytesRead < 1)
                     throw new EndOfStreamException();
 
@@ -175,7 +175,7 @@ namespace TechnitiumLibrary.Net.ProxyProtocol
                         throw new InvalidOperationException();
                 }
 
-                bytesRead = await baseStream.ReadAsync(proxy._buffer, proxy._length, proxy._buffer.Length - proxy._length);
+                bytesRead = await baseStream.ReadAsync(proxy._buffer.AsMemory(proxy._length, proxy._buffer.Length - proxy._length));
                 if (bytesRead < 1)
                     throw new EndOfStreamException();
 
@@ -363,16 +363,14 @@ namespace TechnitiumLibrary.Net.ProxyProtocol
 
         public override void Flush()
         {
-            if (_disposed)
-                throw new ObjectDisposedException("ProxyProtocolStream");
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
             _baseStream.Flush();
         }
 
         public override Task FlushAsync(CancellationToken cancellationToken)
         {
-            if (_disposed)
-                throw new ObjectDisposedException("ProxyProtocolStream");
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
             return _baseStream.FlushAsync(cancellationToken);
         }
@@ -411,20 +409,42 @@ namespace TechnitiumLibrary.Net.ProxyProtocol
             return _baseStream.ReadAsync(buffer, offset, count, cancellationToken);
         }
 
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_offset < _length)
+            {
+                int bytesAvailable = _length - _offset;
+                if (bytesAvailable < buffer.Length)
+                    buffer = buffer.Slice(0, bytesAvailable);
+
+                _buffer.AsMemory(_offset, buffer.Length).CopyTo(buffer);
+                _offset += buffer.Length;
+
+                return ValueTask.FromResult(buffer.Length);
+            }
+
+            return _baseStream.ReadAsync(buffer, cancellationToken);
+        }
+
         public override void Write(byte[] buffer, int offset, int count)
         {
-            if (_disposed)
-                throw new ObjectDisposedException("ProxyProtocolStream");
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
             _baseStream.Write(buffer, offset, count);
         }
 
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            if (_disposed)
-                throw new ObjectDisposedException("ProxyProtocolStream");
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
             return _baseStream.WriteAsync(buffer, offset, count, cancellationToken);
+        }
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            return _baseStream.WriteAsync(buffer, cancellationToken);
         }
 
         #endregion
