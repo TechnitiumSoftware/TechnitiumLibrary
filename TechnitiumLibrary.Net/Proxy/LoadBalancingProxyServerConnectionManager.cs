@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -36,8 +36,6 @@ namespace TechnitiumLibrary.Net.Proxy
         #endregion
 
         #region variables
-
-        static readonly RandomNumberGenerator _rng = RandomNumberGenerator.Create();
 
         readonly IReadOnlyList<IProxyServerConnectionManager> _ipv4ConnectionManagers;
         readonly IReadOnlyList<IProxyServerConnectionManager> _ipv6ConnectionManagers;
@@ -186,7 +184,7 @@ namespace TechnitiumLibrary.Net.Proxy
         private static int GetRandomNumber()
         {
             Span<byte> randomBuffer = stackalloc byte[4];
-            _rng.GetBytes(randomBuffer);
+            RandomNumberGenerator.Fill(randomBuffer);
 
             return BitConverter.ToInt32(randomBuffer) & 0x7FFFFFFF;
         }
@@ -257,11 +255,11 @@ namespace TechnitiumLibrary.Net.Proxy
                 bool ipv6Available = _workingIpv6ConnectionManagers.Count > 0;
 
                 if (ipv4Available && ipv6Available)
-                    remoteEP = await remoteEP.GetIPEndPointAsync();
+                    remoteEP = await remoteEP.GetIPEndPointAsync(cancellationToken: cancellationToken);
                 else if (ipv4Available)
-                    remoteEP = await remoteEP.GetIPEndPointAsync(AddressFamily.InterNetwork);
+                    remoteEP = await remoteEP.GetIPEndPointAsync(AddressFamily.InterNetwork, cancellationToken: cancellationToken);
                 else if (ipv6Available)
-                    remoteEP = await remoteEP.GetIPEndPointAsync(AddressFamily.InterNetworkV6);
+                    remoteEP = await remoteEP.GetIPEndPointAsync(AddressFamily.InterNetworkV6, cancellationToken: cancellationToken);
                 else
                     throw new SocketException((int)SocketError.NetworkUnreachable);
             }
