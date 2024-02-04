@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,8 +27,6 @@ namespace TechnitiumLibrary.Net.BitTorrent
     public class TrackerClientID
     {
         #region variables
-
-        static readonly RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
 
         byte[] _peerID;
         byte[] _clientKey;
@@ -97,7 +95,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
         public static byte[] GenerateClientKey()
         {
             byte[] clientKey = new byte[4];
-            _rnd.GetBytes(clientKey);
+            RandomNumberGenerator.Fill(clientKey);
             return clientKey;
         }
 
@@ -108,7 +106,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             Buffer.BlockCopy(Encoding.UTF8.GetBytes("-" + AzureusStyleClientID + "-"), 0, peerID, 0, AzureusStyleClientID.Length + 2);
 
             byte[] buffRnd = new byte[20 - AzureusStyleClientID.Length - 2];
-            _rnd.GetBytes(buffRnd);
+            RandomNumberGenerator.Fill(buffRnd);
 
             Buffer.BlockCopy(buffRnd, 0, peerID, AzureusStyleClientID.Length + 2, buffRnd.Length);
 

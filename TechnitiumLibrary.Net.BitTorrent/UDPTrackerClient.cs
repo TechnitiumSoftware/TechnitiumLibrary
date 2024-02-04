@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,7 +31,6 @@ namespace TechnitiumLibrary.Net.BitTorrent
     {
         #region variables
 
-        static readonly RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
         byte[] _connectionId = null;
         readonly byte[] _transactionID = new byte[4];
         DateTime _connectionIdExpires = DateTime.UtcNow;
@@ -256,14 +255,14 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     if ((_connectionId == null) || (_connectionIdExpires <= DateTime.UtcNow))
                     {
                         //GET CONNECTION ID
-                        _rnd.GetBytes(_transactionID);
+                        RandomNumberGenerator.Fill(_transactionID);
                         _connectionId = await GetConnectionIdAsync(udpSocket, proxyHandler, trackerEP, _transactionID);
                         _connectionIdExpires = DateTime.UtcNow.AddMinutes(1);
                     }
 
                     try
                     {
-                        _rnd.GetBytes(_transactionID);
+                        RandomNumberGenerator.Fill(_transactionID);
                         byte[] announceResponse = await GetAnnounceResponseAsync(udpSocket, proxyHandler, trackerEP, _transactionID, _connectionId, @event, clientEP);
 
                         byte[] buffer = new byte[4];
