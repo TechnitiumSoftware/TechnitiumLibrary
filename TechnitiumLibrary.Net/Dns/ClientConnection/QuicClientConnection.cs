@@ -149,7 +149,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             try
             {
-                EndPoint remoteEP;
+                IPEndPoint remoteEP;
 
                 if (_proxy is null)
                 {
@@ -183,19 +183,24 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     }
                 };
 
-                switch (remoteEP.AddressFamily)
+                if (_proxy is null)
                 {
-                    case AddressFamily.InterNetwork:
-                        if (_ipv4BindEP is not null)
-                            connectionOptions.LocalEndPoint = _ipv4BindEP;
+                    switch (remoteEP.AddressFamily)
+                    {
+                        case AddressFamily.InterNetwork:
+                            Tuple<IPEndPoint, byte[]> ipv4SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv4SourceEP();
+                            if (ipv4SourceEP is not null)
+                                connectionOptions.LocalEndPoint = ipv4SourceEP.Item1;
 
-                        break;
+                            break;
 
-                    case AddressFamily.InterNetworkV6:
-                        if (_ipv6BindEP is not null)
-                            connectionOptions.LocalEndPoint = _ipv6BindEP;
+                        case AddressFamily.InterNetworkV6:
+                            Tuple<IPEndPoint, byte[]> ipv6SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv6SourceEP();
+                            if (ipv6SourceEP is not null)
+                                connectionOptions.LocalEndPoint = ipv6SourceEP.Item1;
 
-                        break;
+                            break;
+                    }
                 }
 
                 _quicConnection = await QuicConnection.ConnectAsync(connectionOptions, cancellationToken);
