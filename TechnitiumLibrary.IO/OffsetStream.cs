@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -165,7 +165,29 @@ namespace TechnitiumLibrary.IO
             if (_stream.CanSeek)
                 _stream.Position = _offset + _position;
 
-            int bytesRead = await _stream.ReadAsync(buffer, offset, count, cancellationToken);
+            int bytesRead = await _stream.ReadAsync(buffer.AsMemory(offset, count), cancellationToken);
+            _position += bytesRead;
+
+            return bytesRead;
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (buffer.Length < 1)
+                return 0;
+
+            if (_position >= _length)
+                return 0;
+
+            int available = Convert.ToInt32(_length - _position);
+
+            if (buffer.Length > available)
+                buffer = buffer.Slice(0, available);
+
+            if (_stream.CanSeek)
+                _stream.Position = _offset + _position;
+
+            int bytesRead = await _stream.ReadAsync(buffer, cancellationToken);
             _position += bytesRead;
 
             return bytesRead;
@@ -252,8 +274,26 @@ namespace TechnitiumLibrary.IO
             if (_stream.CanSeek)
                 _stream.Position = _offset + _position;
 
-            await _stream.WriteAsync(buffer, offset, count, cancellationToken);
+            await _stream.WriteAsync(buffer.AsMemory(offset, count), cancellationToken);
             _position += count;
+
+            if (_position > _length)
+                _length = _position;
+        }
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_readOnly)
+                throw new InvalidOperationException("OffsetStream is read only.");
+
+            if (buffer.Length < 1)
+                return;
+
+            if (_stream.CanSeek)
+                _stream.Position = _offset + _position;
+
+            await _stream.WriteAsync(buffer, cancellationToken);
+            _position += buffer.Length;
 
             if (_position > _length)
                 _length = _position;
