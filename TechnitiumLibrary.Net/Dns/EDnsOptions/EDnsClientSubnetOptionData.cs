@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -101,25 +101,27 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             if ((count * 8) < _sourcePrefixLength)
                 count++;
 
-            byte[] buffer;
-
             switch (_family)
             {
                 case EDnsClientSubnetAddressFamily.IPv4:
-                    buffer = new byte[4];
+                    {
+                        Span<byte> buffer = stackalloc byte[4];
+                        s.Read(buffer.Slice(0, count));
+                        _address = new IPAddress(buffer);
+                    }
                     break;
 
                 case EDnsClientSubnetAddressFamily.IPv6:
-                    buffer = new byte[16];
+                    {
+                        Span<byte> buffer = stackalloc byte[16];
+                        s.Read(buffer.Slice(0, count));
+                        _address = new IPAddress(buffer);
+                    }
                     break;
 
                 default:
                     return;
             }
-
-            s.Read(buffer, 0, count);
-
-            _address = new IPAddress(buffer);
         }
 
         protected override void WriteOptionData(Stream s)
@@ -132,9 +134,33 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             if ((count * 8) < _sourcePrefixLength)
                 count++;
 
-            byte[] buffer = _address.GetAddressBytes();
+            switch (_family)
+            {
+                case EDnsClientSubnetAddressFamily.IPv4:
+                    {
+                        Span<byte> buffer = stackalloc byte[4];
 
-            s.Write(buffer, 0, count);
+                        if (!_address.TryWriteBytes(buffer, out _))
+                            throw new InvalidOperationException();
+
+                        s.Write(buffer.Slice(0, count));
+                    }
+                    break;
+
+                case EDnsClientSubnetAddressFamily.IPv6:
+                    {
+                        Span<byte> buffer = stackalloc byte[16];
+
+                        if (!_address.TryWriteBytes(buffer, out _))
+                            throw new InvalidOperationException();
+
+                        s.Write(buffer.Slice(0, count));
+                    }
+                    break;
+
+                default:
+                    throw new NotSupportedException();
+            }
         }
 
         #endregion
