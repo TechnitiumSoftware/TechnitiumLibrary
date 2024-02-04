@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -56,18 +56,15 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static async Task<IReadOnlyCollection<DnsResourceRecord>> ReadZoneFileFromAsync(string file, string originDomain = null, uint defaultTtl = 0)
+        public static async Task<List<DnsResourceRecord>> ReadZoneFileFromAsync(string file, string originDomain = null, uint defaultTtl = 0)
         {
             await using (FileStream fS = new FileStream(file, FileMode.Open, FileAccess.Read))
             {
-                using (StreamReader sR = new StreamReader(fS))
-                {
-                    return await ReadZoneFileFromAsync(sR, originDomain, defaultTtl);
-                }
+                return await ReadZoneFileFromAsync(new StreamReader(fS), originDomain, defaultTtl);
             }
         }
 
-        public static Task<IReadOnlyCollection<DnsResourceRecord>> ReadZoneFileFromAsync(TextReader tR, string originDomain = null, uint defaultTtl = 0)
+        public static Task<List<DnsResourceRecord>> ReadZoneFileFromAsync(TextReader tR, string originDomain = null, uint defaultTtl = 0)
         {
             return new ZoneFile(tR, originDomain, defaultTtl).ReadZoneFileFromAsync();
         }
@@ -300,7 +297,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region private
 
-        private async Task<IReadOnlyCollection<DnsResourceRecord>> ReadZoneFileFromAsync()
+        private async Task<List<DnsResourceRecord>> ReadZoneFileFromAsync()
         {
             List<DnsResourceRecord> records = new List<DnsResourceRecord>();
 
