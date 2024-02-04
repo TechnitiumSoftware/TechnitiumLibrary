@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -149,11 +150,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
         }
 
-        private static PooledSocket GetPooledSocket(AddressFamily addressFamily)
+        private static PooledSocket GetPooledSocketFor(IPEndPoint serverEP)
         {
+            if (IPAddress.IsLoopback(serverEP.Address))
+                return new PooledSocket(serverEP.AddressFamily, ignoreSourceBinding: true); //no pooling and source binding for loopback; return new socket
+
             PooledSocket[] pooledSockets;
 
-            switch (addressFamily)
+            switch (serverEP.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
                     pooledSockets = _ipv4PooledSockets;
@@ -168,7 +172,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
 
             if (pooledSockets is null)
-                return new PooledSocket(addressFamily); //pooling not enabled; return new socket
+                return new PooledSocket(serverEP.AddressFamily); //pooling not enabled; return new socket
 
             int j = RandomNumberGenerator.GetInt32(SOCKET_POOL_SIZE);
 
@@ -180,7 +184,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
 
             //no free pooled socket available; return new socket
-            return new PooledSocket(addressFamily);
+            return new PooledSocket(serverEP.AddressFamily);
         }
 
         public static int[] SocketPoolExcludedPorts
@@ -195,70 +199,100 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout, int retries, CancellationToken cancellationToken)
         {
-            //serialize request
-            byte[] sendBuffer;
-            int sendBufferSize;
-
-            if (request.EDNS is null)
-                sendBuffer = new byte[512];
-            else if (request.EDNS.UdpPayloadSize > DnsDatagram.EDNS_MAX_UDP_PAYLOAD_SIZE)
-                sendBuffer = new byte[DnsDatagram.EDNS_MAX_UDP_PAYLOAD_SIZE];
-            else
-                sendBuffer = new byte[request.EDNS.UdpPayloadSize];
+            byte[] sendBuffer = null;
+            byte[] receiveBuffer = null;
 
             try
             {
-                using (MemoryStream mS = new MemoryStream(sendBuffer))
-                {
-                    request.WriteTo(mS);
-                    sendBufferSize = (int)mS.Position;
-                }
-            }
-            catch (NotSupportedException)
-            {
-                throw new DnsClientException("DnsClient cannot send the request: request exceeds the UDP payload size limit of " + sendBuffer.Length + " bytes.");
-            }
+                //serialize request
+                int sendBufferSize;
 
-            byte[] receiveBuffer = new byte[sendBuffer.Length];
-            Stopwatch stopwatch = new Stopwatch();
-            DnsDatagram lastResponse = null;
-            Exception lastException = null;
+                if (request.EDNS is null)
+                    sendBufferSize = 512;
+                else if (request.EDNS.UdpPayloadSize > DnsDatagram.EDNS_MAX_UDP_PAYLOAD_SIZE)
+                    sendBufferSize = DnsDatagram.EDNS_MAX_UDP_PAYLOAD_SIZE;
+                else
+                    sendBufferSize = request.EDNS.UdpPayloadSize;
 
-            bool IsResponseValid(int receivedBytes)
-            {
+                sendBuffer = ArrayPool<byte>.Shared.Rent(sendBufferSize);
+                receiveBuffer = ArrayPool<byte>.Shared.Rent(sendBufferSize);
+
                 try
                 {
-                    //parse response
-                    using (MemoryStream mS = new MemoryStream(receiveBuffer, 0, receivedBytes))
+                    using (MemoryStream mS = new MemoryStream(sendBuffer, 0, sendBufferSize))
                     {
-                        DnsDatagram response = DnsDatagram.ReadFrom(mS);
-                        response.SetMetadata(_server, stopwatch.Elapsed.TotalMilliseconds);
-
-                        ValidateResponse(request, response);
-
-                        lastResponse = response;
-                        return true;
+                        request.WriteTo(mS);
+                        sendBufferSize = (int)mS.Position;
                     }
                 }
-                catch (Exception ex)
+                catch (NotSupportedException)
                 {
-                    lastException = ex;
-                    return false;
+                    throw new DnsClientException("DnsClient cannot send the request: request exceeds the UDP payload size limit of " + sendBufferSize + " bytes.");
                 }
-            }
 
-            if (_proxy is null)
-            {
-                if (_server.IsIPEndPointStale)
-                    await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
+                Stopwatch stopwatch = new Stopwatch();
+                DnsDatagram lastResponse = null;
+                Exception lastException = null;
 
-                using (PooledSocket pooledSocket = GetPooledSocket(_server.IPEndPoint.AddressFamily))
+                bool IsResponseValid(int receivedBytes)
+                {
+                    try
+                    {
+                        //parse response
+                        using (MemoryStream mS = new MemoryStream(receiveBuffer, 0, receivedBytes))
+                        {
+                            DnsDatagram response = DnsDatagram.ReadFrom(mS);
+                            response.SetMetadata(_server, stopwatch.Elapsed.TotalMilliseconds);
+
+                            ValidateResponse(request, response);
+
+                            lastResponse = response;
+                            return true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+                        return false;
+                    }
+                }
+
+                if (_proxy is null)
+                {
+                    if (_server.IsIPEndPointStale)
+                        await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
+
+                    using (PooledSocket pooledSocket = GetPooledSocketFor(_server.IPEndPoint))
+                    {
+                        stopwatch.Start();
+
+                        try
+                        {
+                            _ = await pooledSocket.Socket.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.IPEndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
+                        }
+                        catch (SocketException ex)
+                        {
+                            if (ex.SocketErrorCode == SocketError.TimedOut)
+                            {
+                                if (lastException is not null)
+                                    ExceptionDispatchInfo.Throw(lastException);
+
+                                throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out.", ex);
+                            }
+
+                            throw;
+                        }
+
+                        stopwatch.Stop();
+                    }
+                }
+                else
                 {
                     stopwatch.Start();
 
                     try
                     {
-                        _ = await pooledSocket.Socket.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.IPEndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
+                        _ = await _proxy.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.EndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
                     }
                     catch (SocketException ex)
                     {
@@ -275,38 +309,23 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     stopwatch.Stop();
                 }
+
+                if (lastResponse is not null)
+                    return lastResponse;
+
+                if (lastException is not null)
+                    ExceptionDispatchInfo.Throw(lastException);
+
+                throw new InvalidOperationException();
             }
-            else
+            finally
             {
-                stopwatch.Start();
+                if (sendBuffer is not null)
+                    ArrayPool<byte>.Shared.Return(sendBuffer);
 
-                try
-                {
-                    _ = await _proxy.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.EndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
-                }
-                catch (SocketException ex)
-                {
-                    if (ex.SocketErrorCode == SocketError.TimedOut)
-                    {
-                        if (lastException is not null)
-                            ExceptionDispatchInfo.Throw(lastException);
-
-                        throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out.", ex);
-                    }
-
-                    throw;
-                }
-
-                stopwatch.Stop();
+                if (receiveBuffer is not null)
+                    ArrayPool<byte>.Shared.Return(receiveBuffer);
             }
-
-            if (lastResponse is not null)
-                return lastResponse;
-
-            if (lastException is not null)
-                ExceptionDispatchInfo.Throw(lastException);
-
-            throw new InvalidOperationException();
         }
 
         #endregion
@@ -327,7 +346,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             #region constructor
 
-            public PooledSocket(AddressFamily addressFamily, int index = -1)
+            public PooledSocket(AddressFamily addressFamily, int index = -1, bool ignoreSourceBinding = false)
             {
                 _socket = new Socket(addressFamily, SocketType.Dgram, ProtocolType.Udp);
                 _index = index;
@@ -336,23 +355,25 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     case AddressFamily.InterNetwork:
                         {
+                            Tuple<IPEndPoint, byte[]> ipv4SourceEP = ignoreSourceBinding ? null : GetIPv4SourceEP();
+
                             if (index < 0)
                             {
-                                if (_ipv4BindEP is null)
+                                if (ipv4SourceEP is null)
                                 {
                                     _socket.Bind(_ipv4Any);
                                 }
                                 else
                                 {
-                                    if (_ipv4BindToInterfaceName is not null)
-                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv4BindToInterfaceName);
+                                    if (ipv4SourceEP.Item2 is not null)
+                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, ipv4SourceEP.Item2);
 
-                                    _socket.Bind(_ipv4BindEP);
+                                    _socket.Bind(ipv4SourceEP.Item1);
                                 }
                             }
                             else
                             {
-                                if (_ipv4BindEP is null)
+                                if (ipv4SourceEP is null)
                                 {
                                     try
                                     {
@@ -365,16 +386,16 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                                 }
                                 else
                                 {
-                                    if (_ipv4BindToInterfaceName is not null)
-                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv4BindToInterfaceName);
+                                    if (ipv4SourceEP.Item2 is not null)
+                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, ipv4SourceEP.Item2);
 
                                     try
                                     {
-                                        _socket.Bind(new IPEndPoint(_ipv4BindEP.Address, GetRandomPort()));
+                                        _socket.Bind(new IPEndPoint(ipv4SourceEP.Item1.Address, GetRandomPort()));
                                     }
                                     catch (SocketException)
                                     {
-                                        _socket.Bind(_ipv4BindEP);
+                                        _socket.Bind(ipv4SourceEP.Item1);
                                     }
                                 }
                             }
@@ -383,23 +404,25 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     case AddressFamily.InterNetworkV6:
                         {
+                            Tuple<IPEndPoint, byte[]> ipv6SourceEP = ignoreSourceBinding ? null : GetIPv6SourceEP();
+
                             if (index < 0)
                             {
-                                if (_ipv6BindEP is null)
+                                if (ipv6SourceEP is null)
                                 {
                                     _socket.Bind(_ipv6Any);
                                 }
                                 else
                                 {
-                                    if (_ipv6BindToInterfaceName is not null)
-                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv6BindToInterfaceName);
+                                    if (ipv6SourceEP.Item2 is not null)
+                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, ipv6SourceEP.Item2);
 
-                                    _socket.Bind(_ipv6BindEP);
+                                    _socket.Bind(ipv6SourceEP.Item1);
                                 }
                             }
                             else
                             {
-                                if (_ipv6BindEP is null)
+                                if (ipv6SourceEP is null)
                                 {
                                     try
                                     {
@@ -412,16 +435,16 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                                 }
                                 else
                                 {
-                                    if (_ipv6BindToInterfaceName is not null)
-                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, _ipv6BindToInterfaceName);
+                                    if (ipv6SourceEP.Item2 is not null)
+                                        _socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, ipv6SourceEP.Item2);
 
                                     try
                                     {
-                                        _socket.Bind(new IPEndPoint(_ipv6BindEP.Address, GetRandomPort()));
+                                        _socket.Bind(new IPEndPoint(ipv6SourceEP.Item1.Address, GetRandomPort()));
                                     }
                                     catch (SocketException)
                                     {
-                                        _socket.Bind(_ipv6BindEP);
+                                        _socket.Bind(ipv6SourceEP.Item1);
                                     }
                                 }
                             }
