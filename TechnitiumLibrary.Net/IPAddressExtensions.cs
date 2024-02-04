@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,10 +18,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Buffers.Binary;
 using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 
 namespace TechnitiumLibrary.Net
 {
@@ -34,10 +36,14 @@ namespace TechnitiumLibrary.Net
             switch (bR.ReadByte())
             {
                 case 1:
-                    return new IPAddress(bR.ReadBytes(4));
+                    Span<byte> ipv4 = stackalloc byte[4];
+                    bR.Read(ipv4);
+                    return new IPAddress(ipv4);
 
                 case 2:
-                    return new IPAddress(bR.ReadBytes(16));
+                    Span<byte> ipv6 = stackalloc byte[16];
+                    bR.Read(ipv6);
+                    return new IPAddress(ipv6);
 
                 default:
                     throw new NotSupportedException("AddressFamily not supported.");
@@ -50,17 +56,27 @@ namespace TechnitiumLibrary.Net
             {
                 case AddressFamily.InterNetwork:
                     bW.Write((byte)1);
+
+                    Span<byte> ipv4 = stackalloc byte[4];
+                    if (!address.TryWriteBytes(ipv4, out _))
+                        throw new InvalidOperationException();
+
+                    bW.Write(ipv4);
                     break;
 
                 case AddressFamily.InterNetworkV6:
                     bW.Write((byte)2);
+
+                    Span<byte> ipv6 = stackalloc byte[16];
+                    if (!address.TryWriteBytes(ipv6, out _))
+                        throw new InvalidOperationException();
+
+                    bW.Write(ipv6);
                     break;
 
                 default:
                     throw new NotSupportedException("AddressFamily not supported.");
             }
-
-            bW.Write(address.GetAddressBytes());
         }
 
         public static uint ConvertIpToNumber(this IPAddress address)
@@ -68,15 +84,17 @@ namespace TechnitiumLibrary.Net
             if (address.AddressFamily != AddressFamily.InterNetwork)
                 throw new ArgumentException("Address family not supported.");
 
-            byte[] addr = address.GetAddressBytes();
-            Array.Reverse(addr);
-            return BitConverter.ToUInt32(addr, 0);
+            Span<byte> addr = stackalloc byte[4];
+            if (!address.TryWriteBytes(addr, out _))
+                throw new InvalidOperationException();
+
+            return BinaryPrimitives.ReadUInt32BigEndian(addr);
         }
 
         public static IPAddress ConvertNumberToIp(uint address)
         {
-            byte[] addr = BitConverter.GetBytes(address);
-            Array.Reverse(addr);
+            Span<byte> addr = stackalloc byte[4];
+            BinaryPrimitives.WriteUInt32BigEndian(addr, address);
             return new IPAddress(addr);
         }
 
@@ -105,8 +123,8 @@ namespace TechnitiumLibrary.Net
             if (prefixLength == 0)
                 return IPAddress.Any;
 
-            byte[] subnetMaskBuffer = BitConverter.GetBytes(0xFFFFFFFFu << (32 - prefixLength));
-            Array.Reverse(subnetMaskBuffer);
+            Span<byte> subnetMaskBuffer = stackalloc byte[4];
+            BinaryPrimitives.WriteUInt32BigEndian(subnetMaskBuffer, 0xFFFFFFFFu << (32 - prefixLength));
 
             return new IPAddress(subnetMaskBuffer);
         }
@@ -123,12 +141,15 @@ namespace TechnitiumLibrary.Net
                         if (prefixLength > 32)
                             throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid prefix length.");
 
-                        byte[] addressBytes = address.GetAddressBytes();
-                        byte[] networkAddress = new byte[4];
+                        Span<byte> addressBytes = stackalloc byte[4];
+                        if (!address.TryWriteBytes(addressBytes, out _))
+                            throw new InvalidOperationException();
+
+                        Span<byte> networkAddress = stackalloc byte[4];
                         int copyBytes = prefixLength / 8;
                         int balanceBits = prefixLength - (copyBytes * 8);
 
-                        Buffer.BlockCopy(addressBytes, 0, networkAddress, 0, copyBytes);
+                        addressBytes.Slice(0, copyBytes).CopyTo(networkAddress);
 
                         if (balanceBits > 0)
                             networkAddress[copyBytes] = (byte)(addressBytes[copyBytes] & (0xFF << (8 - balanceBits)));
@@ -144,12 +165,15 @@ namespace TechnitiumLibrary.Net
                         if (prefixLength > 128)
                             throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid prefix length.");
 
-                        byte[] addressBytes = address.GetAddressBytes();
-                        byte[] networkAddress = new byte[16];
+                        Span<byte> addressBytes = stackalloc byte[16];
+                        if (!address.TryWriteBytes(addressBytes, out _))
+                            throw new InvalidOperationException();
+
+                        Span<byte> networkAddress = stackalloc byte[16];
                         int copyBytes = prefixLength / 8;
                         int balanceBits = prefixLength - (copyBytes * 8);
 
-                        Buffer.BlockCopy(addressBytes, 0, networkAddress, 0, copyBytes);
+                        addressBytes.Slice(0, copyBytes).CopyTo(networkAddress);
 
                         if (balanceBits > 0)
                             networkAddress[copyBytes] = (byte)(addressBytes[copyBytes] & (0xFF << (8 - balanceBits)));
@@ -164,6 +188,8 @@ namespace TechnitiumLibrary.Net
 
         public static IPAddress MapToIPv6(this IPAddress address, NetworkAddress ipv6Prefix)
         {
+            //RFC 6052 section 2
+
             if (address.AddressFamily == AddressFamily.InterNetworkV6)
                 return address;
 
@@ -171,69 +197,99 @@ namespace TechnitiumLibrary.Net
             {
                 case 32:
                     {
-                        byte[] ipv4Buffer = address.GetAddressBytes();
-                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+                        Span<byte> ipv4Buffer = stackalloc byte[4];
+                        if (!address.TryWriteBytes(ipv4Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 4, 4);
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!ipv6Prefix.Address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
+
+                        ipv4Buffer.CopyTo(ipv6Buffer.Slice(4));
 
                         return new IPAddress(ipv6Buffer);
                     }
 
                 case 40:
                     {
-                        byte[] ipv4Buffer = address.GetAddressBytes();
-                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+                        Span<byte> ipv4Buffer = stackalloc byte[4];
+                        if (!address.TryWriteBytes(ipv4Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 5, 3);
-                        Buffer.BlockCopy(ipv4Buffer, 3, ipv6Buffer, 9, 1);
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!ipv6Prefix.Address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
+
+                        ipv4Buffer.Slice(0, 3).CopyTo(ipv6Buffer.Slice(5));
+                        ipv4Buffer.Slice(3, 1).CopyTo(ipv6Buffer.Slice(9));
 
                         return new IPAddress(ipv6Buffer);
                     }
 
                 case 48:
                     {
-                        byte[] ipv4Buffer = address.GetAddressBytes();
-                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+                        Span<byte> ipv4Buffer = stackalloc byte[4];
+                        if (!address.TryWriteBytes(ipv4Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 6, 2);
-                        Buffer.BlockCopy(ipv4Buffer, 2, ipv6Buffer, 9, 2);
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!ipv6Prefix.Address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
+
+                        ipv4Buffer.Slice(0, 2).CopyTo(ipv6Buffer.Slice(6));
+                        ipv4Buffer.Slice(2, 2).CopyTo(ipv6Buffer.Slice(9));
 
                         return new IPAddress(ipv6Buffer);
                     }
 
                 case 56:
                     {
-                        byte[] ipv4Buffer = address.GetAddressBytes();
-                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+                        Span<byte> ipv4Buffer = stackalloc byte[4];
+                        if (!address.TryWriteBytes(ipv4Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 7, 1);
-                        Buffer.BlockCopy(ipv4Buffer, 1, ipv6Buffer, 9, 3);
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!ipv6Prefix.Address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
+
+                        ipv4Buffer.Slice(0, 1).CopyTo(ipv6Buffer.Slice(7));
+                        ipv4Buffer.Slice(1, 3).CopyTo(ipv6Buffer.Slice(9));
 
                         return new IPAddress(ipv6Buffer);
                     }
 
                 case 64:
                     {
-                        byte[] ipv4Buffer = address.GetAddressBytes();
-                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+                        Span<byte> ipv4Buffer = stackalloc byte[4];
+                        if (!address.TryWriteBytes(ipv4Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 9, 4);
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!ipv6Prefix.Address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
+
+                        ipv4Buffer.CopyTo(ipv6Buffer.Slice(9));
 
                         return new IPAddress(ipv6Buffer);
                     }
 
                 case 96:
                     {
-                        byte[] ipv4Buffer = address.GetAddressBytes();
-                        byte[] ipv6Buffer = ipv6Prefix.Address.GetAddressBytes();
+                        Span<byte> ipv4Buffer = stackalloc byte[4];
+                        if (!address.TryWriteBytes(ipv4Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv4Buffer, 0, ipv6Buffer, 12, 4);
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!ipv6Prefix.Address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
+
+                        ipv4Buffer.CopyTo(ipv6Buffer.Slice(12));
 
                         return new IPAddress(ipv6Buffer);
                     }
 
                 default:
-                    throw new NotSupportedException("IPv6-embedded IPv6 address format supports only the following prefixes: 32, 40, 48, 56, 64, or 96.");
+                    throw new NotSupportedException("IPv4-embedded IPv6 address format supports only the following prefixes: 32, 40, 48, 56, 64, or 96.");
             }
         }
 
@@ -246,98 +302,117 @@ namespace TechnitiumLibrary.Net
             {
                 case 32:
                     {
-                        byte[] ipv6Buffer = address.GetAddressBytes();
-                        byte[] ipv4Buffer = new byte[4];
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv6Buffer, 4, ipv4Buffer, 0, 4);
-
-                        return new IPAddress(ipv4Buffer);
+                        return new IPAddress(ipv6Buffer.Slice(4, 4));
                     }
 
                 case 40:
                     {
-                        byte[] ipv6Buffer = address.GetAddressBytes();
-                        byte[] ipv4Buffer = new byte[4];
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv6Buffer, 5, ipv4Buffer, 0, 3);
-                        Buffer.BlockCopy(ipv6Buffer, 9, ipv4Buffer, 3, 1);
+                        Span<byte> ipv4Buffer = stackalloc byte[4];
+
+                        ipv6Buffer.Slice(5, 3).CopyTo(ipv4Buffer);
+                        ipv6Buffer.Slice(9, 1).CopyTo(ipv4Buffer.Slice(3));
 
                         return new IPAddress(ipv4Buffer);
                     }
 
                 case 48:
                     {
-                        byte[] ipv6Buffer = address.GetAddressBytes();
-                        byte[] ipv4Buffer = new byte[4];
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv6Buffer, 6, ipv4Buffer, 0, 2);
-                        Buffer.BlockCopy(ipv6Buffer, 9, ipv4Buffer, 2, 2);
+                        Span<byte> ipv4Buffer = stackalloc byte[4];
+
+                        ipv6Buffer.Slice(6, 2).CopyTo(ipv4Buffer);
+                        ipv6Buffer.Slice(9, 2).CopyTo(ipv4Buffer.Slice(2));
 
                         return new IPAddress(ipv4Buffer);
                     }
 
                 case 56:
                     {
-                        byte[] ipv6Buffer = address.GetAddressBytes();
-                        byte[] ipv4Buffer = new byte[4];
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv6Buffer, 7, ipv4Buffer, 0, 1);
-                        Buffer.BlockCopy(ipv6Buffer, 9, ipv4Buffer, 1, 3);
+                        Span<byte> ipv4Buffer = stackalloc byte[4];
+
+                        ipv6Buffer.Slice(7, 1).CopyTo(ipv4Buffer);
+                        ipv6Buffer.Slice(9, 3).CopyTo(ipv4Buffer.Slice(1));
 
                         return new IPAddress(ipv4Buffer);
                     }
 
                 case 64:
                     {
-                        byte[] ipv6Buffer = address.GetAddressBytes();
-                        byte[] ipv4Buffer = new byte[4];
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv6Buffer, 9, ipv4Buffer, 0, 4);
-
-                        return new IPAddress(ipv4Buffer);
+                        return new IPAddress(ipv6Buffer.Slice(9, 4));
                     }
 
                 case 96:
                     {
-                        byte[] ipv6Buffer = address.GetAddressBytes();
-                        byte[] ipv4Buffer = new byte[4];
+                        Span<byte> ipv6Buffer = stackalloc byte[16];
+                        if (!address.TryWriteBytes(ipv6Buffer, out _))
+                            throw new InvalidOperationException();
 
-                        Buffer.BlockCopy(ipv6Buffer, 12, ipv4Buffer, 0, 4);
-
-                        return new IPAddress(ipv4Buffer);
+                        return new IPAddress(ipv6Buffer.Slice(12, 4));
                     }
 
                 default:
-                    throw new NotSupportedException("IPv6-embedded IPv6 address format supports only the following prefixes: 32, 40, 48, 56, 64, or 96.");
+                    throw new NotSupportedException("IPv4-embedded IPv6 address format supports only the following prefixes: 32, 40, 48, 56, 64, or 96.");
             }
         }
 
         public static string GetReverseDomain(this IPAddress address)
         {
-            byte[] ipBytes = address.GetAddressBytes();
-            string name = "";
+            StringBuilder name = new StringBuilder();
 
             switch (address.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    for (int i = ipBytes.Length - 1; i >= 0; i--)
-                        name += ipBytes[i] + ".";
+                    {
+                        Span<byte> ipBytes = stackalloc byte[4];
 
-                    name += "in-addr.arpa";
+                        if (!address.TryWriteBytes(ipBytes, out _))
+                            throw new InvalidOperationException();
+
+                        for (int i = ipBytes.Length - 1; i >= 0; i--)
+                            name.Append(ipBytes[i]).Append('.');
+
+                        name.Append("in-addr.arpa");
+                    }
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    for (int i = ipBytes.Length - 1; i >= 0; i--)
-                        name += (ipBytes[i] & 0x0F).ToString("X") + "." + (ipBytes[i] >> 4).ToString("X") + ".";
+                    {
+                        Span<byte> ipBytes = stackalloc byte[16];
 
-                    name += "ip6.arpa";
+                        if (!address.TryWriteBytes(ipBytes, out _))
+                            throw new InvalidOperationException();
+
+                        for (int i = ipBytes.Length - 1; i >= 0; i--)
+                            name.Append((ipBytes[i] & 0x0F).ToString("X")).Append('.').Append((ipBytes[i] >> 4).ToString("X")).Append('.');
+
+                        name.Append("ip6.arpa");
+                    }
                     break;
 
                 default:
                     throw new NotSupportedException("IP address family not supported: " + address.AddressFamily.ToString());
             }
 
-            return name;
+            return name.ToString();
         }
 
         public static IPAddress ParseReverseDomain(string ptrDomain)
@@ -356,7 +431,7 @@ namespace TechnitiumLibrary.Net
                 //192.168.10.1
 
                 string[] parts = ptrDomain.Split('.');
-                byte[] buffer = new byte[4];
+                Span<byte> buffer = stackalloc byte[4];
 
                 for (int i = 0, j = parts.Length - 3; (i < 4) && (j > -1); i++, j--)
                 {
@@ -376,7 +451,7 @@ namespace TechnitiumLibrary.Net
                 //64:ff9b::8b3b:3eb
 
                 string[] parts = ptrDomain.Split('.');
-                byte[] buffer = new byte[16];
+                Span<byte> buffer = stackalloc byte[16];
                 byte p1, p2;
 
                 for (int i = 0, j = parts.Length - 3; (i < 16) && (j > 0); i++, j -= 2)
