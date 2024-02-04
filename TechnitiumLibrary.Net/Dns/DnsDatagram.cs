@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -67,8 +68,6 @@ namespace TechnitiumLibrary.Net.Dns
         public const ushort EDNS_MAX_UDP_PAYLOAD_SIZE = 4096;
 
         const int MAX_XFR_RESPONSE_SIZE = 16384; //since the compressed name pointer offset can only address 16384 bytes in datagram
-
-        static readonly RandomNumberGenerator _rnd = RandomNumberGenerator.Create();
 
         DnsDatagramMetadata _metadata;
         DnsDatagramEdns _edns;
@@ -213,6 +212,9 @@ namespace TechnitiumLibrary.Net.Dns
             datagram._ID = ReadUInt16NetworkOrder(s);
 
             int lB = s.ReadByte();
+            if (lB < 0)
+                throw new EndOfStreamException();
+
             datagram._QR = Convert.ToByte((lB & 0x80) >> 7);
             datagram._OPCODE = (DnsOpcode)Convert.ToByte((lB & 0x78) >> 3);
             datagram._AA = Convert.ToByte((lB & 0x4) >> 2);
@@ -220,6 +222,9 @@ namespace TechnitiumLibrary.Net.Dns
             datagram._RD = Convert.ToByte(lB & 0x1);
 
             int rB = s.ReadByte();
+            if (rB < 0)
+                throw new EndOfStreamException();
+
             datagram._RA = Convert.ToByte((rB & 0x80) >> 7);
             datagram._Z = Convert.ToByte((rB & 0x40) >> 6);
             datagram._AD = Convert.ToByte((rB & 0x20) >> 5);
@@ -315,14 +320,11 @@ namespace TechnitiumLibrary.Net.Dns
                 byte[] buffer = new byte[tsigRecord.DatagramOffset];
 
                 s.Position = 0;
-                s.ReadBytes(buffer, 0, buffer.Length);
+                s.ReadExactly(buffer, 0, buffer.Length);
                 s.Position = datagram._size;
 
-                byte[] originalARCOUNT = ConvertUInt16NetworkOrder(Convert.ToUInt16(ARCOUNT - 1));
-                Buffer.BlockCopy(originalARCOUNT, 0, buffer, 10, 2);
-
-                byte[] originalID = ConvertUInt16NetworkOrder((tsigRecord.RDATA as DnsTSIGRecordData).OriginalID);
-                Buffer.BlockCopy(originalID, 0, buffer, 0, 2);
+                BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(10, 2), Convert.ToUInt16(ARCOUNT - 1)); //originalARCOUNT
+                BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(0, 2), (tsigRecord.RDATA as DnsTSIGRecordData).OriginalID); //originalID
 
                 datagram._parsedDatagramUnsigned = buffer;
             }
@@ -356,101 +358,95 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal static async Task<ushort> ReadUInt16NetworkOrderAsync(Stream s, CancellationToken cancellationToken = default)
         {
-            byte[] b = await s.ReadBytesAsync(2, cancellationToken);
-            Array.Reverse(b);
-            return BitConverter.ToUInt16(b, 0);
+            byte[] b = await s.ReadExactlyAsync(2, cancellationToken);
+            return BinaryPrimitives.ReadUInt16BigEndian(b);
         }
 
         internal static ushort ReadUInt16NetworkOrder(Stream s)
         {
-            byte[] b = s.ReadBytes(2);
-            Array.Reverse(b);
-            return BitConverter.ToUInt16(b, 0);
+            Span<byte> b = stackalloc byte[2];
+            s.ReadExactly(b);
+            return BinaryPrimitives.ReadUInt16BigEndian(b);
         }
 
         internal static void WriteUInt16NetworkOrder(ushort value, Stream s)
         {
-            byte[] b = BitConverter.GetBytes(value);
-            Array.Reverse(b);
-            s.Write(b, 0, 2);
-        }
-
-        internal static byte[] ConvertUInt16NetworkOrder(ushort value)
-        {
-            byte[] b = BitConverter.GetBytes(value);
-            Array.Reverse(b);
-            return b;
+            Span<byte> b = stackalloc byte[2];
+            BinaryPrimitives.WriteUInt16BigEndian(b, value);
+            s.Write(b);
         }
 
         internal static uint ReadUInt32NetworkOrder(Stream s)
         {
-            byte[] b = s.ReadBytes(4);
-            Array.Reverse(b);
-            return BitConverter.ToUInt32(b, 0);
+            Span<byte> b = stackalloc byte[4];
+            s.ReadExactly(b);
+            return BinaryPrimitives.ReadUInt32BigEndian(b);
         }
 
         internal static void WriteUInt32NetworkOrder(uint value, Stream s)
         {
-            byte[] b = BitConverter.GetBytes(value);
-            Array.Reverse(b);
-            s.Write(b, 0, 4);
+            Span<byte> b = stackalloc byte[4];
+            BinaryPrimitives.WriteUInt32BigEndian(b, value);
+            s.Write(b);
         }
 
         internal static ulong ReadUInt48NetworkOrder(Stream s)
         {
-            byte[] b = new byte[8];
-            s.ReadBytes(b, 2, 6);
-            Array.Reverse(b);
-            return BitConverter.ToUInt64(b, 0);
+            Span<byte> b = stackalloc byte[8];
+            s.ReadExactly(b.Slice(2, 6));
+            return BinaryPrimitives.ReadUInt64BigEndian(b);
         }
 
         internal static void WriteUInt48NetworkOrder(ulong value, Stream s)
         {
-            byte[] b = BitConverter.GetBytes(value);
-            Array.Reverse(b);
-            s.Write(b, 2, 6);
+            Span<byte> b = stackalloc byte[8];
+            BinaryPrimitives.WriteUInt64BigEndian(b, value);
+            s.Write(b.Slice(2, 6));
         }
 
         internal static byte[] ConvertToUInt48NetworkOrder(ulong value)
         {
-            byte[] b = BitConverter.GetBytes(value);
-            Array.Reverse(b);
+            Span<byte> b = stackalloc byte[8];
+            BinaryPrimitives.WriteUInt64BigEndian(b, value);
 
             byte[] t = new byte[6];
-            Buffer.BlockCopy(b, 2, t, 0, 6);
+            b.Slice(2, 6).CopyTo(t);
 
             return t;
         }
 
-        public static void SerializeDomainName(string domain, Stream s, List<DnsDomainOffset> domainEntries = null, bool isEmailAddress = false)
+        public static void SerializeDomainName(ReadOnlySpan<char> domain, Stream s, List<DnsDomainOffset> domainEntries = null, bool isEmailAddress = false)
         {
-            while (!string.IsNullOrEmpty(domain))
+            Span<byte> labelBytes = stackalloc byte[63];
+            int labelBytesLength;
+
+            ReadOnlySpan<char> label;
+            int i;
+
+            while (!domain.IsEmpty)
             {
-                if (domainEntries != null)
+                if (domainEntries is not null)
                 {
                     //search domain list
                     foreach (DnsDomainOffset domainEntry in domainEntries)
                     {
-                        if (domain.Equals(domainEntry.Domain, StringComparison.OrdinalIgnoreCase))
+                        if (domain.Equals(domainEntry.Domain.Span, StringComparison.OrdinalIgnoreCase))
                         {
                             //found matching domain offset for compression
                             ushort pointer = 0xC000;
                             pointer |= domainEntry.Offset;
 
-                            byte[] pointerBytes = BitConverter.GetBytes(pointer);
-                            Array.Reverse(pointerBytes); //convert to network order
+                            Span<byte> pointerBytes = stackalloc byte[2];
+                            BinaryPrimitives.WriteUInt16BigEndian(pointerBytes, pointer);
 
                             //write pointer
-                            s.Write(pointerBytes, 0, 2);
+                            s.Write(pointerBytes);
                             return;
                         }
                     }
 
                     domainEntries.Add(new DnsDomainOffset(Convert.ToUInt16(s.Position), domain));
                 }
-
-                string label;
-                int i;
 
                 if (isEmailAddress)
                 {
@@ -468,23 +464,22 @@ namespace TechnitiumLibrary.Net.Dns
                 if (i < 0)
                 {
                     label = domain;
-                    domain = null;
+                    domain = Array.Empty<char>();
                 }
                 else
                 {
-                    label = domain.Substring(0, i);
-                    domain = domain.Substring(i + 1);
+                    label = domain.Slice(0, i);
+                    domain = domain.Slice(i + 1);
                 }
 
-                byte[] labelBytes = Encoding.ASCII.GetBytes(label);
-                if (labelBytes.Length > 63)
-                    throw new DnsClientException("ConvertDomainToLabel: Invalid domain name. Label cannot exceed 63 bytes.");
+                if (!Encoding.ASCII.TryGetBytes(label, labelBytes, out labelBytesLength))
+                    throw new DnsClientException("Invalid domain name: label cannot exceed 63 bytes.");
 
-                s.WriteByte(Convert.ToByte(labelBytes.Length));
-                s.Write(labelBytes, 0, labelBytes.Length);
+                s.WriteByte((byte)labelBytesLength);
+                s.Write(labelBytes.Slice(0, labelBytesLength));
             }
 
-            s.WriteByte(Convert.ToByte(0));
+            s.WriteByte(0);
         }
 
         public static string DeserializeDomainName(Stream s, int maxDepth = 10, bool ignoreMissingNullTermination = false, bool isEmailAddress = false)
@@ -496,8 +491,9 @@ namespace TechnitiumLibrary.Net.Dns
             if (labelLength < 0)
                 throw new EndOfStreamException();
 
-            StringBuilder domain = new StringBuilder();
-            byte[] buffer = null;
+            Span<char> domain = stackalloc char[255];
+            Span<byte> buffer = stackalloc byte[63];
+            int domainPosition = 0;
 
             while (labelLength > 0)
             {
@@ -507,51 +503,52 @@ namespace TechnitiumLibrary.Net.Dns
                     if (secondByte < 0)
                         throw new EndOfStreamException();
 
-                    short Offset = BitConverter.ToInt16(new byte[] { (byte)secondByte, (byte)(labelLength & 0x3F) }, 0);
-                    long CurrentPosition = s.Position;
-                    s.Position = Offset;
+                    int offset = ((labelLength << 8) | secondByte) & 0x3FFF;
+                    long currentPosition = s.Position;
+                    s.Position = offset;
 
                     string domainSuffix = DeserializeDomainName(s, maxDepth - 1, ignoreMissingNullTermination, isEmailAddress);
                     if (domainSuffix.Length > 0)
                     {
-                        domain.Append(domainSuffix);
-                        domain.Append('.');
+                        domainSuffix.AsSpan().CopyTo(domain.Slice(domainPosition));
+                        domainPosition += domainSuffix.Length;
+                        domain[domainPosition++] = '.';
                     }
 
-                    s.Position = CurrentPosition;
+                    s.Position = currentPosition;
                     break;
+                }
+
+                Span<byte> label = buffer.Slice(0, labelLength);
+                s.ReadExactly(label);
+
+                if (!Encoding.ASCII.TryGetChars(label, domain.Slice(domainPosition), out _))
+                    throw new DnsClientException("Error while reading domain name: length cannot exceed 255 bytes.");
+
+                domainPosition += labelLength;
+
+                if (isEmailAddress)
+                {
+                    domain[domainPosition++] = '@';
+                    isEmailAddress = false;
                 }
                 else
                 {
-                    if (buffer == null)
-                        buffer = new byte[255]; //late buffer init to avoid unnecessary allocation in most cases
-
-                    s.ReadBytes(buffer, 0, labelLength);
-                    domain.Append(Encoding.ASCII.GetChars(buffer, 0, labelLength));
-
-                    if (isEmailAddress)
-                    {
-                        domain.Append('@');
-                        isEmailAddress = false;
-                    }
-                    else
-                    {
-                        domain.Append('.');
-                    }
-
-                    if (ignoreMissingNullTermination && (s.Length == s.Position))
-                        break; //option to ignore for buggy DHCP clients
-
-                    labelLength = s.ReadByte();
-                    if (labelLength < 0)
-                        throw new EndOfStreamException();
+                    domain[domainPosition++] = '.';
                 }
+
+                if (ignoreMissingNullTermination && (s.Length == s.Position))
+                    break; //option to ignore for buggy DHCP clients
+
+                labelLength = s.ReadByte();
+                if (labelLength < 0)
+                    throw new EndOfStreamException();
             }
 
-            if (domain.Length > 0)
-                domain.Length--;
+            if (domainPosition > 0)
+                domainPosition--;
 
-            return domain.ToString();
+            return new string(domain.Slice(0, domainPosition));
         }
 
         public static int GetSerializeDomainNameLength(string domain)
@@ -569,7 +566,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal static string DecodeCharacterString(string value)
         {
-            if (value.StartsWith("\"") && value.EndsWith("\""))
+            if (value.StartsWith('\"') && value.EndsWith('\"'))
                 value = value.Substring(1, value.Length - 2).Replace("\\\"", "\"");
 
             return value;
@@ -878,7 +875,7 @@ namespace TechnitiumLibrary.Net.Dns
         public void SetRandomIdentifier()
         {
             Span<byte> buffer = stackalloc byte[2];
-            _rnd.GetBytes(buffer);
+            RandomNumberGenerator.Fill(buffer);
 
             _ID = BitConverter.ToUInt16(buffer);
         }
