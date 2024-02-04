@@ -23,6 +23,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -46,10 +47,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         protected readonly NameServerAddress _server;
         protected readonly NetProxy _proxy;
 
-        protected static IPEndPoint _ipv4BindEP;
-        protected static IPEndPoint _ipv6BindEP;
-        protected static byte[] _ipv4BindToInterfaceName;
-        protected static byte[] _ipv6BindToInterfaceName;
+        static IReadOnlyList<NetworkAddress> _ipv4SourceAddresses;
+        static IReadOnlyList<NetworkAddress> _ipv6SourceAddresses;
+        static List<Tuple<IPEndPoint, byte[]>> _ipv4SourceEPs;
+        static List<Tuple<IPEndPoint, byte[]>> _ipv6SourceEPs;
 
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>>();
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>>();
@@ -355,6 +356,69 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
         }
 
+        protected static Tuple<IPEndPoint, byte[]> GetIPv4SourceEP()
+        {
+            if (_ipv4SourceEPs is null)
+                return null;
+
+            switch (_ipv4SourceEPs.Count)
+            {
+                case 0:
+                    return null;
+
+                case 1:
+                    return _ipv4SourceEPs[0];
+
+                default:
+                    return _ipv4SourceEPs[RandomNumberGenerator.GetInt32(0, _ipv4SourceEPs.Count)];
+            }
+        }
+
+        protected static Tuple<IPEndPoint, byte[]> GetIPv6SourceEP()
+        {
+            if (_ipv6SourceEPs is null)
+                return null;
+
+            switch (_ipv6SourceEPs.Count)
+            {
+                case 0:
+                    return null;
+
+                case 1:
+                    return _ipv6SourceEPs[0];
+
+                default:
+                    return _ipv6SourceEPs[RandomNumberGenerator.GetInt32(0, _ipv6SourceEPs.Count)];
+            }
+        }
+
+        #endregion
+
+        #region private
+
+        private static void FindEndPointsFor(NetworkAddress networkAddress, List<Tuple<IPEndPoint, byte[]>> endPoints)
+        {
+            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus != OperationalStatus.Up)
+                    continue;
+
+                foreach (UnicastIPAddressInformation ip in nic.GetIPProperties().UnicastAddresses)
+                {
+                    if (networkAddress.Contains(ip.Address))
+                    {
+                        if (Environment.OSVersion.Platform == PlatformID.Unix)
+                            endPoints.Add(new Tuple<IPEndPoint, byte[]>(new IPEndPoint(ip.Address, 0), Encoding.ASCII.GetBytes(nic.Name)));
+                        else
+                            endPoints.Add(new Tuple<IPEndPoint, byte[]>(new IPEndPoint(ip.Address, 0), null));
+
+                        if (networkAddress.IsHostAddress)
+                            return;
+                    }
+                }
+            }
+        }
+
         #endregion
 
         #region public
@@ -365,112 +429,99 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region properties
 
-        public DnsTransportProtocol Protocol
-        { get { return _server.Protocol; } }
-
         public NameServerAddress Server
         { get { return _server; } }
 
         public NetProxy NetProxy
         { get { return _proxy; } }
 
-        public static IPAddress IPv4SourceAddress
+        public static IReadOnlyList<NetworkAddress> IPv4SourceAddresses
         {
             get
             {
-                return _ipv4BindEP is null ? IPAddress.Any : _ipv4BindEP.Address;
+                if (_ipv4SourceAddresses is null)
+                    _ipv4SourceAddresses = new NetworkAddress[] { new NetworkAddress(IPAddress.Any, 32) };
+
+                return _ipv4SourceAddresses;
             }
             set
             {
-                if ((value is null) || IPAddress.Any.Equals(value))
+                if ((value is null) || (value.Count == 0) || ((value.Count == 1) && value[0].Address.Equals(IPAddress.Any) && value[0].IsHostAddress))
                 {
-                    _ipv4BindEP = null;
-                    _ipv4BindToInterfaceName = null;
+                    if (_ipv4SourceEPs is null)
+                        return; //prevent socket pool recreation
 
-                    UdpClientConnection.ReCreateSocketPoolIPv4();
+                    _ipv4SourceAddresses = null;
+                    _ipv4SourceEPs = null;
                 }
                 else
                 {
-                    if (value.AddressFamily != AddressFamily.InterNetwork)
-                        throw new ArgumentException("Source address must be an IPv4 address.", nameof(IPv4SourceAddress));
+                    if (value.Count > byte.MaxValue)
+                        throw new ArgumentOutOfRangeException(nameof(IPv4SourceAddresses), "Networks cannot be more than 255.");
 
-                    if ((_ipv4BindEP is null) || !_ipv4BindEP.Address.Equals(value))
+                    if (value.HasSameItems(_ipv4SourceAddresses))
+                        return; //prevent socket pool recreation
+
+                    List<Tuple<IPEndPoint, byte[]>> ipv4SourceEPs = new List<Tuple<IPEndPoint, byte[]>>(value.Count);
+
+                    foreach (NetworkAddress networkAddress in value)
                     {
-                        _ipv4BindEP = new IPEndPoint(value, 0);
-                        _ipv4BindToInterfaceName = null;
+                        if (networkAddress.AddressFamily != AddressFamily.InterNetwork)
+                            throw new ArgumentException("Source address must be an IPv4 address.", nameof(IPv4SourceAddresses));
 
-                        if (Environment.OSVersion.Platform == PlatformID.Unix)
-                        {
-                            //find interface name
-                            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
-                            {
-                                foreach (UnicastIPAddressInformation ip in nic.GetIPProperties().UnicastAddresses)
-                                {
-                                    if (ip.Address.Equals(value))
-                                    {
-                                        _ipv4BindToInterfaceName = Encoding.ASCII.GetBytes(nic.Name);
-                                        break;
-                                    }
-                                }
-
-                                if (_ipv4BindToInterfaceName is not null)
-                                    break;
-                            }
-                        }
-
-                        UdpClientConnection.ReCreateSocketPoolIPv4();
+                        FindEndPointsFor(networkAddress, ipv4SourceEPs);
                     }
+
+                    _ipv4SourceAddresses = value;
+                    _ipv4SourceEPs = ipv4SourceEPs;
                 }
+
+                UdpClientConnection.ReCreateSocketPoolIPv4();
             }
         }
 
-        public static IPAddress IPv6SourceAddress
+        public static IReadOnlyList<NetworkAddress> IPv6SourceAddresses
         {
             get
             {
-                return _ipv6BindEP is null ? IPAddress.IPv6Any : _ipv6BindEP.Address;
+                if (_ipv6SourceAddresses is null)
+                    _ipv6SourceAddresses = new NetworkAddress[] { new NetworkAddress(IPAddress.IPv6Any, 128) };
+
+                return _ipv6SourceAddresses;
             }
             set
             {
-                if ((value is null) || IPAddress.IPv6Any.Equals(value))
+                if ((value is null) || (value.Count == 0) || ((value.Count == 1) && value[0].Address.Equals(IPAddress.IPv6Any) && value[0].IsHostAddress))
                 {
-                    _ipv6BindEP = null;
-                    _ipv6BindToInterfaceName = null;
+                    if (_ipv6SourceEPs is null)
+                        return; //prevent socket pool recreation
 
-                    UdpClientConnection.ReCreateSocketPoolIPv6();
+                    _ipv6SourceAddresses = null;
+                    _ipv6SourceEPs = null;
                 }
                 else
                 {
-                    if (value.AddressFamily != AddressFamily.InterNetworkV6)
-                        throw new ArgumentException("Source address must be an IPv6 address.", nameof(IPv6SourceAddress));
+                    if (value.Count > byte.MaxValue)
+                        throw new ArgumentOutOfRangeException(nameof(IPv6SourceAddresses), "Networks cannot be more than 255.");
 
-                    if ((_ipv6BindEP is null) || !_ipv6BindEP.Address.Equals(value))
+                    if (value.HasSameItems(_ipv6SourceAddresses))
+                        return; //prevent socket pool recreation
+
+                    List<Tuple<IPEndPoint, byte[]>> ipv6SourceEPs = new List<Tuple<IPEndPoint, byte[]>>(value.Count);
+
+                    foreach (NetworkAddress networkAddress in value)
                     {
-                        _ipv6BindEP = new IPEndPoint(value, 0);
-                        _ipv6BindToInterfaceName = null;
+                        if (networkAddress.AddressFamily != AddressFamily.InterNetworkV6)
+                            throw new ArgumentException("Source address must be an IPv6 address.", nameof(IPv6SourceAddresses));
 
-                        if (Environment.OSVersion.Platform == PlatformID.Unix)
-                        {
-                            //find interface name
-                            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
-                            {
-                                foreach (UnicastIPAddressInformation ip in nic.GetIPProperties().UnicastAddresses)
-                                {
-                                    if (ip.Address.Equals(value))
-                                    {
-                                        _ipv6BindToInterfaceName = Encoding.ASCII.GetBytes(nic.Name);
-                                        break;
-                                    }
-                                }
-
-                                if (_ipv6BindToInterfaceName is not null)
-                                    break;
-                            }
-                        }
-
-                        UdpClientConnection.ReCreateSocketPoolIPv6();
+                        FindEndPointsFor(networkAddress, ipv6SourceEPs);
                     }
+
+                    _ipv6SourceAddresses = value;
+                    _ipv6SourceEPs = ipv6SourceEPs;
                 }
+
+                UdpClientConnection.ReCreateSocketPoolIPv6();
             }
         }
 
