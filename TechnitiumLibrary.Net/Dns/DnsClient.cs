@@ -292,13 +292,13 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram response = await dnsClient.ResolveAsync(request, cancellationToken);
 
             if (response.RCODE != DnsResponseCode.NoError)
-                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + request.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
 
             if (!response.AuthoritativeAnswer)
-                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response without AuthoritativeAnswer flag set from Name server: " + response.Metadata.NameServer.ToString());
+                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + request.Question[0].ToString() + "'. Received a response without AuthoritativeAnswer flag set from Name server: " + response.Metadata.NameServer.ToString());
 
             if ((response.Answer.Count == 0) || (response.Authority.Count > 0) || (response.Additional.Count == 0))
-                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response without any answer from Name server: " + response.Metadata.NameServer.ToString());
+                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + request.Question[0].ToString() + "'. Received a response without any answer from Name server: " + response.Metadata.NameServer.ToString());
 
             List<NameServerAddress> ipv4RootNameServers = new List<NameServerAddress>(13);
             List<NameServerAddress> ipv6RootNameServers = new List<NameServerAddress>(13);
@@ -1247,8 +1247,8 @@ namespace TechnitiumLibrary.Net.Dns
                                                         goto resolverLoop;
 
                                                     case DnsResourceRecordType.DS:
-                                                        if (!TryGetDSFromResponse(response, response.Question[0].Name, out IReadOnlyList<DnsResourceRecord> dsRecords))
-                                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + response.Question[0].Name, response);
+                                                        if (!TryGetDSFromResponse(response, request.Question[0].Name, out IReadOnlyList<DnsResourceRecord> dsRecords))
+                                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + request.Question[0].Name, response);
 
                                                         extendedDnsErrors.AddRange(response.DnsClientExtendedErrors);
 
@@ -1341,7 +1341,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     //NO DATA - domain does not resolve 
                                                     PopStack();
 
-                                                    switch (response.Question[0].Type)
+                                                    switch (request.Question[0].Type)
                                                     {
                                                         case DnsResourceRecordType.A:
                                                         case DnsResourceRecordType.AAAA:
@@ -1561,7 +1561,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         //domain does not exists
                                         PopStack();
 
-                                        switch (response.Question[0].Type)
+                                        switch (request.Question[0].Type)
                                         {
                                             case DnsResourceRecordType.A:
                                             case DnsResourceRecordType.AAAA:
@@ -1622,7 +1622,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         if (lastResponse is not null)
                         {
-                            if (lastResponse.Question[0].Equals(question))
+                            if ((lastResponse.Question.Count > 0) && lastResponse.Question[0].Equals(question))
                             {
                                 if (extendedDnsErrors.Count > 0)
                                     lastResponse.AddDnsClientExtendedError(extendedDnsErrors);
@@ -3513,6 +3513,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static DnsDatagram SanitizeResponseAnswerForZoneCut(DnsDatagram response, string zoneCut)
         {
+            if (response.Question.Count < 1)
+                return response;
+
             string qName = response.Question[0].Name;
             string zoneCutEnd = zoneCut.Length > 0 ? "." + zoneCut : zoneCut;
 
