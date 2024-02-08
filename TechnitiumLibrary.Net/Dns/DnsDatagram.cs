@@ -491,7 +491,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (labelLength < 0)
                 throw new EndOfStreamException();
 
-            Span<char> domain = stackalloc char[255];
+            Span<char> domain = stackalloc char[256];
             Span<byte> buffer = stackalloc byte[63];
             int domainPosition = 0;
 
