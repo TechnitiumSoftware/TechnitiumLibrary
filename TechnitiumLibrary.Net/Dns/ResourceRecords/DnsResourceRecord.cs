@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -364,6 +364,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnsResourceRecordType.TLSA:
                     return new DnsTLSARecordData(s);
+
+                case DnsResourceRecordType.ZONEMD:
+                    return new DnsZONEMDRecordData(s);
 
                 case DnsResourceRecordType.SVCB:
                     return new DnsSVCBRecordData(s);
