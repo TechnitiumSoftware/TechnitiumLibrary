@@ -577,6 +577,9 @@ namespace TechnitiumLibrary.Net.Dns
                 case DnsResourceRecordType.TLSA:
                     return await DnsTLSARecordData.FromZoneFileEntryAsync(this);
 
+                case DnsResourceRecordType.ZONEMD:
+                    return await DnsZONEMDRecordData.FromZoneFileEntryAsync(this);
+
                 case DnsResourceRecordType.SVCB:
                     return await DnsSVCBRecordData.FromZoneFileEntryAsync(this);
 
