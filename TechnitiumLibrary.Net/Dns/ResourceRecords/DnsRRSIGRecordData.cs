@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -349,12 +350,25 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (rdata is not null)
                 return new DnsRRSIGRecordData(rdata);
 
-            DnsResourceRecordType typeCovered = (DnsResourceRecordType)ushort.Parse(await zoneFile.PopItemAsync());
+            DnsResourceRecordType typeCovered = Enum.Parse<DnsResourceRecordType>(await zoneFile.PopItemAsync(), true);
             DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
             byte labels = byte.Parse(await zoneFile.PopItemAsync());
             uint originalTtl = uint.Parse(await zoneFile.PopItemAsync());
-            uint signatureExpiration = uint.Parse(await zoneFile.PopItemAsync());
-            uint signatureInception = uint.Parse(await zoneFile.PopItemAsync());
+
+            string strSignatureExpiration = await zoneFile.PopItemAsync();
+            uint signatureExpiration;
+            if (strSignatureExpiration.Length == 14)
+                signatureExpiration = Convert.ToUInt32((DateTime.ParseExact(strSignatureExpiration, "yyyyMMddHHmmss", CultureInfo.CurrentCulture) - DateTime.UnixEpoch).TotalSeconds);
+            else
+                signatureExpiration = uint.Parse(strSignatureExpiration);
+
+            string strSignatureInception = await zoneFile.PopItemAsync();
+            uint signatureInception;
+            if (strSignatureInception.Length == 14)
+                signatureInception = Convert.ToUInt32((DateTime.ParseExact(strSignatureInception, "yyyyMMddHHmmss", CultureInfo.CurrentCulture) - DateTime.UnixEpoch).TotalSeconds);
+            else
+                signatureInception = uint.Parse(strSignatureInception);
+
             ushort keyTag = ushort.Parse(await zoneFile.PopItemAsync());
             string signersName = await zoneFile.PopDomainAsync();
             byte[] signature = Convert.FromBase64String(await zoneFile.PopItemAsync());
