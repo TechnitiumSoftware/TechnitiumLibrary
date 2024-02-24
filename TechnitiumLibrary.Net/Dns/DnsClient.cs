@@ -76,7 +76,7 @@ namespace TechnitiumLibrary.Net.Dns
         bool _randomizeName;
         bool _dnssecValidation;
         NetworkAddress _eDnsClientSubnet;
-        bool _conditionalForwardingClientSubnet;
+        bool _conditionalForwardingClientSubnet; //this feature is used by Advanced Forwarding app to cache response per network group
         string _conditionalForwardingZoneCut;
         int _retries = 2;
         int _timeout = 2000;
