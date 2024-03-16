@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.IO;
 using System.Text.Json;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -44,9 +45,34 @@ namespace TechnitiumLibrary.Net.Dns
                 _rtt = 0.1;
         }
 
+        public DnsDatagramMetadata(BinaryReader bR)
+        {
+            byte version = bR.ReadByte();
+            switch (version)
+            {
+                case 1:
+                    _server = new NameServerAddress(bR);
+                    _size = bR.ReadInt32();
+                    _rtt = bR.ReadDouble();
+                    break;
+
+                default:
+                    throw new InvalidDataException("DnsDatagramMetadata format version not supported.");
+            }
+        }
+
         #endregion
 
         #region public
+
+        public void WriteTo(BinaryWriter bW)
+        {
+            bW.Write((byte)1); //version
+
+            _server.WriteTo(bW);
+            bW.Write(_size);
+            bW.Write(_rtt);
+        }
 
         public void SerializeTo(Utf8JsonWriter jsonWriter)
         {
