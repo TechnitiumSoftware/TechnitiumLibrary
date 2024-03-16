@@ -94,7 +94,7 @@ namespace TechnitiumLibrary.Net.Proxy
             buffer[0] = _version;
             buffer[1] = (byte)_reply;
 
-            await s.WriteAsync(buffer, 0, 3);
+            await s.WriteAsync(buffer);
             await SocksProxyServer.WriteEndPointAsync(_bindEP, s);
         }
 
