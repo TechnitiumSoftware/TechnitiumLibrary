@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -176,8 +176,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnsForwarderRecordProxyType.Socks5:
                     proxyAddress = await zoneFile.PopItemAsync();
                     proxyPort = ushort.Parse(await zoneFile.PopItemAsync());
+
                     proxyUsername = await zoneFile.PopItemAsync();
+                    if ((proxyUsername is null) || (proxyUsername == "-"))
+                        proxyUsername = string.Empty;
+
                     proxyPassword = await zoneFile.PopItemAsync();
+                    if ((proxyPassword is null) || (proxyPassword == "-"))
+                        proxyPassword = string.Empty;
+
                     break;
             }
 
@@ -194,10 +201,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnsForwarderRecordProxyType.Socks5:
                     str += " " + DnsDatagram.EncodeCharacterString(_proxyAddress) + " " + _proxyPort;
 
-                    if (!string.IsNullOrEmpty(_proxyUsername))
+                    if (string.IsNullOrEmpty(_proxyUsername))
+                        str += " -";
+                    else
                         str += " " + DnsDatagram.EncodeCharacterString(_proxyUsername);
 
-                    if (!string.IsNullOrEmpty(_proxyPassword))
+                    if (string.IsNullOrEmpty(_proxyPassword))
+                        str += " -";
+                    else
                         str += " " + DnsDatagram.EncodeCharacterString(_proxyPassword);
 
                     break;
