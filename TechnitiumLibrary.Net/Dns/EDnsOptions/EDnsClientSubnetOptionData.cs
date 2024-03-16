@@ -236,7 +236,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public override int UncompressedLength
         { get { return 2 + 1 + 1 + (_family == EDnsClientSubnetAddressFamily.IPv4 ? 4 : 16); } }
 
-        public bool ConditionalForwardingClientSubnet { get; set; }
+        public bool AdvancedForwardingClientSubnet { get; set; }
 
         #endregion
     }
