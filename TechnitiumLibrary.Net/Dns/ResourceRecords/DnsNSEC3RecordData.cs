@@ -119,7 +119,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region private
 
-        internal static DnssecProofOfNonExistence GetValidatedProofOfNonExistence(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string wildcardNextCloserName)
+        internal static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string wildcardNextCloserName)
         {
             //find proof for closest encloser
             string closestEncloser;
@@ -140,6 +140,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 foundClosestEncloserProof = false;
             }
 
+            int maxHashes = DnsClient.NSEC3_MAX_HASHES_PER_SUSPENSION;
+            int maxSuspensions = DnsClient.NSEC3_MAX_SUSPENSIONS_PER_RESPONSE;
+
             while (!foundClosestEncloserProof)
             {
                 string hashedClosestEncloser = null;
@@ -153,7 +156,23 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
 
                     if (hashedClosestEncloser is null)
+                    {
                         hashedClosestEncloser = nsec3.ComputeHashedOwnerName(closestEncloser);
+                        maxHashes--;
+
+                        if (maxHashes < 1)
+                        {
+                            maxSuspensions--;
+
+                            if (maxSuspensions < 1)
+                                return DnssecProofOfNonExistence.NoProof;
+
+                            //suspend current task by yielding
+                            await Task.Yield();
+
+                            maxHashes = DnsClient.NSEC3_MAX_HASHES_PER_SUSPENSION;
+                        }
+                    }
 
                     if (hashedOwnerName.Equals(hashedClosestEncloser, StringComparison.OrdinalIgnoreCase))
                     {
@@ -312,44 +331,36 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static byte[] ComputeHashedOwnerName(string ownerName, DnssecNSEC3HashAlgorithm hashAlgorithm, ushort iterations, byte[] salt)
         {
-            HashAlgorithm hash;
-
             switch (hashAlgorithm)
             {
                 case DnssecNSEC3HashAlgorithm.SHA1:
-                    hash = SHA1.Create();
-                    break;
+                    byte[] x;
+
+                    using (MemoryStream mS = new MemoryStream(Math.Max(ownerName.Length, SHA1.HashSizeInBytes)))
+                    {
+                        DnsDatagram.SerializeDomainName(ownerName.ToLowerInvariant(), mS);
+                        mS.Write(salt);
+
+                        mS.Position = 0;
+                        x = SHA1.HashData(mS);
+
+                        for (int i = 0; i < iterations; i++)
+                        {
+                            mS.SetLength(0);
+
+                            mS.Write(x);
+                            mS.Write(salt);
+
+                            mS.Position = 0;
+                            x = SHA1.HashData(mS);
+                        }
+                    }
+
+                    return x;
 
                 default:
                     throw new NotSupportedException("NSEC3 hash algorithm is not supported: " + hashAlgorithm.ToString());
             }
-
-            byte[] x;
-
-            using (hash)
-            {
-                using (MemoryStream mS = new MemoryStream(Math.Max(ownerName.Length, hash.HashSize / 8)))
-                {
-                    DnsDatagram.SerializeDomainName(ownerName.ToLowerInvariant(), mS);
-                    mS.Write(salt);
-
-                    mS.Position = 0;
-                    x = hash.ComputeHash(mS);
-
-                    for (int i = 0; i < iterations; i++)
-                    {
-                        mS.SetLength(0);
-
-                        mS.Write(x);
-                        mS.Write(salt);
-
-                        mS.Position = 0;
-                        x = hash.ComputeHash(mS);
-                    }
-                }
-            }
-
-            return x;
         }
 
         private void Serialize()
