@@ -330,6 +330,22 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     response = await task;
                 }
+                catch (ObjectDisposedException)
+                {
+                    //ensure existing connection is disposed to allow reconnection later
+                    await _quicConnection.DisposeAsync();
+                    _quicConnection = null;
+                    _udpTunnelProxy?.Dispose();
+
+                    if (retry == 1)
+                    {
+                        //quic connection was disposed on first attempt; retry to reconnect
+                        retry = 0;
+                        continue;
+                    }
+
+                    throw;
+                }
                 catch (QuicException ex)
                 {
                     //close existing connection to allow reconnection later
