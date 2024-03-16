@@ -153,7 +153,37 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         /// <summary>
         /// The authoritative server cannot answer with data for a zone it is otherwise configured to support. Examples of this include its most recent zone being too old or having expired.
         /// </summary>
-        InvalidData = 24
+        InvalidData = 24,
+
+        /// <summary>
+        /// Signature Expired before Valid.
+        /// </summary>
+        SignatureExpiredBeforeValid = 25,
+
+        /// <summary>
+        /// Too Early
+        /// </summary>
+        TooEarly = 26,
+
+        /// <summary>
+        /// Unsupported NSEC3 Iterations Value.
+        /// </summary>
+        UnsupportedNSEC3IterationsValue = 27,
+
+        /// <summary>
+        /// Unable to conform to policy.
+        /// </summary>
+        UnableToConformToPolicy = 28,
+
+        /// <summary>
+        /// Synthesized.
+        /// </summary>
+        Synthesized = 29,
+
+        /// <summary>
+        /// Private Use: indicates too many crypto validations for the response with respect to KeyTrap mitigation.
+        /// </summary>
+        TooManyCryptoValidations = 49152,
     }
 
     public class EDnsExtendedDnsErrorOptionData : EDnsOptionData
