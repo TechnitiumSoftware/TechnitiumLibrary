@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
@@ -250,6 +251,22 @@ namespace TechnitiumLibrary.Net.Dns
 
                 return word;
             }
+        }
+
+        internal async Task<string> PopToEndAsync()
+        {
+            StringBuilder sb = new StringBuilder(256);
+
+            while (true)
+            {
+                string item = await PopItemAsync();
+                if (string.IsNullOrEmpty(item))
+                    break;
+
+                sb.Append(item);
+            }
+
+            return sb.ToString();
         }
 
         internal async Task<Stream> GetRData()
