@@ -18,7 +18,7 @@
     <RepositoryType></RepositoryType>
     <Description></Description>
     <PackageId>TechnitiumLibrary.Net</PackageId>
-    <Version>9.0.1</Version>
+    <Version>9.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
