@@ -793,10 +793,10 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
-        public void SetShadowEDnsClientSubnetOption(NetworkAddress eDnsClientSubnet, bool conditionalForwardingClientSubnet = false)
+        public void SetShadowEDnsClientSubnetOption(NetworkAddress eDnsClientSubnet, bool advancedForwardingClientSubnet = false)
         {
-            if (conditionalForwardingClientSubnet)
-                _shadowECSOption = new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address) { ConditionalForwardingClientSubnet = true };
+            if (advancedForwardingClientSubnet)
+                _shadowECSOption = new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address) { AdvancedForwardingClientSubnet = true };
             else
                 _shadowECSOption = new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, 0, eDnsClientSubnet.Address);
         }
