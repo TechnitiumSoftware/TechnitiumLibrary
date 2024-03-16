@@ -21,6 +21,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net
 {
@@ -140,8 +141,13 @@ namespace TechnitiumLibrary.Net
 
         public static NetworkAddress ReadFrom(BinaryReader bR)
         {
-            IPAddress address = IPAddressExtensions.ReadFrom(bR);
-            byte prefixLength = bR.ReadByte();
+            return ReadFrom(bR.BaseStream);
+        }
+
+        public static NetworkAddress ReadFrom(Stream s)
+        {
+            IPAddress address = IPAddressExtensions.ReadFrom(s);
+            byte prefixLength = s.ReadByteValue();
 
             return new NetworkAddress(address, prefixLength, false);
         }
@@ -202,8 +208,13 @@ namespace TechnitiumLibrary.Net
 
         public void WriteTo(BinaryWriter bW)
         {
-            _address.WriteTo(bW);
-            bW.Write(_prefixLength);
+            WriteTo(bW.BaseStream);
+        }
+
+        public void WriteTo(Stream s)
+        {
+            _address.WriteTo(s);
+            s.WriteByte(_prefixLength);
         }
 
         public bool Equals(NetworkAddress other)
