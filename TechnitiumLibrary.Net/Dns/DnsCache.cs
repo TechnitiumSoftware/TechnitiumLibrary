@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -71,7 +71,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region protected
 
-        protected virtual void CacheRecords(IReadOnlyList<DnsResourceRecord> resourceRecords)
+        protected virtual void CacheRecords(IReadOnlyList<DnsResourceRecord> resourceRecords, NetworkAddress eDnsClientSubnet, DnsDatagramMetadata responseMetadata)
         {
             if (resourceRecords.Count == 1)
             {
@@ -143,14 +143,6 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
-        protected static NetworkAddress GetEDnsClientSubnetFrom(DnsResourceRecord record)
-        {
-            if (record.Tag is DnsResourceRecordInfo recordInfo)
-                return recordInfo.EDnsClientSubnet;
-
-            return null;
-        }
-
         #endregion
 
         #region private
@@ -207,18 +199,7 @@ namespace TechnitiumLibrary.Net.Dns
             recordInfo.NSECRecords.Add(nsecRecord);
         }
 
-        private static void SetEDnsClientSubnetTo(DnsResourceRecord record, NetworkAddress eDnsClientSubnet)
-        {
-            if (record.Tag is not DnsResourceRecordInfo recordInfo)
-            {
-                recordInfo = new DnsResourceRecordInfo();
-                record.Tag = recordInfo;
-            }
-
-            recordInfo.EDnsClientSubnet = eDnsClientSubnet;
-        }
-
-        private void InternalCacheRecords(IReadOnlyList<DnsResourceRecord> resourceRecords)
+        private void InternalCacheRecords(IReadOnlyList<DnsResourceRecord> resourceRecords, NetworkAddress eDnsClientSubnet, DnsDatagramMetadata responseMetadata)
         {
             foreach (DnsResourceRecord resourceRecord in resourceRecords)
             {
@@ -232,7 +213,7 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            CacheRecords(resourceRecords);
+            CacheRecords(resourceRecords, eDnsClientSubnet, responseMetadata);
         }
 
         private IReadOnlyList<DnsResourceRecord> GetClosestNameServers(string domain, bool dnssecOk)
@@ -346,7 +327,7 @@ namespace TechnitiumLibrary.Net.Dns
             while (++queryCount < DnsClient.MAX_CNAME_HOPS);
         }
 
-        private IReadOnlyList<DnsResourceRecord> GetAdditionalRecords(IReadOnlyList<DnsResourceRecord> refRecords)
+        private List<DnsResourceRecord> GetAdditionalRecords(IReadOnlyList<DnsResourceRecord> refRecords)
         {
             List<DnsResourceRecord> additionalRecords = new List<DnsResourceRecord>();
 
@@ -606,16 +587,11 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            //set ECS for answer
+            //read ECS
             NetworkAddress eDnsClientSubnet = null;
             EDnsClientSubnetOptionData ecs = response.GetEDnsClientSubnetOption();
             if (ecs is not null)
-            {
                 eDnsClientSubnet = new NetworkAddress(ecs.Address, Math.Min(ecs.SourcePrefixLength, ecs.ScopePrefixLength));
-
-                foreach (DnsResourceRecord record in response.Answer)
-                    SetEDnsClientSubnetTo(record, eDnsClientSubnet);
-            }
 
             if (isDnssecBadCache)
             {
@@ -625,10 +601,7 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _failureRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.BadCache, response));
                     record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                    if (eDnsClientSubnet is not null)
-                        SetEDnsClientSubnetTo(record, eDnsClientSubnet);
-
-                    InternalCacheRecords(new DnsResourceRecord[] { record });
+                    InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                 }
 
                 return;
@@ -649,10 +622,7 @@ namespace TechnitiumLibrary.Net.Dns
                         DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _failureRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.FailureCache, response));
                         record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                        if (eDnsClientSubnet is not null)
-                            SetEDnsClientSubnetTo(record, eDnsClientSubnet);
-
-                        InternalCacheRecords(new DnsResourceRecord[] { record });
+                        InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                     }
 
                     return;
@@ -951,10 +921,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, Math.Min(3600u, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue)), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
                                 record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                                if (eDnsClientSubnet is not null)
-                                    SetEDnsClientSubnetTo(record, eDnsClientSubnet);
-
-                                InternalCacheRecords(new DnsResourceRecord[] { record });
+                                InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                             }
                         }
                         else
@@ -971,10 +938,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class, Math.Min(3600u, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue)), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
                                         record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                                        if (eDnsClientSubnet is not null)
-                                            SetEDnsClientSubnetTo(record, eDnsClientSubnet);
-
-                                        InternalCacheRecords(new DnsResourceRecord[] { record });
+                                        InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                                     }
                                 }
                             }
@@ -1003,10 +967,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response.RCODE, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), response.EDNS, response.DnsClientExtendedErrors));
                                             record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                                            if (eDnsClientSubnet is not null)
-                                                SetEDnsClientSubnetTo(record, eDnsClientSubnet);
-
-                                            InternalCacheRecords(new DnsResourceRecord[] { record });
+                                            InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                                             isReferralResponse = false;
                                             break;
                                         }
@@ -1095,16 +1056,13 @@ namespace TechnitiumLibrary.Net.Dns
                         DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
                         record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
 
-                        if (eDnsClientSubnet is not null)
-                            SetEDnsClientSubnetTo(record, eDnsClientSubnet);
-
-                        InternalCacheRecords(new DnsResourceRecord[] { record });
+                        InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                     }
                 }
             }
 
             if (cachableRecords.Count > 0)
-                InternalCacheRecords(cachableRecords);
+                InternalCacheRecords(cachableRecords, eDnsClientSubnet, response.Metadata);
         }
 
         public virtual void RemoveExpiredRecords()
@@ -1384,7 +1342,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             #region private
 
-            private static IReadOnlyList<DnsResourceRecord> ReadCacheRecordsFrom(BinaryReader bR, Action<DnsResourceRecord> readTagInfo)
+            private static DnsResourceRecord[] ReadCacheRecordsFrom(BinaryReader bR, Action<DnsResourceRecord> readTagInfo)
             {
                 int count = bR.ReadByte();
                 if (count == 0)
@@ -1819,8 +1777,6 @@ namespace TechnitiumLibrary.Net.Dns
             public List<DnsResourceRecord> RRSIGRecords { get; set; }
 
             public List<DnsResourceRecord> NSECRecords { get; set; }
-
-            public NetworkAddress EDnsClientSubnet { get; set; }
         }
     }
 }
