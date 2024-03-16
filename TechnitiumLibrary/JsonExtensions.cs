@@ -232,10 +232,18 @@ namespace TechnitiumLibrary
             return defaultValue;
         }
 
+        public static T GetPropertyValue<T>(this JsonElement jsonElement, string propertyName, Func<string, T> parse, T defaultValue)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue) && (jsonValue.ValueKind == JsonValueKind.String))
+                return parse(jsonValue.GetString());
+
+            return defaultValue;
+        }
+
         public static T GetPropertyEnumValue<T>(this JsonElement jsonElement, string propertyName, T defaultValue) where T : struct
         {
             if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue))
-                return Enum.Parse<T>(jsonValue.GetString().ToLower(), true);
+                return Enum.Parse<T>(jsonValue.GetString(), true);
 
             return defaultValue;
         }
