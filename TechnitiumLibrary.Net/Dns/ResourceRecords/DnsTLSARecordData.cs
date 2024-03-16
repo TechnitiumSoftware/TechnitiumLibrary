@@ -177,16 +177,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     return certificateData;
 
                 case DnsTLSAMatchingType.SHA2_256:
-                    using (HashAlgorithm hash = SHA256.Create())
-                    {
-                        return hash.ComputeHash(certificateData);
-                    }
+                    return SHA256.HashData(certificateData);
 
                 case DnsTLSAMatchingType.SHA2_512:
-                    using (HashAlgorithm hash = SHA512.Create())
-                    {
-                        return hash.ComputeHash(certificateData);
-                    }
+                    return SHA512.HashData(certificateData);
 
                 default:
                     throw new NotSupportedException("The TLSA matching type is not supported: " + matchingType.ToString());
