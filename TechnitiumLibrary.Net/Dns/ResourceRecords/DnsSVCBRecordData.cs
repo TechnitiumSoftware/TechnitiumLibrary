@@ -210,11 +210,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 switch (svcParam.Key)
                 {
                     case DnsSvcParamKey.No_Default_ALPN:
-                        svcParams += " " + svcParam.Key.ToString().ToLower().Replace('_', '-');
+                        svcParams += " " + svcParam.Key.ToString().ToLowerInvariant().Replace('_', '-');
                         break;
 
                     default:
-                        svcParams += " " + svcParam.Key.ToString().ToLower().Replace('_', '-') + "=" + svcParam.Value.ToString();
+                        svcParams += " " + svcParam.Key.ToString().ToLowerInvariant().Replace('_', '-') + "=" + svcParam.Value.ToString();
                         break;
                 }
             }
@@ -276,7 +276,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteStartObject();
 
             foreach (KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> svcParam in _svcParams)
-                jsonWriter.WriteString(svcParam.Key.ToString().ToLower().Replace('_', '-'), svcParam.Value.ToString());
+                jsonWriter.WriteString(svcParam.Key.ToString().ToLowerInvariant().Replace('_', '-'), svcParam.Value.ToString());
 
             jsonWriter.WriteEndObject();
 
@@ -599,9 +599,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             foreach (DnsSvcParamKey key in _keys)
             {
                 if (value is null)
-                    value = key.ToString().ToLower().Replace('_', '-');
+                    value = key.ToString().ToLowerInvariant().Replace('_', '-');
                 else
-                    value += "," + key.ToString().ToLower().Replace('_', '-');
+                    value += "," + key.ToString().ToLowerInvariant().Replace('_', '-');
             }
 
             return value;
