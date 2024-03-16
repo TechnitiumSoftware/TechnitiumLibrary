@@ -33,17 +33,25 @@ namespace TechnitiumLibrary.Net
 
         public static IPAddress ReadFrom(BinaryReader bR)
         {
-            switch (bR.ReadByte())
+            return ReadFrom(bR.BaseStream);
+        }
+
+        public static IPAddress ReadFrom(Stream s)
+        {
+            switch (s.ReadByte())
             {
                 case 1:
                     Span<byte> ipv4 = stackalloc byte[4];
-                    bR.Read(ipv4);
+                    s.ReadExactly(ipv4);
                     return new IPAddress(ipv4);
 
                 case 2:
                     Span<byte> ipv6 = stackalloc byte[16];
-                    bR.Read(ipv6);
+                    s.ReadExactly(ipv6);
                     return new IPAddress(ipv6);
+
+                case -1:
+                    throw new EndOfStreamException();
 
                 default:
                     throw new NotSupportedException("AddressFamily not supported.");
@@ -52,26 +60,31 @@ namespace TechnitiumLibrary.Net
 
         public static void WriteTo(this IPAddress address, BinaryWriter bW)
         {
+            WriteTo(address, bW.BaseStream);
+        }
+
+        public static void WriteTo(this IPAddress address, Stream s)
+        {
             switch (address.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    bW.Write((byte)1);
+                    s.WriteByte(1);
 
                     Span<byte> ipv4 = stackalloc byte[4];
                     if (!address.TryWriteBytes(ipv4, out _))
                         throw new InvalidOperationException();
 
-                    bW.Write(ipv4);
+                    s.Write(ipv4);
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    bW.Write((byte)2);
+                    s.WriteByte(2);
 
                     Span<byte> ipv6 = stackalloc byte[16];
                     if (!address.TryWriteBytes(ipv6, out _))
                         throw new InvalidOperationException();
 
-                    bW.Write(ipv6);
+                    s.Write(ipv6);
                     break;
 
                 default:
