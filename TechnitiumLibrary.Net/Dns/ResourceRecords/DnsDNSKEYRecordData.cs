@@ -163,22 +163,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 switch (digestType)
                 {
                     case DnssecDigestType.SHA1:
-                        using (HashAlgorithm hashAlgo = SHA1.Create())
-                        {
-                            return hashAlgo.ComputeHash(mS);
-                        }
+                        return SHA1.HashData(mS);
 
                     case DnssecDigestType.SHA256:
-                        using (HashAlgorithm hashAlgo = SHA256.Create())
-                        {
-                            return hashAlgo.ComputeHash(mS);
-                        }
+                        return SHA256.HashData(mS);
 
                     case DnssecDigestType.SHA384:
-                        using (HashAlgorithm hashAlgo = SHA384.Create())
-                        {
-                            return hashAlgo.ComputeHash(mS);
-                        }
+                        return SHA384.HashData(mS);
 
                     default:
                         throw new NotSupportedException("DNSSEC DS digest type hash algorithm is not supported: " + digestType.ToString());
@@ -223,7 +214,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             DnsDnsKeyFlag flags = (DnsDnsKeyFlag)ushort.Parse(await zoneFile.PopItemAsync());
             byte protocol = byte.Parse(await zoneFile.PopItemAsync());
             DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
-            DnssecPublicKey publicKey = DnssecPublicKey.Parse(algorithm, Convert.FromBase64String(await zoneFile.PopItemAsync()));
+            DnssecPublicKey publicKey = DnssecPublicKey.Parse(algorithm, Convert.FromBase64String(await zoneFile.PopToEndAsync()));
 
             return new DnsDNSKEYRecordData(flags, protocol, algorithm, publicKey);
         }
