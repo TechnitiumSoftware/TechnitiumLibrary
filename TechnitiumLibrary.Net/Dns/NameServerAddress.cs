@@ -30,7 +30,7 @@ using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns
 {
-    public class NameServerAddress : IComparable<NameServerAddress>
+    public class NameServerAddress
     {
         #region variables
 
@@ -779,20 +779,6 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             return value;
-        }
-
-        public int CompareTo(NameServerAddress other)
-        {
-            if ((_ipEndPoint is null) || (other._ipEndPoint is null))
-                return 0;
-
-            if ((_ipEndPoint.AddressFamily == AddressFamily.InterNetwork) && (other._ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
-                return 1;
-
-            if ((_ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6) && (other._ipEndPoint.AddressFamily == AddressFamily.InterNetwork))
-                return -1;
-
-            return 0;
         }
 
         public override bool Equals(object obj)
