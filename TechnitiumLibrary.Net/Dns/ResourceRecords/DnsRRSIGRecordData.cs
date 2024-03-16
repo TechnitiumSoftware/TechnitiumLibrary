@@ -203,42 +203,27 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 switch (rrsigRecord._algorithm)
                 {
                     case DnssecAlgorithm.RSAMD5:
-                        using (HashAlgorithm hashAlgo = MD5.Create())
-                        {
-                            hash = hashAlgo.ComputeHash(mS);
-                        }
+                        hash = MD5.HashData(mS);
                         break;
 
                     case DnssecAlgorithm.DSA:
                     case DnssecAlgorithm.RSASHA1:
                     case DnssecAlgorithm.DSA_NSEC3_SHA1:
                     case DnssecAlgorithm.RSASHA1_NSEC3_SHA1:
-                        using (HashAlgorithm hashAlgo = SHA1.Create())
-                        {
-                            hash = hashAlgo.ComputeHash(mS);
-                        }
+                        hash = SHA1.HashData(mS);
                         break;
 
                     case DnssecAlgorithm.RSASHA256:
                     case DnssecAlgorithm.ECDSAP256SHA256:
-                        using (HashAlgorithm hashAlgo = SHA256.Create())
-                        {
-                            hash = hashAlgo.ComputeHash(mS);
-                        }
+                        hash = SHA256.HashData(mS);
                         break;
 
                     case DnssecAlgorithm.ECDSAP384SHA384:
-                        using (HashAlgorithm hashAlgo = SHA384.Create())
-                        {
-                            hash = hashAlgo.ComputeHash(mS);
-                        }
+                        hash = SHA384.HashData(mS);
                         break;
 
                     case DnssecAlgorithm.RSASHA512:
-                        using (HashAlgorithm hashAlgo = SHA512.Create())
-                        {
-                            hash = hashAlgo.ComputeHash(mS);
-                        }
+                        hash = SHA512.HashData(mS);
                         break;
 
                     default:
@@ -371,7 +356,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             ushort keyTag = ushort.Parse(await zoneFile.PopItemAsync());
             string signersName = await zoneFile.PopDomainAsync();
-            byte[] signature = Convert.FromBase64String(await zoneFile.PopItemAsync());
+            byte[] signature = Convert.FromBase64String(await zoneFile.PopToEndAsync());
 
             return new DnsRRSIGRecordData(typeCovered, algorithm, labels, originalTtl, signatureExpiration, signatureInception, keyTag, signersName, signature);
         }
@@ -404,7 +389,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
+        public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, ref int maxCryptoFailures, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
         {
             uint utc = Convert.ToUInt32((DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds % uint.MaxValue);
 
@@ -456,14 +441,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 foundDnsKey = true;
 
-                if (dnsKey.PublicKey.IsAlgorithmSupported)
-                    foundSupportedDnsKeyAlgo = true;
-                else
+                if (!dnsKey.PublicKey.IsAlgorithmSupported)
                     continue;
+
+                foundSupportedDnsKeyAlgo = true;
 
                 //The matching DNSKEY RR MUST be present in the zone's apex DNSKEY RRset, and MUST have the Zone Flag bit (DNSKEY RDATA Flag bit 7) set.
                 if (dnsKey.Flags.HasFlag(DnsDnsKeyFlag.ZoneKey))
                 {
+                    foundZoneKeyBitSet = true;
+
                     if (dnsKey.Flags.HasFlag(DnsDnsKeyFlag.Revoke) && (_typeCovered != DnsResourceRecordType.DNSKEY))
                         continue; //rfc5011: the resolver MUST consider this key permanently invalid for all purposes except for validating the revocation.
 
@@ -473,7 +460,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         return true;
                     }
 
-                    foundZoneKeyBitSet = true;
+                    maxCryptoFailures--;
+
+                    if (maxCryptoFailures < 1)
+                    {
+                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.DnssecBogus;
+                        return false; //too many crypto failures
+                    }
+
                     isBogus = true;
                 }
             }
@@ -481,7 +475,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (isBogus)
             {
                 extendedDnsErrorCode = EDnsExtendedDnsErrorCode.DnssecBogus;
-                return false;
             }
             else
             {
@@ -503,9 +496,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 {
                     extendedDnsErrorCode = EDnsExtendedDnsErrorCode.DNSKEYMissing;
                 }
-
-                return false;
             }
+
+            return false;
         }
 
         public override bool Equals(object obj)
