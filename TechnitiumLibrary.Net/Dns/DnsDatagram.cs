@@ -561,13 +561,13 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal static string EncodeCharacterString(string value)
         {
-            return "\"" + value.Replace("\"", "\\\"") + "\"";
+            return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
         }
 
         internal static string DecodeCharacterString(string value)
         {
             if (value.StartsWith('\"') && value.EndsWith('\"'))
-                value = value.Substring(1, value.Length - 2).Replace("\\\"", "\"");
+                value = value.Substring(1, value.Length - 2).Replace("\\\"", "\"").Replace("\\\\", "\\");
 
             return value;
         }
