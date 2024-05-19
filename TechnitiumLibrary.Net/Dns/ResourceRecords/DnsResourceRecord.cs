@@ -158,6 +158,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         bool _wasExpiryReset;
         DateTime _ttlExpires;
         DateTime _serveStaleTtlExpires;
+        uint _serveStaleAnswerTtl;
         DnssecStatus _dnssecStatus;
 
         #endregion
@@ -335,6 +336,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnsResourceRecordType.SRV:
                     return new DnsSRVRecordData(s);
 
+                case DnsResourceRecordType.NAPTR:
+                    return new DnsNAPTRRecordData(s);
+
                 case DnsResourceRecordType.DNAME:
                     return new DnsDNAMERecordData(s);
 
@@ -444,7 +448,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public void SetExpiry(uint minimumTtl, uint maximumTtl, uint serveStaleTtl)
+        public void SetExpiry(uint minimumTtl, uint maximumTtl, uint serveStaleTtl, uint serveStaleAnswerTtl)
         {
             if (_ttl < minimumTtl)
                 _ttl = minimumTtl; //to help keep record in cache for a minimum time
@@ -455,9 +459,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _wasExpiryReset = false;
             _ttlExpires = DateTime.UtcNow.AddSeconds(_ttl);
             _serveStaleTtlExpires = _ttlExpires.AddSeconds(serveStaleTtl);
+            _serveStaleAnswerTtl = serveStaleAnswerTtl;
         }
 
-        public void ResetExpiry(int seconds)
+        public void ResetExpiry(uint seconds)
         {
             if (!_setExpiry)
                 throw new InvalidOperationException("Must call SetExpiry() before ResetExpiry().");
@@ -642,7 +647,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         return 0u;
 
                     if (utcNow > _ttlExpires)
-                        return 30u; //stale TTL
+                        return _serveStaleAnswerTtl; //stale answer TTL
 
                     return Convert.ToUInt32((_ttlExpires - utcNow).TotalSeconds);
                 }
