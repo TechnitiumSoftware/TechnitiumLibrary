@@ -171,7 +171,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
 
                         string word = PopWord(ref _line);
-                        if (word.Length == 0)
+                        if (word is null)
                         {
                             _line = await _tR.ReadLineAsync();
                             if (_line is null)
@@ -239,8 +239,7 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 string word = PopWord(ref _line);
-
-                if (word.Length == 0)
+                if (word is null)
                 {
                     if (!_multiLine)
                         return null;
@@ -331,6 +330,10 @@ namespace TechnitiumLibrary.Net.Dns
                 if (item == "$ORIGIN")
                 {
                     _originDomain = await PopDomainAsync();
+
+                    if (!DnsClient.IsDomainNameValid(_originDomain))
+                        throw new FormatException("The zone file parser failed to parse 'domain' field on line # " + _lineNo + ".");
+
                     continue;
                 }
 
@@ -485,10 +488,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static string PopWord(ref string line)
         {
-            if (line.Length == 0)
-                return line;
-
             line = line.TrimStart(_trimSeperator);
+
+            if (line.Length == 0)
+                return null;
 
             if (line.StartsWith('\"'))
             {
@@ -563,6 +566,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                 case DnsResourceRecordType.SRV:
                     return await DnsSRVRecordData.FromZoneFileEntryAsync(this);
+
+                case DnsResourceRecordType.NAPTR:
+                    return await DnsNAPTRRecordData.FromZoneFileEntryAsync(this);
 
                 case DnsResourceRecordType.DNAME:
                     return await DnsDNAMERecordData.FromZoneFileEntryAsync(this);
