@@ -31,7 +31,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _text;
+        IReadOnlyList<string> _characterStrings;
 
         byte[] _rData;
 
@@ -39,14 +39,64 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
+        public DnsTXTRecordData(IReadOnlyList<string> characterStrings)
+        {
+            foreach (string characterString in characterStrings)
+            {
+                if (Encoding.ASCII.GetBytes(characterString).Length > 255)
+                    throw new DnsClientException("TXT record character-string length cannot exceed 255 bytes.");
+            }
+
+            _characterStrings = characterStrings;
+
+            Serialize();
+        }
+
         public DnsTXTRecordData(string text)
         {
-            _text = text;
+            byte[] data = Encoding.ASCII.GetBytes(text);
+            string[] characterStrings = new string[Convert.ToInt32(Math.Ceiling(text.Length / 255d))];
+
+            for (int i = 0; i < characterStrings.Length; i++)
+            {
+                int index = i * 255;
+                int count = Math.Min(data.Length - index, 255);
+
+                characterStrings[i] = Encoding.ASCII.GetString(data, index, count);
+            }
+
+            _characterStrings = characterStrings;
+
+            Serialize();
         }
 
         public DnsTXTRecordData(Stream s)
             : base(s)
         { }
+
+        #endregion
+
+        #region private
+
+        private void Serialize()
+        {
+            using (MemoryStream mS = new MemoryStream(UncompressedLength))
+            {
+                byte[] buffer = new byte[255];
+                int bytesWritten;
+
+                foreach (string characterString in _characterStrings)
+                {
+                    if (!Encoding.ASCII.TryGetBytes(characterString, buffer, out bytesWritten))
+                        throw new InvalidOperationException();
+
+                    mS.WriteByte(Convert.ToByte(bytesWritten));
+                    mS.Write(buffer, 0, bytesWritten);
+                }
+
+                _rData = mS.ToArray();
+            }
+        }
 
         #endregion
 
@@ -56,54 +106,32 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _rData = s.ReadExactly(_rdLength);
 
+            List<string> characterStrings = new List<string>(1);
+
             using (MemoryStream mS = new MemoryStream(_rData))
             {
                 int bytesRead = 0;
-                int length;
+                int count;
+                byte[] buffer = new byte[255];
 
                 while (bytesRead < _rdLength)
                 {
-                    length = mS.ReadByte();
-                    if (length < 0)
+                    count = mS.ReadByte();
+                    if (count < 0)
                         throw new EndOfStreamException();
 
-                    if (_text == null)
-                        _text = Encoding.ASCII.GetString(mS.ReadExactly(length));
-                    else
-                        _text += Encoding.ASCII.GetString(mS.ReadExactly(length));
+                    mS.ReadExactly(buffer, 0, count);
+                    characterStrings.Add(Encoding.ASCII.GetString(buffer, 0, count));
 
-                    bytesRead += length + 1;
+                    bytesRead += count + 1;
                 }
             }
+
+            _characterStrings = characterStrings;
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            if (_rData is null)
-            {
-                using (MemoryStream mS = new MemoryStream())
-                {
-                    byte[] data = Encoding.ASCII.GetBytes(_text);
-                    int offset = 0;
-                    int length;
-
-                    do
-                    {
-                        length = data.Length - offset;
-                        if (length > 255)
-                            length = 255;
-
-                        mS.WriteByte(Convert.ToByte(length));
-                        mS.Write(data, offset, length);
-
-                        offset += length;
-                    }
-                    while (offset < data.Length);
-
-                    _rData = mS.ToArray();
-                }
-            }
-
             s.Write(_rData);
         }
 
@@ -117,7 +145,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (rdata is not null)
                 return new DnsTXTRecordData(rdata);
 
-            string text = null;
+            List<string> characterStrings = new List<string>(1);
 
             do
             {
@@ -125,39 +153,24 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (value is null)
                     break;
 
-                if (text is null)
-                    text = value;
-                else
-                    text += value;
+                characterStrings.Add(value);
             }
             while (true);
 
-            return new DnsTXTRecordData(text);
+            return new DnsTXTRecordData(characterStrings);
         }
 
         internal override string ToZoneFileEntry(string originDomain = null)
         {
             string value = null;
 
-            int startIndex = 0;
-            int length;
-
-            do
+            foreach (string characterString in _characterStrings)
             {
-                length = _text.Length - startIndex;
-                if (length > 255)
-                    length = 255;
-
-                string part = _text.Substring(startIndex, length);
-
                 if (value is null)
-                    value = DnsDatagram.EncodeCharacterString(part);
+                    value = DnsDatagram.EncodeCharacterString(characterString);
                 else
-                    value += " " + DnsDatagram.EncodeCharacterString(part);
-
-                startIndex += length;
+                    value += " " + DnsDatagram.EncodeCharacterString(characterString);
             }
-            while (startIndex < _text.Length);
 
             return value;
         }
@@ -165,6 +178,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #endregion
 
         #region public
+
+        public string GetText()
+        {
+            string text = null;
+
+            foreach (string characterString in _characterStrings)
+            {
+                if (text is null)
+                    text = characterString;
+                else
+                    text += characterString;
+            }
+
+            return text;
+        }
 
         public override bool Equals(object obj)
         {
@@ -175,21 +203,28 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return true;
 
             if (obj is DnsTXTRecordData other)
-                return _text.Equals(other._text);
+                return _characterStrings.Equals<string>(other._characterStrings);
 
             return false;
         }
 
         public override int GetHashCode()
         {
-            return _text.GetHashCode();
+            return HashCode.Combine(_characterStrings);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
         {
             jsonWriter.WriteStartObject();
 
-            jsonWriter.WriteString("Text", _text);
+            jsonWriter.WriteString("Text", GetText());
+
+            jsonWriter.WriteStartArray("CharacterStrings");
+
+            foreach (string characterString in _characterStrings)
+                jsonWriter.WriteStringValue(characterString);
+
+            jsonWriter.WriteEndArray();
 
             jsonWriter.WriteEndObject();
         }
@@ -198,11 +233,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region properties
 
-        public string Text
-        { get { return _text; } }
+        public IReadOnlyList<string> CharacterStrings
+        { get { return _characterStrings; } }
 
         public override int UncompressedLength
-        { get { return Convert.ToInt32(Math.Ceiling(_text.Length / 255d)) + _text.Length; } }
+        {
+            get
+            {
+                int length = 0;
+
+                foreach (string characterString in _characterStrings)
+                    length += 1 + characterString.Length;
+
+                return length;
+            }
+        }
 
         #endregion
     }
