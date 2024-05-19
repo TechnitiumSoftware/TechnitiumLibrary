@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ namespace TechnitiumLibrary.Net.Dns
     {
         DnsDatagram QueryClosestDelegation(DnsDatagram request);
 
-        DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false);
+        DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false, bool resetExpiry = false);
 
         void CacheResponse(DnsDatagram response, bool isDnssecBadCache = false, string zoneCut = null);
     }
