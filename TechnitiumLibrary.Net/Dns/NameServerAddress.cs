@@ -914,7 +914,12 @@ namespace TechnitiumLibrary.Net.Dns
                     return _ipEndPoint; //IP endpoint is prefered
 
                 if (_dohEndPoint is not null)
+                {
+                    if (IPAddress.TryParse(_dohEndPoint.Host, out IPAddress address))
+                        return new IPEndPoint(address, GetDoHPort());
+
                     return new DomainEndPoint(_dohEndPoint.Host, GetDoHPort());
+                }
 
                 return _domainEndPoint;
             }
