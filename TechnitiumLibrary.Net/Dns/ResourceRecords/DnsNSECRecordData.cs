@@ -228,6 +228,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 {
                     //found proof of cover for wildcard domain
 
+                    if (nsec._nextDomainName.EndsWith("." + wildcardDomain, StringComparison.OrdinalIgnoreCase))
+                        return DnssecProofOfNonExistence.NoData; //wildcard domain is empty non-terminal (ENT) so proves NO DATA
+
                     if (nsec._isAncestorDNAME)
                         return DnssecProofOfNonExistence.NoProof; //An NSEC or NSEC3 RR with the DNAME bit set MUST NOT be used to assume the nonexistence of any subdomain of that NSEC/NSEC3 RR's (original) owner name.
 
@@ -284,6 +287,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         wildcard = label1;
                     else
                         wildcard = label1 + "." + wildcard;
+                }
+                else
+                {
+                    break;
                 }
             }
 
