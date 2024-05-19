@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -47,7 +47,7 @@ namespace TechnitiumLibrary.Net.Dns
             return _cache.QueryClosestDelegation(request);
         }
 
-        public DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false)
+        public DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false, bool resetExpiry = false)
         {
             if (_revalidationQuestion.Equals(request.Question[0]))
             {
@@ -59,7 +59,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return _cache.QueryClosestDelegation(new DnsDatagram(request.Identifier, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(parentZone, DnsResourceRecordType.A, DnsClass.IN) }));
             }
 
-            return _cache.Query(request, serveStale, findClosestNameServers);
+            return _cache.Query(request, serveStale, findClosestNameServers, resetExpiry);
         }
 
         public void CacheResponse(DnsDatagram response, bool isDnssecBadCache = false, string zoneCut = null)
