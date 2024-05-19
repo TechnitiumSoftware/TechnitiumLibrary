@@ -614,7 +614,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (preferIPv6)
                     {
                         DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(nameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN) });
-                        DnsDatagram cacheResponse = cache.Query(cacheRequest, false, false);
+                        DnsDatagram cacheResponse = cache.Query(cacheRequest);
                         if ((cacheResponse is not null) && (cacheResponse.Answer.Count > 0) && (cacheResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
                         {
                             resolved = true;
@@ -624,7 +624,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     {
                         DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(nameServer.DomainEndPoint.Address, DnsResourceRecordType.A, DnsClass.IN) });
-                        DnsDatagram cacheResponse = cache.Query(cacheRequest, false, false);
+                        DnsDatagram cacheResponse = cache.Query(cacheRequest);
                         if ((cacheResponse is not null) && (cacheResponse.Answer.Count > 0) && (cacheResponse.Answer[0].Type == DnsResourceRecordType.A))
                         {
                             resolved = true;
@@ -668,7 +668,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     //query cache without CD flag to not get response from "bad cache" and DO flag, if validation is enabled, to get DNSSEC records for correctly reading DS from response
                     DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, ednsFlags, resolverStack.Count == 0 ? eDnsClientSubnetOption : null);
-                    DnsDatagram cacheResponse = cache.Query(cacheRequest, false, true);
+                    DnsDatagram cacheResponse = cache.Query(cacheRequest, findClosestNameServers: true);
                     if (cacheResponse is not null)
                     {
                         extendedDnsErrors.AddRange(cacheResponse.DnsClientExtendedErrors);
@@ -860,7 +860,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     currentDomain = currentDomain.Substring(i + 1);
 
                                                     //find name servers with glue; cannot find DS with this query
-                                                    DnsDatagram cachedNsResponse = cache.Query(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }), false, true);
+                                                    DnsDatagram cachedNsResponse = cache.Query(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }), findClosestNameServers: true);
                                                     if (cachedNsResponse is null)
                                                         continue;
 
@@ -1114,6 +1114,49 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                         catch (DnsClientResponseDnssecValidationException ex)
                         {
+                            if (question.ZoneCut is not null)
+                            {
+                                //QNAME minimization can encounter NO DATA response with unsupported NSEC3 iterations value
+                                bool unsupportedNSEC3IterationsValue = false;
+
+                                if (ex.Response is not null)
+                                {
+                                    foreach (EDnsExtendedDnsErrorOptionData eDnsOption in ex.Response.DnsClientExtendedErrors)
+                                    {
+                                        if (eDnsOption.InfoCode == EDnsExtendedDnsErrorCode.UnsupportedNSEC3IterationsValue)
+                                        {
+                                            unsupportedNSEC3IterationsValue = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (unsupportedNSEC3IterationsValue)
+                                {
+                                    if (question.Name.Equals(question.MinimizedName, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        if (question.Type == question.MinimizedType)
+                                        {
+                                            //domain wont resolve
+                                        }
+                                        else
+                                        {
+                                            //disable QNAME minimization and query again to current server to get correct type response
+                                            question.ZoneCut = null;
+                                            nameServerIndex--;
+                                            continue;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        //use minimized name as zone cut and query again to current server to move to next label
+                                        question.ZoneCut = question.MinimizedName;
+                                        nameServerIndex--;
+                                        continue;
+                                    }
+                                }
+                            }
+
                             //continue for loop to next name server since current name server may be out of sync
                             lastException = ex;
                             continue; //try next name server
@@ -2047,7 +2090,7 @@ namespace TechnitiumLibrary.Net.Dns
                             switch (record.Type)
                             {
                                 case DnsResourceRecordType.TXT:
-                                    txtRecords.Add((record.RDATA as DnsTXTRecordData).Text);
+                                    txtRecords.Add((record.RDATA as DnsTXTRecordData).GetText());
                                     break;
 
                                 case DnsResourceRecordType.CNAME:
@@ -3280,6 +3323,19 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
 
                                 return new Tuple<bool, IReadOnlyList<DnsResourceRecord>>(true, dsRecords);
+                            }
+
+                            //check if owner name is a CNAME
+                            foreach (DnsResourceRecord record in response.Answer)
+                            {
+                                if ((record.Type == DnsResourceRecordType.CNAME) && record.Name.Equals(ownerName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    if (record.DnssecStatus == DnssecStatus.Secure)
+                                        return new Tuple<bool, IReadOnlyList<DnsResourceRecord>>(true, dsRecords); //NO DATA case since a secure CNAME was found instead of DS
+
+                                    //CNAME found but is not secure
+                                    break;
+                                }
                             }
                         }
                         else if (response.Authority.Count > 0)
@@ -4677,24 +4733,54 @@ namespace TechnitiumLibrary.Net.Dns
             if (_advancedForwardingClientSubnet)
                 request.SetShadowEDnsClientSubnetOption(_eDnsClientSubnet, true);
 
-            DnsDatagram response = await InternalResolveAsync(request, cancellationToken);
+            bool dnssecRRSigMissingRetry = false; //retry mechanism for RRSIG missing case
 
-            //sanitize response
-            response = SanitizeResponseAnswerForQName(response);
-
-            if (_conditionalForwardingZoneCut is not null)
+            while (true)
             {
-                response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
-                response = SanitizeResponseAdditionalForZoneCut(response, _conditionalForwardingZoneCut); //keep additional section within zone cut
+                DnsDatagram response = await InternalResolveAsync(request, cancellationToken);
+
+                //sanitize response
+                response = SanitizeResponseAnswerForQName(response);
+
+                if (_conditionalForwardingZoneCut is not null)
+                {
+                    response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
+                    response = SanitizeResponseAdditionalForZoneCut(response, _conditionalForwardingZoneCut); //keep additional section within zone cut
+                }
+
+                try
+                {
+                    //dnssec validate response
+                    await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(response), this, cache, _udpPayloadSize, cancellationToken);
+                }
+                catch (DnsClientResponseDnssecValidationException ex)
+                {
+                    if (!dnssecRRSigMissingRetry)
+                    {
+                        if (ex.Response is not null)
+                        {
+                            foreach (EDnsExtendedDnsErrorOptionData eDnsError in ex.Response.DnsClientExtendedErrors)
+                            {
+                                if (eDnsError.InfoCode == EDnsExtendedDnsErrorCode.RRSIGsMissing)
+                                {
+                                    dnssecRRSigMissingRetry = true;
+                                    break;
+                                }
+                            }
+
+                            if (dnssecRRSigMissingRetry)
+                                continue; //retry once
+                        }
+                    }
+
+                    throw;
+                }
+
+                //sanitize response after DNSSEC validation
+                response = SanitizeResponseAfterDnssecValidation(response);
+
+                return response;
             }
-
-            //dnssec validate response
-            await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(response), this, cache, _udpPayloadSize, cancellationToken);
-
-            //sanitize response after DNSSEC validation
-            response = SanitizeResponseAfterDnssecValidation(response);
-
-            return response;
         }
 
         private IReadOnlyList<DnsResourceRecord> GetTrustAnchorsFor(DnsDatagram response)
