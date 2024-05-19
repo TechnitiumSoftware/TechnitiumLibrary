@@ -103,14 +103,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return 0;
 
             byte count = 0;
+            string[] labels = domain.Split('.');
 
-            foreach (string label in domain.Split('.'))
+            for (int i = 0; i < labels.Length; i++)
             {
-                if (label == "*")
-                {
-                    count = 0; //reset count due to wildcard
-                    continue;
-                }
+                if ((i == 0) && (labels[i] == "*"))
+                    continue; //not counting the leftmost label if it is a wildcard.
 
                 count++;
             }
