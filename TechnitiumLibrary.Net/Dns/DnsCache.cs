@@ -41,12 +41,15 @@ namespace TechnitiumLibrary.Net.Dns
         const uint MAXIMUM_RECORD_TTL = 3600u;
         const uint SERVE_STALE_TTL = 0u;
         const uint SERVE_STALE_TTL_MAX = 7 * 24 * 60 * 60; //7 days cap on serve stale
+        const uint SERVE_STALE_ANSWER_TTL = 30u;
+        const uint SERVE_STALE_ANSWER_TTL_MAX = 300; //5 mins
 
         uint _failureRecordTtl;
         uint _negativeRecordTtl;
         uint _minimumRecordTtl;
         uint _maximumRecordTtl;
         uint _serveStaleTtl;
+        uint _serveStaleAnswerTtl;
 
         readonly ConcurrentDictionary<string, DnsCacheEntry> _cache = new ConcurrentDictionary<string, DnsCacheEntry>(1, 5);
 
@@ -55,16 +58,17 @@ namespace TechnitiumLibrary.Net.Dns
         #region constructor
 
         public DnsCache()
-            : this(FAILURE_RECORD_TTL, NEGATIVE_RECORD_TTL, MINIMUM_RECORD_TTL, MAXIMUM_RECORD_TTL, SERVE_STALE_TTL)
+            : this(FAILURE_RECORD_TTL, NEGATIVE_RECORD_TTL, MINIMUM_RECORD_TTL, MAXIMUM_RECORD_TTL, SERVE_STALE_TTL, SERVE_STALE_ANSWER_TTL)
         { }
 
-        protected DnsCache(uint failureRecordTtl, uint negativeRecordTtl, uint minimumRecordTtl, uint maximumRecordTtl, uint serveStaleTtl)
+        protected DnsCache(uint failureRecordTtl, uint negativeRecordTtl, uint minimumRecordTtl, uint maximumRecordTtl, uint serveStaleTtl, uint serveStaleAnswerTtl)
         {
             _failureRecordTtl = failureRecordTtl;
             _negativeRecordTtl = negativeRecordTtl;
             _minimumRecordTtl = minimumRecordTtl;
             _maximumRecordTtl = maximumRecordTtl;
             _serveStaleTtl = serveStaleTtl;
+            _serveStaleAnswerTtl = serveStaleAnswerTtl;
         }
 
         #endregion
@@ -408,9 +412,9 @@ namespace TechnitiumLibrary.Net.Dns
             return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, closestAuthority, additional);
         }
 
-        public virtual DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false)
+        public virtual DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false, bool resetExpiry = false)
         {
-            if (serveStale)
+            if (serveStale || resetExpiry)
                 throw new NotImplementedException("DnsCache does not implement serve stale.");
 
             DnsQuestionRecord question = request.Question[0];
@@ -573,17 +577,17 @@ namespace TechnitiumLibrary.Net.Dns
             //set expiry for all records
             {
                 foreach (DnsResourceRecord record in response.Answer)
-                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                 foreach (DnsResourceRecord record in response.Authority)
-                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                 foreach (DnsResourceRecord record in response.Additional)
                 {
                     if (record.Type == DnsResourceRecordType.OPT)
                         continue;
 
-                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
                 }
             }
 
@@ -599,7 +603,7 @@ namespace TechnitiumLibrary.Net.Dns
                 foreach (DnsQuestionRecord question in response.Question)
                 {
                     DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _failureRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.BadCache, response));
-                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                     InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                 }
@@ -620,7 +624,7 @@ namespace TechnitiumLibrary.Net.Dns
                     foreach (DnsQuestionRecord question in response.Question)
                     {
                         DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _failureRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.FailureCache, response));
-                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                         InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                     }
@@ -919,7 +923,7 @@ namespace TechnitiumLibrary.Net.Dns
                             foreach (DnsQuestionRecord question in response.Question)
                             {
                                 DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, Math.Min(3600u, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue)), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
-                                record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                                record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                                 InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                             }
@@ -936,7 +940,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     foreach (DnsQuestionRecord question in response.Question)
                                     {
                                         DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class, Math.Min(3600u, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue)), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
-                                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                                         InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                                     }
@@ -965,7 +969,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             //empty response with authority name servers that match the zone cut; dont cache authority section with NS records
                                             DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response.RCODE, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), response.EDNS, response.DnsClientExtendedErrors));
-                                            record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                                            record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                                             InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                                             isReferralResponse = false;
@@ -1054,7 +1058,7 @@ namespace TechnitiumLibrary.Net.Dns
                     foreach (DnsQuestionRecord question in response.Question)
                     {
                         DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
-                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl);
+                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                         InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                     }
@@ -1118,6 +1122,18 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new ArgumentOutOfRangeException(nameof(ServeStaleTtl), "Serve stale TTL cannot be higher than 7 days. Recommended value is between 1-3 days.");
 
                 _serveStaleTtl = value;
+            }
+        }
+
+        public uint ServeStaleAnswerTtl
+        {
+            get { return _serveStaleAnswerTtl; }
+            set
+            {
+                if (value > SERVE_STALE_ANSWER_TTL_MAX)
+                    throw new ArgumentOutOfRangeException(nameof(ServeStaleAnswerTtl), "Serve stale answer TTL cannot be higher than 5 minutes. Recommended value is 30 seconds.");
+
+                _serveStaleAnswerTtl = value;
             }
         }
 
