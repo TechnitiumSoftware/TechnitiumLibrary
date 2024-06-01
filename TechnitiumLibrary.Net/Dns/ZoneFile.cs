@@ -604,10 +604,8 @@ namespace TechnitiumLibrary.Net.Dns
                     return await DnsZONEMDRecordData.FromZoneFileEntryAsync(this);
 
                 case DnsResourceRecordType.SVCB:
-                    return await DnsSVCBRecordData.FromZoneFileEntryAsync(this);
-
                 case DnsResourceRecordType.HTTPS:
-                    return await DnsHTTPSRecordData.FromZoneFileEntryAsync(this);
+                    return await DnsSVCBRecordData.FromZoneFileEntryAsync(this);
 
                 case DnsResourceRecordType.TSIG:
                     throw new InvalidOperationException();

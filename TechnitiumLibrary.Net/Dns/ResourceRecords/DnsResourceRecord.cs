@@ -373,10 +373,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     return new DnsZONEMDRecordData(s);
 
                 case DnsResourceRecordType.SVCB:
-                    return new DnsSVCBRecordData(s);
-
                 case DnsResourceRecordType.HTTPS:
-                    return new DnsHTTPSRecordData(s);
+                    return new DnsSVCBRecordData(s);
 
                 case DnsResourceRecordType.TSIG:
                     return new DnsTSIGRecordData(s);
