@@ -58,6 +58,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         byte[] _rData;
 
+        bool _autoIpv4Hint;
+        bool _autoIpv6Hint;
+
         #endregion
 
         #region constructors
@@ -143,7 +146,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     return ((ushort)x.Key).CompareTo((ushort)y.Key);
                 });
 
-                using (MemoryStream mS = new MemoryStream())
+                using (MemoryStream mS = new MemoryStream(UncompressedLength))
                 {
                     DnsDatagram.WriteUInt16NetworkOrder(_svcPriority, mS);
                     DnsDatagram.SerializeDomainName(canonicalForm ? _targetName.ToLowerInvariant() : _targetName, mS, null); //no compression for domain name as per RFC
@@ -178,7 +181,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             string param;
             int i;
             DnsSvcParamKey svcParamKey;
-            DnsSvcParamValue svcParamValue;
+            string svcParamValue;
+            bool autoIpv4Hint = false;
+            bool autoIpv6Hint = false;
 
             do
             {
@@ -192,13 +197,32 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 else
                     svcParamKey = Enum.Parse<DnsSvcParamKey>(param.Substring(0, i).Replace('-', '_'), true);
 
-                svcParamValue = DnsSvcParamValue.Parse(svcParamKey, param.Substring(i + 1));
+                svcParamValue = param.Substring(i + 1);
 
-                svcParams.Add(svcParamKey, svcParamValue);
+                switch (svcParamKey)
+                {
+                    case DnsSvcParamKey.IPv4Hint:
+                        if (svcParamValue.Equals("auto", StringComparison.OrdinalIgnoreCase))
+                        {
+                            autoIpv4Hint = true;
+                            continue;
+                        }
+                        break;
+
+                    case DnsSvcParamKey.IPv6Hint:
+                        if (svcParamValue.Equals("auto", StringComparison.OrdinalIgnoreCase))
+                        {
+                            autoIpv6Hint = true;
+                            continue;
+                        }
+                        break;
+                }
+
+                svcParams.Add(svcParamKey, DnsSvcParamValue.Parse(svcParamKey, svcParamValue));
             }
             while (true);
 
-            return new DnsSVCBRecordData(svcPriority, targetName, svcParams);
+            return new DnsSVCBRecordData(svcPriority, targetName, svcParams) { _autoIpv4Hint = autoIpv4Hint, _autoIpv6Hint = autoIpv6Hint };
         }
 
         internal override string ToZoneFileEntry(string originDomain = null)
@@ -213,11 +237,31 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         svcParams += " " + svcParam.Key.ToString().ToLowerInvariant().Replace('_', '-');
                         break;
 
+                    case DnsSvcParamKey.IPv4Hint:
+                        if (_autoIpv4Hint)
+                            continue;
+
+                        svcParams += " ipv4hint=" + svcParam.Value.ToString();
+                        break;
+
+                    case DnsSvcParamKey.IPv6Hint:
+                        if (_autoIpv6Hint)
+                            continue;
+
+                        svcParams += " ipv6hint=" + svcParam.Value.ToString();
+                        break;
+
                     default:
                         svcParams += " " + svcParam.Key.ToString().ToLowerInvariant().Replace('_', '-') + "=" + svcParam.Value.ToString();
                         break;
                 }
             }
+
+            if (_autoIpv4Hint)
+                svcParams += " ipv4hint=auto";
+
+            if (_autoIpv6Hint)
+                svcParams += " ipv6hint=auto";
 
             return _svcPriority + " " + DnsResourceRecord.GetRelativeDomainName(_targetName, originDomain).ToLowerInvariant() + svcParams;
         }
@@ -295,6 +339,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public IReadOnlyDictionary<DnsSvcParamKey, DnsSvcParamValue> SvcParams
         { get { return _svcParams; } }
+
+        public bool AutoIpv4Hint
+        {
+            get { return _autoIpv4Hint; }
+            set { _autoIpv4Hint = value; }
+        }
+
+        public bool AutoIpv6Hint
+        {
+            get { return _autoIpv6Hint; }
+            set { _autoIpv6Hint = value; }
+        }
 
         public override int UncompressedLength
         {
