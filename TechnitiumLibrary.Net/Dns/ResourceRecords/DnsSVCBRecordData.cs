@@ -306,7 +306,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_svcPriority, _targetName, _svcParams);
+            return HashCode.Combine(_svcPriority, _targetName, _svcParams.GetArrayHashCode());
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
@@ -531,7 +531,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_value);
+            return _value.GetArrayHashCode();
         }
 
         public override string ToString()
@@ -645,7 +645,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_keys);
+            return _keys.GetArrayHashCode();
         }
 
         public override string ToString()
@@ -776,7 +776,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_alpnIds);
+            return _alpnIds.GetArrayHashCode();
         }
 
         public override string ToString()
@@ -996,7 +996,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_addresses);
+            return _addresses.GetArrayHashCode();
         }
 
         public override string ToString()
@@ -1120,7 +1120,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_addresses);
+            return _addresses.GetArrayHashCode();
         }
 
         public override string ToString()

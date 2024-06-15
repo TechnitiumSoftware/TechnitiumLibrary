@@ -96,7 +96,7 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_rawPublicKey);
+            return _rawPublicKey.GetArrayHashCode();
         }
 
         public override string ToString()

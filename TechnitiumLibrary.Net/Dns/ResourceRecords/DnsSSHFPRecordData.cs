@@ -155,7 +155,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_algorithm, _fingerprintType, _fingerprint);
+            return HashCode.Combine(_algorithm, _fingerprintType, _fingerprint.GetArrayHashCode());
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

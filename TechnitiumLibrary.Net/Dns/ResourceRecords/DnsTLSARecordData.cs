@@ -264,7 +264,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_certificateUsage, _selector, _matchingType, _certificateAssociationData);
+            return HashCode.Combine(_certificateUsage, _selector, _matchingType, _certificateAssociationData.GetArrayHashCode());
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

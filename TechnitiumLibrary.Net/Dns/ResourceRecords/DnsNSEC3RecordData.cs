@@ -546,7 +546,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_hashAlgorithm, _flags, _iterations, _salt, _nextHashedOwnerNameValue, _types);
+            return HashCode.Combine(_hashAlgorithm, _flags, _iterations, _salt.GetArrayHashCode(), _nextHashedOwnerNameValue.GetArrayHashCode(), _types);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

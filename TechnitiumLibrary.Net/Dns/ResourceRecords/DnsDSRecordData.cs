@@ -249,7 +249,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_keyTag, _algorithm, _digestType, _digest);
+            return HashCode.Combine(_keyTag, _algorithm, _digestType, _digest.GetArrayHashCode());
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

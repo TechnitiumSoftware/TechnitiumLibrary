@@ -210,7 +210,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_characterStrings);
+            return _characterStrings.GetArrayHashCode();
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

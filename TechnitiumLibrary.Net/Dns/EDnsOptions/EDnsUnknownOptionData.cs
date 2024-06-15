@@ -85,7 +85,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_data);
+            return _data.GetArrayHashCode();
         }
 
         public override string ToString()

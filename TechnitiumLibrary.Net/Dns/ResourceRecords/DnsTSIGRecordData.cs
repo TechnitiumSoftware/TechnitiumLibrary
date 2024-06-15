@@ -175,7 +175,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_algorithmName, _timeSigned, _fudge, _mac, _originalID, _error, _otherData);
+            return HashCode.Combine(_algorithmName, _timeSigned, _fudge, _mac.GetArrayHashCode(), _originalID, _error, _otherData.GetArrayHashCode());
         }
 
         public override string ToString()

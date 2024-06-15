@@ -182,7 +182,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_serial, _scheme, _hashAlgorithm, _digest);
+            return HashCode.Combine(_serial, _scheme, _hashAlgorithm, _digest.GetArrayHashCode());
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

@@ -1470,7 +1470,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             public override int GetHashCode()
             {
-                return HashCode.Combine(_type, _rcode, _answer, _authority, _additional);
+                return HashCode.Combine(_type, _rcode, _answer.GetArrayHashCode(), _authority.GetArrayHashCode(), _additional.GetArrayHashCode());
             }
 
             public override string ToString()
