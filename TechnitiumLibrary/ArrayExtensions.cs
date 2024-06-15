@@ -70,5 +70,18 @@ namespace TechnitiumLibrary
 
             return true;
         }
+
+        public static int GetArrayHashCode<T>(this IReadOnlyCollection<T> value)
+        {
+            if (value is null)
+                return 0;
+
+            int hashCode = 0x7B58D9E4;
+
+            foreach (T t in value)
+                hashCode ^= t.GetHashCode();
+
+            return hashCode;
+        }
     }
 }
