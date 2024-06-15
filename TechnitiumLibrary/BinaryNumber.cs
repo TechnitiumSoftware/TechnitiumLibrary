@@ -125,7 +125,7 @@ namespace TechnitiumLibrary
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_value);
+            return _value.GetArrayHashCode();
         }
 
         public int CompareTo(BinaryNumber other)
