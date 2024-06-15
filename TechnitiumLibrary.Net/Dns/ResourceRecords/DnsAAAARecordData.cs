@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -107,7 +108,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return _address.GetHashCode();
+            return HashCode.Combine(_address);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
