@@ -11,8 +11,9 @@
     <RepositoryUrl>https://github.com/TechnitiumSoftware/TechnitiumLibrary</RepositoryUrl>
     <RepositoryType></RepositoryType>
     <Description></Description>
-    <PackageId>TechnitiumLibrary.Net</PackageId>
+    <PackageId>TechnitiumLibrary.Net.Firewall</PackageId>
     <Version>5.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">

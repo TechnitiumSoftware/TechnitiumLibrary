@@ -4,6 +4,7 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 		<Version>5.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 		<Authors>Shreyas Zare</Authors>
 		<Company>Technitium</Company>
 		<Product>Technitium Library</Product>

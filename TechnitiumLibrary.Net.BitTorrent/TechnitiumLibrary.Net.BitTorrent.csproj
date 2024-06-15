@@ -19,6 +19,7 @@
     <Description></Description>
     <PackageId>TechnitiumLibrary.Net.BitTorrent</PackageId>
     <Version>5.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
