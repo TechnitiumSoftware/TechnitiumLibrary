@@ -156,43 +156,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     }
                 }
 
-                List<SerializedResourceRecord> rrList = new List<SerializedResourceRecord>(records.Count);
+                List<CanonicallySerializedResourceRecord> rrList = new List<CanonicallySerializedResourceRecord>(records.Count);
 
                 //select and serialize records
                 using (MemoryStream rrBuffer = new MemoryStream(512))
                 {
-                    //serialize RDATA
                     foreach (DnsResourceRecord record in records)
-                    {
-                        byte[] firstPart;
-                        byte[] rdataPart;
-
-                        //serialize RDATA
-                        record.RDATA.WriteCanonicalRecordData(rrBuffer);
-
-                        rdataPart = rrBuffer.ToArray();
-                        rrBuffer.SetLength(0);
-
-                        //serialize owner name | type | class | Original TTL | RDATA length
-                        DnsDatagram.SerializeDomainName(name, rrBuffer);
-                        DnsDatagram.WriteUInt16NetworkOrder((ushort)record.Type, rrBuffer);
-                        DnsDatagram.WriteUInt16NetworkOrder((ushort)record.Class, rrBuffer);
-                        DnsDatagram.WriteUInt32NetworkOrder(rrsigRecord._originalTtl, rrBuffer);
-                        DnsDatagram.WriteUInt16NetworkOrder(Convert.ToUInt16(rdataPart.Length), rrBuffer);
-
-                        firstPart = rrBuffer.ToArray();
-                        rrBuffer.SetLength(0);
-
-                        //add to list
-                        rrList.Add(new SerializedResourceRecord(firstPart, rdataPart));
-                    }
+                        rrList.Add(CanonicallySerializedResourceRecord.Create(name, record.Type, record.Class, rrsigRecord._originalTtl, record.RDATA, rrBuffer));
                 }
 
                 //Canonical RR Ordering by sorting RDATA portion of the canonical form of each RR
                 rrList.Sort();
 
                 //write sorted RR into main buffer
-                foreach (SerializedResourceRecord rr in rrList)
+                foreach (CanonicallySerializedResourceRecord rr in rrList)
                     rr.WriteTo(mS);
 
                 mS.Position = 0;
@@ -611,41 +588,5 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         { get { return 2 + 1 + 1 + 4 + 4 + 4 + 2 + DnsDatagram.GetSerializeDomainNameLength(_signersName) + _signature.Length; } }
 
         #endregion
-
-        class SerializedResourceRecord : IComparable<SerializedResourceRecord>
-        {
-            #region variables
-
-            readonly byte[] _firstPart;
-            readonly byte[] _rdataPart;
-
-            #endregion
-
-            #region constructor
-
-            public SerializedResourceRecord(byte[] firstPart, byte[] rdataPart)
-            {
-                _firstPart = firstPart;
-                _rdataPart = rdataPart;
-            }
-
-            #endregion
-
-            #region public
-
-            public int CompareTo(SerializedResourceRecord other)
-            {
-                //Canonical RR Ordering by sorting RDATA portion of the canonical form of each RR
-                return DnsNSECRecordData.CanonicalComparison(_rdataPart, other._rdataPart);
-            }
-
-            public void WriteTo(Stream s)
-            {
-                s.Write(_firstPart);
-                s.Write(_rdataPart);
-            }
-
-            #endregion
-        }
     }
 }
