@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -144,7 +144,7 @@ namespace TechnitiumLibrary.Net.Proxy
         protected static async Task<Socket> GetTcpConnectionAsync(EndPoint ep, CancellationToken cancellationToken)
         {
             if (ep.AddressFamily == AddressFamily.Unspecified)
-                ep = await ep.GetIPEndPointAsync();
+                ep = await ep.GetIPEndPointAsync(cancellationToken: cancellationToken);
 
             Socket socket = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
@@ -155,7 +155,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return socket;
         }
 
-        protected abstract Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket);
+        protected abstract Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket, CancellationToken cancellationToken);
 
         #endregion
 
@@ -192,8 +192,10 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             try
             {
-                using (Socket socket = await GetTcpConnectionAsync(_proxyEP, cancellationToken).WithTimeout(timeout))
-                { }
+                using Socket socket = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                {
+                    return GetTcpConnectionAsync(_proxyEP, cancellationToken1);
+                }, timeout, cancellationToken);
 
                 return true;
             }
@@ -206,7 +208,7 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public virtual Task<bool> IsUdpAvailableAsync()
+        public virtual Task<bool> IsUdpAvailableAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(false);
         }
@@ -222,9 +224,9 @@ namespace TechnitiumLibrary.Net.Proxy
                 return await GetTcpConnectionAsync(remoteEP, cancellationToken);
 
             if (_viaProxy == null)
-                return await ConnectAsync(remoteEP, await GetTcpConnectionAsync(_proxyEP, cancellationToken));
+                return await ConnectAsync(remoteEP, await GetTcpConnectionAsync(_proxyEP, cancellationToken), cancellationToken);
             else
-                return await ConnectAsync(remoteEP, await _viaProxy.ConnectAsync(_proxyEP, cancellationToken));
+                return await ConnectAsync(remoteEP, await _viaProxy.ConnectAsync(_proxyEP, cancellationToken), cancellationToken);
         }
 
         public virtual Task<IProxyServerBindHandler> GetBindHandlerAsync(AddressFamily family)
@@ -308,7 +310,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 : base(NetProxyType.None, null, null)
             { }
 
-            protected override Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket)
+            protected override Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket, CancellationToken cancellationToken)
             {
                 throw new NotImplementedException();
             }
