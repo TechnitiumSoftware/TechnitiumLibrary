@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,8 +23,8 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using System.Threading.Tasks;
-using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
@@ -129,12 +129,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region static
 
-        public static async Task<TunnelProxy> CreateTunnelProxyAsync(EndPoint remoteEP, bool enableSsl, bool ignoreCertificateErrors)
+        public static async Task<TunnelProxy> CreateTunnelProxyAsync(EndPoint remoteEP, bool enableSsl, bool ignoreCertificateErrors, CancellationToken cancellationToken = default)
         {
-            IPEndPoint ep = await remoteEP.GetIPEndPointAsync();
+            IPEndPoint ep = await remoteEP.GetIPEndPointAsync(cancellationToken: cancellationToken);
 
             Socket socket = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            await socket.ConnectAsync(ep);
+            await socket.ConnectAsync(ep, cancellationToken);
+
+            socket.NoDelay = true;
 
             return new TunnelProxy(socket, remoteEP, enableSsl, ignoreCertificateErrors);
         }
@@ -147,7 +149,11 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             try
             {
-                _tunnelSocket = await _tunnelListener.AcceptAsync().WithTimeout(TUNNEL_WAIT_TIMEOUT);
+                _tunnelSocket = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                {
+                    return _tunnelListener.AcceptAsync(cancellationToken1).AsTask();
+                }, TUNNEL_WAIT_TIMEOUT);
+
                 _tunnelListener.Dispose();
 
                 Stream remoteStream = new NetworkStream(_remoteSocket);
@@ -168,7 +174,10 @@ namespace TechnitiumLibrary.Net.Proxy
                         sslStream = new SslStream(remoteStream);
                     }
 
-                    await sslStream.AuthenticateAsClientAsync(_remoteEP.GetAddress()).WithTimeout(TUNNEL_WAIT_TIMEOUT);
+                    await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                    {
+                        return sslStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions() { TargetHost = _remoteEP.GetAddress() }, cancellationToken1);
+                    }, TUNNEL_WAIT_TIMEOUT);
 
                     remoteStream = sslStream;
                 }
