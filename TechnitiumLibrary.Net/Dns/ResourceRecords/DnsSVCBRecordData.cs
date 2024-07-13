@@ -948,11 +948,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             int count = _length / 4;
             IPAddress[] addresses = new IPAddress[count];
-            byte[] buffer = new byte[4];
+            Span<byte> buffer = stackalloc byte[4];
 
             for (int i = 0; i < count; i++)
             {
-                s.ReadExactly(buffer, 0, 4);
+                s.ReadExactly(buffer);
                 addresses[i] = new IPAddress(buffer);
             }
 
@@ -1072,11 +1072,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             int count = _length / 16;
             IPAddress[] addresses = new IPAddress[count];
-            byte[] buffer = new byte[16];
+            Span<byte> buffer = stackalloc byte[16];
 
             for (int i = 0; i < count; i++)
             {
-                s.ReadExactly(buffer, 0, 16);
+                s.ReadExactly(buffer);
                 addresses[i] = new IPAddress(buffer);
             }
 
