@@ -142,11 +142,11 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region static
 
-        internal static async Task<EndPoint> ReadEndPointAsync(Stream s)
+        internal static async Task<EndPoint> ReadEndPointAsync(Stream s, CancellationToken cancellationToken)
         {
             byte[] buffer = new byte[2];
 
-            await s.ReadExactlyAsync(buffer, 0, 1);
+            await s.ReadExactlyAsync(buffer, 0, 1, cancellationToken);
             SocksAddressType addressType = (SocksAddressType)buffer[0];
 
             switch (addressType)
@@ -154,8 +154,8 @@ namespace TechnitiumLibrary.Net.Proxy
                 case SocksAddressType.IPv4Address:
                     {
                         byte[] addressBytes = new byte[4];
-                        await s.ReadExactlyAsync(addressBytes, 0, 4);
-                        await s.ReadExactlyAsync(buffer, 0, 2);
+                        await s.ReadExactlyAsync(addressBytes, 0, 4, cancellationToken);
+                        await s.ReadExactlyAsync(buffer, 0, 2, cancellationToken);
                         Array.Reverse(buffer, 0, 2);
 
                         return new IPEndPoint(new IPAddress(addressBytes), BitConverter.ToUInt16(buffer, 0));
@@ -164,8 +164,8 @@ namespace TechnitiumLibrary.Net.Proxy
                 case SocksAddressType.IPv6Address:
                     {
                         byte[] addressBytes = new byte[16];
-                        await s.ReadExactlyAsync(addressBytes, 0, 16);
-                        await s.ReadExactlyAsync(buffer, 0, 2);
+                        await s.ReadExactlyAsync(addressBytes, 0, 16, cancellationToken);
+                        await s.ReadExactlyAsync(buffer, 0, 2, cancellationToken);
                         Array.Reverse(buffer, 0, 2);
 
                         return new IPEndPoint(new IPAddress(addressBytes), BitConverter.ToUInt16(buffer, 0));
@@ -173,12 +173,12 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 case SocksAddressType.DomainName:
                     {
-                        await s.ReadExactlyAsync(buffer, 0, 1);
+                        await s.ReadExactlyAsync(buffer, 0, 1, cancellationToken);
                         byte[] addressBytes = new byte[buffer[0]];
-                        await s.ReadExactlyAsync(addressBytes, 0, addressBytes.Length);
+                        await s.ReadExactlyAsync(addressBytes, 0, addressBytes.Length, cancellationToken);
                         string domain = Encoding.ASCII.GetString(addressBytes);
 
-                        await s.ReadExactlyAsync(buffer, 0, 2);
+                        await s.ReadExactlyAsync(buffer, 0, 2, cancellationToken);
                         Array.Reverse(buffer, 0, 2);
 
                         if (IPAddress.TryParse(domain, out IPAddress address)) //some socks clients send ip address with domain address type
@@ -192,7 +192,7 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        internal static async Task WriteEndPointAsync(EndPoint endPoint, Stream s)
+        internal static async Task WriteEndPointAsync(EndPoint endPoint, Stream s, CancellationToken cancellationToken)
         {
             SocksAddressType addressType;
             byte[] address;
@@ -240,9 +240,9 @@ namespace TechnitiumLibrary.Net.Proxy
             byte[] portBytes = BitConverter.GetBytes(port);
             Array.Reverse(portBytes);
 
-            await s.WriteAsync(new byte[] { (byte)addressType });
-            await s.WriteAsync(address);
-            await s.WriteAsync(portBytes.AsMemory(0, 2));
+            await s.WriteAsync(new byte[] { (byte)addressType }, cancellationToken);
+            await s.WriteAsync(address, cancellationToken);
+            await s.WriteAsync(portBytes.AsMemory(0, 2), cancellationToken);
         }
 
         #endregion
@@ -359,7 +359,11 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     #region authenticate
 
-                    SocksProxyNegotiationRequest negotiationRequest = await SocksProxyNegotiationRequest.ReadRequestAsync(localStream).WithTimeout(CLIENT_WAIT_TIMEOUT);
+                    SocksProxyNegotiationRequest negotiationRequest = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                    {
+                        return SocksProxyNegotiationRequest.ReadRequestAsync(localStream, cancellationToken1);
+                    }, CLIENT_WAIT_TIMEOUT);
+
                     if (!negotiationRequest.IsVersionSupported)
                     {
                         await new SocksProxyNegotiationReply(SocksProxyAuthenticationMethod.NoAcceptableMethods).WriteToAsync(localStream);
@@ -389,7 +393,11 @@ namespace TechnitiumLibrary.Net.Proxy
                                 case SocksProxyAuthenticationMethod.UsernamePassword:
                                     //read method version
 
-                                    SocksProxyAuthenticationRequest authenticationRequest = await SocksProxyAuthenticationRequest.ReadRequestAsync(localStream).WithTimeout(CLIENT_WAIT_TIMEOUT);
+                                    SocksProxyAuthenticationRequest authenticationRequest = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                                    {
+                                        return SocksProxyAuthenticationRequest.ReadRequestAsync(localStream, cancellationToken1);
+                                    }, CLIENT_WAIT_TIMEOUT);
+
                                     if (!authenticationRequest.IsVersionSupported)
                                     {
                                         await new SocksProxyAuthenticationReply(SocksProxyAuthenticationStatus.Failure).WriteToAsync(localStream);
@@ -428,7 +436,11 @@ namespace TechnitiumLibrary.Net.Proxy
                     #region process request
 
                     //read request
-                    SocksProxyRequest request = await SocksProxyRequest.ReadRequestAsync(localStream).WithTimeout(CLIENT_WAIT_TIMEOUT);
+                    SocksProxyRequest request = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                    {
+                        return SocksProxyRequest.ReadRequestAsync(localStream, cancellationToken1);
+                    }, CLIENT_WAIT_TIMEOUT);
+
                     if (!request.IsVersionSupported)
                     {
                         await new SocksProxyReply(SocksProxyReplyCode.GeneralSocksServerFailure).WriteToAsync(localStream);
@@ -540,7 +552,10 @@ namespace TechnitiumLibrary.Net.Proxy
                             {
                                 try
                                 {
-                                    _remoteSocket = await _bindHandler.AcceptAsync().WithTimeout(CLIENT_WAIT_TIMEOUT);
+                                    _remoteSocket = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                                    {
+                                        return _bindHandler.AcceptAsync(cancellationToken1);
+                                    }, CLIENT_WAIT_TIMEOUT);
                                 }
                                 catch (SocksProxyException ex)
                                 {
