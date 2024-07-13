@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ using System.Collections.Specialized;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Http
@@ -31,6 +32,12 @@ namespace TechnitiumLibrary.Net.Http
         #region variables
 
         const int BUFFER_SIZE = 8 * 1024;
+
+        private static readonly char[] equalToSeparator = new char[] { '=' };
+        private static readonly char[] spaceSeparator = new char[] { ' ' };
+        private static readonly char[] questionMarkSeparator = new char[] { '?' };
+        private static readonly char[] ampersandSeparator = new char[] { '&' };
+        private static readonly char[] colonSeparator = new char[] { ':' };
 
         string _httpMethod;
         string _requestPath;
@@ -52,7 +59,7 @@ namespace TechnitiumLibrary.Net.Http
 
         #region static
 
-        public static async Task<HttpRequest> ReadRequestAsync(Stream stream, int maxContentLength = -1)
+        public static async Task<HttpRequest> ReadRequestAsync(Stream stream, int maxContentLength = -1, CancellationToken cancellationToken = default)
         {
             HttpRequest httpRequest = new HttpRequest();
 
@@ -68,7 +75,7 @@ namespace TechnitiumLibrary.Net.Http
 
                 while (crlfCount != 4)
                 {
-                    length = await stream.ReadAsync(buffer);
+                    length = await stream.ReadAsync(buffer, cancellationToken);
                     if (length < 1)
                     {
                         if (firstRead)
@@ -107,7 +114,7 @@ namespace TechnitiumLibrary.Net.Http
                 headerBuffer.Position = 0;
                 StreamReader sR = new StreamReader(headerBuffer);
 
-                string[] requestParts = sR.ReadLine().Split(new char[] { ' ' }, 3);
+                string[] requestParts = sR.ReadLine().Split(spaceSeparator, 3);
 
                 if (requestParts.Length != 3)
                     throw new InvalidDataException("Invalid HTTP request.");
@@ -116,7 +123,7 @@ namespace TechnitiumLibrary.Net.Http
                 httpRequest._requestPathAndQuery = requestParts[1];
                 httpRequest._protocol = requestParts[2];
 
-                string[] requestPathAndQueryParts = httpRequest._requestPathAndQuery.Split(new char[] { '?' }, 2);
+                string[] requestPathAndQueryParts = httpRequest._requestPathAndQuery.Split(questionMarkSeparator, 2);
 
                 httpRequest._requestPath = requestPathAndQueryParts[0];
 
@@ -126,9 +133,9 @@ namespace TechnitiumLibrary.Net.Http
 
                 if (!string.IsNullOrEmpty(queryString))
                 {
-                    foreach (string item in queryString.Split(new char[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
+                    foreach (string item in queryString.Split(ampersandSeparator, StringSplitOptions.RemoveEmptyEntries))
                     {
-                        string[] itemParts = item.Split(new char[] { '=' }, 2);
+                        string[] itemParts = item.Split(equalToSeparator, 2);
 
                         string name = itemParts[0];
                         string value = null;
@@ -146,7 +153,7 @@ namespace TechnitiumLibrary.Net.Http
                     if (string.IsNullOrEmpty(line))
                         break;
 
-                    string[] parts = line.Split(new char[] { ':' }, 2);
+                    string[] parts = line.Split(colonSeparator, 2);
                     if (parts.Length != 2)
                         throw new InvalidDataException("Invalid HTTP request.");
 
