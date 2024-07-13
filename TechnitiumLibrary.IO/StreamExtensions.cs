@@ -47,6 +47,11 @@ namespace TechnitiumLibrary.IO
             return buffer[0];
         }
 
+        public static async Task WriteByteAsync(this Stream s, byte value, CancellationToken cancellationToken = default)
+        {
+            await s.WriteAsync([value], 0, 1, cancellationToken);
+        }
+
         public static byte[] ReadExactly(this Stream s, int count)
         {
             byte[] buffer = new byte[count];
@@ -70,7 +75,22 @@ namespace TechnitiumLibrary.IO
 
         public static string ReadShortString(this Stream s, Encoding encoding)
         {
-            return encoding.GetString(s.ReadExactly(s.ReadByteValue()));
+            int length = s.ReadByteValue();
+            Span<byte> buffer = stackalloc byte[length];
+
+            s.ReadExactly(buffer);
+
+            return encoding.GetString(buffer);
+        }
+
+        public static Task<string> ReadShortStringAsync(this Stream s, CancellationToken cancellationToken = default)
+        {
+            return ReadShortStringAsync(s, Encoding.UTF8, cancellationToken);
+        }
+
+        public static async Task<string> ReadShortStringAsync(this Stream s, Encoding encoding, CancellationToken cancellationToken = default)
+        {
+            return encoding.GetString(await s.ReadExactlyAsync(await s.ReadByteValueAsync(cancellationToken), cancellationToken));
         }
 
         public static void WriteShortString(this Stream s, string value)
@@ -80,12 +100,28 @@ namespace TechnitiumLibrary.IO
 
         public static void WriteShortString(this Stream s, string value, Encoding encoding)
         {
+            Span<byte> buffer = stackalloc byte[255];
+
+            if (!encoding.TryGetBytes(value, buffer, out int bytesWritten))
+                throw new ArgumentOutOfRangeException(nameof(value), "Parameter 'value' exceeded max length of 255 bytes.");
+
+            s.WriteByte((byte)bytesWritten);
+            s.Write(buffer.Slice(0, bytesWritten));
+        }
+
+        public static Task WriteShortStringAsync(this Stream s, string value, CancellationToken cancellationToken = default)
+        {
+            return WriteShortStringAsync(s, value, Encoding.UTF8, cancellationToken);
+        }
+
+        public static async Task WriteShortStringAsync(this Stream s, string value, Encoding encoding, CancellationToken cancellationToken = default)
+        {
             byte[] buffer = encoding.GetBytes(value);
             if (buffer.Length > 255)
                 throw new ArgumentOutOfRangeException(nameof(value), "Parameter 'value' exceeded max length of 255 bytes.");
 
-            s.WriteByte(Convert.ToByte(buffer.Length));
-            s.Write(buffer);
+            await s.WriteByteAsync((byte)buffer.Length, cancellationToken);
+            await s.WriteAsync(buffer, cancellationToken);
         }
 
         public static void CopyTo(this Stream s, Stream destination, int bufferSize, int length)
