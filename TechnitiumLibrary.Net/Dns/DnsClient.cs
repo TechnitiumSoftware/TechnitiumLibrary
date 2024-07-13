@@ -1829,17 +1829,7 @@ namespace TechnitiumLibrary.Net.Dns
                             cache.CacheResponse(failureResponse);
                         }
 
-                        string strNameServers = null;
-
-                        foreach (NameServerAddress nameServer in nameServers)
-                        {
-                            if (strNameServers is null)
-                                strNameServers = nameServer.ToString();
-                            else
-                                strNameServers += ", " + nameServer.ToString();
-                        }
-
-                        throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': no response from name servers [" + strNameServers + "].", lastException);
+                        throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': no response from name servers [" + nameServers.Join() + "].", lastException);
                     }
                     else
                     {
@@ -4396,17 +4386,7 @@ namespace TechnitiumLibrary.Net.Dns
                         if (lastException is not null)
                             ExceptionDispatchInfo.Capture(lastException).Throw();
 
-                        string strNameServers = null;
-
-                        foreach (NameServerAddress nameServer in servers)
-                        {
-                            if (strNameServers is null)
-                                strNameServers = nameServer.ToString();
-                            else
-                                strNameServers += ", " + nameServer.ToString();
-                        }
-
-                        throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": no response from name servers [" + strNameServers + "].");
+                        throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": no response from name servers [" + servers.Join() + "].");
                     }
 
                     NetProxy proxy = _proxy;
@@ -4436,7 +4416,7 @@ namespace TechnitiumLibrary.Net.Dns
                     else
                     {
                         //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
-                        if ((server.Protocol == DnsTransportProtocol.Udp) && !await proxy.IsUdpAvailableAsync())
+                        if ((server.Protocol == DnsTransportProtocol.Udp) && !await proxy.IsUdpAvailableAsync(cancellationToken))
                             server = server.ChangeProtocol(DnsTransportProtocol.Tcp);
                     }
 
@@ -4711,7 +4691,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 if (lastException is not null)
                                     ExceptionDispatchInfo.Capture(lastException).Throw();
 
-                                throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out.");
+                                throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out for name servers [" + servers.Join() + "].");
                             }
 
                             if (completedTask.Status == TaskStatus.RanToCompletion)
