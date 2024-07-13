@@ -136,7 +136,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         private async Task<Stream> GetConnectionAsync(CancellationToken cancellationToken)
         {
             if (_tcpStream is not null)
-                return _tcpStream;
+            {
+                if ((_socket is not null) && _socket.Connected)
+                    return _tcpStream;
+
+                _tcpStream.Dispose();
+            }
 
             Socket socket;
 
@@ -186,19 +191,22 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             _socket = socket;
             _tcpStream = await GetNetworkStreamAsync(socket, cancellationToken);
 
-            _ = ReadDnsDatagramAsync();
+            _ = ReadDnsDatagramAsync(_tcpStream, cancellationToken);
 
             return _tcpStream;
         }
 
-        private async Task ReadDnsDatagramAsync()
+        private async Task ReadDnsDatagramAsync(Stream tcpStream, CancellationToken cancellationToken)
         {
             try
             {
                 while (true)
                 {
                     //read response datagram
-                    DnsDatagram response = await DnsDatagram.ReadFromTcpAsync(_tcpStream, _recvBuffer).WithTimeout(ASYNC_RECEIVE_TIMEOUT);
+                    DnsDatagram response = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                    {
+                        return DnsDatagram.ReadFromTcpAsync(tcpStream, _recvBuffer, cancellationToken1);
+                    }, ASYNC_RECEIVE_TIMEOUT, cancellationToken);
 
                     //signal response
                     if (_transactions.TryGetValue(response.Identifier, out Transaction transaction))
@@ -207,19 +215,20 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
             catch (Exception ex)
             {
-                await _sendRequestSemaphore.WaitAsync();
+                await _sendRequestSemaphore.WaitAsync(CancellationToken.None);
                 try
                 {
-                    if (_tcpStream != null)
+                    //ensure current tcp stream is same and not replaced by reconnection attempt
+                    if (ReferenceEquals(tcpStream, _tcpStream))
                     {
                         _tcpStream.Dispose();
                         _tcpStream = null;
+
+                        foreach (KeyValuePair<ushort, Transaction> transaction in _transactions)
+                            transaction.Value.SetException(ex);
+
+                        _transactions.Clear();
                     }
-
-                    foreach (KeyValuePair<ushort, Transaction> transaction in _transactions)
-                        transaction.Value.SetException(ex);
-
-                    _transactions.Clear();
                 }
                 finally
                 {
@@ -283,7 +292,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 try
                 {
-                    Transaction transaction = new Transaction(request.IsZoneTransfer);
+                    Transaction transaction = new Transaction(request);
 
                     Task<bool> sendAsyncTask = SendDnsDatagramAsync(request, timeout, transaction, cancellationToken);
                     if (firstSendAsyncTask is null)
@@ -294,7 +303,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     {
                         await using (CancellationTokenRegistration ctr = cancellationToken.Register(timeoutCancellationTokenSource.Cancel))
                         {
-                            if (await Task.WhenAny(new Task[] { sendAsyncTask, Task.Delay(timeout, timeoutCancellationTokenSource.Token) }) != sendAsyncTask)
+                            if (await Task.WhenAny(sendAsyncTask, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != sendAsyncTask)
                                 continue; //send timed out; retry
                         }
 
@@ -309,7 +318,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     {
                         await using (CancellationTokenRegistration ctr = cancellationToken.Register(timeoutCancellationTokenSource.Cancel))
                         {
-                            if (await Task.WhenAny(new Task[] { transaction.Response, Task.Delay(timeout, timeoutCancellationTokenSource.Token) }) != transaction.Response)
+                            if (await Task.WhenAny(transaction.Response, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != transaction.Response)
                                 continue; //timed out; retry
                         }
 
@@ -343,7 +352,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             if ((firstSendAsyncTask is not null) && firstSendAsyncTask.IsFaulted)
                 await firstSendAsyncTask; //await to throw relevent exception
 
-            throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out.");
+            throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out for name server [" + _server.ToString() + "].");
         }
 
         #endregion
@@ -366,6 +375,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             #region variables
 
             readonly bool _isZoneTransferRequest;
+            readonly bool _isIXFR;
 
             readonly Stopwatch _stopwatch = new Stopwatch();
             readonly TaskCompletionSource<DnsDatagram> _responseTask = new TaskCompletionSource<DnsDatagram>();
@@ -377,9 +387,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             #region constructor
 
-            public Transaction(bool isZoneTransferRequest)
+            public Transaction(DnsDatagram request)
             {
-                _isZoneTransferRequest = isZoneTransferRequest;
+                _isZoneTransferRequest = request.IsZoneTransfer;
+                if (_isZoneTransferRequest)
+                    _isIXFR = request.Question[0].Type == DnsResourceRecordType.IXFR;
 
                 _stopwatch.Start();
             }
@@ -430,7 +442,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     _lastResponse = response;
 
-                    if ((_lastResponse.Answer.Count == 0) || ((_lastResponse.Answer[_lastResponse.Answer.Count - 1].Type == DnsResourceRecordType.SOA) && ((_lastResponse.Answer.Count > 1) || !isFirstResponse)))
+                    if (
+                        (_lastResponse.Answer.Count == 0) || //empty response
+                        (_isIXFR && (_lastResponse.Answer.Count == 1) && (_lastResponse.Answer[0].Type == DnsResourceRecordType.SOA)) || //IXFR not modified response
+                        ((_lastResponse.Answer[_lastResponse.Answer.Count - 1].Type == DnsResourceRecordType.SOA) && ((_lastResponse.Answer.Count > 1) || !isFirstResponse))
+                       )
                     {
                         //found last response
                         _stopwatch.Stop();
