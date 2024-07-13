@@ -82,7 +82,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             using (MemoryStream mS = new MemoryStream(UncompressedLength))
             {
-                byte[] buffer = new byte[255];
+                Span<byte> buffer = stackalloc byte[255];
                 int bytesWritten;
 
                 foreach (string characterString in _characterStrings)
@@ -90,8 +90,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (!Encoding.ASCII.TryGetBytes(characterString, buffer, out bytesWritten))
                         throw new InvalidOperationException();
 
-                    mS.WriteByte(Convert.ToByte(bytesWritten));
-                    mS.Write(buffer, 0, bytesWritten);
+                    mS.WriteByte((byte)bytesWritten);
+                    mS.Write(buffer.Slice(0, bytesWritten));
                 }
 
                 _rData = mS.ToArray();
@@ -112,7 +112,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 int bytesRead = 0;
                 int count;
-                byte[] buffer = new byte[255];
+                Span<byte> buffer = stackalloc byte[255];
 
                 while (bytesRead < _rdLength)
                 {
@@ -120,8 +120,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (count < 0)
                         throw new EndOfStreamException();
 
-                    mS.ReadExactly(buffer, 0, count);
-                    characterStrings.Add(Encoding.ASCII.GetString(buffer, 0, count));
+                    Span<byte> bufferSlice = buffer.Slice(0, count);
+
+                    mS.ReadExactly(bufferSlice);
+                    characterStrings.Add(Encoding.ASCII.GetString(bufferSlice));
 
                     bytesRead += count + 1;
                 }
