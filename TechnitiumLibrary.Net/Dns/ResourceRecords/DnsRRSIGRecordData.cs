@@ -345,7 +345,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region private
 
-        private void WriteTo(Stream s, bool includeSignature)
+        private void WriteTo(MemoryStream s, bool includeSignature)
         {
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_typeCovered, s);
             s.WriteByte((byte)_algorithm);
