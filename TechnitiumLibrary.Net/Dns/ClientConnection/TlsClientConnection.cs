@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -47,7 +47,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         protected override async Task<Stream> GetNetworkStreamAsync(Socket socket, CancellationToken cancellationToken)
         {
             SslStream tlsStream = new SslStream(new NetworkStream(socket, true));
-            await tlsStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions() { TargetHost = _server.Host }, cancellationToken).WithTimeout(TLS_WAIT_TIMEOUT);
+
+            await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+            {
+                return tlsStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions() { TargetHost = _server.Host }, cancellationToken1);
+            }, TLS_WAIT_TIMEOUT, cancellationToken);
 
             return tlsStream;
         }
