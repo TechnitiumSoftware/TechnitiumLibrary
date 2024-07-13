@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System.IO;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
@@ -68,17 +69,17 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region static
 
-        public static async Task<SocksProxyReply> ReadReplyAsync(Stream s)
+        public static async Task<SocksProxyReply> ReadReplyAsync(Stream s, CancellationToken cancellationToken = default)
         {
             SocksProxyReply reply = new SocksProxyReply();
 
             byte[] buffer = new byte[3];
 
-            await s.ReadExactlyAsync(buffer);
+            await s.ReadExactlyAsync(buffer, cancellationToken);
 
             reply._version = buffer[0];
             reply._reply = (SocksProxyReplyCode)buffer[1];
-            reply._bindEP = await SocksProxyServer.ReadEndPointAsync(s);
+            reply._bindEP = await SocksProxyServer.ReadEndPointAsync(s, cancellationToken);
 
             return reply;
         }
@@ -87,15 +88,15 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public async Task WriteToAsync(Stream s)
+        public async Task WriteToAsync(Stream s, CancellationToken cancellationToken = default)
         {
             byte[] buffer = new byte[3];
 
             buffer[0] = _version;
             buffer[1] = (byte)_reply;
 
-            await s.WriteAsync(buffer);
-            await SocksProxyServer.WriteEndPointAsync(_bindEP, s);
+            await s.WriteAsync(buffer, cancellationToken);
+            await SocksProxyServer.WriteEndPointAsync(_bindEP, s, cancellationToken);
         }
 
         #endregion

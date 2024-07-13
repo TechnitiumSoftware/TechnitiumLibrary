@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
@@ -57,12 +58,12 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region static
 
-        public static async Task<SocksProxyNegotiationRequest> ReadRequestAsync(Stream s)
+        public static async Task<SocksProxyNegotiationRequest> ReadRequestAsync(Stream s, CancellationToken cancellationToken)
         {
             SocksProxyNegotiationRequest request = new SocksProxyNegotiationRequest();
 
             byte[] buffer = new byte[255];
-            await s.ReadExactlyAsync(buffer, 0, 2);
+            await s.ReadExactlyAsync(buffer, 0, 2, cancellationToken);
 
             request._version = buffer[0];
 
@@ -70,7 +71,7 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 case SOCKS_VERSION:
                     int nMethods = buffer[1];
-                    await s.ReadExactlyAsync(buffer, 0, nMethods);
+                    await s.ReadExactlyAsync(buffer, 0, nMethods, cancellationToken);
 
                     request._methods = new SocksProxyAuthenticationMethod[nMethods];
 
@@ -87,7 +88,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public async Task WriteToAsync(Stream s)
+        public async Task WriteToAsync(Stream s, CancellationToken cancellationToken)
         {
             byte[] buffer = new byte[2 + _methods.Length];
 
@@ -96,7 +97,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             Array.Copy(_methods, 0, buffer, 2, _methods.Length);
 
-            await s.WriteAsync(buffer);
+            await s.WriteAsync(buffer, cancellationToken);
         }
 
         #endregion
