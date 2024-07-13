@@ -160,7 +160,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
                 else
                 {
-                    if (!await _proxy.IsUdpAvailableAsync())
+                    if (!await _proxy.IsUdpAvailableAsync(cancellationToken))
                         throw new DnsClientException("Unable to connect: The configured proxy server does not support UDP transport required by QUIC protocol.");
 
                     if ((_udpTunnelProxy is null) || _udpTunnelProxy.IsBroken)
@@ -310,15 +310,20 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if (quicConnection is null)
                     continue; //semaphone wait timed out; retry
 
-                Task<DnsDatagram> task = QuicQueryAsync(request, quicConnection, cancellationToken);
+                Task<DnsDatagram> task;
 
-                //wait for response with timeout
+                //query and wait for response with timeout
                 using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                 {
                     await using (CancellationTokenRegistration ctr = cancellationToken.Register(timeoutCancellationTokenSource.Cancel))
                     {
+                        task = QuicQueryAsync(request, quicConnection, timeoutCancellationTokenSource.Token);
+
                         if (await Task.WhenAny(task, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != task)
+                        {
+                            timeoutCancellationTokenSource.Cancel(); //to stop running task
                             continue; //request timed out; retry
+                        }
                     }
 
                     timeoutCancellationTokenSource.Cancel(); //to stop delay task
@@ -372,7 +377,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 return response;
             }
 
-            throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out.");
+            throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out for name server [" + _server.ToString() + "].");
         }
 
         #endregion
