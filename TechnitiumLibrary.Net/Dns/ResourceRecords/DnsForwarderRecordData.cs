@@ -50,6 +50,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         string _proxyUsername;
         string _proxyPassword;
 
+        readonly bool _isPartialRecordData;
+
         NameServerAddress _nameServer;
         NetProxy _proxy;
 
@@ -57,9 +59,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder)
+        private DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder)
             : this(protocol, forwarder, false, DnsForwarderRecordProxyType.DefaultProxy, null, 0, null, null)
-        { }
+        {
+            _isPartialRecordData = true;
+        }
 
         public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder, bool dnssecValidation, DnsForwarderRecordProxyType proxyType, string proxyAddress, ushort proxyPort, string proxyUsername, string proxyPassword)
         {
@@ -97,6 +101,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsForwarderRecordData(Stream s)
             : base(s)
         { }
+
+        #endregion
+
+        #region static
+
+        public static DnsForwarderRecordData CreatePartialRecordData(DnsTransportProtocol protocol, string forwarder)
+        {
+            return new DnsForwarderRecordData(protocol, forwarder);
+        }
 
         #endregion
 
@@ -256,7 +269,31 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_protocol != other._protocol)
                     return false;
 
-                return _forwarder.Equals(other._forwarder, StringComparison.OrdinalIgnoreCase);
+                if (!_forwarder.Equals(other._forwarder, StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                if (!_isPartialRecordData)
+                {
+                    if (_dnssecValidation != other._dnssecValidation)
+                        return false;
+
+                    if (_proxyType != other._proxyType)
+                        return false;
+
+                    if (_proxyAddress != other._proxyAddress)
+                        return false;
+
+                    if (_proxyPort != other._proxyPort)
+                        return false;
+
+                    if (_proxyUsername != other._proxyUsername)
+                        return false;
+
+                    if (_proxyPassword != other._proxyPassword)
+                        return false;
+                }
+
+                return true;
             }
 
             return false;
