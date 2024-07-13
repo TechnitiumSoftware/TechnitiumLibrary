@@ -119,8 +119,8 @@ namespace TechnitiumLibrary.Net.Proxy
                 {
                     SocketReceiveFromResult result = await _proxyUdpHandler.ReceiveFromAsync(buffer);
 
-                    //if (_tunnelRemoteEP is not null)
-                    await _tunnelSocket.SendToAsync(new ArraySegment<byte>(buffer, 0, result.ReceivedBytes), SocketFlags.None, _tunnelRemoteEP);
+                    if (_tunnelRemoteEP is not null)
+                        await _tunnelSocket.SendToAsync(new ArraySegment<byte>(buffer, 0, result.ReceivedBytes), SocketFlags.None, _tunnelRemoteEP);
                 }
             }
             finally
