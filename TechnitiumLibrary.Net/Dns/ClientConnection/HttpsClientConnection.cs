@@ -152,6 +152,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             await socket.ConnectAsync(remoteEP, cancellationToken);
 
+            socket.NoDelay = true;
+
             return new NetworkStream(socket, true);
         }
 
@@ -202,7 +204,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 if (isH3)
                 {
-                    if (!await _proxy.IsUdpAvailableAsync())
+                    if (!await _proxy.IsUdpAvailableAsync(cancellationToken))
                         throw new DnsClientException("Unable to connect: The configured proxy server does not support UDP transport required by HTTP/3 protocol.");
 
                     if ((_udpTunnelProxy is null) || _udpTunnelProxy.IsBroken)
@@ -265,17 +267,22 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if (cancellationToken.IsCancellationRequested)
                     return await Task.FromCanceled<DnsDatagram>(cancellationToken); //task cancelled
 
-                Task<HttpResponseMessage> task = _httpClient.SendAsync(await GetHttpRequestAsync(requestBuffer, cancellationToken), cancellationToken);
+                Task<HttpResponseMessage> task;
 
                 using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                 {
                     await using (CancellationTokenRegistration ctr = cancellationToken.Register(timeoutCancellationTokenSource.Cancel))
                     {
-                        if (await Task.WhenAny(task, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != task)
-                            continue; //request timed out; retry
-                    }
+                        task = _httpClient.SendAsync(await GetHttpRequestAsync(requestBuffer, timeoutCancellationTokenSource.Token), timeoutCancellationTokenSource.Token);
 
-                    timeoutCancellationTokenSource.Cancel(); //to stop delay task
+                        if (await Task.WhenAny(task, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != task)
+                        {
+                            timeoutCancellationTokenSource.Cancel(); //to stop running task
+                            continue; //request timed out; retry
+                        }
+
+                        timeoutCancellationTokenSource.Cancel(); //to stop delay task
+                    }
                 }
 
                 HttpResponseMessage httpResponse;
@@ -344,7 +351,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
             }
 
-            throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out.");
+            throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (request.Question.Count > 0 ? " '" + request.Question[0].ToString() + "'" : "") + ": request timed out for name server [" + _server.ToString() + "].");
         }
 
         #endregion
