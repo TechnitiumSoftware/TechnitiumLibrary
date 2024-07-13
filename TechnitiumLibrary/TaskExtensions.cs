@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,28 +25,38 @@ namespace TechnitiumLibrary
 {
     public static class TaskExtensions
     {
-        public static async Task WithTimeout(this Task task, int timeout)
+        public static async Task TimeoutAsync(Func<CancellationToken, Task> func, int timeout, CancellationToken cancellationToken = default)
         {
-            using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
-            {
-                if (await Task.WhenAny(new Task[] { task, Task.Delay(timeout, timeoutCancellationTokenSource.Token) }) != task)
-                    throw new TimeoutException();
+            using CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource();
+            await using CancellationTokenRegistration r = cancellationToken.Register(timeoutCancellationTokenSource.Cancel);
 
-                timeoutCancellationTokenSource.Cancel(); //to stop delay task
+            Task task = func(timeoutCancellationTokenSource.Token);
+
+            if (await Task.WhenAny(task, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != task)
+            {
+                timeoutCancellationTokenSource.Cancel(); //to stop running task
+                throw new TimeoutException();
             }
+
+            timeoutCancellationTokenSource.Cancel(); //to stop delay task
 
             await task; //await again for any exception to be rethrown
         }
 
-        public static async Task<T> WithTimeout<T>(this Task<T> task, int timeout)
+        public static async Task<T> TimeoutAsync<T>(Func<CancellationToken, Task<T>> func, int timeout, CancellationToken cancellationToken = default)
         {
-            using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
-            {
-                if (await Task.WhenAny(new Task[] { task, Task.Delay(timeout, timeoutCancellationTokenSource.Token) }) != task)
-                    throw new TimeoutException();
+            using CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource();
+            await using CancellationTokenRegistration r = cancellationToken.Register(timeoutCancellationTokenSource.Cancel);
 
-                timeoutCancellationTokenSource.Cancel(); //to stop delay task
+            Task<T> task = func(timeoutCancellationTokenSource.Token);
+
+            if (await Task.WhenAny(task, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != task)
+            {
+                timeoutCancellationTokenSource.Cancel(); //to stop running task
+                throw new TimeoutException();
             }
+
+            timeoutCancellationTokenSource.Cancel(); //to stop delay task
 
             return await task; //await again for any exception to be rethrown
         }
