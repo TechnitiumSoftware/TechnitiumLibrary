@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -306,17 +306,15 @@ namespace TechnitiumLibrary.Net.Proxy
                         {
                             CancellationToken currentCancellationToken = cancellationTokenSource.Token;
 
-                            try
-                            {
-                                recvTask = ReceiveFromAsync(response, currentCancellationToken);
+                            recvTask = ReceiveFromAsync(response, currentCancellationToken);
 
-                                if (await Task.WhenAny(recvTask, Task.Delay(timeoutValue, currentCancellationToken)) != recvTask)
-                                    break; //recv timed out
-                            }
-                            finally
+                            if (await Task.WhenAny(recvTask, Task.Delay(timeoutValue, currentCancellationToken)) != recvTask)
                             {
-                                cancellationTokenSource.Cancel(); //to stop recv/delay task
+                                cancellationTokenSource.Cancel(); //to stop recv task
+                                break; //recv timed out
                             }
+
+                            cancellationTokenSource.Cancel(); //to stop delay task
                         }
                     }
 
