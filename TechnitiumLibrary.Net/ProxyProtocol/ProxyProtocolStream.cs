@@ -79,7 +79,7 @@ namespace TechnitiumLibrary.Net.ProxyProtocol
 
         #region static
 
-        public async static Task<ProxyProtocolStream> CreateAsServerAsync(Stream baseStream)
+        public async static Task<ProxyProtocolStream> CreateAsServerAsync(Stream baseStream, CancellationToken cancellationToken = default)
         {
             ProxyProtocolStream proxy = new ProxyProtocolStream(baseStream);
 
@@ -87,7 +87,7 @@ namespace TechnitiumLibrary.Net.ProxyProtocol
 
             do
             {
-                bytesRead = await baseStream.ReadAsync(proxy._buffer.AsMemory(proxy._length, proxy._buffer.Length - proxy._length));
+                bytesRead = await baseStream.ReadAsync(proxy._buffer.AsMemory(proxy._length, proxy._buffer.Length - proxy._length), cancellationToken);
                 if (bytesRead < 1)
                     throw new EndOfStreamException();
 
@@ -175,7 +175,7 @@ namespace TechnitiumLibrary.Net.ProxyProtocol
                         throw new InvalidOperationException();
                 }
 
-                bytesRead = await baseStream.ReadAsync(proxy._buffer.AsMemory(proxy._length, proxy._buffer.Length - proxy._length));
+                bytesRead = await baseStream.ReadAsync(proxy._buffer.AsMemory(proxy._length, proxy._buffer.Length - proxy._length), cancellationToken);
                 if (bytesRead < 1)
                     throw new EndOfStreamException();
 
