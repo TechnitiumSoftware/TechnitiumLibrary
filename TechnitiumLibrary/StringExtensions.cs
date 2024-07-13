@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 
@@ -34,6 +35,36 @@ namespace TechnitiumLibrary
                 array[i] = parse(parts[i]);
 
             return array;
+        }
+
+        public static string Join<T>(this ICollection<T> values, char separator = ',')
+        {
+            string strValue = null;
+
+            foreach (T value in values)
+            {
+                if (strValue is null)
+                    strValue = value.ToString();
+                else
+                    strValue += separator + " " + value.ToString();
+            }
+
+            return strValue;
+        }
+
+        public static string Join<T>(this IReadOnlyCollection<T> values, char separator = ',')
+        {
+            string strValue = null;
+
+            foreach (T value in values)
+            {
+                if (strValue is null)
+                    strValue = value.ToString();
+                else
+                    strValue += separator + " " + value.ToString();
+            }
+
+            return strValue;
         }
 
         public static byte[] ParseColonHexString(this string value)
