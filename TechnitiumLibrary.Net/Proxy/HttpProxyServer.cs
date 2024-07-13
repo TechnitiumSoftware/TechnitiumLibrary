@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -152,6 +151,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region variables
 
+            private static readonly char[] spaceSeparator = new char[] { ' ' };
+            private static readonly char[] colonSeparator = new char[] { ':' };
+
             readonly Socket _localSocket;
             readonly IProxyServerConnectionManager _connectionManager;
             readonly IProxyServerAuthenticationManager _authenticationManager;
@@ -279,7 +281,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 try
                 {
                     NetworkStream localStream = new NetworkStream(_localSocket);
-                    Stream remoteStream = null;
+                    WriteBufferedStream remoteStream = null;
 
                     EndPoint lastEP = null;
 
@@ -289,13 +291,13 @@ namespace TechnitiumLibrary.Net.Proxy
                         {
                             Task<HttpRequest> task = HttpRequest.ReadRequestAsync(localStream);
 
-                            if (remoteStream == null)
+                            if (remoteStream is null)
                             {
                                 //wait for timeout only for initial request to avoid causing timeout to close existing data stream
                                 using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
                                 {
                                     if (await Task.WhenAny(task, Task.Delay(CLIENT_REQUEST_TIMEOUT, timeoutCancellationTokenSource.Token)) != task)
-                                        return; //request timed out
+                                        return; //request timed out; return will cause Dispose() call in finally
 
                                     timeoutCancellationTokenSource.Cancel(); //cancel delay task
                                 }
@@ -320,7 +322,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                             string password;
                             {
-                                string[] parts = proxyAuth.Split(new char[] { ' ' }, 2);
+                                string[] parts = proxyAuth.Split(spaceSeparator, 2);
 
                                 if (!parts[0].Equals("BASIC", StringComparison.OrdinalIgnoreCase) || (parts.Length < 2))
                                 {
@@ -328,7 +330,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                     return;
                                 }
 
-                                string[] credParts = Encoding.ASCII.GetString(Convert.FromBase64String(parts[1])).Split(new char[] { ':' }, 2);
+                                string[] credParts = Encoding.ASCII.GetString(Convert.FromBase64String(parts[1])).Split(colonSeparator, 2);
                                 if (credParts.Length != 2)
                                 {
                                     await SendResponseAsync(407, "<h1>Proxy Authentication Required</h1><p>Proxy authentication method is not supported.</p>");
