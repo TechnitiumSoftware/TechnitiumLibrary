@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,12 +21,19 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
     public class HttpProxy : NetProxy
     {
+        #region variables
+
+        private static readonly char[] spaceSeparator = new char[] { ' ' };
+
+        #endregion
+
         #region constructors
 
         public HttpProxy(EndPoint proxyEP, NetworkCredential credential = null)
@@ -52,7 +59,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region protected
 
-        protected override async Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket)
+        protected override async Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket, CancellationToken cancellationToken)
         {
             try
             {
@@ -63,16 +70,16 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 httpConnectRequest += "\r\n";
 
-                await viaSocket.SendAsync(Encoding.ASCII.GetBytes(httpConnectRequest), SocketFlags.None);
+                await viaSocket.SendAsync(Encoding.ASCII.GetBytes(httpConnectRequest), SocketFlags.None, cancellationToken);
 
                 byte[] buffer = new byte[128];
-                int bytesRecv = await viaSocket.ReceiveAsync(buffer, SocketFlags.None);
+                int bytesRecv = await viaSocket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
 
                 if (bytesRecv < 1)
                     throw new HttpProxyException("No response was received from http proxy server.");
 
                 string httpResponse = Encoding.ASCII.GetString(buffer, 0, bytesRecv);
-                string[] httpResponseParts = httpResponse.Split('\r')[0].Split(new char[] { ' ' }, 3);
+                string[] httpResponseParts = httpResponse.Split('\r')[0].Split(spaceSeparator, 3);
 
                 if (httpResponseParts.Length != 3)
                     throw new HttpProxyException("Invalid response received from remote server: " + httpResponse);

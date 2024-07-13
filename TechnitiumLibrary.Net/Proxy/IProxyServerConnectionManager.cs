@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
     public interface IProxyServerBindHandler : IDisposable
     {
-        Task<Socket> AcceptAsync();
+        Task<Socket> AcceptAsync(CancellationToken cancellationToken = default);
 
         SocksProxyReplyCode ReplyCode { get; }
 

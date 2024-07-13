@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -78,7 +78,7 @@ namespace TechnitiumLibrary.Net.Proxy
         public override async Task<Socket> ConnectAsync(EndPoint remoteEP, CancellationToken cancellationToken = default)
         {
             if (remoteEP.AddressFamily == AddressFamily.Unspecified)
-                remoteEP = await remoteEP.GetIPEndPointAsync(_bindEP.AddressFamily);
+                remoteEP = await remoteEP.GetIPEndPointAsync(_bindEP.AddressFamily, cancellationToken: cancellationToken);
 
             if (_bindEP.AddressFamily != remoteEP.AddressFamily)
                 throw new SocketException((int)SocketError.NetworkUnreachable);

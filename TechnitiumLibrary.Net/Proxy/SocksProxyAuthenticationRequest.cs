@@ -17,10 +17,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-using System;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using TechnitiumLibrary.IO;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
@@ -52,12 +53,12 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region static
 
-        public static async Task<SocksProxyAuthenticationRequest> ReadRequestAsync(Stream s)
+        public static async Task<SocksProxyAuthenticationRequest> ReadRequestAsync(Stream s, CancellationToken cancellationToken = default)
         {
             SocksProxyAuthenticationRequest request = new SocksProxyAuthenticationRequest();
 
             byte[] buffer = new byte[256];
-            await s.ReadExactlyAsync(buffer, 0, 1);
+            await s.ReadExactlyAsync(buffer, 0, 1, cancellationToken);
 
             request._version = buffer[0];
 
@@ -66,16 +67,16 @@ namespace TechnitiumLibrary.Net.Proxy
                 case AUTH_VERSION:
                     int length;
 
-                    await s.ReadExactlyAsync(buffer, 0, 1);
+                    await s.ReadExactlyAsync(buffer, 0, 1, cancellationToken);
                     length = buffer[0];
 
-                    await s.ReadExactlyAsync(buffer, 0, length);
+                    await s.ReadExactlyAsync(buffer, 0, length, cancellationToken);
                     request._username = Encoding.ASCII.GetString(buffer, 0, length);
 
-                    await s.ReadExactlyAsync(buffer, 0, 1);
+                    await s.ReadExactlyAsync(buffer, 0, 1, cancellationToken);
                     length = buffer[0];
 
-                    await s.ReadExactlyAsync(buffer, 0, length);
+                    await s.ReadExactlyAsync(buffer, 0, length, cancellationToken);
                     request._password = Encoding.ASCII.GetString(buffer, 0, length);
                     break;
             }
@@ -87,17 +88,11 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public async Task WriteToAsync(Stream s)
+        public async Task WriteToAsync(Stream s, CancellationToken cancellationToken = default)
         {
-            s.WriteByte(_version);
-
-            byte[] username = Encoding.ASCII.GetBytes(_username);
-            s.WriteByte(Convert.ToByte(username.Length));
-            await s.WriteAsync(username);
-
-            byte[] password = Encoding.ASCII.GetBytes(_password);
-            s.WriteByte(Convert.ToByte(password.Length));
-            await s.WriteAsync(password);
+            await s.WriteByteAsync(_version, cancellationToken);
+            await s.WriteShortStringAsync(_username, Encoding.ASCII, cancellationToken);
+            await s.WriteShortStringAsync(_password, Encoding.ASCII, cancellationToken);
         }
 
         #endregion

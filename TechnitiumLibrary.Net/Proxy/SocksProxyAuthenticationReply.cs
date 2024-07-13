@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
@@ -54,12 +55,12 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region static
 
-        public static async Task<SocksProxyAuthenticationReply> ReadRequestAsync(Stream s)
+        public static async Task<SocksProxyAuthenticationReply> ReadRequestAsync(Stream s, CancellationToken cancellationToken = default)
         {
             SocksProxyAuthenticationReply reply = new SocksProxyAuthenticationReply();
 
             byte[] buffer = new byte[2];
-            await s.ReadExactlyAsync(buffer);
+            await s.ReadExactlyAsync(buffer, cancellationToken);
 
             reply._version = buffer[0];
             reply._status = buffer[1] == 0 ? SocksProxyAuthenticationStatus.Success : SocksProxyAuthenticationStatus.Failure;
@@ -71,14 +72,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public async Task WriteToAsync(Stream s)
+        public async Task WriteToAsync(Stream s, CancellationToken cancellationToken = default)
         {
             byte[] buffer = new byte[2];
 
             buffer[0] = _version;
             buffer[1] = (byte)_status;
 
-            await s.WriteAsync(buffer);
+            await s.WriteAsync(buffer, cancellationToken);
         }
 
         #endregion

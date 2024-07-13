@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.Net.Proxy
@@ -93,9 +94,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public async Task<Socket> AcceptAsync()
+        public async Task<Socket> AcceptAsync(CancellationToken cancellationToken = default)
         {
-            SocksProxyReply reply = await SocksProxyReply.ReadReplyAsync(new NetworkStream(_socket));
+            SocksProxyReply reply = await SocksProxyReply.ReadReplyAsync(new NetworkStream(_socket), cancellationToken);
             if (!reply.IsVersionSupported)
                 throw new SocksProxyException("Socks version 5 is not supported by the proxy server.");
 
