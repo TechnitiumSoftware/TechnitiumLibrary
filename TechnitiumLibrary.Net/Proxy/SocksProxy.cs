@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -64,12 +64,12 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        private async Task AuthenticateAsync(Stream s)
+        private async Task AuthenticateAsync(Stream s, CancellationToken cancellationToken)
         {
-            await _negotiationRequest.WriteToAsync(s);
-            await s.FlushAsync();
+            await _negotiationRequest.WriteToAsync(s, cancellationToken);
+            await s.FlushAsync(cancellationToken);
 
-            SocksProxyNegotiationReply negotiationReply = await SocksProxyNegotiationReply.ReadRequestAsync(s);
+            SocksProxyNegotiationReply negotiationReply = await SocksProxyNegotiationReply.ReadRequestAsync(s, cancellationToken);
             if (!negotiationReply.IsVersionSupported)
                 throw new SocksProxyException("Socks version 5 is not supported by the proxy server.");
 
@@ -79,10 +79,10 @@ namespace TechnitiumLibrary.Net.Proxy
                     if (_authRequest == null)
                         throw new SocksProxyAuthenticationFailedException("Socks proxy server requires authentication.");
 
-                    await _authRequest.WriteToAsync(s);
-                    await s.FlushAsync();
+                    await _authRequest.WriteToAsync(s, cancellationToken);
+                    await s.FlushAsync(cancellationToken);
 
-                    SocksProxyAuthenticationReply authenticationReply = await SocksProxyAuthenticationReply.ReadRequestAsync(s);
+                    SocksProxyAuthenticationReply authenticationReply = await SocksProxyAuthenticationReply.ReadRequestAsync(s, cancellationToken);
                     if (!authenticationReply.IsVersionSupported)
                         throw new SocksProxyAuthenticationFailedException("Socks proxy server does not support username/password method version 1.");
 
@@ -105,12 +105,12 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        private static async Task<EndPoint> RequestAsync(Stream s, SocksProxyRequest request)
+        private static async Task<EndPoint> RequestAsync(Stream s, SocksProxyRequest request, CancellationToken cancellationToken)
         {
-            await request.WriteToAsync(s);
-            await s.FlushAsync();
+            await request.WriteToAsync(s, cancellationToken);
+            await s.FlushAsync(cancellationToken);
 
-            SocksProxyReply reply = await SocksProxyReply.ReadReplyAsync(s);
+            SocksProxyReply reply = await SocksProxyReply.ReadReplyAsync(s, cancellationToken);
             if (!reply.IsVersionSupported)
                 throw new SocksProxyException("Socks version 5 is not supported by the proxy server.");
 
@@ -124,14 +124,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region protected
 
-        protected override async Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket)
+        protected override async Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket, CancellationToken cancellationToken)
         {
             try
             {
                 Stream stream = new WriteBufferedStream(new NetworkStream(viaSocket));
 
-                await AuthenticateAsync(stream);
-                await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.Connect, remoteEP));
+                await AuthenticateAsync(stream, cancellationToken);
+                await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.Connect, remoteEP), cancellationToken);
 
                 return viaSocket;
             }
@@ -146,7 +146,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region public
 
-        public override async Task<bool> IsUdpAvailableAsync()
+        public override async Task<bool> IsUdpAvailableAsync(CancellationToken cancellationToken = default)
         {
             if (_isUdpAvailableChecked)
                 return _isUdpAvailable;
@@ -155,7 +155,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             try
             {
-                udpHandler = await UdpAssociateAsync();
+                udpHandler = await UdpAssociateAsync(cancellationToken);
 
                 _isUdpAvailable = true;
             }
@@ -206,7 +206,7 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             if (IsBypassed(remoteEP))
             {
-                IPEndPoint ep = await remoteEP.GetIPEndPointAsync();
+                IPEndPoint ep = await remoteEP.GetIPEndPointAsync(cancellationToken: cancellationToken);
 
                 using (Socket socket = new Socket(ep.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
                 {
@@ -248,8 +248,8 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 Stream stream = new WriteBufferedStream(new NetworkStream(socket));
 
-                await AuthenticateAsync(stream);
-                EndPoint bindEP = await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.Bind, endPoint));
+                await AuthenticateAsync(stream, cancellationToken);
+                EndPoint bindEP = await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.Bind, endPoint), cancellationToken);
 
                 return new SocksProxyBindHandler(socket, bindEP);
             }
@@ -283,8 +283,8 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 Stream stream = new WriteBufferedStream(new NetworkStream(socket));
 
-                await AuthenticateAsync(stream);
-                EndPoint relayEP = await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.UdpAssociate, udpSocket.LocalEndPoint));
+                await AuthenticateAsync(stream, cancellationToken);
+                EndPoint relayEP = await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.UdpAssociate, udpSocket.LocalEndPoint), cancellationToken);
 
                 return new SocksProxyUdpAssociateHandler(socket, udpSocket, relayEP);
             }
