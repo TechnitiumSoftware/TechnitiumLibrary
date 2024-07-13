@@ -201,8 +201,10 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 try
                 {
-                    using (Socket socket = await connectionManager.ConnectAsync(connectivityCheckEP).WithTimeout(NETWORK_CHECK_CONNECTION_TIMEOUT))
-                    { }
+                    using Socket socket = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                    {
+                        return connectionManager.ConnectAsync(connectivityCheckEP, cancellationToken1);
+                    }, NETWORK_CHECK_CONNECTION_TIMEOUT);
 
                     return connectionManager;
                 }
