@@ -349,10 +349,10 @@ namespace TechnitiumLibrary.Net.Dns
                 else
                     port = uri.Port;
             }
-            else if (address.StartsWith("["))
+            else if (address.StartsWith('['))
             {
                 //ipv6
-                if (address.EndsWith("]"))
+                if (address.EndsWith(']'))
                 {
                     host = address.Trim('[', ']');
                 }
@@ -558,10 +558,17 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         int port;
 
-                        if (_protocol == DnsTransportProtocol.Udp)
-                            port = Port;
-                        else
-                            port = 53;
+                        switch (_protocol)
+                        {
+                            case DnsTransportProtocol.Udp:
+                            case DnsTransportProtocol.Tcp:
+                                port = Port;
+                                break;
+
+                            default:
+                                port = 53;
+                                break;
+                        }
 
                         if ((_dohEndPoint is not null) && !IPAddress.TryParse(_dohEndPoint.Host, out _))
                             nsAddress._domainEndPoint = new DomainEndPoint(_dohEndPoint.Host, port);
@@ -580,7 +587,7 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         int port;
 
-                        if ((_protocol == DnsTransportProtocol.Udp) && (Port != 53))
+                        if (((_protocol == DnsTransportProtocol.Udp) || (_protocol == DnsTransportProtocol.Tcp)) && (Port != 53))
                             port = Port;
                         else
                             port = 853;
@@ -601,7 +608,7 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         int port;
 
-                        if ((_protocol == DnsTransportProtocol.Udp) && (Port != 53))
+                        if (((_protocol == DnsTransportProtocol.Udp) || (_protocol == DnsTransportProtocol.Tcp)) && (Port != 53))
                             port = Port;
                         else
                             port = 443;
@@ -757,17 +764,29 @@ namespace TechnitiumLibrary.Net.Dns
             }
             else if (_domainEndPoint is not null)
             {
-                if (_domainEndPoint.Port == 53)
-                    value = _domainEndPoint.Address;
-                else
-                    value = _domainEndPoint.ToString();
+                switch (_domainEndPoint.Port)
+                {
+                    case 53:
+                    case 853:
+                        value = _domainEndPoint.Address;
+                        break;
+
+                    default:
+                        value = _domainEndPoint.ToString();
+                        break;
+                }
             }
             else
             {
-                if (_ipEndPoint.Port == 53)
-                    return _ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6 ? "[" + _ipEndPoint.Address.ToString() + "]" : _ipEndPoint.Address.ToString();
-                else
-                    return _ipEndPoint.ToString();
+                switch (_ipEndPoint.Port)
+                {
+                    case 53:
+                    case 853:
+                        return _ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6 ? "[" + _ipEndPoint.Address.ToString() + "]" : _ipEndPoint.Address.ToString();
+
+                    default:
+                        return _ipEndPoint.ToString();
+                }
             }
 
             if (_ipEndPoint is not null)
