@@ -47,7 +47,7 @@ namespace TechnitiumLibrary.Net
                     return IPEndPointIPv6Any;
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 

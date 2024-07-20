@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.Net
                     return !IsPublicIPv6(address);
 
                 default:
-                    throw new NotSupportedException("Address family not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 
@@ -483,7 +483,7 @@ namespace TechnitiumLibrary.Net
         public NetworkInfo(NetworkInterface nic, IPAddress localIP)
         {
             if (localIP.AddressFamily != AddressFamily.InterNetworkV6)
-                throw new NotSupportedException("Address family not supported.");
+                throw new NotSupportedException("Address Family not supported.");
 
             _nic = nic;
             _localIP = localIP;
@@ -492,7 +492,7 @@ namespace TechnitiumLibrary.Net
         public NetworkInfo(NetworkInterface nic, IPAddress localIP, IPAddress subnetMask)
         {
             if (localIP.AddressFamily != AddressFamily.InterNetwork)
-                throw new NotSupportedException("Address family not supported.");
+                throw new NotSupportedException("Address Family not supported.");
 
             _nic = nic;
             _localIP = localIP;

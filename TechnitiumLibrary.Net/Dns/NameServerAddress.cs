@@ -130,7 +130,7 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
 
             _protocol = protocol;

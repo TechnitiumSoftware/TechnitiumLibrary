@@ -47,7 +47,7 @@ namespace TechnitiumLibrary.Net
                     return new DomainEndPoint(bR.ReadShortString(), bR.ReadUInt16());
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 
@@ -74,7 +74,7 @@ namespace TechnitiumLibrary.Net
                     break;
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 
@@ -90,7 +90,7 @@ namespace TechnitiumLibrary.Net
                     return (ep as DomainEndPoint).Address;
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 
@@ -106,7 +106,7 @@ namespace TechnitiumLibrary.Net
                     return (ep as DomainEndPoint).Port;
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 
@@ -124,7 +124,7 @@ namespace TechnitiumLibrary.Net
                     break;
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 
@@ -138,7 +138,7 @@ namespace TechnitiumLibrary.Net
 
                 case AddressFamily.Unspecified:
                     if (ep is not DomainEndPoint dep)
-                        throw new NotSupportedException("AddressFamily not supported.");
+                        throw new NotSupportedException("Address Family not supported.");
 
                     IReadOnlyList<IPAddress> ipAddresses;
 
@@ -167,7 +167,7 @@ namespace TechnitiumLibrary.Net
                     }
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 
@@ -218,7 +218,7 @@ namespace TechnitiumLibrary.Net
                     return (ep as DomainEndPoint).Equals(other);
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 

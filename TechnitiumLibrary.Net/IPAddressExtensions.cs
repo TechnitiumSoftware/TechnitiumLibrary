@@ -54,7 +54,7 @@ namespace TechnitiumLibrary.Net
                     throw new EndOfStreamException();
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 
@@ -88,14 +88,14 @@ namespace TechnitiumLibrary.Net
                     break;
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 
         public static uint ConvertIpToNumber(this IPAddress address)
         {
             if (address.AddressFamily != AddressFamily.InterNetwork)
-                throw new ArgumentException("Address family not supported.");
+                throw new ArgumentException("Address Family not supported.");
 
             Span<byte> addr = stackalloc byte[4];
             if (!address.TryWriteBytes(addr, out _))
@@ -114,7 +114,7 @@ namespace TechnitiumLibrary.Net
         public static int GetSubnetMaskWidth(this IPAddress address)
         {
             if (address.AddressFamily != AddressFamily.InterNetwork)
-                throw new ArgumentException("Address family not supported.");
+                throw new ArgumentException("Address Family not supported.");
 
             uint subnetMaskNumber = address.ConvertIpToNumber();
             int subnetMaskWidth = 0;
@@ -131,7 +131,7 @@ namespace TechnitiumLibrary.Net
         public static IPAddress GetSubnetMask(int prefixLength)
         {
             if (prefixLength > 32)
-                throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid prefix length.");
+                throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid network prefix.");
 
             if (prefixLength == 0)
                 return IPAddress.Any;
@@ -152,7 +152,7 @@ namespace TechnitiumLibrary.Net
                             return address;
 
                         if (prefixLength > 32)
-                            throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid prefix length.");
+                            throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid network prefix.");
 
                         Span<byte> addressBytes = stackalloc byte[4];
                         if (!address.TryWriteBytes(addressBytes, out _))
@@ -176,7 +176,7 @@ namespace TechnitiumLibrary.Net
                             return address;
 
                         if (prefixLength > 128)
-                            throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid prefix length.");
+                            throw new ArgumentOutOfRangeException(nameof(prefixLength), "Invalid network prefix.");
 
                         Span<byte> addressBytes = stackalloc byte[16];
                         if (!address.TryWriteBytes(addressBytes, out _))
@@ -195,7 +195,7 @@ namespace TechnitiumLibrary.Net
                     }
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
         }
 
@@ -422,7 +422,7 @@ namespace TechnitiumLibrary.Net
                     break;
 
                 default:
-                    throw new NotSupportedException("IP address family not supported: " + address.AddressFamily.ToString());
+                    throw new NotSupportedException("Address Family not supported: " + address.AddressFamily.ToString());
             }
 
             return name.ToString();

@@ -238,7 +238,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     break;
 
                 default:
-                    throw new NotSupportedException("Address family not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
 
             //connect to proxy server

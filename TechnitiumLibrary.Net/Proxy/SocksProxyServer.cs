@@ -226,7 +226,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                         DomainEndPoint ep = endPoint as DomainEndPoint;
                         if (ep == null)
-                            throw new NotSupportedException("AddressFamily not supported.");
+                            throw new NotSupportedException("Address Family not supported.");
 
                         address = ep.GetAddressBytes();
                         port = Convert.ToUInt16(ep.Port);
@@ -234,7 +234,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     break;
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
 
             byte[] portBytes = BitConverter.GetBytes(port);

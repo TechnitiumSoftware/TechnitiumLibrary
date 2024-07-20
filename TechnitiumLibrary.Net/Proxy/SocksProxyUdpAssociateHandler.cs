@@ -164,7 +164,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     break;
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
 
             //create datagram
@@ -260,7 +260,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     break;
 
                 default:
-                    throw new NotSupportedException("AddressFamily not supported.");
+                    throw new NotSupportedException("Address Family not supported.");
             }
 
             int dataOffset = 6 + addressSize;
