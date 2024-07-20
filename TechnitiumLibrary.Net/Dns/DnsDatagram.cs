@@ -866,6 +866,11 @@ namespace TechnitiumLibrary.Net.Dns
             return false;
         }
 
+        public bool IsReferrerResponse()
+        {
+            return (_RCODE == DnsResponseCode.NoError) && (_answer.Count == 0) && (FindFirstAuthorityType() == DnsResourceRecordType.NS);
+        }
+
         public void SetMetadata(NameServerAddress server, double rtt = 0.0)
         {
             if (_metadata is not null)
