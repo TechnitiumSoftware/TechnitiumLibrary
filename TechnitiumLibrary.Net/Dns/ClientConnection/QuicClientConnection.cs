@@ -338,7 +338,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 catch (ObjectDisposedException)
                 {
                     //ensure existing connection is disposed to allow reconnection later
-                    await _quicConnection.DisposeAsync();
+                    await quicConnection.DisposeAsync();
                     _quicConnection = null;
                     _udpTunnelProxy?.Dispose();
 
@@ -354,7 +354,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 catch (QuicException ex)
                 {
                     //close existing connection to allow reconnection later
-                    await _quicConnection.DisposeAsync();
+                    await quicConnection.DisposeAsync();
                     _quicConnection = null;
                     _udpTunnelProxy?.Dispose();
 
