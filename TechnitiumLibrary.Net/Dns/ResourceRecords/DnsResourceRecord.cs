@@ -112,6 +112,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         URI = 256,
         CAA = 257,
         AVC = 258,
+        DOA = 259,
+        AMTRELAY = 260,
+        RESINFO = 261,
+        WALLET = 262,
         TA = 32768,
         DLV = 32769,
         ANAME = 65280, //private use - draft-ietf-dnsop-aname-04
@@ -344,6 +348,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnsResourceRecordType.OPT:
                     return new DnsOPTRecordData(s);
+
+                case DnsResourceRecordType.APL:
+                    return new DnsAPLRecordData(s);
 
                 case DnsResourceRecordType.DS:
                     return new DnsDSRecordData(s);

@@ -576,6 +576,9 @@ namespace TechnitiumLibrary.Net.Dns
                 case DnsResourceRecordType.OPT:
                     throw new InvalidOperationException();
 
+                case DnsResourceRecordType.APL:
+                    return await DnsAPLRecordData.FromZoneFileEntryAsync(this);
+
                 case DnsResourceRecordType.DS:
                     return await DnsDSRecordData.FromZoneFileEntryAsync(this);
 
