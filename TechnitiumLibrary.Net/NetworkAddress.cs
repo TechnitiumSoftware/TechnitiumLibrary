@@ -60,7 +60,7 @@ namespace TechnitiumLibrary.Net
                         break;
 
                     default:
-                        throw new NotSupportedException("Address family not supported.");
+                        throw new NotSupportedException("Address Family not supported.");
                 }
             }
 
@@ -222,6 +222,9 @@ namespace TechnitiumLibrary.Net
             if (other is null)
                 return false;
 
+            if (ReferenceEquals(this, other))
+                return true;
+
             if (_prefixLength != other._prefixLength)
                 return false;
 
@@ -236,7 +239,7 @@ namespace TechnitiumLibrary.Net
             if (obj is NetworkAddress other)
                 return Equals(other);
 
-            return base.Equals(obj);
+            return false;
         }
 
         public override string ToString()
