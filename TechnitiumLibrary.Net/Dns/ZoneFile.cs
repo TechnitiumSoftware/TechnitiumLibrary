@@ -561,6 +561,9 @@ namespace TechnitiumLibrary.Net.Dns
                 case DnsResourceRecordType.TXT:
                     return await DnsTXTRecordData.FromZoneFileEntryAsync(this);
 
+                case DnsResourceRecordType.RP:
+                    return await DnsRPRecordData.FromZoneFileEntryAsync(this);
+
                 case DnsResourceRecordType.AAAA:
                     return await DnsAAAARecordData.FromZoneFileEntryAsync(this);
 
