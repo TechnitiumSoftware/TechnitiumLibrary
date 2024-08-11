@@ -37,6 +37,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         const uint PARENT_SIDE_NS_MINIMUM_TTL = 3600u; //1 hr to prevent frequent revalidations
         const uint PARENT_SIDE_NS_MAXIMUM_TTL = 86400u; //1 day to revalidate within this limit
 
+        NameServerMetadata _metadata;
+
         #endregion
 
         #region constructor
@@ -95,7 +97,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override string ToZoneFileEntry(string originDomain = null)
         {
-            return DnsResourceRecord.GetRelativeDomainName(_nameServer, originDomain).ToLowerInvariant();
+            return DnsResourceRecord.GetRelativeDomainName(_nameServer, originDomain);
         }
 
         #endregion
@@ -171,6 +173,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public bool IsParentSideTtlSet
         { get { return _parentSideTtlExpirySet; } }
+
+        public NameServerMetadata Metadata
+        {
+            get
+            {
+                if (_metadata is null)
+                    _metadata = new NameServerMetadata();
+
+                return _metadata;
+            }
+        }
 
         public override int UncompressedLength
         { get { return DnsDatagram.GetSerializeDomainNameLength(_nameServer); } }
