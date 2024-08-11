@@ -140,7 +140,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return true;
 
             if (obj is DnsAPLRecordData other)
-                return _apItems.Equals<APItem>(other._apItems);
+                return _apItems.ListEquals(other._apItems);
 
             return false;
         }
@@ -344,7 +344,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (_n != other._n)
                         return false;
 
-                    if (!_afdPart.Equals<byte>(other._afdPart))
+                    if (!_afdPart.ListEquals(other._afdPart))
                         return false;
 
                     return true;

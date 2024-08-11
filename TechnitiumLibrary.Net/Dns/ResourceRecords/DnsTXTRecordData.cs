@@ -205,7 +205,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return true;
 
             if (obj is DnsTXTRecordData other)
-                return _characterStrings.Equals<string>(other._characterStrings);
+                return _characterStrings.ListEquals(other._characterStrings);
 
             return false;
         }
