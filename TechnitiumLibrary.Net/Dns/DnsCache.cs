@@ -35,6 +35,8 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
+        readonly static DnsCacheEntry ROOT_CACHE_ENTRY = DnsCacheEntry.GetRootCacheEntry();
+
         const uint FAILURE_RECORD_TTL = 60u;
         const uint NEGATIVE_RECORD_TTL = 300u;
         const uint MINIMUM_RECORD_TTL = 10u;
@@ -59,7 +61,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsCache()
             : this(FAILURE_RECORD_TTL, NEGATIVE_RECORD_TTL, MINIMUM_RECORD_TTL, MAXIMUM_RECORD_TTL, SERVE_STALE_TTL, SERVE_STALE_ANSWER_TTL)
-        { }
+        {
+            //cache root hints to avoid priming query for casual recursive resolution tasks
+            _cache[""] = ROOT_CACHE_ENTRY;
+        }
 
         protected DnsCache(uint failureRecordTtl, uint negativeRecordTtl, uint minimumRecordTtl, uint maximumRecordTtl, uint serveStaleTtl, uint serveStaleAnswerTtl)
         {
@@ -151,13 +156,18 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region private
 
-        internal static string GetParentZone(string domain)
+        internal static string GetParentZone(string domain, bool returnRoot = false)
         {
-            int i = domain.IndexOf('.');
-            if (i > -1)
-                return domain.Substring(i + 1);
+            if (domain.Length > 0)
+            {
+                int i = domain.IndexOf('.');
+                if (i > -1)
+                    return domain.Substring(i + 1);
 
-            //dont return root zone
+                if (returnRoot)
+                    return string.Empty;
+            }
+
             return null;
         }
 
@@ -243,7 +253,7 @@ namespace TechnitiumLibrary.Net.Dns
                     }
                 }
 
-                domain = GetParentZone(domain);
+                domain = GetParentZone(domain, true);
             }
             while (domain is not null);
 
@@ -739,6 +749,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             case DnssecStatus.Disabled:
                                             case DnssecStatus.Secure:
                                             case DnssecStatus.Insecure:
+                                            case DnssecStatus.Indeterminate:
                                                 break;
 
                                             default:
@@ -1628,6 +1639,42 @@ namespace TechnitiumLibrary.Net.Dns
             public DnsCacheEntry(int capacity)
             {
                 _entries = new ConcurrentDictionary<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>>(1, capacity);
+            }
+
+            #endregion
+
+            #region static
+
+            public static DnsCacheEntry GetRootCacheEntry()
+            {
+                List<DnsResourceRecord> rrset = new List<DnsResourceRecord>(13);
+
+                foreach (NameServerAddress ipv4Hint in DnsClient.IPv4RootHints)
+                {
+                    string nsDomain = ipv4Hint.Host;
+
+                    DnsResourceRecord nsRecord = new DnsResourceRecord("", DnsResourceRecordType.NS, DnsClass.IN, 518400, new DnsNSRecordData(nsDomain));
+
+                    DnsResourceRecord ipv4Glue = new DnsResourceRecord(nsDomain, DnsResourceRecordType.A, DnsClass.IN, 518400, new DnsARecordData(ipv4Hint.IPEndPoint.Address));
+                    AddGlueRecordTo(nsRecord, ipv4Glue);
+
+                    foreach (NameServerAddress ipv6Hint in DnsClient.IPv6RootHints)
+                    {
+                        if (ipv6Hint.Host.Equals(nsDomain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            DnsResourceRecord ipv6Glue = new DnsResourceRecord(nsDomain, DnsResourceRecordType.AAAA, DnsClass.IN, 518400, new DnsAAAARecordData(ipv6Hint.IPEndPoint.Address));
+                            AddGlueRecordTo(nsRecord, ipv6Glue);
+                            break;
+                        }
+                    }
+
+                    rrset.Add(nsRecord);
+                }
+
+                DnsCacheEntry entry = new DnsCacheEntry(1);
+                entry._entries[DnsResourceRecordType.NS] = rrset;
+
+                return entry;
             }
 
             #endregion
