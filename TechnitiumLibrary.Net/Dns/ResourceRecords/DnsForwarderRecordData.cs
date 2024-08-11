@@ -49,6 +49,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         ushort _proxyPort;
         string _proxyUsername;
         string _proxyPassword;
+        byte _priority;
 
         readonly bool _isPartialRecordData;
 
@@ -60,12 +61,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #region constructor
 
         private DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder)
-            : this(protocol, forwarder, false, DnsForwarderRecordProxyType.DefaultProxy, null, 0, null, null)
+            : this(protocol, forwarder, false, DnsForwarderRecordProxyType.DefaultProxy, null, 0, null, null, 0)
         {
             _isPartialRecordData = true;
         }
 
-        public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder, bool dnssecValidation, DnsForwarderRecordProxyType proxyType, string proxyAddress, ushort proxyPort, string proxyUsername, string proxyPassword)
+        public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder, bool dnssecValidation, DnsForwarderRecordProxyType proxyType, string proxyAddress, ushort proxyPort, string proxyUsername, string proxyPassword, byte priority)
         {
             _protocol = protocol;
             _forwarder = forwarder;
@@ -89,6 +90,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     break;
             }
+
+            _priority = priority;
 
             if (_protocol == DnsTransportProtocol.HttpsJson)
                 _protocol = DnsTransportProtocol.Https;
@@ -140,6 +143,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 }
             }
 
+            bytesRead = s.Position - initialPosition;
+            if (bytesRead < _rdLength)
+                _priority = s.ReadByteValue();
+
             if (_protocol == DnsTransportProtocol.HttpsJson)
                 _protocol = DnsTransportProtocol.Https;
         }
@@ -161,6 +168,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     s.WriteShortString(_proxyPassword, Encoding.ASCII);
                     break;
             }
+
+            s.WriteByte(_priority);
         }
 
         #endregion
@@ -201,7 +210,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     break;
             }
 
-            return new DnsForwarderRecordData(protocol, forwarder, dnssecValidation, proxyType, proxyAddress, proxyPort, proxyUsername, proxyPassword);
+            byte priority = byte.Parse(await zoneFile.PopItemAsync());
+
+            return new DnsForwarderRecordData(protocol, forwarder, dnssecValidation, proxyType, proxyAddress, proxyPort, proxyUsername, proxyPassword, priority);
         }
 
         internal override string ToZoneFileEntry(string originDomain = null)
@@ -226,6 +237,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     break;
             }
+
+            str += " " + _priority;
 
             return str;
         }
@@ -291,6 +304,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     if (_proxyPassword != other._proxyPassword)
                         return false;
+
+                    if (_priority != other._priority)
+                        return false;
                 }
 
                 return true;
@@ -308,19 +324,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             jsonWriter.WriteStartObject();
 
-            jsonWriter.WriteString("protocol", _protocol.ToString());
-            jsonWriter.WriteString("forwarder", _forwarder);
-            jsonWriter.WriteBoolean("dnssecValidation", _dnssecValidation);
-            jsonWriter.WriteString("proxyType", _proxyType.ToString());
+            jsonWriter.WriteString("Protocol", _protocol.ToString());
+            jsonWriter.WriteString("Forwarder", _forwarder);
+            jsonWriter.WriteNumber("Priority", _priority);
+            jsonWriter.WriteBoolean("DnssecValidation", _dnssecValidation);
+            jsonWriter.WriteString("ProxyType", _proxyType.ToString());
 
             switch (_proxyType)
             {
                 case DnsForwarderRecordProxyType.Http:
                 case DnsForwarderRecordProxyType.Socks5:
-                    jsonWriter.WriteString("proxyAddress", _proxyAddress);
-                    jsonWriter.WriteNumber("proxyPort", _proxyPort);
-                    jsonWriter.WriteString("proxyUsername", _proxyUsername);
-                    jsonWriter.WriteString("proxyPassword", _proxyPassword);
+                    jsonWriter.WriteString("ProxyAddress", _proxyAddress);
+                    jsonWriter.WriteNumber("ProxyPort", _proxyPort);
+                    jsonWriter.WriteString("ProxyUsername", _proxyUsername);
+                    jsonWriter.WriteString("ProxyPassword", _proxyPassword);
                     break;
             }
 
@@ -355,6 +372,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public string ProxyPassword
         { get { return _proxyPassword; } }
 
+        public byte Priority
+        { get { return _priority; } }
+
         public NameServerAddress NameServer
         {
             get
@@ -383,6 +403,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         length += 1 + _proxyAddress.Length + 2 + 1 + _proxyUsername.Length + 1 + _proxyPassword.Length;
                         break;
                 }
+
+                length++;
 
                 return length;
             }
