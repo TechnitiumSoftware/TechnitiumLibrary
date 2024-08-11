@@ -45,6 +45,8 @@ namespace TechnitiumLibrary.Net.Dns
         DateTime _ipEndPointExpiresOn;
         const int IP_ENDPOINT_DEFAULT_TTL = 900;
 
+        NameServerMetadata _metadata;
+
         #endregion
 
         #region constructors
@@ -515,25 +517,26 @@ namespace TechnitiumLibrary.Net.Dns
                                     if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
                                         continue;
 
-                                    nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint));
+                                    nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint) { _metadata = nsRecord.Metadata });
                                     break;
 
                                 case DnsResourceRecordType.AAAA:
-                                    endPoint = new IPEndPoint(((DnsAAAARecordData)rr.RDATA).Address, 53);
-
-                                    if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
-                                        continue;
-
                                     if (preferIPv6)
-                                        nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint));
+                                    {
+                                        endPoint = new IPEndPoint(((DnsAAAARecordData)rr.RDATA).Address, 53);
 
+                                        if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
+                                            continue;
+
+                                        nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint) { _metadata = nsRecord.Metadata });
+                                    }
                                     break;
                             }
                         }
                     }
 
                     if (endPoint is null)
-                        nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NameServer, 53)));
+                        nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NameServer, 53)) { _metadata = nsRecord.Metadata });
                 }
             }
 
@@ -635,6 +638,7 @@ namespace TechnitiumLibrary.Net.Dns
             nsAddress._originalAddress = nsAddress.ToString();
             nsAddress._ipEndPointExpires = _ipEndPointExpires;
             nsAddress._ipEndPointExpiresOn = _ipEndPointExpiresOn;
+            nsAddress._metadata = _metadata;
 
             nsAddress.ValidateProtocol();
 
@@ -946,6 +950,17 @@ namespace TechnitiumLibrary.Net.Dns
 
         public bool IsIPEndPointStale
         { get { return (_ipEndPoint is null) || (_ipEndPointExpires && (DateTime.UtcNow > _ipEndPointExpiresOn)); } }
+
+        public NameServerMetadata Metadata
+        {
+            get
+            {
+                if (_metadata is null)
+                    _metadata = new NameServerMetadata();
+
+                return _metadata;
+            }
+        }
 
         #endregion
     }
