@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -129,45 +129,50 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override string ToZoneFileEntry(string originDomain = null)
         {
-            return DnsResourceRecord.GetRelativeDomainName(_primaryNameServer, originDomain).ToLowerInvariant() + " " + DnsResourceRecord.GetRelativeDomainName(GetResponsiblePersonDomainFormat(_responsiblePerson), originDomain).ToLowerInvariant() + " " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
+            return DnsResourceRecord.GetRelativeDomainName(_primaryNameServer, originDomain) + " " + DnsResourceRecord.GetRelativeDomainName(GetResponsiblePersonDomainFormat(_responsiblePerson), originDomain) + " " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
         }
 
-        #endregion
-
-        #region private
-
-        private static string GetResponsiblePersonEmailFormat(string responsiblePerson)
+        internal static string GetResponsiblePersonEmailFormat(string responsiblePerson)
         {
+            if (responsiblePerson.Length == 0)
+                return responsiblePerson;
+
             if (!responsiblePerson.Contains('@'))
             {
+                if (DnsClient.IsDomainNameUnicode(responsiblePerson))
+                    responsiblePerson = DnsClient.ConvertDomainNameToAscii(responsiblePerson);
+
+                DnsClient.IsDomainNameValid(responsiblePerson);
+
                 int i = 0;
 
                 while (true)
                 {
                     i = responsiblePerson.IndexOf('.', i);
                     if (i < 1)
-                        throw new ArgumentException("Please enter a valid email address.", nameof(responsiblePerson));
+                        break;
 
                     if ((i > 0) && (responsiblePerson[i - 1] == '\\'))
                     {
                         i++;
 
-                        if (i >= responsiblePerson.Length)
-                            throw new ArgumentException("Please enter a valid email address.", nameof(responsiblePerson));
+                        if (i < responsiblePerson.Length)
+                            continue;
 
-                        continue;
+                        i = -1;
                     }
 
                     break;
                 }
 
-                responsiblePerson = responsiblePerson.Substring(0, i) + "@" + responsiblePerson.Substring(i + 1);
+                if (i > 0)
+                    responsiblePerson = responsiblePerson.Substring(0, i).Replace("\\.", ".") + "@" + responsiblePerson.Substring(i + 1);
             }
 
             return responsiblePerson;
         }
 
-        private static string GetResponsiblePersonDomainFormat(string responsiblePerson)
+        internal static string GetResponsiblePersonDomainFormat(string responsiblePerson)
         {
             int i = responsiblePerson.IndexOf('@');
             if (i > -1)
