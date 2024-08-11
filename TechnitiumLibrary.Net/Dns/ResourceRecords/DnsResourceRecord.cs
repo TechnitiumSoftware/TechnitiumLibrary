@@ -334,6 +334,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnsResourceRecordType.TXT:
                     return new DnsTXTRecordData(s);
 
+                case DnsResourceRecordType.RP:
+                    return new DnsRPRecordData(s);
+
                 case DnsResourceRecordType.AAAA:
                     return new DnsAAAARecordData(s);
 
@@ -438,13 +441,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             string value;
 
             if (string.IsNullOrEmpty(originDomain))
-                value = domain.ToLowerInvariant() + ".";
+                value = domain + ".";
             else if (domain.Equals(originDomain, StringComparison.OrdinalIgnoreCase))
                 value = "@";
             else if (domain.EndsWith("." + originDomain, StringComparison.OrdinalIgnoreCase))
                 value = domain.Substring(0, domain.Length - originDomain.Length - 1);
             else
-                value = domain.ToLowerInvariant() + ".";
+                value = domain + ".";
 
             return value;
         }
@@ -588,7 +591,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public string ToZoneFileEntry(string originDomain = null)
         {
-            string value = GetRelativeDomainName(_name, originDomain).ToLowerInvariant().PadRight(20) + "  " + _ttl.ToString().PadRight(8);
+            string value = GetRelativeDomainName(_name, originDomain).PadRight(20) + "  " + _ttl.ToString().PadRight(8);
 
             if (Enum.IsDefined(_class))
                 value += "  " + _class.ToString();
