@@ -28,6 +28,7 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Security.Authentication;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -55,8 +56,8 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv4;
-        static IReadOnlyList<NameServerAddress> ROOT_NAME_SERVERS_IPv6;
+        static IReadOnlyList<NameServerAddress> IPv4_ROOT_HINTS;
+        static IReadOnlyList<NameServerAddress> IPv6_ROOT_HINTS;
 
         static IReadOnlyList<DnsResourceRecord> ROOT_TRUST_ANCHORS;
 
@@ -102,9 +103,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         static DnsClient()
         {
-            //set default root name servers
-            ROOT_NAME_SERVERS_IPv4 = new NameServerAddress[]
-            {
+            //set default root hints
+            IPv4_ROOT_HINTS =
+            [
                 new NameServerAddress("a.root-servers.net", IPAddress.Parse("198.41.0.4")), //VeriSign, Inc.
                 new NameServerAddress("b.root-servers.net", IPAddress.Parse("170.247.170.2")), //University of Southern California (ISI)
                 new NameServerAddress("c.root-servers.net", IPAddress.Parse("192.33.4.12")), //Cogent Communications
@@ -118,10 +119,10 @@ namespace TechnitiumLibrary.Net.Dns
                 new NameServerAddress("k.root-servers.net", IPAddress.Parse("193.0.14.129")), //RIPE NCC
                 new NameServerAddress("l.root-servers.net", IPAddress.Parse("199.7.83.42")), //ICANN
                 new NameServerAddress("m.root-servers.net", IPAddress.Parse("202.12.27.33")) //WIDE Project
-            };
+            ];
 
-            ROOT_NAME_SERVERS_IPv6 = new NameServerAddress[]
-            {
+            IPv6_ROOT_HINTS =
+            [
                 new NameServerAddress("a.root-servers.net", IPAddress.Parse("2001:503:ba3e::2:30")), //VeriSign, Inc.
                 new NameServerAddress("b.root-servers.net", IPAddress.Parse("2801:1b8:10::b")), //University of Southern California (ISI)
                 new NameServerAddress("c.root-servers.net", IPAddress.Parse("2001:500:2::c")), //Cogent Communications
@@ -135,13 +136,14 @@ namespace TechnitiumLibrary.Net.Dns
                 new NameServerAddress("k.root-servers.net", IPAddress.Parse("2001:7fd::1")), //RIPE NCC
                 new NameServerAddress("l.root-servers.net", IPAddress.Parse("2001:500:9f::42")), //ICANN
                 new NameServerAddress("m.root-servers.net", IPAddress.Parse("2001:dc3::35")) //WIDE Project
-            };
+            ];
 
             //set default root trust anchors
-            ROOT_TRUST_ANCHORS = new DnsResourceRecord[]
-            {
-                new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecordData(20326, DnssecAlgorithm.RSASHA256, DnssecDigestType.SHA256, Convert.FromHexString("E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D")))
-            };
+            ROOT_TRUST_ANCHORS =
+            [
+                new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecordData(20326, DnssecAlgorithm.RSASHA256, DnssecDigestType.SHA256, Convert.FromHexString("E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D"))),
+                new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecordData(38696, DnssecAlgorithm.RSASHA256, DnssecDigestType.SHA256, Convert.FromHexString("683D2D0ACB8C9B712A1948B27F741219298D0A450D612C483AF444A4C0FB2B16")))
+            ];
 
             //load root hints file async
             _ = Task.Run(ReloadRootHintsAsync);
@@ -160,7 +162,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsClient(Uri dohEndPoint)
         {
-            _servers = new NameServerAddress[] { new NameServerAddress(dohEndPoint) };
+            _servers = [new NameServerAddress(dohEndPoint)];
         }
 
         public DnsClient(Uri[] dohEndPoints)
@@ -227,7 +229,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsClient(NameServerAddress server)
         {
-            _servers = new NameServerAddress[] { server };
+            _servers = [server];
         }
 
         public DnsClient(params NameServerAddress[] servers)
@@ -258,8 +260,8 @@ namespace TechnitiumLibrary.Net.Dns
 
             List<DnsResourceRecord> rootZoneRecords = await ZoneFile.ReadZoneFileFromAsync(rootHintsFile);
 
-            List<NameServerAddress> ipv4RootNameServers = new List<NameServerAddress>(13);
-            List<NameServerAddress> ipv6RootNameServers = new List<NameServerAddress>(13);
+            List<NameServerAddress> ipv4RootHints = new List<NameServerAddress>(13);
+            List<NameServerAddress> ipv6RootHints = new List<NameServerAddress>(13);
 
             foreach (DnsResourceRecord nsRecord in rootZoneRecords)
             {
@@ -277,78 +279,21 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         case DnsResourceRecordType.A:
                             if (name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
-                                ipv4RootNameServers.Add(new NameServerAddress(name, (record.RDATA as DnsARecordData).Address));
+                                ipv4RootHints.Add(new NameServerAddress(name, (record.RDATA as DnsARecordData).Address));
 
                             break;
 
                         case DnsResourceRecordType.AAAA:
                             if (name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
-                                ipv6RootNameServers.Add(new NameServerAddress(name, (record.RDATA as DnsAAAARecordData).Address));
+                                ipv6RootHints.Add(new NameServerAddress(name, (record.RDATA as DnsAAAARecordData).Address));
 
                             break;
                     }
                 }
             }
 
-            ROOT_NAME_SERVERS_IPv4 = ipv4RootNameServers;
-            ROOT_NAME_SERVERS_IPv6 = ipv6RootNameServers;
-        }
-
-        public static async Task UpdateRootServersAsync(NetProxy proxy = null, bool preferIPv6 = false, int retries = 2, int timeout = 2000, CancellationToken cancellationToken = default)
-        {
-            DnsClient dnsClient = new DnsClient(GetShuffledRootServers(preferIPv6));
-
-            dnsClient._proxy = proxy;
-            dnsClient._preferIPv6 = preferIPv6;
-            dnsClient._retries = retries;
-            dnsClient._timeout = timeout;
-
-            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord("", DnsResourceRecordType.NS, DnsClass.IN) }, udpPayloadSize: DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE);
-            DnsDatagram response = await dnsClient.RawResolveAsync(request, cancellationToken);
-
-            if (response.RCODE != DnsResponseCode.NoError)
-                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + request.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
-
-            if (!response.AuthoritativeAnswer)
-                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + request.Question[0].ToString() + "'. Received a response without AuthoritativeAnswer flag set from Name server: " + response.Metadata.NameServer.ToString());
-
-            if ((response.Answer.Count == 0) || (response.Authority.Count > 0) || (response.Additional.Count == 0))
-                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + request.Question[0].ToString() + "'. Received a response without any answer from Name server: " + response.Metadata.NameServer.ToString());
-
-            List<NameServerAddress> ipv4RootNameServers = new List<NameServerAddress>(13);
-            List<NameServerAddress> ipv6RootNameServers = new List<NameServerAddress>(13);
-
-            foreach (DnsResourceRecord nsRecord in response.Answer)
-            {
-                if (nsRecord.Type != DnsResourceRecordType.NS)
-                    continue;
-
-                if (nsRecord.Name.Length != 0)
-                    continue;
-
-                string name = (nsRecord.RDATA as DnsNSRecordData).NameServer;
-
-                foreach (DnsResourceRecord record in response.Additional)
-                {
-                    switch (record.Type)
-                    {
-                        case DnsResourceRecordType.A:
-                            if (name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
-                                ipv4RootNameServers.Add(new NameServerAddress(name, (record.RDATA as DnsARecordData).Address));
-
-                            break;
-
-                        case DnsResourceRecordType.AAAA:
-                            if (name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
-                                ipv6RootNameServers.Add(new NameServerAddress(name, (record.RDATA as DnsAAAARecordData).Address));
-
-                            break;
-                    }
-                }
-            }
-
-            ROOT_NAME_SERVERS_IPv4 = ipv4RootNameServers;
-            ROOT_NAME_SERVERS_IPv6 = ipv6RootNameServers;
+            IPv4_ROOT_HINTS = ipv4RootHints;
+            IPv6_ROOT_HINTS = ipv6RootHints;
         }
 
         public static void ReloadRootTrustAnchors()
@@ -473,17 +418,13 @@ namespace TechnitiumLibrary.Net.Dns
                 if (!asyncNsRevalidation || ((nsRevalidationChildSideTasks.Count == 0) && (nsRevalidationParentSideTask.Count == 0)))
                     return;
 
-                _ = Task.Factory.StartNew(async delegate ()
+                _ = Task.Factory.StartNew(delegate ()
                 {
-                    List<Task> tasks = new List<Task>(nsRevalidationChildSideTasks.Count + nsRevalidationParentSideTask.Count);
-
                     foreach (KeyValuePair<string, NsRevalidationTask> entry in nsRevalidationChildSideTasks)
-                        tasks.Add(RevalidateNameServersFromChildSide(entry.Key, entry.Value.LastDSRecords, entry.Value.NameServers, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, maxStackCount));
+                        _ = RevalidateNameServersFromChildSide(entry.Key, entry.Value.LastDSRecords, entry.Value.NameServers, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, maxStackCount);
 
                     foreach (KeyValuePair<string, object> entry in nsRevalidationParentSideTask)
-                        tasks.Add(RevalidateNameServersFromParentSide(entry.Key, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, maxStackCount));
-
-                    await Task.WhenAll(tasks);
+                        _ = RevalidateNameServersFromParentSide(entry.Key, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, maxStackCount);
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             }
 
@@ -498,26 +439,14 @@ namespace TechnitiumLibrary.Net.Dns
                 if (!asyncNsResolution || (asyncNsResolutionTasks.Count == 0))
                     return;
 
-                _ = Task.Factory.StartNew(async delegate ()
+                _ = Task.Factory.StartNew(delegate ()
                 {
                     foreach (KeyValuePair<string, object> entry in asyncNsResolutionTasks)
                     {
                         if (preferIPv6)
-                        {
-                            try
-                            {
-                                await RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false, null, cancellationToken);
-                            }
-                            catch
-                            { }
-                        }
+                            _ = RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false, null, cancellationToken);
 
-                        try
-                        {
-                            await RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false, null, cancellationToken);
-                        }
-                        catch
-                        { }
+                        _ = RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false, null, cancellationToken);
                     }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             }
@@ -886,16 +815,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             if (nextNameServers.Count > 0)
                                             {
                                                 //found NS and/or DS (or proof of no DS)
-                                                nextNameServers.Shuffle();
-
-                                                if (asyncNsRevalidation || asyncNsResolution || (resolverStack.Count > 0))
-                                                {
-                                                    //sort name servers to prioritize ones with address
-                                                    nextNameServers.Sort(CompareNameServersByAddress);
-                                                }
-
-                                                if (preferIPv6)
-                                                    nextNameServers.Sort(CompareNameServersByIpEndPoint);
+                                                bool prioritizeOnesWithIPAddress = asyncNsRevalidation || asyncNsResolution || (resolverStack.Count > 0);
 
                                                 if (question.ZoneCut is not null)
                                                     question.ZoneCut = nextZoneCut;
@@ -903,7 +823,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 zoneCut = nextZoneCut;
                                                 ednsFlags = nextEdnsFlags;
                                                 lastDSRecords = nextDSRecords;
-                                                nameServers = nextNameServers;
+                                                nameServers = GetOrderedNameServersToPreferPerformance(nextNameServers, prioritizeOnesWithIPAddress, preferIPv6);
                                                 nameServerIndex = 0;
                                                 lastResponse = null;
                                             }
@@ -1013,7 +933,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if ((nameServers is null) || (nameServers.Count == 0))
                 {
                     zoneCut = "";
-                    nameServers = GetShuffledRootServers(preferIPv6);
+                    nameServers = await GetRootServersUsingRootHintsAsync(cache, proxy, preferIPv6, udpPayloadSize, dnssecValidation, retries, timeout, cancellationToken);
                     nameServerIndex = 0;
                     lastResponse = null;
                 }
@@ -1036,41 +956,38 @@ namespace TechnitiumLibrary.Net.Dns
 
                         if (nameServer.IPEndPoint is null)
                         {
-                            if (proxy is null)
+                            if (preferIPv6)
                             {
-                                if (preferIPv6)
+                                bool wasIPv6Attempted = false;
+
+                                for (int i = 0; i < nameServerIndex; i++)
                                 {
-                                    bool wasIPv6Attempted = false;
+                                    NameServerAddress ns = nameServers[i];
 
-                                    for (int i = 0; i < nameServerIndex; i++)
+                                    if (ns.Host.Equals(nameServer.Host, StringComparison.OrdinalIgnoreCase))
                                     {
-                                        NameServerAddress ns = nameServers[i];
-
-                                        if (ns.Host.Equals(nameServer.Host, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            wasIPv6Attempted = true;
-                                            break;
-                                        }
-                                    }
-
-                                    if (wasIPv6Attempted)
-                                    {
-                                        PushStack(nameServer.Host, DnsResourceRecordType.A);
-                                        goto stackLoop;
-                                    }
-                                    else
-                                    {
-                                        nameServers.Add(new NameServerAddress(nameServer.DomainEndPoint)); //add to allow future IPv4 address resolution if needed
-
-                                        PushStack(nameServer.Host, DnsResourceRecordType.AAAA);
-                                        goto stackLoop;
+                                        wasIPv6Attempted = true;
+                                        break;
                                     }
                                 }
-                                else
+
+                                if (wasIPv6Attempted)
                                 {
                                     PushStack(nameServer.Host, DnsResourceRecordType.A);
                                     goto stackLoop;
                                 }
+                                else
+                                {
+                                    nameServers.Add(new NameServerAddress(nameServer.DomainEndPoint)); //add to allow future IPv4 address resolution if needed
+
+                                    PushStack(nameServer.Host, DnsResourceRecordType.AAAA);
+                                    goto stackLoop;
+                                }
+                            }
+                            else
+                            {
+                                PushStack(nameServer.Host, DnsResourceRecordType.A);
+                                goto stackLoop;
                             }
                         }
 
@@ -1159,6 +1076,9 @@ namespace TechnitiumLibrary.Net.Dns
                                     }
                                 }
                             }
+
+                            //add penalty to name server for DNSSEC validation failure
+                            nameServer.Metadata.AddExtraPenalty(retries * timeout);
 
                             //continue for loop to next name server since current name server may be out of sync
                             lastException = ex;
@@ -1520,16 +1440,9 @@ namespace TechnitiumLibrary.Net.Dns
                                                 }
 
                                                 nextNameServers = ResolveNameServerAddressesFromCache(nextNameServers);
-                                                nextNameServers.Shuffle();
+                                                nextNameServers.Shuffle(); //do initial shuffle to avoid querying the same first NS everytime
 
-                                                if (asyncNsRevalidation || asyncNsResolution || (resolverStack.Count > 0))
-                                                {
-                                                    //sort name servers to prioritize ones with address
-                                                    nextNameServers.Sort(CompareNameServersByAddress);
-                                                }
-
-                                                if (preferIPv6)
-                                                    nextNameServers.Sort(CompareNameServersByIpEndPoint);
+                                                bool prioritizeOnesWithIPAddress = asyncNsRevalidation || asyncNsResolution || (resolverStack.Count > 0);
 
                                                 if (question.ZoneCut is not null)
                                                     question.ZoneCut = nextZoneCut;
@@ -1537,7 +1450,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 zoneCut = nextZoneCut;
                                                 ednsFlags = nextEdnsFlags;
                                                 lastDSRecords = nextDSRecords;
-                                                nameServers = nextNameServers;
+                                                nameServers = GetOrderedNameServersToPreferPerformance(nextNameServers, prioritizeOnesWithIPAddress, preferIPv6);
                                                 nameServerIndex = 0;
                                                 hopCount++;
                                                 lastResponse = null; //reset last response for current zone cut
@@ -2548,7 +2461,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region private
 
-        private static int CompareNameServersByAddress(NameServerAddress x, NameServerAddress y)
+        private static int CompareNameServersToPreferOnesWithIPAddress(NameServerAddress x, NameServerAddress y)
         {
             if (x.IPEndPoint is null)
             {
@@ -2566,7 +2479,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        private static int CompareNameServersByIpEndPoint(NameServerAddress x, NameServerAddress y)
+        private static int CompareNameServersToPreferIPv6(NameServerAddress x, NameServerAddress y)
         {
             if ((x.IPEndPoint is null) || (y.IPEndPoint is null))
                 return 0;
@@ -2580,31 +2493,96 @@ namespace TechnitiumLibrary.Net.Dns
             return 0;
         }
 
-        private static List<NameServerAddress> GetShuffledRootServers(bool preferIPv6)
+        private static int CompareNameServersToPreferPerformance(NameServerAddress x, NameServerAddress y)
+        {
+            double v1 = x.Metadata.GetNetRTT();
+            double v2 = y.Metadata.GetNetRTT();
+
+            return v1.CompareTo(v2);
+        }
+
+        private static List<NameServerAddress> GetOrderedNameServersToPreferPerformance(IReadOnlyCollection<NameServerAddress> nameServers, bool prioritizeOnesWithIPAddress, bool preferIPv6)
+        {
+            //create copy of root name servers array so that the values in original array are not messed due to shuffling/sorting feature
+            List<NameServerAddress> nameServersList = new List<NameServerAddress>(nameServers);
+
+            //Using Epsilon-Greedy Algorithm
+            const int epsilon = 5;
+            int p = RandomNumberGenerator.GetInt32(100);
+
+            if (p < epsilon)
+                nameServersList.Shuffle(); //exploration
+            else
+                nameServersList.Sort(CompareNameServersToPreferPerformance); //exploitation
+
+            if (prioritizeOnesWithIPAddress)
+                nameServersList.Sort(CompareNameServersToPreferOnesWithIPAddress); //sort name servers to prioritize ones with IP address
+
+            if (preferIPv6)
+                nameServersList.Sort(CompareNameServersToPreferIPv6); //sort name servers to prefer IPv6
+
+            return nameServersList;
+        }
+
+        private static async Task<List<NameServerAddress>> GetRootServersUsingRootHintsAsync(IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool dnssecValidation, int retries, int timeout, CancellationToken cancellationToken = default)
         {
             //create copy of root name servers array so that the values in original array are not messed due to shuffling feature
-            List<NameServerAddress> nameServersCopy;
+            List<NameServerAddress> rootHints;
 
             if (preferIPv6)
             {
-                List<NameServerAddress> nameServersList = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv6.Count + ROOT_NAME_SERVERS_IPv4.Count);
+                List<NameServerAddress> nameServersList = new List<NameServerAddress>(IPv6_ROOT_HINTS.Count + IPv4_ROOT_HINTS.Count);
 
-                nameServersList.AddRange(ROOT_NAME_SERVERS_IPv6);
-                nameServersList.AddRange(ROOT_NAME_SERVERS_IPv4);
+                nameServersList.AddRange(IPv6_ROOT_HINTS);
+                nameServersList.AddRange(IPv4_ROOT_HINTS);
                 nameServersList.Shuffle();
-                nameServersList.Sort(CompareNameServersByIpEndPoint);
+                nameServersList.Sort(CompareNameServersToPreferIPv6);
 
-                nameServersCopy = nameServersList;
+                rootHints = nameServersList;
             }
             else
             {
-                List<NameServerAddress> nameServersList = new List<NameServerAddress>(ROOT_NAME_SERVERS_IPv4);
+                List<NameServerAddress> nameServersList = new List<NameServerAddress>(IPv4_ROOT_HINTS);
                 nameServersList.Shuffle();
 
-                nameServersCopy = nameServersList;
+                rootHints = nameServersList;
             }
 
-            return nameServersCopy;
+            //get root servers by priming query
+            DnsClient dnsClient = new DnsClient(rootHints);
+
+            dnsClient._cache = cache;
+            dnsClient._proxy = proxy;
+            dnsClient._preferIPv6 = preferIPv6;
+            dnsClient._udpPayloadSize = udpPayloadSize;
+            dnsClient._dnssecValidation = dnssecValidation;
+            dnsClient._retries = retries;
+            dnsClient._timeout = timeout;
+
+            DnsQuestionRecord question = new DnsQuestionRecord("", DnsResourceRecordType.NS, DnsClass.IN);
+            DnsDatagram response;
+
+            if (dnssecValidation)
+                response = await dnsClient.InternalDnssecResolveAsync(question, cancellationToken);
+            else
+                response = await dnsClient.InternalNoDnssecResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, dnssecValidation, DnsResponseCode.NoError, [question], null, null, null, udpPayloadSize, dnssecValidation ? EDnsHeaderFlags.DNSSEC_OK : EDnsHeaderFlags.None, null), cancellationToken);
+
+            //validate priming query response
+            if (response.RCODE != DnsResponseCode.NoError)
+                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+
+            if (!response.AuthoritativeAnswer)
+                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response without AuthoritativeAnswer flag set from Name server: " + response.Metadata.NameServer.ToString());
+
+            if ((response.Answer.Count == 0) || (response.Authority.Count > 0) || (response.Additional.Count == 0))
+                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response without any answer from Name server: " + response.Metadata.NameServer.ToString());
+
+            cache.CacheResponse(response);
+
+            List<NameServerAddress> rootServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, true);
+            rootServers.Shuffle();
+
+            return rootServers;
         }
 
         private static async Task DnssecValidateResponseAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, CancellationToken cancellationToken)
@@ -4177,29 +4155,20 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 //resolve all name server addresses
                 List<NameServerAddress> revalidatedNameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, true);
+                List<Task> tasks = new List<Task>();
 
                 foreach (NameServerAddress revalidatedNameServer in revalidatedNameServers)
                 {
                     if (revalidatedNameServer.IPEndPoint is null)
                     {
                         if (preferIPv6)
-                        {
-                            try
-                            {
-                                await RecursiveResolveAsync(new DnsQuestionRecord(revalidatedNameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false);
-                            }
-                            catch
-                            { }
-                        }
+                            tasks.Add(RecursiveResolveAsync(new DnsQuestionRecord(revalidatedNameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false));
 
-                        try
-                        {
-                            await RecursiveResolveAsync(new DnsQuestionRecord(revalidatedNameServer.DomainEndPoint.Address, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false);
-                        }
-                        catch
-                        { }
+                        tasks.Add(RecursiveResolveAsync(new DnsQuestionRecord(revalidatedNameServer.DomainEndPoint.Address, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, false, dnssecValidation, null, retries, timeout, maxStackCount, false, false));
                     }
                 }
+
+                await Task.WhenAll(tasks);
 
                 //cache revalidated NS after resolving their addresses to avoid overwriting existing NS with glue
                 cache.CacheResponse(response);
@@ -4335,13 +4304,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (_servers.Count > _concurrency)
             {
-                List<NameServerAddress> serversCopy = new List<NameServerAddress>(_servers);
-                serversCopy.Shuffle();
-
-                if (_preferIPv6)
-                    serversCopy.Sort(CompareNameServersByIpEndPoint);
-
-                servers = serversCopy;
+                servers = GetOrderedNameServersToPreferPerformance(_servers, false, _preferIPv6);
                 concurrency = _concurrency;
             }
             else
@@ -4394,26 +4357,24 @@ namespace TechnitiumLibrary.Net.Dns
                     if ((proxy is not null) && proxy.IsBypassed(server.EndPoint))
                         proxy = null;
 
-                    if (proxy is null)
+                    if (server.IsIPEndPointStale)
                     {
-                        if (server.IsIPEndPointStale)
-                        {
-                            if (nsResolveCache is null)
-                                nsResolveCache = _cache is null ? new DnsCache() : _cache;
+                        if (nsResolveCache is null)
+                            nsResolveCache = _cache is null ? new DnsCache() : _cache;
 
-                            //recursive resolve name server via root servers when proxy is null else let proxy resolve it
-                            try
-                            {
-                                await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _preferIPv6, _udpPayloadSize, _randomizeName, _retries, _timeout, cancellationToken);
-                            }
-                            catch (Exception ex)
-                            {
-                                lastException = ex;
-                                continue; //failed to resolve name server; try next server
-                            }
+                        //recursive resolve name server via root servers
+                        try
+                        {
+                            await server.RecursiveResolveIPAddressAsync(nsResolveCache, proxy, _preferIPv6, _udpPayloadSize, _randomizeName, _retries, _timeout, cancellationToken);
+                        }
+                        catch (Exception ex)
+                        {
+                            lastException = ex;
+                            continue; //failed to resolve name server; try next server
                         }
                     }
-                    else
+
+                    if (proxy is not null)
                     {
                         //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
                         if ((server.Protocol == DnsTransportProtocol.Udp) && !await proxy.IsUdpAvailableAsync(cancellationToken))
@@ -4472,12 +4433,16 @@ namespace TechnitiumLibrary.Net.Dns
                                                     question.NormalizeName();
                                             }
 
+                                            if (response.Metadata is not null)
+                                                server.Metadata.UpdateSuccess(response.Metadata.RoundTripTime);
+
                                             retryRequest = true;
                                             protocolWasSwitched = true;
                                         }
                                         else
                                         {
                                             //unexpected truncated response for the transport protocol
+                                            server.Metadata.UpdateFailure(_timeout * _retries);
                                             lastException = new DnsClientResponseValidationException("Invalid response was received: truncated response over " + server.Protocol.ToString().ToUpper() + " transport.");
                                         }
                                     }
@@ -4485,6 +4450,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         if (response.ParsingException is not null)
                                         {
+                                            server.Metadata.UpdateFailure(_timeout * _retries);
                                             lastException = response.ParsingException;
                                         }
                                         else
@@ -4507,10 +4473,16 @@ namespace TechnitiumLibrary.Net.Dns
                                             {
                                                 case DnsResponseCode.NoError:
                                                 case DnsResponseCode.YXDomain:
+                                                    if (response.Metadata is not null)
+                                                        server.Metadata.UpdateSuccess(response.Metadata.RoundTripTime);
+
                                                     response.SetIdentifier(request.Identifier);
                                                     return response;
 
                                                 case DnsResponseCode.NxDomain:
+                                                    if (response.Metadata is not null)
+                                                        server.Metadata.UpdateSuccess(response.Metadata.RoundTripTime);
+
                                                     response.SetIdentifier(request.Identifier);
 
                                                     //check for quad9 blocking signal
@@ -4526,11 +4498,13 @@ namespace TechnitiumLibrary.Net.Dns
                                                         //disable EDNS and retry the request
                                                         asyncRequest = asyncRequest.CloneWithoutEDns();
 
+                                                        server.Metadata.UpdateFailure(_timeout);
                                                         retryRequest = true;
                                                         protocolWasSwitched = false;
                                                     }
                                                     else
                                                     {
+                                                        server.Metadata.UpdateFailure(_timeout * _retries);
                                                         response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, (response.Metadata is null ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
                                                         lastResponse = response;
                                                     }
@@ -4550,17 +4524,20 @@ namespace TechnitiumLibrary.Net.Dns
                                                         //ECS option or some other reason.
                                                         asyncRequest = asyncRequest.CloneWithoutEDnsClientSubnet();
 
+                                                        server.Metadata.UpdateFailure(_timeout);
                                                         retryRequest = true;
                                                         protocolWasSwitched = false;
                                                     }
                                                     else
                                                     {
+                                                        server.Metadata.UpdateFailure(_timeout * _retries);
                                                         response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, (response.Metadata is null ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
                                                         lastResponse = response;
                                                     }
                                                     break;
 
                                                 default:
+                                                    server.Metadata.UpdateFailure(_timeout * _retries);
                                                     response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, (response.Metadata is null ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
                                                     lastResponse = response;
                                                     break;
@@ -4584,6 +4561,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                         question.NormalizeName();
                                                 }
 
+                                                server.Metadata.UpdateFailure(_timeout);
                                                 lastException = ex;
                                                 retryRequest = true;
                                                 protocolWasSwitched = true;
@@ -4595,25 +4573,26 @@ namespace TechnitiumLibrary.Net.Dns
 
                                             break;
 
-                                        case SocketError.TimedOut:
-                                            if ((server.Protocol == DnsTransportProtocol.Udp) && (asyncRequest.EDNS is not null) && !asyncRequest.EDNS.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
-                                            {
-                                                //EDNS udp request timed out; disable EDNS and retry the request
-                                                asyncRequest = asyncRequest.CloneWithoutEDns();
-
-                                                lastException = ex;
-                                                retryRequest = true;
-                                                protocolWasSwitched = false;
-                                            }
-                                            else
-                                            {
-                                                throw;
-                                            }
-
-                                            break;
-
                                         default:
                                             throw;
+                                    }
+                                }
+                                catch (DnsClientNoResponseException ex)
+                                {
+                                    //request timed out
+                                    if ((server.Protocol == DnsTransportProtocol.Udp) && (asyncRequest.EDNS is not null) && !asyncRequest.EDNS.Flags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
+                                    {
+                                        //EDNS udp request timed out; disable EDNS and retry the request
+                                        asyncRequest = asyncRequest.CloneWithoutEDns();
+
+                                        server.Metadata.UpdateFailure(_timeout);
+                                        lastException = ex;
+                                        retryRequest = true;
+                                        protocolWasSwitched = false;
+                                    }
+                                    else
+                                    {
+                                        throw;
                                     }
                                 }
                                 catch (DnsClientResponseValidationException ex)
@@ -4629,6 +4608,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 question.NormalizeName();
                                         }
 
+                                        server.Metadata.UpdateFailure(_timeout);
                                         lastException = ex;
                                         retryRequest = true;
                                         protocolWasSwitched = true;
@@ -4642,8 +4622,28 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                         while (retryRequest); //retry request loop
                     }
+                    catch (OperationCanceledException)
+                    {
+                        //task was canceled
+                        server.Metadata.UpdateFailure(_timeout);
+                        throw;
+                    }
+                    catch (DnsClientNoResponseException ex)
+                    {
+                        //request timed out
+                        server.Metadata.UpdateFailure(_timeout * _retries);
+                        lastException = ex;
+                    }
+                    catch (DnsClientResponseValidationException ex)
+                    {
+                        //response validation failed
+                        server.Metadata.UpdateFailure(_timeout * _retries);
+                        lastException = ex;
+                    }
                     catch (Exception ex)
                     {
+                        server.Metadata.UpdateFailure(_timeout * _retries);
+
                         if (protocolWasSwitched && (lastException is DnsClientResponseValidationException) && (ex is SocketException))
                         {
                             //keep previous last exception to allow recursive resolver distinguish exception for qname minimization to work
@@ -4822,6 +4822,9 @@ namespace TechnitiumLibrary.Net.Dns
                                 continue; //retry once
                         }
                     }
+
+                    //add penalty to name server for DNSSEC validation failure
+                    response.Metadata?.NameServer.Metadata.AddExtraPenalty(_retries * _timeout);
 
                     throw;
                 }
@@ -5307,6 +5310,12 @@ namespace TechnitiumLibrary.Net.Dns
         #endregion
 
         #region property
+
+        internal static IReadOnlyList<NameServerAddress> IPv4RootHints
+        { get { return IPv4_ROOT_HINTS; } }
+
+        internal static IReadOnlyList<NameServerAddress> IPv6RootHints
+        { get { return IPv6_ROOT_HINTS; } }
 
         public IReadOnlyList<NameServerAddress> Servers
         { get { return _servers; } }
