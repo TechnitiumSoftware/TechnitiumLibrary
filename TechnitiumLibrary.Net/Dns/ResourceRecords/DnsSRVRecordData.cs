@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -100,7 +100,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override string ToZoneFileEntry(string originDomain = null)
         {
-            return _priority + " " + _weight + " " + _port + " " + DnsResourceRecord.GetRelativeDomainName(_target, originDomain).ToLowerInvariant();
+            return _priority + " " + _weight + " " + _port + " " + DnsResourceRecord.GetRelativeDomainName(_target, originDomain);
         }
 
         #endregion

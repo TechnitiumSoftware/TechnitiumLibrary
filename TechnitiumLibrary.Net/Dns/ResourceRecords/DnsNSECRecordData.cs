@@ -481,7 +481,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override string ToZoneFileEntry(string originDomain = null)
         {
-            string str = DnsResourceRecord.GetRelativeDomainName(_nextDomainName, originDomain).ToLowerInvariant();
+            string str = DnsResourceRecord.GetRelativeDomainName(_nextDomainName, originDomain);
 
             foreach (DnsResourceRecordType type in _types)
                 str += " " + type.ToString();

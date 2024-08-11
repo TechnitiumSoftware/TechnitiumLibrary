@@ -83,7 +83,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override string ToZoneFileEntry(string originDomain = null)
         {
-            return DnsResourceRecord.GetRelativeDomainName(_domain, originDomain).ToLowerInvariant();
+            return DnsResourceRecord.GetRelativeDomainName(_domain, originDomain);
         }
 
         #endregion

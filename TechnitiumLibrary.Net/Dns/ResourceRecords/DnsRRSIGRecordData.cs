@@ -338,7 +338,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override string ToZoneFileEntry(string originDomain = null)
         {
-            return (ushort)_typeCovered + " " + (byte)_algorithm + " " + _labels + " " + _originalTtl + " " + _signatureExpiration + " " + _signatureInception + " " + _keyTag + " " + DnsResourceRecord.GetRelativeDomainName(_signersName, originDomain).ToLowerInvariant() + " " + Convert.ToBase64String(_signature);
+            return (ushort)_typeCovered + " " + (byte)_algorithm + " " + _labels + " " + _originalTtl + " " + _signatureExpiration + " " + _signatureInception + " " + _keyTag + " " + DnsResourceRecord.GetRelativeDomainName(_signersName, originDomain) + " " + Convert.ToBase64String(_signature);
         }
 
         #endregion

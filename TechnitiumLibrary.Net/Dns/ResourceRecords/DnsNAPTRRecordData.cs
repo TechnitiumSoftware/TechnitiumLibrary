@@ -130,7 +130,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override string ToZoneFileEntry(string originDomain = null)
         {
-            return _order + " " + _preference + " " + DnsDatagram.EncodeCharacterString(_flags) + " " + DnsDatagram.EncodeCharacterString(_services) + " " + DnsDatagram.EncodeCharacterString(_regexp) + " " + DnsResourceRecord.GetRelativeDomainName(_replacement, originDomain).ToLowerInvariant();
+            return _order + " " + _preference + " " + DnsDatagram.EncodeCharacterString(_flags) + " " + DnsDatagram.EncodeCharacterString(_services) + " " + DnsDatagram.EncodeCharacterString(_regexp) + " " + DnsResourceRecord.GetRelativeDomainName(_replacement, originDomain);
         }
 
         #endregion

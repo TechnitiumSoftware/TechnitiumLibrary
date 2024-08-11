@@ -263,7 +263,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (_autoIpv6Hint)
                 svcParams += " ipv6hint=auto";
 
-            return _svcPriority + " " + DnsResourceRecord.GetRelativeDomainName(_targetName, originDomain).ToLowerInvariant() + svcParams;
+            return _svcPriority + " " + DnsResourceRecord.GetRelativeDomainName(_targetName, originDomain) + svcParams;
         }
 
         #endregion
