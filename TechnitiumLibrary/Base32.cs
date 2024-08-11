@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -59,7 +59,7 @@ namespace TechnitiumLibrary
 
         #region private
 
-        private static string Encode(byte[] data, char[] map, bool skipPadding)
+        private static string Encode(Span<byte> data, char[] map, bool skipPadding)
         {
             StringBuilder sb = new StringBuilder();
 
@@ -295,12 +295,12 @@ namespace TechnitiumLibrary
 
         #region public
 
-        public static string ToBase32String(byte[] data, bool skipPadding = false)
+        public static string ToBase32String(Span<byte> data, bool skipPadding = false)
         {
             return Encode(data, BASE32_MAP, skipPadding);
         }
 
-        public static string ToBase32HexString(byte[] data, bool skipPadding = false)
+        public static string ToBase32HexString(Span<byte> data, bool skipPadding = false)
         {
             return Encode(data, BASE32_HEX_MAP, skipPadding);
         }
