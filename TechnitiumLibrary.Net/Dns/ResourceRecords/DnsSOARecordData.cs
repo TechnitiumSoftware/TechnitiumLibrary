@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Mail;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -137,13 +138,26 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (responsiblePerson.Length == 0)
                 return responsiblePerson;
 
-            if (!responsiblePerson.Contains('@'))
+            if (responsiblePerson.Contains('@'))
             {
+                //validate email address
+                MailAddress mailAddress = new MailAddress(responsiblePerson);
+
+                string host = mailAddress.Host;
+                if (DnsClient.IsDomainNameUnicode(host))
+                    host = DnsClient.ConvertDomainNameToAscii(host);
+
+                DnsClient.IsDomainNameValid(host, true);
+            }
+            else
+            {
+                //validate domain name
                 if (DnsClient.IsDomainNameUnicode(responsiblePerson))
                     responsiblePerson = DnsClient.ConvertDomainNameToAscii(responsiblePerson);
 
-                DnsClient.IsDomainNameValid(responsiblePerson);
+                DnsClient.IsDomainNameValid(responsiblePerson.Replace("\\.", "."), true);
 
+                //convert to email address
                 int i = 0;
 
                 while (true)
@@ -159,7 +173,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         if (i < responsiblePerson.Length)
                             continue;
 
-                        i = -1;
+                        i = -1; //not found
                     }
 
                     break;
@@ -175,10 +189,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         internal static string GetResponsiblePersonDomainFormat(string responsiblePerson)
         {
             int i = responsiblePerson.IndexOf('@');
-            if (i > -1)
-                responsiblePerson = responsiblePerson.Substring(0, i).Replace(".", "\\.") + "." + responsiblePerson.Substring(i + 1);
+            if (i < 0)
+                return responsiblePerson;
 
-            return responsiblePerson;
+            return responsiblePerson.Substring(0, i).Replace(".", "\\.") + "." + responsiblePerson.Substring(i + 1);
         }
 
         #endregion
