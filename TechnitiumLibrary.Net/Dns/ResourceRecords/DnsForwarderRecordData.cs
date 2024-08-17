@@ -147,6 +147,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (bytesRead < _rdLength)
                 _priority = s.ReadByteValue();
 
+            //read any extra bytes in RDATA for forward compatibility
+            bytesRead = s.Position - initialPosition;
+            if (bytesRead < _rdLength)
+            {
+                int count = _rdLength - (ushort)bytesRead;
+                Span<byte> buffer = stackalloc byte[count];
+                s.ReadExactly(buffer);
+            }
+
             if (_protocol == DnsTransportProtocol.HttpsJson)
                 _protocol = DnsTransportProtocol.Https;
         }
