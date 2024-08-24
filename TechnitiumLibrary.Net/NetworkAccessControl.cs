@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net
 {
@@ -102,6 +103,29 @@ namespace TechnitiumLibrary.Net
                 return true;
 
             return false;
+        }
+
+        public static DnsAPLRecordData ConvertToAPLRecordData(IReadOnlyCollection<NetworkAccessControl> acl)
+        {
+            DnsAPLRecordData.APItem[] apItems = new DnsAPLRecordData.APItem[acl.Count];
+            int i = 0;
+
+            foreach (NetworkAccessControl ac in acl)
+                apItems[i++] = new DnsAPLRecordData.APItem(ac._networkAddress, ac._deny);
+
+            return new DnsAPLRecordData(apItems);
+        }
+
+        public static IReadOnlyCollection<NetworkAccessControl> ConvertFromAPLRecordData(DnsAPLRecordData rdata)
+        {
+            IReadOnlyCollection<DnsAPLRecordData.APItem> apItems = rdata.APItems;
+            NetworkAccessControl[] acl = new NetworkAccessControl[apItems.Count];
+            int i = 0;
+
+            foreach (DnsAPLRecordData.APItem apItem in apItems)
+                acl[i++] = new NetworkAccessControl(apItem.NetworkAddress, apItem.Negation);
+
+            return acl;
         }
 
         #endregion
