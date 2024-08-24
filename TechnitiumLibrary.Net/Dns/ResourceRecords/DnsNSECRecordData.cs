@@ -34,7 +34,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         NoData = 2,
         RecordSetExists = 3,
         OptOut = 4,
-        InsecureDelegation = 5
+        InsecureDelegation = 5,
+        UnsupportedNSEC3IterationsValue = 6
     }
 
     //Authenticated Denial of Existence in the DNS 
