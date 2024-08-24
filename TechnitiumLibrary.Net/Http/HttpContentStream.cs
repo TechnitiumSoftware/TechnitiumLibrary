@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2021  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -154,8 +154,7 @@ namespace TechnitiumLibrary.Net.Http
         {
             while (true)
             {
-                if (cancellationToken.IsCancellationRequested)
-                    return await Task.FromCanceled<int>(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
 
                 //read from buffer
                 int bytesRead = ReadBuffer(buffer, offset, count);
