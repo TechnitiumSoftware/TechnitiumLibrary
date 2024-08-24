@@ -102,21 +102,6 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        internal void AddExtraPenalty(double penaltyRTT)
-        {
-            int tries = 10;
-            while (tries-- > 0)
-            {
-                double sprtt = Volatile.Read(ref _sprtt);
-
-                double nsprtt = (ALPHA * penaltyRTT) + ((1 - ALPHA) * sprtt);
-
-                double original = Interlocked.CompareExchange(ref _sprtt, nsprtt, sprtt);
-                if (original == sprtt)
-                    break;
-            }
-        }
-
         #endregion
 
         #region public
