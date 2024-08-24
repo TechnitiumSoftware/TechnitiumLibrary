@@ -547,6 +547,20 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
+        public NameServerAddress UpdateAddress(IPAddress address)
+        {
+            NameServerAddress nameServer = new NameServerAddress();
+
+            nameServer._protocol = _protocol;
+            nameServer._dohEndPoint = _dohEndPoint;
+            nameServer._domainEndPoint = _domainEndPoint;
+            nameServer._ipEndPoint = new IPEndPoint(address, Port);
+            nameServer._originalAddress = nameServer.ToString();
+            nameServer._metadata = _metadata;
+
+            return nameServer;
+        }
+
         public NameServerAddress ChangeProtocol(DnsTransportProtocol protocol)
         {
             if (_protocol == protocol)
