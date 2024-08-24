@@ -153,6 +153,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         continue;
 
                     DnsNSEC3RecordData nsec3 = nsec3Record.RDATA as DnsNSEC3RecordData;
+                    if (nsec3.Iterations > DnsClient.MAX_NSEC3_ITERATIONS)
+                        return DnssecProofOfNonExistence.UnsupportedNSEC3IterationsValue;
+
                     string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
 
                     if (hashedClosestEncloser is null)
