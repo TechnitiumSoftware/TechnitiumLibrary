@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -82,25 +82,26 @@ namespace TechnitiumLibrary.Net.Dns
 
             _algorithm = GetTsigAlgorithm(_algorithmName);
 
-            byte[] key;
+            int keyLength;
 
             switch (_algorithm)
             {
                 case TsigAlgorithm.HMAC_SHA384:
                 case TsigAlgorithm.HMAC_SHA384_192:
-                    key = new byte[48];
+                    keyLength = 48;
                     break;
 
                 case TsigAlgorithm.HMAC_SHA512:
                 case TsigAlgorithm.HMAC_SHA512_256:
-                    key = new byte[64];
+                    keyLength = 64;
                     break;
 
                 default:
-                    key = new byte[32];
+                    keyLength = 32;
                     break;
             }
 
+            Span<byte> key = stackalloc byte[keyLength];
             RandomNumberGenerator.Fill(key);
 
             _sharedSecret = Convert.ToBase64String(key);
