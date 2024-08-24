@@ -287,10 +287,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             int retry = 0;
             while (retry < retries) //retry loop
             {
-                retry++;
+                cancellationToken.ThrowIfCancellationRequested();
 
-                if (cancellationToken.IsCancellationRequested)
-                    return await Task.FromCanceled<DnsDatagram>(cancellationToken); //task cancelled
+                retry++;
 
                 Task<QuicConnection> quicConnectionTask = GetConnectionAsync(timeout, cancellationToken);
 

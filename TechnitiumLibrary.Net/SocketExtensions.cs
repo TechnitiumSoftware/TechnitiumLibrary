@@ -94,13 +94,12 @@ namespace TechnitiumLibrary.Net
             int retry = 0;
             while (retry < retries) //retry loop
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 if (expBackoffTimeout)
                     timeoutValue = timeout * (2 ^ retry);
 
                 retry++;
-
-                if (cancellationToken.IsCancellationRequested)
-                    return await Task.FromCanceled<int>(cancellationToken); //task cancelled
 
                 //send request
                 await socket.SendToAsync(request, SocketFlags.None, remoteEP, cancellationToken);
