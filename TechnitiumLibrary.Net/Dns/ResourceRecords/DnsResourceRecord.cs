@@ -102,6 +102,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         LP = 107,
         EUI48 = 108,
         EUI64 = 109,
+        NXNAME = 128,
         TKEY = 249,
         TSIG = 250,
         IXFR = 251,
@@ -116,6 +117,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         AMTRELAY = 260,
         RESINFO = 261,
         WALLET = 262,
+        CLA = 263,
+        IPN = 264,
         TA = 32768,
         DLV = 32769,
         ANAME = 65280, //private use - draft-ietf-dnsop-aname-04
