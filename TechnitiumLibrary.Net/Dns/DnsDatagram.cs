@@ -529,7 +529,22 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (isEmailAddress)
                 {
-                    domain[domainPosition++] = '@';
+                    bool containsAt = false;
+
+                    for (int i = 0; i < domainPosition; i++)
+                    {
+                        if (domain[i] == '@')
+                        {
+                            containsAt = true;
+                            break;
+                        }
+                    }
+
+                    if (containsAt)
+                        domain[domainPosition++] = '.';
+                    else
+                        domain[domainPosition++] = '@';
+
                     isEmailAddress = false;
                 }
                 else
