@@ -695,7 +695,7 @@ namespace TechnitiumLibrary.Net.Dns
             _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
         }
 
-        public async Task RecursiveResolveIPAddressAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, int retries = 2, int timeout = 2000, CancellationToken cancellationToken = default)
+        public async Task RecursiveResolveIPAddressAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, CancellationToken cancellationToken = default)
         {
             if (_ipEndPointExpires && (DateTime.UtcNow < _ipEndPointExpiresOn))
                 return;
@@ -723,7 +723,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             IPEndPoint ipEndPoint = null;
 
-            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, null, retries, timeout, 16, cancellationToken);
+            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, null, retries, timeout, concurrency, maxStackCount, cancellationToken);
             if (addresses.Count > 0)
                 ipEndPoint = new IPEndPoint(addresses[0], Port);
 
@@ -750,13 +750,13 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public async Task RecursiveResolveDomainNameAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, int retries = 2, int timeout = 2000, CancellationToken cancellationToken = default)
+        public async Task RecursiveResolveDomainNameAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, CancellationToken cancellationToken = default)
         {
             if (_ipEndPoint is not null)
             {
                 try
                 {
-                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, null, retries, timeout, 16, cancellationToken));
+                    IReadOnlyList<string> ptrDomains = DnsClient.ParseResponsePTR(await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(_ipEndPoint.Address, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, null, retries, timeout, concurrency, maxStackCount, cancellationToken));
                     if (ptrDomains.Count > 0)
                         _domainEndPoint = new DomainEndPoint(ptrDomains[0], _ipEndPoint.Port);
                 }
