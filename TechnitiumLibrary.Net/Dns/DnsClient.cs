@@ -423,15 +423,17 @@ namespace TechnitiumLibrary.Net.Dns
 
                 _ = Task.Factory.StartNew(delegate ()
                 {
-                    return TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                    return TaskExtensions.TimeoutAsync(async delegate (CancellationToken cancellationToken1)
                     {
+                        List<Task> tasks = new List<Task>();
+
                         foreach (KeyValuePair<string, NsRevalidationTask> entry in nsRevalidationChildSideTasks)
-                            _ = RevalidateNameServersFromChildSideAsync(entry.Key, entry.Value.LastDSRecords, entry.Value.NameServers, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, concurrency, maxStackCount, cancellationToken1);
+                            tasks.Add(RevalidateNameServersFromChildSideAsync(entry.Key, entry.Value.LastDSRecords, entry.Value.NameServers, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, concurrency, maxStackCount, cancellationToken1));
 
                         foreach (KeyValuePair<string, object> entry in nsRevalidationParentSideTask)
-                            _ = RevalidateNameServersFromParentSideAsync(entry.Key, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, concurrency, maxStackCount, cancellationToken1);
+                            tasks.Add(RevalidateNameServersFromParentSideAsync(entry.Key, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, retries, timeout, concurrency, maxStackCount, cancellationToken1));
 
-                        return Task.CompletedTask;
+                        await Task.WhenAll(tasks);
                     }, NS_REVALIDATION_TIMEOUT, CancellationToken.None);
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             }
@@ -449,17 +451,19 @@ namespace TechnitiumLibrary.Net.Dns
 
                 _ = Task.Factory.StartNew(delegate ()
                 {
-                    return TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                    return TaskExtensions.TimeoutAsync(async delegate (CancellationToken cancellationToken1)
                     {
+                        List<Task> tasks = new List<Task>();
+
                         foreach (KeyValuePair<string, object> entry in asyncNsResolutionTasks)
                         {
                             if (preferIPv6)
-                                _ = RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, null, retries, timeout, concurrency, maxStackCount, cancellationToken: cancellationToken1);
+                                tasks.Add(RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, null, retries, timeout, concurrency, maxStackCount, cancellationToken: cancellationToken1));
 
-                            _ = RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, null, retries, timeout, concurrency, maxStackCount, cancellationToken: cancellationToken1);
+                            tasks.Add(RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, null, retries, timeout, concurrency, maxStackCount, cancellationToken: cancellationToken1));
                         }
 
-                        return Task.CompletedTask;
+                        await Task.WhenAll(tasks);
                     }, NS_RESOLUTION_TIMEOUT, CancellationToken.None);
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             }
