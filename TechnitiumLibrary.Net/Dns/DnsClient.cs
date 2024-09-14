@@ -4152,7 +4152,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                         else
                         {
-                            await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize);
+                            await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken1);
 
                             //sanitize response after DNSSEC validation
                             response = SanitizeResponseAfterDnssecValidation(response);
