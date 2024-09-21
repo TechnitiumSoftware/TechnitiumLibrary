@@ -2740,8 +2740,8 @@ namespace TechnitiumLibrary.Net.Dns
                                             break;
 
                                         default:
-                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (Wildcard) for " + rrsigRecord.Name + " " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString());
-                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + rrsigRecord.Name + "/" + typeCovered.ToString(), response);
+                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (Wildcard) for " + rrsigRecord.Name.ToLowerInvariant() + " " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString());
+                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + rrsigRecord.Name.ToLowerInvariant() + "/" + typeCovered.ToString(), response);
                                     }
                                 }
                             }
@@ -2945,7 +2945,7 @@ namespace TechnitiumLibrary.Net.Dns
                         foreach (DnsResourceRecord record in rrset.Value)
                             record.SetDnssecStatus(DnssecStatus.Indeterminate);
 
-                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.TooManyCryptoValidations, "Too many crypto validations for " + ownerName + " " + rrsetType + " " + rrsetClass.ToString());
+                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.TooManyCryptoValidations, "Too many crypto validations for " + ownerName.ToLowerInvariant() + " " + rrsetType + " " + rrsetClass.ToString());
                         continue;
                     }
 
@@ -3042,10 +3042,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName + " " + rrsetType + " " + rrsetClass.ToString());
+                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName.ToLowerInvariant() + " " + rrsetType + " " + rrsetClass.ToString());
 
                                 if (!isAdditionalSection)
-                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to invalid signature [" + lastExtendedDnsErrorCode.ToString() + "] for owner name: " + ownerName + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to invalid signature [" + lastExtendedDnsErrorCode.ToString() + "] for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
 
                                 break;
 
@@ -3054,10 +3054,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.RRSIGsMissing, "Missing RRSIG with a supported algorithm for " + ownerName + " " + rrsetType + " " + rrsetClass.ToString());
+                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.RRSIGsMissing, "Missing RRSIG with a supported algorithm for " + ownerName.ToLowerInvariant() + " " + rrsetType + " " + rrsetClass.ToString());
 
                                 if (!isAdditionalSection)
-                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due missing RRSIG with a supported algorithm for owner name: " + ownerName + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due missing RRSIG with a supported algorithm for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
 
                                 break;
 
@@ -3105,9 +3105,9 @@ namespace TechnitiumLibrary.Net.Dns
                                     foreach (DnsResourceRecord record in rrset.Value)
                                         record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                    response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName + "/" + rrsetType);
+                                    response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName.ToLowerInvariant() + "/" + rrsetType);
 
-                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing RRSIG for owner name: " + ownerName + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing RRSIG for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
                                 }
 
                                 break;
@@ -3116,10 +3116,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName + "/" + rrsetType);
+                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName.ToLowerInvariant() + "/" + rrsetType);
 
                                 if (!isAdditionalSection)
-                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to reason: " + lastExtendedDnsErrorCode.ToString() + ", for owner name: " + ownerName + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to reason: " + lastExtendedDnsErrorCode.ToString() + ", for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
 
                                 break;
                         }
@@ -3340,9 +3340,9 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         case DnsResponseCode.NoError:
                         case DnsResponseCode.NxDomain:
-                            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, (dsResponse.Metadata is null ? "name server" : dsResponse.Metadata.NameServer.ToString()) + " returned no DS for " + ownerName);
+                            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, (dsResponse.Metadata is null ? "name server" : dsResponse.Metadata.NameServer.ToString()) + " returned no DS for " + ownerName.ToLowerInvariant());
                             cache.CacheResponse(dsResponse, true);
-                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DS records for owner name: " + ownerName, dsResponse);
+                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DS records for owner name: " + ownerName.ToLowerInvariant(), dsResponse);
 
                         default:
                             dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, (dsResponse.Metadata is null ? "name server" : dsResponse.Metadata.NameServer.ToString()) + " returned RCODE=" + dsResponse.RCODE.ToString() + " for " + dsQuestion.ToString());
@@ -3402,14 +3402,14 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 if (!DnsDSRecordData.IsAnyDigestTypeSupported(dsRecords))
                                 {
-                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDsDigestType, ownerName);
+                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDsDigestType, ownerName.ToLowerInvariant());
                                     dsRecords = null;
                                     return new Tuple<bool, IReadOnlyList<DnsResourceRecord>>(true, dsRecords);
                                 }
 
                                 if (!DnsDSRecordData.IsAnyDnssecAlgorithmSupported(dsRecords))
                                 {
-                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm, ownerName);
+                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm, ownerName.ToLowerInvariant());
                                     dsRecords = null;
                                     return new Tuple<bool, IReadOnlyList<DnsResourceRecord>>(true, dsRecords);
                                 }
@@ -3492,14 +3492,14 @@ namespace TechnitiumLibrary.Net.Dns
 
                             if (!DnsDSRecordData.IsAnyDigestTypeSupported(dsRecords))
                             {
-                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDsDigestType, ownerName);
+                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDsDigestType, ownerName.ToLowerInvariant());
                                 dsRecords = null;
                                 return new Tuple<bool, IReadOnlyList<DnsResourceRecord>>(true, dsRecords);
                             }
 
                             if (!DnsDSRecordData.IsAnyDnssecAlgorithmSupported(dsRecords))
                             {
-                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm, ownerName);
+                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm, ownerName.ToLowerInvariant());
                                 dsRecords = null;
                                 return new Tuple<bool, IReadOnlyList<DnsResourceRecord>>(true, dsRecords);
                             }
