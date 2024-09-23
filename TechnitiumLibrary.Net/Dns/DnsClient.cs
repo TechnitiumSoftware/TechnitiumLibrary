@@ -4426,28 +4426,30 @@ namespace TechnitiumLibrary.Net.Dns
                     if ((proxy is not null) && proxy.IsBypassed(server.EndPoint))
                         proxy = null;
 
-                    if (server.IsIPEndPointStale)
+                    if (proxy is null)
                     {
-                        if (nsResolveCache is null)
-                            nsResolveCache = _cache is null ? new DnsCache() : _cache;
+                        if (server.IsIPEndPointStale)
+                        {
+                            if (nsResolveCache is null)
+                                nsResolveCache = _cache is null ? new DnsCache() : _cache;
 
-                        //recursive resolve name server via root servers
-                        try
-                        {
-                            await server.RecursiveResolveIPAddressAsync(nsResolveCache, proxy, _preferIPv6, _udpPayloadSize, _randomizeName, _retries, _timeout, concurrency, cancellationToken: cancellationToken);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            throw;
-                        }
-                        catch (Exception ex)
-                        {
-                            lastException = ex;
-                            continue; //failed to resolve name server; try next server
+                            //recursive resolve name server only when proxy is null else let proxy resolve it to allow using .onion or private domains
+                            try
+                            {
+                                await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _preferIPv6, _udpPayloadSize, _randomizeName, _retries, _timeout, concurrency, cancellationToken: cancellationToken);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                throw;
+                            }
+                            catch (Exception ex)
+                            {
+                                lastException = ex;
+                                continue; //failed to resolve name server; try next server
+                            }
                         }
                     }
-
-                    if (proxy is not null)
+                    else
                     {
                         //upgrade protocol to TCP when UDP is not supported by proxy and server is not bypassed
                         if ((server.Protocol == DnsTransportProtocol.Udp) && !await proxy.IsUdpAvailableAsync(cancellationToken))
