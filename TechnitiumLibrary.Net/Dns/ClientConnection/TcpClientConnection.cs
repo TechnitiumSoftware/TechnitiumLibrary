@@ -191,12 +191,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             _socket = socket;
             _tcpStream = await GetNetworkStreamAsync(socket, cancellationToken);
 
-            _ = ReadDnsDatagramAsync(_tcpStream, cancellationToken);
+            _ = ReadDnsDatagramAsync(_tcpStream);
 
             return _tcpStream;
         }
 
-        private async Task ReadDnsDatagramAsync(Stream tcpStream, CancellationToken cancellationToken)
+        private async Task ReadDnsDatagramAsync(Stream tcpStream)
         {
             try
             {
@@ -206,7 +206,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     DnsDatagram response = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
                     {
                         return DnsDatagram.ReadFromTcpAsync(tcpStream, _recvBuffer, cancellationToken1);
-                    }, ASYNC_RECEIVE_TIMEOUT, cancellationToken);
+                    }, ASYNC_RECEIVE_TIMEOUT, CancellationToken.None);
 
                     //signal response
                     if (_transactions.TryGetValue(response.Identifier, out Transaction transaction))
@@ -252,7 +252,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 Stream tcpStream = await GetConnectionAsync(cancellationToken);
 
                 //send request
-                await request.WriteToTcpAsync(tcpStream, _sendBuffer, cancellationToken);
+                await request.WriteToTcpAsync(tcpStream, _sendBuffer, CancellationToken.None); //no cancellation token to prevent corrupting tcp stream data
                 tcpStream.Flush();
 
                 return true;
@@ -336,6 +336,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         throw;
 
                     //retry
+                }
+                catch (TimeoutException)
+                {
+                    //read response task timed out; retry
                 }
                 catch (ObjectDisposedException)
                 {
