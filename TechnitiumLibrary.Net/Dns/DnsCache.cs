@@ -939,22 +939,18 @@ namespace TechnitiumLibrary.Net.Dns
                                 InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                             }
                         }
-                        else
+                        else if (zoneCut is null)
                         {
-                            //answer response with authority
+                            //answer response with authority; received from a forwarder (null zonecut)
                             DnsResourceRecord lastAnswer = response.GetLastAnswerRecord();
                             if (lastAnswer.Type == DnsResourceRecordType.CNAME)
                             {
-                                if ((response.RCODE != DnsResponseCode.NxDomain) || (response.Answer.Count == 1))
+                                foreach (DnsQuestionRecord question in response.Question)
                                 {
-                                    //negative cache only when RCODE is not NXDOMAIN or when RCODE is NXDOMAIN and there is only 1 CNAME in answer
-                                    foreach (DnsQuestionRecord question in response.Question)
-                                    {
-                                        DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class, Math.Min(3600u, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue)), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
-                                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
+                                    DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class, Math.Min(3600u, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue)), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
+                                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
-                                        InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
-                                    }
+                                    InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                                 }
                             }
                         }
