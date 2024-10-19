@@ -676,7 +676,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                         Tuple<bool, IReadOnlyList<DnsResourceRecord>> tupleCacheDSRecords = await TryGetDSFromResponseAsync(cacheResponse, cacheResponse.Question[0].Name);
                                                         if (!tupleCacheDSRecords.Item1)
-                                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name.ToLowerInvariant(), cacheResponse);
+                                                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name.ToLowerInvariant(), cacheResponse);
 
                                                         IReadOnlyList<DnsResourceRecord> cacheDSRecords = tupleCacheDSRecords.Item2;
 
@@ -897,7 +897,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                 case DnsResourceRecordType.DS:
                                                     //DS does not resolve so cannot proceed
-                                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name.ToLowerInvariant(), cacheResponse);
+                                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name.ToLowerInvariant(), cacheResponse);
                                             }
 
                                             //proceed to resolver loop
@@ -963,7 +963,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                             case DnsResourceRecordType.DS:
                                                 //DS does not resolve so cannot proceed
-                                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name.ToLowerInvariant(), cacheResponse);
+                                                throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name.ToLowerInvariant(), cacheResponse);
                                         }
 
                                         //proceed to resolver loop
@@ -1097,6 +1097,16 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     //dnssec validation is disabled
                                     response.SetDnssecStatusForAllRecords(DnssecStatus.Disabled);
+                                }
+
+                                //check if referral response was received from the authoritative name server for the same zone cut
+                                if ((response.RCODE == DnsResponseCode.NoError) && (response.Answer.Count == 0) && (response.Authority.Count > 0))
+                                {
+                                    foreach (DnsResourceRecord authorityRecord in response.Authority)
+                                    {
+                                        if ((authorityRecord.Type == DnsResourceRecordType.NS) && authorityRecord.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
+                                            throw new DnsClientResponseNotPreferredException(response); //found referral response with authority name servers that match the zone cut
+                                    }
                                 }
 
                                 return response;
@@ -1297,7 +1307,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     case DnsResourceRecordType.DS:
                                                         Tuple<bool, IReadOnlyList<DnsResourceRecord>> tupleDsRecords = await TryGetDSFromResponseAsync(response, request.Question[0].Name);
                                                         if (!tupleDsRecords.Item1)
-                                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + request.Question[0].Name.ToLowerInvariant(), response);
+                                                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find DS records for owner name: " + request.Question[0].Name.ToLowerInvariant(), response);
 
                                                         IReadOnlyList<DnsResourceRecord> dsRecords = tupleDsRecords.Item2;
 
@@ -1414,14 +1424,14 @@ namespace TechnitiumLibrary.Net.Dns
                                         }
                                         else
                                         {
-                                            //check if empty response was received from the authoritative name server
+                                            //check if referral response was received from the authoritative name server for the same zone cut
                                             bool continueNextNameServer = false;
 
                                             foreach (DnsResourceRecord authorityRecord in response.Authority)
                                             {
                                                 if ((authorityRecord.Type == DnsResourceRecordType.NS) && authorityRecord.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
                                                 {
-                                                    //empty response with authority name servers that match the zone cut
+                                                    //referral response with authority name servers that match the zone cut
                                                     if (resolverStack.Count == 0)
                                                     {
                                                         //continue for loop to next name server since current name server may be misconfigured
@@ -1833,14 +1843,14 @@ namespace TechnitiumLibrary.Net.Dns
                                 if (extendedDnsErrors.Count > 0)
                                     failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Unable to resolve DS for " + lastQuestion.Name.ToLowerInvariant());
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Attack detected! Unable to resolve DS for " + lastQuestion.Name.ToLowerInvariant());
 
                                 if (eDnsClientSubnet is not null)
                                     failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
 
                                 cache.CacheResponse(failureResponse);
 
-                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find DS records for owner name: " + lastQuestion.Name.ToLowerInvariant(), lastResponse is null ? failureResponse : lastResponse);
+                                throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find DS records for owner name: " + lastQuestion.Name.ToLowerInvariant(), lastResponse is null ? failureResponse : lastResponse);
                         }
 
                         //proceed to resolver loop
@@ -2740,8 +2750,8 @@ namespace TechnitiumLibrary.Net.Dns
                                             break;
 
                                         default:
-                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (Wildcard) for " + rrsigRecord.Name.ToLowerInvariant() + " " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString());
-                                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + rrsigRecord.Name.ToLowerInvariant() + "/" + typeCovered.ToString(), response);
+                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (Wildcard) for " + rrsigRecord.Name.ToLowerInvariant() + " " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString());
+                                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + rrsigRecord.Name.ToLowerInvariant() + "/" + typeCovered.ToString(), response);
                                     }
                                 }
                             }
@@ -2770,8 +2780,8 @@ namespace TechnitiumLibrary.Net.Dns
                                                 break;
 
                                             default:
-                                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.ToString());
-                                                throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name.ToLowerInvariant() + "/" + question.Type.ToString(), response);
+                                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (No Data) for " + question.ToString());
+                                                throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name.ToLowerInvariant() + "/" + question.Type.ToString(), response);
                                         }
                                     }
                                     break;
@@ -2800,8 +2810,8 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
 
                                 default:
-                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.ToString());
-                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name.ToLowerInvariant() + "/" + question.Type.ToString(), response);
+                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (No Data) for " + question.ToString());
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name.ToLowerInvariant() + "/" + question.Type.ToString(), response);
                             }
                         }
                         else
@@ -2812,8 +2822,8 @@ namespace TechnitiumLibrary.Net.Dns
                             if (IsDomainUnsigned(question.Name, unsignedZones))
                                 break;
 
-                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (No Data) for " + question.ToString());
-                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name.ToLowerInvariant() + "/" + question.Type.ToString(), response);
+                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (No Data) for " + question.ToString());
+                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name.ToLowerInvariant() + "/" + question.Type.ToString(), response);
                         }
 
                         break;
@@ -2835,8 +2845,8 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
 
                                 default:
-                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Missing non-existence proof (NX Domain) for " + question.Name.ToLowerInvariant());
-                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed as the response was unable to prove non-existence (NX Domain) for owner name: " + question.Name.ToLowerInvariant(), response);
+                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (NX Domain) for " + question.Name.ToLowerInvariant());
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (NX Domain) for owner name: " + question.Name.ToLowerInvariant(), response);
                             }
                         }
                         break;
@@ -3042,10 +3052,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName.ToLowerInvariant() + " " + rrsetType + " " + rrsetClass.ToString());
+                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, "Attack detected! " + ownerName.ToLowerInvariant() + " " + rrsetType + " " + rrsetClass.ToString());
 
                                 if (!isAdditionalSection)
-                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to invalid signature [" + lastExtendedDnsErrorCode.ToString() + "] for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to invalid signature [" + lastExtendedDnsErrorCode.ToString() + "] for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
 
                                 break;
 
@@ -3054,10 +3064,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.RRSIGsMissing, "Missing RRSIG with a supported algorithm for " + ownerName.ToLowerInvariant() + " " + rrsetType + " " + rrsetClass.ToString());
+                                response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.RRSIGsMissing, "Attack detected! Missing RRSIG with a supported algorithm for " + ownerName.ToLowerInvariant() + " " + rrsetType + " " + rrsetClass.ToString());
 
                                 if (!isAdditionalSection)
-                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due missing RRSIG with a supported algorithm for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due missing RRSIG with a supported algorithm for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
 
                                 break;
 
@@ -3105,9 +3115,9 @@ namespace TechnitiumLibrary.Net.Dns
                                     foreach (DnsResourceRecord record in rrset.Value)
                                         record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                    response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName.ToLowerInvariant() + "/" + rrsetType);
+                                    response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, "Attack detected! " + ownerName.ToLowerInvariant() + "/" + rrsetType);
 
-                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing RRSIG for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to missing RRSIG for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
                                 }
 
                                 break;
@@ -3116,10 +3126,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, ownerName.ToLowerInvariant() + "/" + rrsetType);
+                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, "Attack detected! " + ownerName.ToLowerInvariant() + "/" + rrsetType);
 
                                 if (!isAdditionalSection)
-                                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to reason: " + lastExtendedDnsErrorCode.ToString() + ", for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to reason: " + lastExtendedDnsErrorCode.ToString() + ", for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
 
                                 break;
                         }
@@ -3196,14 +3206,14 @@ namespace TechnitiumLibrary.Net.Dns
                     switch (dnsKeyResponse.RCODE)
                     {
                         case DnsResponseCode.NoError:
-                            dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, (dnsKeyResponse.Metadata is null ? "name server" : dnsKeyResponse.Metadata.NameServer.ToString()) + " returned no DNSKEYs for " + dnsKeyQuestion.Name.ToLowerInvariant());
+                            dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "Attack detected! " + (dnsKeyResponse.Metadata is null ? "name server" : dnsKeyResponse.Metadata.NameServer.ToString()) + " returned no DNSKEYs for " + dnsKeyQuestion.Name.ToLowerInvariant());
                             cache.CacheResponse(dnsKeyResponse, true);
-                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DNSKEY records for owner name: " + dnsKeyQuestion.Name.ToLowerInvariant(), dnsKeyResponse);
+                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to missing DNSKEY records for owner name: " + dnsKeyQuestion.Name.ToLowerInvariant(), dnsKeyResponse);
 
                         default:
-                            dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, (dnsKeyResponse.Metadata is null ? "name server" : dnsKeyResponse.Metadata.NameServer.ToString()) + " returned RCODE=" + dnsKeyResponse.RCODE.ToString() + " for " + dnsKeyQuestion.ToString());
+                            dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "Attack detected! " + (dnsKeyResponse.Metadata is null ? "name server" : dnsKeyResponse.Metadata.NameServer.ToString()) + " returned RCODE=" + dnsKeyResponse.RCODE.ToString() + " for " + dnsKeyQuestion.ToString());
                             cache.CacheResponse(dnsKeyResponse, true);
-                            throw new DnsClientResponseDnssecValidationException("Failed to resolve the request '" + dnsKeyResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dnsKeyResponse.RCODE + (dnsKeyResponse.Metadata is null ? "" : " from Name server: " + dnsKeyResponse.Metadata.NameServer.ToString()), dnsKeyResponse);
+                            throw new DnsClientResponseDnssecValidationException("Attack detected! Failed to resolve the request '" + dnsKeyResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dnsKeyResponse.RCODE + (dnsKeyResponse.Metadata is null ? "" : " from Name server: " + dnsKeyResponse.Metadata.NameServer.ToString()), dnsKeyResponse);
                     }
                 }
 
@@ -3261,9 +3271,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (sepDnsKeyRecords.Count == 0)
                 {
-                    dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "No SEP matching the DS found for " + dnsKeyQuestion.Name.ToLowerInvariant());
+                    dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "Attack detected! No SEP matching the DS found for " + dnsKeyQuestion.Name.ToLowerInvariant());
                     cache.CacheResponse(dnsKeyResponse, true);
-                    throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to unable to find a SEP DNSKEY matching the DS for owner name: " + dnsKeyQuestion.Name.ToLowerInvariant(), dnsKeyResponse);
+                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find a SEP DNSKEY matching the DS for owner name: " + dnsKeyQuestion.Name.ToLowerInvariant(), dnsKeyResponse);
                 }
 
                 //validate signature for DNSKEY response
@@ -3340,14 +3350,14 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         case DnsResponseCode.NoError:
                         case DnsResponseCode.NxDomain:
-                            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, (dsResponse.Metadata is null ? "name server" : dsResponse.Metadata.NameServer.ToString()) + " returned no DS for " + ownerName.ToLowerInvariant());
+                            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Attack detected! " + (dsResponse.Metadata is null ? "name server" : dsResponse.Metadata.NameServer.ToString()) + " returned no DS for " + ownerName.ToLowerInvariant());
                             cache.CacheResponse(dsResponse, true);
-                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DS records for owner name: " + ownerName.ToLowerInvariant(), dsResponse);
+                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to missing DS records for owner name: " + ownerName.ToLowerInvariant(), dsResponse);
 
                         default:
-                            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, (dsResponse.Metadata is null ? "name server" : dsResponse.Metadata.NameServer.ToString()) + " returned RCODE=" + dsResponse.RCODE.ToString() + " for " + dsQuestion.ToString());
+                            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Attack detected! " + (dsResponse.Metadata is null ? "name server" : dsResponse.Metadata.NameServer.ToString()) + " returned RCODE=" + dsResponse.RCODE.ToString() + " for " + dsQuestion.ToString());
                             cache.CacheResponse(dsResponse, true);
-                            throw new DnsClientResponseDnssecValidationException("Failed to resolve the request '" + dsResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dsResponse.RCODE + (dsResponse.Metadata is null ? "" : " from Name server: " + dsResponse.Metadata.NameServer.ToString()), dsResponse);
+                            throw new DnsClientResponseDnssecValidationException("Attack detected! Failed to resolve the request '" + dsResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dsResponse.RCODE + (dsResponse.Metadata is null ? "" : " from Name server: " + dsResponse.Metadata.NameServer.ToString()), dsResponse);
                     }
                 }, false, cancellationToken);
             }
@@ -4740,6 +4750,12 @@ namespace TechnitiumLibrary.Net.Dns
                         server.Metadata.UpdateFailure(_timeout * _retries);
                         lastException = ex;
                     }
+                    catch (DnsClientResponseNotPreferredException ex)
+                    {
+                        //set unpreferred response as last exception and try next name server for better response
+                        server.Metadata.UpdateFailure(_timeout);
+                        lastException = ex;
+                    }
                     catch (Exception ex)
                     {
                         server.Metadata.UpdateFailure(_timeout * _retries);
@@ -4788,6 +4804,9 @@ namespace TechnitiumLibrary.Net.Dns
                                 if (lastResponse is not null)
                                     return lastResponse; //return last response since it was returned by a task that ran to completion
 
+                                if (lastException is DnsClientResponseNotPreferredException ex)
+                                    return ex.Response; //return last unpreferred response
+
                                 if (lastException is not null)
                                     ExceptionDispatchInfo.Throw(lastException);
 
@@ -4826,14 +4845,17 @@ namespace TechnitiumLibrary.Net.Dns
                                 if (lastResponse is not null)
                                     return lastResponse; //return last response since it was returned by a task that ran to completion
 
+                                if (completedTask.Exception?.InnerException is DnsClientResponseNotPreferredException ex1)
+                                    return ex1.Response; //return current unpreferred response
+
+                                if (lastException is DnsClientResponseNotPreferredException ex2)
+                                    return ex2.Response; //return last unpreferred response
+
                                 return await (completedTask as Task<DnsDatagram>); //await throw error
                             }
 
                             tasks.Remove(completedTask);
-                            lastException = completedTask.Exception;
-
-                            if (lastException is AggregateException)
-                                lastException = lastException.InnerException;
+                            lastException = completedTask.Exception?.InnerException;
                         }
                     }
                 }
