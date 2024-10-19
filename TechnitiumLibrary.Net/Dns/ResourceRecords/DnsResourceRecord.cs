@@ -210,6 +210,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             switch (version)
             {
                 case 1:
+                case 2:
                     DnsResourceRecord record = new DnsResourceRecord();
 
                     record._name = bR.ReadString();
@@ -226,6 +227,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     record._wasExpiryReset = bR.ReadBoolean();
                     record._ttlExpires = DateTime.UnixEpoch.AddSeconds(bR.ReadInt64());
                     record._serveStaleTtlExpires = DateTime.UnixEpoch.AddSeconds(bR.ReadInt64());
+
+                    if (version >= 2)
+                        record._serveStaleAnswerTtl = bR.ReadUInt32();
+                    else
+                        record._serveStaleAnswerTtl = 30;
+
                     record._dnssecStatus = (DnssecStatus)bR.ReadByte();
 
                     readTagInfo(record);
@@ -512,7 +519,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public void WriteCacheRecordTo(BinaryWriter bW, Action writeTagInfo)
         {
-            bW.Write((byte)1); //version
+            bW.Write((byte)2); //version
 
             bW.Write(_name);
             bW.Write((ushort)_type);
@@ -534,6 +541,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             bW.Write(_wasExpiryReset);
             bW.Write(Convert.ToInt64((_ttlExpires - DateTime.UnixEpoch).TotalSeconds));
             bW.Write(Convert.ToInt64((_serveStaleTtlExpires - DateTime.UnixEpoch).TotalSeconds));
+            bW.Write(_serveStaleAnswerTtl);
             bW.Write((byte)_dnssecStatus);
 
             writeTagInfo();
