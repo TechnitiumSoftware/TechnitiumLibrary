@@ -188,6 +188,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             socket.NoDelay = true;
 
+            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, 10);
+            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 2);
+            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, 3);
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
             _socket = socket;
             _tcpStream = await GetNetworkStreamAsync(socket, cancellationToken);
 
