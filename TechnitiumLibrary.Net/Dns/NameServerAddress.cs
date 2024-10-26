@@ -391,8 +391,8 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if ((domainPort == 0) && (port == 0))
                 {
-                    domainPort = 53;
-                    port = 53;
+                    domainPort = GetDefaultPort(_protocol);
+                    port = domainPort;
                 }
                 else if (domainPort == 0)
                 {
@@ -431,6 +431,26 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        private static int GetDefaultPort(DnsTransportProtocol protocol)
+        {
+            switch (protocol)
+            {
+                case DnsTransportProtocol.Udp:
+                case DnsTransportProtocol.Tcp:
+                    return 53;
+
+                case DnsTransportProtocol.Tls:
+                case DnsTransportProtocol.Quic:
+                    return 853;
+
+                case DnsTransportProtocol.Https:
+                    return 443;
+
+                default:
+                    throw new NotSupportedException();
+            }
+        }
+
         private int GetDoHPort()
         {
             if ((_dohEndPoint.Port == -1) && _dohEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase))
@@ -447,8 +467,8 @@ namespace TechnitiumLibrary.Net.Dns
         {
             NameServerAddress nameServerAddress = new NameServerAddress();
 
-            nameServerAddress.InternalParse(address.Trim());
             nameServerAddress._protocol = protocol;
+            nameServerAddress.InternalParse(address.Trim());
             nameServerAddress.ValidateProtocol();
 
             return nameServerAddress;
