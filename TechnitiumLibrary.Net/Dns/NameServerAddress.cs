@@ -569,12 +569,17 @@ namespace TechnitiumLibrary.Net.Dns
 
         public NameServerAddress UpdateAddress(IPAddress address)
         {
+            return UpdateIPEndPoint(new IPEndPoint(address, Port));
+        }
+
+        public NameServerAddress UpdateIPEndPoint(IPEndPoint ep)
+        {
             NameServerAddress nameServer = new NameServerAddress();
 
             nameServer._protocol = _protocol;
             nameServer._dohEndPoint = _dohEndPoint;
             nameServer._domainEndPoint = _domainEndPoint;
-            nameServer._ipEndPoint = new IPEndPoint(address, Port);
+            nameServer._ipEndPoint = ep;
             nameServer._originalAddress = nameServer.ToString();
             nameServer._metadata = _metadata;
 
