@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -142,16 +143,23 @@ namespace TechnitiumLibrary.Net
 
         public static async Task CopyToAsync(this Socket src, Socket dst, int bufferSize = 64 * 1024)
         {
-            byte[] buffer = new byte[bufferSize];
-            int bytesRead;
-
-            while (true)
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+            try
             {
-                bytesRead = await src.ReceiveAsync(buffer, SocketFlags.None);
-                if (bytesRead < 1)
-                    break;
+                int bytesRead;
 
-                await dst.SendAsync(new ArraySegment<byte>(buffer, 0, bytesRead), SocketFlags.None);
+                while (true)
+                {
+                    bytesRead = await src.ReceiveAsync(buffer, SocketFlags.None);
+                    if (bytesRead < 1)
+                        break;
+
+                    await dst.SendAsync(new ArraySegment<byte>(buffer, 0, bytesRead), SocketFlags.None);
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
             }
         }
 
