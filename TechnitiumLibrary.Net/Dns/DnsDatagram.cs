@@ -349,7 +349,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             //read datagram from source to buffer
             sharedBuffer.SetLength(0);
-            await stream.CopyToAsync(sharedBuffer, Math.Min(4096, length), length, cancellationToken);
+            await stream.CopyToAsync(sharedBuffer, 4096, length, cancellationToken);
             sharedBuffer.Position = 0;
 
             //parse datagram from buffer

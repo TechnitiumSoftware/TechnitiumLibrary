@@ -342,7 +342,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static void WriteTypeBitMapsTo(IReadOnlyList<DnsResourceRecordType> types, Stream s)
         {
-            byte[] windowBlockSurvey = new byte[256];
+            Span<byte> windowBlockSurvey = stackalloc byte[256];
 
             foreach (DnsResourceRecordType type in types)
             {
