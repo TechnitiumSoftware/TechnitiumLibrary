@@ -603,7 +603,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (extendedDnsErrors.Count > 0)
                         failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
-                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Recursion stack limit reached for " + question.ToString());
+                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Recursion stack limit reached for " + question.ToString());
 
                     if (eDnsClientSubnet is not null)
                         failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
@@ -719,35 +719,26 @@ namespace TechnitiumLibrary.Net.Dns
                                             }
                                             else
                                             {
-                                                if (question.Type == DnsResourceRecordType.AAAA)
+                                                //NO DATA - domain does not resolve 
+                                                PopStack();
+
+                                                switch (cacheResponse.Question[0].Type)
                                                 {
-                                                    question = new DnsQuestionRecord(question.Name, DnsResourceRecordType.A, question.Class);
+                                                    case DnsResourceRecordType.A:
+                                                    case DnsResourceRecordType.AAAA:
+                                                        //didnt find IP for current name server; try next name server
+                                                        nameServerIndex++; //increment to skip current name server
+                                                        break;
 
-                                                    continue; //to stack loop to query cache for A record
+                                                    case DnsResourceRecordType.DS:
+                                                        //DS does not exists so the zone is unsigned
+                                                        //removing DNSSEC_OK flag
+                                                        ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                        lastDSRecords = null;
+                                                        break;
                                                 }
-                                                else
-                                                {
-                                                    //NO DATA - domain does not resolve 
-                                                    PopStack();
 
-                                                    switch (cacheResponse.Question[0].Type)
-                                                    {
-                                                        case DnsResourceRecordType.A:
-                                                        case DnsResourceRecordType.AAAA:
-                                                            //didnt find IP for current name server; try next name server
-                                                            nameServerIndex++; //increment to skip current name server
-                                                            break;
-
-                                                        case DnsResourceRecordType.DS:
-                                                            //DS does not exists so the zone is unsigned
-                                                            //removing DNSSEC_OK flag
-                                                            ednsFlags &= (EDnsHeaderFlags)0x7FFF;
-                                                            lastDSRecords = null;
-                                                            break;
-                                                    }
-
-                                                    //proceed to resolver loop
-                                                }
+                                                //proceed to resolver loop
                                             }
                                         }
                                         else
@@ -1018,41 +1009,107 @@ namespace TechnitiumLibrary.Net.Dns
 
                             dnsClient = new DnsClient(resolvedNameServers);
                             dnsClient._concurrency = concurrency;
+
+                            if (preferIPv6)
+                            {
+                                //find name server with no glue or no ipv6 glue and add additional name server entry to allow attempt over ipv6
+                                List<NameServerAddress> nameServersToAdd = new List<NameServerAddress>();
+
+                                foreach (NameServerAddress nameServerWithIpv4Glue in nameServers)
+                                {
+                                    if ((nameServerWithIpv4Glue.IPEndPoint is null) || (nameServerWithIpv4Glue.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
+                                        continue; //has no glue or ipv6 glue
+
+                                    bool foundNoOrIpv6Glue = false;
+
+                                    foreach (NameServerAddress nameServer in nameServers)
+                                    {
+                                        if (nameServerWithIpv4Glue.DomainEndPoint.Address.Equals(nameServer.DomainEndPoint.Address, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            if ((nameServer.IPEndPoint is null) || (nameServer.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
+                                            {
+                                                foundNoOrIpv6Glue = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    if (!foundNoOrIpv6Glue)
+                                        nameServersToAdd.Add(nameServerWithIpv4Glue.UpdateIPEndPoint(null)); //add to allow future IPv6 address resolution if needed
+                                }
+
+                                foreach (NameServerAddress nameServer in nameServersToAdd)
+                                {
+                                    nameServers.Add(nameServer);
+
+                                    if (asyncNsResolution)
+                                        asyncNsResolutionTasks.TryAdd(nameServer.DomainEndPoint.Address.ToLowerInvariant(), null);
+                                }
+
+                                referralLimit += nameServersToAdd.Count;
+                            }
                         }
                         else
                         {
                             //do sequential request to current name server after resolving it
-                            NameServerAddress nameServer = nameServers[nameServerIndex];
+                            NameServerAddress currentNameServer = nameServers[nameServerIndex];
 
                             if (preferIPv6)
                             {
+                                bool wasIPv4Attempted = false;
                                 bool wasIPv6Attempted = false;
 
                                 for (int i = 0; i < nameServerIndex; i++)
                                 {
-                                    NameServerAddress ns = nameServers[i];
+                                    NameServerAddress attemptedNameServer = nameServers[i];
 
-                                    if (ns.Host.Equals(nameServer.Host, StringComparison.OrdinalIgnoreCase))
+                                    if (attemptedNameServer.DomainEndPoint.Address.Equals(currentNameServer.DomainEndPoint.Address, StringComparison.OrdinalIgnoreCase))
                                     {
-                                        wasIPv6Attempted = true;
-                                        break;
+                                        if (attemptedNameServer.IPEndPoint is null)
+                                        {
+                                            //AAAA resolution failed earlier
+                                            wasIPv6Attempted = true;
+                                            break;
+                                        }
+
+                                        switch (attemptedNameServer.IPEndPoint.AddressFamily)
+                                        {
+                                            case AddressFamily.InterNetwork:
+                                                wasIPv4Attempted = true;
+                                                break;
+
+                                            case AddressFamily.InterNetworkV6:
+                                                wasIPv6Attempted = true;
+                                                break;
+                                        }
                                     }
+
+                                    if (wasIPv4Attempted && wasIPv6Attempted)
+                                        break;
                                 }
 
                                 if (wasIPv6Attempted)
                                 {
-                                    PushStack(nameServer.Host, DnsResourceRecordType.A);
+                                    PushStack(currentNameServer.DomainEndPoint.Address, DnsResourceRecordType.A);
                                 }
                                 else
                                 {
-                                    nameServers.Add(nameServer); //add to allow future IPv4 address resolution if needed
+                                    if (!wasIPv4Attempted)
+                                    {
+                                        nameServers.Add(currentNameServer); //add to allow future IPv4 address resolution if needed
 
-                                    PushStack(nameServer.Host, DnsResourceRecordType.AAAA);
+                                        if (asyncNsResolution)
+                                            asyncNsResolutionTasks.TryAdd(currentNameServer.DomainEndPoint.Address.ToLowerInvariant(), null);
+
+                                        referralLimit++;
+                                    }
+
+                                    PushStack(currentNameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA);
                                 }
                             }
                             else
                             {
-                                PushStack(nameServer.Host, DnsResourceRecordType.A);
+                                PushStack(currentNameServer.DomainEndPoint.Address, DnsResourceRecordType.A);
                             }
 
                             goto stackLoop;
@@ -1389,37 +1446,26 @@ namespace TechnitiumLibrary.Net.Dns
                                             }
                                             else
                                             {
-                                                if (question.Type == DnsResourceRecordType.AAAA)
+                                                //NO DATA - domain does not resolve 
+                                                PopStack();
+
+                                                switch (request.Question[0].Type)
                                                 {
-                                                    question = new DnsQuestionRecord(question.Name, DnsResourceRecordType.A, question.Class);
+                                                    case DnsResourceRecordType.A:
+                                                    case DnsResourceRecordType.AAAA:
+                                                        //didnt find IP for current name server; try next name server
+                                                        nameServerIndex++; //increment to skip current name server
+                                                        break;
 
-                                                    //try same server again with AAAA query
-                                                    nameServerIndex = currentNameServerIndex - 1;
-                                                    continue;
+                                                    case DnsResourceRecordType.DS:
+                                                        //DS does not exists so the zone is unsigned
+                                                        //removing DNSSEC_OK flag
+                                                        ednsFlags &= (EDnsHeaderFlags)0x7FFF;
+                                                        lastDSRecords = null;
+                                                        break;
                                                 }
-                                                else
-                                                {
-                                                    //NO DATA - domain does not resolve 
-                                                    PopStack();
 
-                                                    switch (request.Question[0].Type)
-                                                    {
-                                                        case DnsResourceRecordType.A:
-                                                        case DnsResourceRecordType.AAAA:
-                                                            //didnt find IP for current name server; try next name server
-                                                            nameServerIndex++; //increment to skip current name server
-                                                            break;
-
-                                                        case DnsResourceRecordType.DS:
-                                                            //DS does not exists so the zone is unsigned
-                                                            //removing DNSSEC_OK flag
-                                                            ednsFlags &= (EDnsHeaderFlags)0x7FFF;
-                                                            lastDSRecords = null;
-                                                            break;
-                                                    }
-
-                                                    goto resolverLoop;
-                                                }
+                                                goto resolverLoop;
                                             }
                                         }
                                         else
@@ -1545,7 +1591,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     {
                                                         if (nextNameServer.IPEndPoint is null)
                                                         {
-                                                            if (asyncNsResolutionTasks.TryAdd(nextNameServer.DomainEndPoint.Address, null))
+                                                            if (asyncNsResolutionTasks.TryAdd(nextNameServer.DomainEndPoint.Address.ToLowerInvariant(), null))
                                                             {
                                                                 maxNsResolutions--;
 
@@ -3350,9 +3396,9 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         case DnsResponseCode.NoError:
                         case DnsResponseCode.NxDomain:
-                            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Attack detected! " + (dsResponse.Metadata is null ? "name server" : dsResponse.Metadata.NameServer.ToString()) + " returned no DS for " + ownerName.ToLowerInvariant());
+                            dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, (dsResponse.Metadata is null ? "name server" : dsResponse.Metadata.NameServer.ToString()) + " returned no DS for " + ownerName.ToLowerInvariant());
                             cache.CacheResponse(dsResponse, true);
-                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to missing DS records for owner name: " + ownerName.ToLowerInvariant(), dsResponse);
+                            throw new DnsClientResponseDnssecValidationException("DNSSEC validation failed due to missing DS records for owner name: " + ownerName.ToLowerInvariant(), dsResponse);
 
                         default:
                             dsResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Attack detected! " + (dsResponse.Metadata is null ? "name server" : dsResponse.Metadata.NameServer.ToString()) + " returned RCODE=" + dsResponse.RCODE.ToString() + " for " + dsQuestion.ToString());
@@ -4862,7 +4908,14 @@ namespace TechnitiumLibrary.Net.Dns
             }
             else
             {
-                return await DoResolveAsync(cancellationToken);
+                try
+                {
+                    return await DoResolveAsync(cancellationToken);
+                }
+                catch (DnsClientResponseNotPreferredException ex)
+                {
+                    return ex.Response; //return unpreferred response
+                }
             }
         }
 
