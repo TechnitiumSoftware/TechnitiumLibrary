@@ -57,14 +57,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             handler.EnableMultipleHttp2Connections = true;
             handler.UseProxy = false;
 
-            if (_proxy is null)
+            if (_server.DoHEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase))
             {
-                handler.ConnectCallback += ConnectCallback;
+                handler.AllowAutoRedirect = false; //disable redirect since next call may bypass proxy tunnel
             }
             else
             {
-                if (_server.DoHEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase))
-                    handler.AllowAutoRedirect = false; //disable redirect since next call may bypass proxy tunnel
+                if (_proxy is null)
+                    handler.ConnectCallback += ConnectCallback;
                 else
                     handler.ConnectCallback += ProxyConnectCallback;
             }
@@ -154,10 +154,15 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             socket.NoDelay = true;
 
-            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, 10);
-            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 2);
-            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, 3);
-            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+            try
+            {
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, 10);
+                socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 2);
+                socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, 3); //IPPROTO_TCP.TCP_KEEPCNT - supported with Windows 10, version 1703 and above
+            }
+            catch
+            { }
 
             return new NetworkStream(socket, true);
         }
@@ -192,16 +197,34 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             if (_proxy is null)
             {
-                httpVersion = HttpVersion.Version30;
-
                 if (isH3)
                 {
-                    queryUri = new Uri("https://" + _server.DoHEndPoint.Authority + _server.DoHEndPoint.PathAndQuery);
+                    if (_server.IsIPEndPointStale)
+                        await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
+
+                    if ((_udpTunnelProxy is null) || _udpTunnelProxy.IsBroken)
+                    {
+                        IPEndPoint bindEP;
+
+                        if (_server.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
+                            bindEP = new IPEndPoint(IPAddress.IPv6Any, 0);
+                        else
+                            bindEP = new IPEndPoint(IPAddress.Any, 0);
+
+                        Socket remoteSocket = new Socket(bindEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+                        remoteSocket.Bind(bindEP);
+
+                        _udpTunnelProxy = new UdpTunnelProxy(remoteSocket, _server.IPEndPoint);
+                    }
+
+                    queryUri = new Uri("https://" + _udpTunnelProxy.TunnelEndPoint + _server.DoHEndPoint.PathAndQuery);
+                    httpVersion = HttpVersion.Version30;
                     httpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
                 }
                 else
                 {
                     queryUri = _server.DoHEndPoint;
+                    httpVersion = HttpVersion.Version20;
                     httpVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
                 }
             }
@@ -232,7 +255,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             httpRequest.Version = httpVersion;
             httpRequest.VersionPolicy = httpVersionPolicy;
 
-            if ((_proxy is not null) && isH3)
+            if (isH3)
                 httpRequest.Headers.Host = _server.DoHEndPoint.Authority; //override host header since URI now has udp tunnel end point
 
             httpRequest.Content = new ByteArrayContent(requestBuffer);
