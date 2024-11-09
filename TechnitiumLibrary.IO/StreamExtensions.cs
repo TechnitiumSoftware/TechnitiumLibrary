@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Buffers;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -132,20 +133,27 @@ namespace TechnitiumLibrary.IO
             if (length < bufferSize)
                 bufferSize = length;
 
-            byte[] buffer = new byte[bufferSize];
-            int bytesRead;
-
-            while (length > 0)
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+            try
             {
-                if (length < bufferSize)
-                    bufferSize = length;
+                int bytesRead;
 
-                bytesRead = s.Read(buffer, 0, bufferSize);
-                if (bytesRead < 1)
-                    throw new EndOfStreamException();
+                while (length > 0)
+                {
+                    if (length < bufferSize)
+                        bufferSize = length;
 
-                destination.Write(buffer, 0, bytesRead);
-                length -= bytesRead;
+                    bytesRead = s.Read(buffer, 0, bufferSize);
+                    if (bytesRead < 1)
+                        throw new EndOfStreamException();
+
+                    destination.Write(buffer, 0, bytesRead);
+                    length -= bytesRead;
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
             }
         }
 
@@ -157,20 +165,27 @@ namespace TechnitiumLibrary.IO
             if (length < bufferSize)
                 bufferSize = length;
 
-            byte[] buffer = new byte[bufferSize];
-            int bytesRead;
-
-            while (length > 0)
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+            try
             {
-                if (length < bufferSize)
-                    bufferSize = length;
+                int bytesRead;
 
-                bytesRead = await s.ReadAsync(buffer.AsMemory(0, bufferSize), cancellationToken);
-                if (bytesRead < 1)
-                    throw new EndOfStreamException();
+                while (length > 0)
+                {
+                    if (length < bufferSize)
+                        bufferSize = length;
 
-                await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
-                length -= bytesRead;
+                    bytesRead = await s.ReadAsync(buffer.AsMemory(0, bufferSize), cancellationToken);
+                    if (bytesRead < 1)
+                        throw new EndOfStreamException();
+
+                    await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                    length -= bytesRead;
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
             }
         }
     }
