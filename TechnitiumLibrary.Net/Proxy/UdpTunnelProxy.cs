@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -30,6 +31,7 @@ namespace TechnitiumLibrary.Net.Proxy
         #region variables
 
         readonly IProxyServerUdpAssociateHandler _proxyUdpHandler;
+        readonly Socket _remoteSocket;
         readonly EndPoint _remoteEP;
 
         readonly Socket _tunnelSocket;
@@ -52,7 +54,21 @@ namespace TechnitiumLibrary.Net.Proxy
 
             _tunnelLocalEP = _tunnelSocket.LocalEndPoint as IPEndPoint;
 
-            _ = Task.Factory.StartNew(PipeAsync, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+            _ = Task.Factory.StartNew(PipeTunnelToProxy, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
+        }
+
+        public UdpTunnelProxy(Socket remoteSocket, EndPoint remoteEP)
+        {
+            _remoteSocket = remoteSocket;
+            _remoteEP = remoteEP;
+
+            //start local tunnel socket
+            _tunnelSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            _tunnelSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+
+            _tunnelLocalEP = _tunnelSocket.LocalEndPoint as IPEndPoint;
+
+            _ = Task.Factory.StartNew(PipeTunnelToRemoteSocket, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
         }
 
         #endregion
@@ -79,19 +95,17 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region private
 
-        private async Task PipeAsync()
+        private void PipeTunnelToProxy()
         {
-            Task t1 = CopyTunnelToProxyAsync();
-            Task t2 = CopyProxyToTunnelAsync();
-
-            await Task.WhenAll(t1, t2);
+            _ = CopyTunnelToProxyAsync();
+            _ = CopyProxyToTunnelAsync();
         }
 
         private async Task CopyTunnelToProxyAsync()
         {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
             try
             {
-                byte[] buffer = new byte[64 * 1024];
                 EndPoint anyEP = SocketExtensions.GetEndPointAnyFor(_tunnelSocket.AddressFamily);
 
                 while (true)
@@ -105,16 +119,16 @@ namespace TechnitiumLibrary.Net.Proxy
             }
             finally
             {
+                ArrayPool<byte>.Shared.Return(buffer);
                 Dispose();
             }
         }
 
         private async Task CopyProxyToTunnelAsync()
         {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
             try
             {
-                byte[] buffer = new byte[64 * 1024];
-
                 while (true)
                 {
                     SocketReceiveFromResult result = await _proxyUdpHandler.ReceiveFromAsync(buffer);
@@ -125,6 +139,59 @@ namespace TechnitiumLibrary.Net.Proxy
             }
             finally
             {
+                ArrayPool<byte>.Shared.Return(buffer);
+                Dispose();
+            }
+        }
+
+        private void PipeTunnelToRemoteSocket()
+        {
+            _ = CopyTunnelToRemoteSocketAsync();
+            _ = CopyRemoteSocketToTunnelAsync();
+        }
+
+        private async Task CopyTunnelToRemoteSocketAsync()
+        {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
+
+            try
+            {
+                EndPoint anyEP = SocketExtensions.GetEndPointAnyFor(_tunnelSocket.AddressFamily);
+
+                while (true)
+                {
+                    SocketReceiveFromResult result = await _tunnelSocket.ReceiveFromAsync(buffer, SocketFlags.None, anyEP);
+
+                    _tunnelRemoteEP = result.RemoteEndPoint; //client EP may change in case of HTTP/3 SocketsHttpHandler
+
+                    await _remoteSocket.SendToAsync(new ArraySegment<byte>(buffer, 0, result.ReceivedBytes), _remoteEP);
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+                Dispose();
+            }
+        }
+
+        private async Task CopyRemoteSocketToTunnelAsync()
+        {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
+            try
+            {
+                EndPoint anyEP = SocketExtensions.GetEndPointAnyFor(_remoteSocket.AddressFamily);
+
+                while (true)
+                {
+                    SocketReceiveFromResult result = await _remoteSocket.ReceiveFromAsync(buffer, SocketFlags.None, anyEP);
+
+                    if (_tunnelRemoteEP is not null)
+                        await _tunnelSocket.SendToAsync(new ArraySegment<byte>(buffer, 0, result.ReceivedBytes), SocketFlags.None, _tunnelRemoteEP);
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
                 Dispose();
             }
         }
