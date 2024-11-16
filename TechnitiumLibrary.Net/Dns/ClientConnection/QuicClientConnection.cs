@@ -144,11 +144,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             if (!await _connectionSemaphore.WaitAsync(timeout, cancellationToken))
                 return null; //timed out
 
-            if (_quicConnection is not null)
-                return _quicConnection;
-
             try
             {
+                if (_quicConnection is not null)
+                    return _quicConnection;
+
                 IPEndPoint remoteEP;
 
                 if (_proxy is null)
