@@ -326,9 +326,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
 
                 EDnsClientSubnetOptionData requestECS = request.GetEDnsClientSubnetOption();
-                if (requestECS is not null)
+                EDnsClientSubnetOptionData responseECS = response.GetEDnsClientSubnetOption();
+                if (requestECS is null)
                 {
-                    EDnsClientSubnetOptionData responseECS = response.GetEDnsClientSubnetOption();
+                    if (responseECS is not null)
+                        response.ShadowHideEDnsClientSubnetOption(); //hide unexpected ECS in response
+                }
+                else
+                {
                     if (responseECS is not null)
                     {
                         if (requestECS.Family != responseECS.Family)
