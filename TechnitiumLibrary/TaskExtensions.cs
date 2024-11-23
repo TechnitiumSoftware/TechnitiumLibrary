@@ -34,6 +34,8 @@ namespace TechnitiumLibrary
 
             if (await Task.WhenAny(task, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != task)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 timeoutCancellationTokenSource.Cancel(); //to stop running task
                 throw new TimeoutException();
             }
@@ -52,6 +54,8 @@ namespace TechnitiumLibrary
 
             if (await Task.WhenAny(task, Task.Delay(timeout, timeoutCancellationTokenSource.Token)) != task)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 timeoutCancellationTokenSource.Cancel(); //to stop running task
                 throw new TimeoutException();
             }
