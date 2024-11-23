@@ -5078,7 +5078,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     return newResponse;
                 }
-                catch (TaskCanceledException)
+                catch (OperationCanceledException)
                 {
                     //catch to prevent caching failure record
                     throw;
