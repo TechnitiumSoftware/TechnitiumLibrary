@@ -462,11 +462,11 @@ namespace TechnitiumLibrary.Net.Dns
                             if (request.CheckingDisabled)
                                 return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, request.CheckingDisabled, dnsSpecialCacheRecord.OriginalRCODE, request.Question, dnsSpecialCacheRecord.OriginalAnswer, dnsSpecialCacheRecord.OriginalAuthority, dnsSpecialCacheRecord.Additional, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions);
                             else
-                                return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, request.CheckingDisabled, dnsSpecialCacheRecord.RCODE, request.Question, null, dnsSpecialCacheRecord.Authority, null, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions);
+                                return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, request.CheckingDisabled, dnsSpecialCacheRecord.RCODE, request.Question, dnsSpecialCacheRecord.Answer, dnsSpecialCacheRecord.Authority, null, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions);
                         }
                         else
                         {
-                            return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, dnsSpecialCacheRecord.RCODE, request.Question, null, dnsSpecialCacheRecord.NoDnssecAuthority, null, request.EDNS is null ? ushort.MinValue : request.EDNS.UdpPayloadSize, EDnsHeaderFlags.None, dnsSpecialCacheRecord.EDnsOptions);
+                            return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, dnsSpecialCacheRecord.RCODE, request.Question, dnsSpecialCacheRecord.NoDnssecAnswer, dnsSpecialCacheRecord.NoDnssecAuthority, null, request.EDNS is null ? ushort.MinValue : request.EDNS.UdpPayloadSize, EDnsHeaderFlags.None, dnsSpecialCacheRecord.EDnsOptions);
                         }
                     }
 
@@ -616,6 +616,31 @@ namespace TechnitiumLibrary.Net.Dns
                     record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                     InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
+                }
+
+                return;
+            }
+
+            if (response.IsBlockedResponse())
+            {
+                uint ttl = uint.MaxValue;
+
+                foreach (DnsResourceRecord answer in response.Answer)
+                {
+                    if (answer.TTL < ttl)
+                        ttl = answer.TTL;
+                }
+
+                if (ttl == uint.MaxValue)
+                    ttl = _negativeRecordTtl;
+
+                //cache as negative record
+                foreach (DnsQuestionRecord question in response.Question)
+                {
+                    DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, ttl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.BlockedCache, response));
+                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
+
+                    InternalCacheRecords([record], eDnsClientSubnet, response.Metadata);
                 }
 
                 return;
@@ -933,7 +958,7 @@ namespace TechnitiumLibrary.Net.Dns
                             //empty response with authority
                             foreach (DnsQuestionRecord question in response.Question)
                             {
-                                DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, Math.Min(3600u, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue)), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
+                                DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
                                 record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                                 InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
@@ -947,7 +972,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 foreach (DnsQuestionRecord question in response.Question)
                                 {
-                                    DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class, Math.Min(3600u, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue)), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
+                                    DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
                                     record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                                     InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
@@ -1151,7 +1176,8 @@ namespace TechnitiumLibrary.Net.Dns
             Unknown = 0,
             NegativeCache = 1,
             FailureCache = 2,
-            BadCache = 3
+            BadCache = 3,
+            BlockedCache = 4
         }
 
         public class DnsSpecialCacheRecordData : DnsResourceRecordData
@@ -1165,6 +1191,8 @@ namespace TechnitiumLibrary.Net.Dns
             readonly IReadOnlyList<DnsResourceRecord> _additional;
 
             readonly List<EDnsOption> _ednsOptions;
+
+            readonly IReadOnlyList<DnsResourceRecord> _noDnssecAnswer;
             readonly IReadOnlyList<DnsResourceRecord> _noDnssecAuthority;
 
             #endregion
@@ -1199,7 +1227,12 @@ namespace TechnitiumLibrary.Net.Dns
 
                     //copy extended dns errors generated by dns client
                     foreach (EDnsExtendedDnsErrorOptionData dnsError in dnsClientExtendedErrors)
-                        ednsOptions.Add(new EDnsOption(EDnsOptionCode.EXTENDED_DNS_ERROR, dnsError));
+                    {
+                        EDnsOption ednsOption = new EDnsOption(EDnsOptionCode.EXTENDED_DNS_ERROR, dnsError);
+
+                        if (!ednsOptions.Contains(ednsOption))
+                            ednsOptions.Add(ednsOption);
+                    }
 
                     //add additional extended dns error
                     switch (rcode)
@@ -1217,55 +1250,9 @@ namespace TechnitiumLibrary.Net.Dns
                     _ednsOptions = ednsOptions;
                 }
 
-                //get authority section with no dnssec records
-                {
-                    bool foundDnssecRecords = false;
-
-                    foreach (DnsResourceRecord record in _authority)
-                    {
-                        switch (record.Type)
-                        {
-                            case DnsResourceRecordType.DS:
-                            case DnsResourceRecordType.DNSKEY:
-                            case DnsResourceRecordType.RRSIG:
-                            case DnsResourceRecordType.NSEC:
-                            case DnsResourceRecordType.NSEC3:
-                                foundDnssecRecords = true;
-                                break;
-                        }
-
-                        if (foundDnssecRecords)
-                            break;
-                    }
-
-                    if (foundDnssecRecords)
-                    {
-                        List<DnsResourceRecord> noDnssecAuthority = new List<DnsResourceRecord>();
-
-                        foreach (DnsResourceRecord record in _authority)
-                        {
-                            switch (record.Type)
-                            {
-                                case DnsResourceRecordType.DS:
-                                case DnsResourceRecordType.DNSKEY:
-                                case DnsResourceRecordType.RRSIG:
-                                case DnsResourceRecordType.NSEC:
-                                case DnsResourceRecordType.NSEC3:
-                                    break;
-
-                                default:
-                                    noDnssecAuthority.Add(record);
-                                    break;
-                            }
-                        }
-
-                        _noDnssecAuthority = noDnssecAuthority;
-                    }
-                    else
-                    {
-                        _noDnssecAuthority = _authority;
-                    }
-                }
+                //get answer and authority section with no dnssec records
+                _noDnssecAnswer = FilterDnssecRecords(_answer);
+                _noDnssecAuthority = FilterDnssecRecords(_authority);
 
                 //remove OPT additional
                 if ((_additional.Count == 1) && (_additional[0].Type == DnsResourceRecordType.OPT))
@@ -1302,7 +1289,7 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            private DnsSpecialCacheRecordData(DnsSpecialCacheRecordType type, DnsResponseCode rcode, IReadOnlyList<DnsResourceRecord> answer, IReadOnlyList<DnsResourceRecord> authority, IReadOnlyList<DnsResourceRecord> additional, List<EDnsOption> ednsOptions, IReadOnlyList<DnsResourceRecord> noDnssecAuthority)
+            private DnsSpecialCacheRecordData(DnsSpecialCacheRecordType type, DnsResponseCode rcode, IReadOnlyList<DnsResourceRecord> answer, IReadOnlyList<DnsResourceRecord> authority, IReadOnlyList<DnsResourceRecord> additional, List<EDnsOption> ednsOptions)
             {
                 _type = type;
                 _rcode = rcode;
@@ -1310,7 +1297,10 @@ namespace TechnitiumLibrary.Net.Dns
                 _authority = authority;
                 _additional = additional;
                 _ednsOptions = ednsOptions;
-                _noDnssecAuthority = noDnssecAuthority;
+
+                //get answer and authority section with no dnssec records
+                _noDnssecAnswer = FilterDnssecRecords(_answer);
+                _noDnssecAuthority = FilterDnssecRecords(_authority);
             }
 
             #endregion
@@ -1323,6 +1313,7 @@ namespace TechnitiumLibrary.Net.Dns
                 switch (version)
                 {
                     case 1:
+                    case 2:
                         DnsSpecialCacheRecordType type = (DnsSpecialCacheRecordType)bR.ReadByte();
                         DnsResponseCode rcode = (DnsResponseCode)bR.ReadUInt16();
                         IReadOnlyList<DnsResourceRecord> answer = ReadCacheRecordsFrom(bR, readTagInfo);
@@ -1338,9 +1329,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 ednsOptions.Add(new EDnsOption(bR.BaseStream));
                         }
 
-                        IReadOnlyList<DnsResourceRecord> noDnssecAuthority = ReadCacheRecordsFrom(bR, readTagInfo);
+                        if (version == 1)
+                            _ = ReadCacheRecordsFrom(bR, readTagInfo); //read obsolete field
 
-                        return new DnsSpecialCacheRecordData(type, rcode, answer, authority, additional, ednsOptions, noDnssecAuthority);
+                        return new DnsSpecialCacheRecordData(type, rcode, answer, authority, additional, ednsOptions);
 
                     default:
                         throw new InvalidDataException("DnsCache.DnsSpecialCacheRecordData format version not supported.");
@@ -1364,6 +1356,43 @@ namespace TechnitiumLibrary.Net.Dns
             #endregion
 
             #region private
+
+            private static IReadOnlyList<DnsResourceRecord> FilterDnssecRecords(IReadOnlyList<DnsResourceRecord> records)
+            {
+                foreach (DnsResourceRecord record1 in records)
+                {
+                    switch (record1.Type)
+                    {
+                        case DnsResourceRecordType.DS:
+                        case DnsResourceRecordType.DNSKEY:
+                        case DnsResourceRecordType.RRSIG:
+                        case DnsResourceRecordType.NSEC:
+                        case DnsResourceRecordType.NSEC3:
+                            List<DnsResourceRecord> noDnssecRecords = new List<DnsResourceRecord>();
+
+                            foreach (DnsResourceRecord record2 in records)
+                            {
+                                switch (record2.Type)
+                                {
+                                    case DnsResourceRecordType.DS:
+                                    case DnsResourceRecordType.DNSKEY:
+                                    case DnsResourceRecordType.RRSIG:
+                                    case DnsResourceRecordType.NSEC:
+                                    case DnsResourceRecordType.NSEC3:
+                                        break;
+
+                                    default:
+                                        noDnssecRecords.Add(record2);
+                                        break;
+                                }
+                            }
+
+                            return noDnssecRecords;
+                    }
+                }
+
+                return records;
+            }
 
             private static DnsResourceRecord[] ReadCacheRecordsFrom(BinaryReader bR, Action<DnsResourceRecord> readTagInfo)
             {
@@ -1409,7 +1438,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             public void WriteCacheRecordTo(BinaryWriter bW, Action writeTagInfo)
             {
-                bW.Write((byte)1); //version
+                bW.Write((byte)2); //version
 
                 bW.Write((byte)_type);
                 bW.Write((ushort)_rcode);
@@ -1428,8 +1457,6 @@ namespace TechnitiumLibrary.Net.Dns
                     foreach (EDnsOption ednsOption in _ednsOptions)
                         ednsOption.WriteTo(bW.BaseStream);
                 }
-
-                WriteCacheRecordsTo(_noDnssecAuthority, bW, writeTagInfo);
             }
 
             public void CopyExtendedDnsErrorsFrom(DnsSpecialCacheRecordData other)
@@ -1497,9 +1524,9 @@ namespace TechnitiumLibrary.Net.Dns
                                 continue;
 
                             if (extendedErrors is null)
-                                extendedErrors = dnsError.InfoCode.ToString() + ": " + dnsError.ExtraText;
+                                extendedErrors = dnsError.InfoCode.ToString() + (string.IsNullOrEmpty(dnsError.ExtraText) ? "" : ": " + dnsError.ExtraText);
                             else
-                                extendedErrors += ", " + dnsError.InfoCode.ToString() + ": " + dnsError.ExtraText;
+                                extendedErrors += ", " + dnsError.InfoCode.ToString() + (string.IsNullOrEmpty(dnsError.ExtraText) ? "" : ": " + dnsError.ExtraText);
                         }
                     }
 
@@ -1584,6 +1611,28 @@ namespace TechnitiumLibrary.Net.Dns
 
             public IReadOnlyList<DnsResourceRecord> OriginalAnswer
             { get { return _answer; } }
+
+            public IReadOnlyList<DnsResourceRecord> Answer
+            {
+                get
+                {
+                    if (_type == DnsSpecialCacheRecordType.BlockedCache)
+                        return _answer;
+
+                    return [];
+                }
+            }
+
+            public IReadOnlyList<DnsResourceRecord> NoDnssecAnswer
+            {
+                get
+                {
+                    if (_type == DnsSpecialCacheRecordType.BlockedCache)
+                        return _noDnssecAnswer;
+
+                    return [];
+                }
+            }
 
             public IReadOnlyList<DnsResourceRecord> OriginalAuthority
             { get { return _authority; } }
