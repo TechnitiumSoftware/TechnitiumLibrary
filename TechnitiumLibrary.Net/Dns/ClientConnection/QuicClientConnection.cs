@@ -357,9 +357,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     _quicConnection = null;
                     _udpTunnelProxy?.Dispose();
 
-                    if ((ex.QuicError == QuicError.ConnectionIdle) && (retry == 1))
+                    if (((ex.QuicError == QuicError.ConnectionIdle) || (ex.QuicError == QuicError.ConnectionAborted)) && (retry == 1))
                     {
-                        //connection idle on first attempt; retry to reconnect
+                        //connection idle/aborted on first attempt; retry to reconnect
                         retry = 0;
                         continue;
                     }
