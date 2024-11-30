@@ -2057,7 +2057,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain.ToLowerInvariant() + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
             }
         }
 
@@ -2096,7 +2096,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain.ToLowerInvariant() + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
             }
         }
 
@@ -2135,7 +2135,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain.ToLowerInvariant() + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
             }
         }
 
@@ -2174,7 +2174,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain.ToLowerInvariant() + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
             }
         }
 
@@ -2226,7 +2226,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain.ToLowerInvariant() + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
             }
         }
 
@@ -2261,7 +2261,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain.ToLowerInvariant() + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
             }
         }
 
@@ -2341,7 +2341,7 @@ namespace TechnitiumLibrary.Net.Dns
                     return null;
 
                 default:
-                    throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
             }
         }
 
@@ -2376,7 +2376,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain.ToLowerInvariant() + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
             }
         }
 
@@ -2408,7 +2408,7 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientNxDomainException("Domain does not exists: " + domain.ToLowerInvariant() + (response.Metadata is null ? "" : "; Name server: " + response.Metadata.NameServer.ToString()));
 
                 default:
-                    throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                    throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + response.Question[0].ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
             }
         }
 
@@ -2692,13 +2692,13 @@ namespace TechnitiumLibrary.Net.Dns
 
             //validate priming query response
             if (response.RCODE != DnsResponseCode.NoError)
-                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()));
+                throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response with RCODE: " + response.RCODE + (response.Metadata is null ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
 
             if (!response.AuthoritativeAnswer)
-                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response without AuthoritativeAnswer flag set from Name server: " + response.Metadata.NameServer.ToString());
+                throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response without AuthoritativeAnswer flag set from Name server: " + response.Metadata.NameServer.ToString(), response);
 
             if ((response.Answer.Count == 0) || (response.Authority.Count > 0) || (response.Additional.Count == 0))
-                throw new DnsClientNoResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response without any answer from Name server: " + response.Metadata.NameServer.ToString());
+                throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response without any answer from Name server: " + response.Metadata.NameServer.ToString(), response);
 
             cache.CacheResponse(response);
 
@@ -3918,7 +3918,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return response;
             }
 
-            //remove records from authority section that are not in the zone cut
+            //remove SOA/NS records from authority section that are not in the zone cut
 
             if (response.Authority.Count > 0)
             {
@@ -3927,10 +3927,13 @@ namespace TechnitiumLibrary.Net.Dns
 
                 foreach (DnsResourceRecord authority in response.Authority)
                 {
-                    if (!authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                    if ((authority.Type == DnsResourceRecordType.SOA) || (authority.Type == DnsResourceRecordType.NS))
                     {
-                        authorityNotInZoneCut = true;
-                        break;
+                        if (!authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                        {
+                            authorityNotInZoneCut = true;
+                            break;
+                        }
                     }
                 }
 
@@ -3940,10 +3943,35 @@ namespace TechnitiumLibrary.Net.Dns
 
                     foreach (DnsResourceRecord authority in response.Authority)
                     {
-                        if (!authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
-                            continue;
+                        switch (authority.Type)
+                        {
+                            case DnsResourceRecordType.SOA:
+                            case DnsResourceRecordType.NS:
+                                if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                                    newAuthority.Add(authority);
 
-                        newAuthority.Add(authority);
+                                break;
+
+                            case DnsResourceRecordType.RRSIG:
+                                switch ((authority.RDATA as DnsRRSIGRecordData).TypeCovered)
+                                {
+                                    case DnsResourceRecordType.SOA:
+                                    case DnsResourceRecordType.NS:
+                                        if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                                            newAuthority.Add(authority);
+
+                                        break;
+
+                                    default:
+                                        newAuthority.Add(authority);
+                                        break;
+                                }
+                                break;
+
+                            default:
+                                newAuthority.Add(authority);
+                                break;
+                        }
                     }
 
                     return response.Clone(null, newAuthority);
@@ -4937,6 +4965,18 @@ namespace TechnitiumLibrary.Net.Dns
             if (_conditionalForwardingZoneCut is not null)
             {
                 response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
+
+                //check if answer contains CNAME under the zone cut
+                foreach (DnsResourceRecord answer in response.Answer)
+                {
+                    if ((answer.Type == DnsResourceRecordType.CNAME) && (answer.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) || answer.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        //remove any SOA in authority to avoid caching this response as NODATA/NXDOMAIN and allow the CNAME to be separately resolved by the DNS server
+                        response = SanitizeResponseAuthorityForZoneCut(response, _conditionalForwardingZoneCut); //keep authority section within zone cut
+                        break;
+                    }
+                }
+
                 response = SanitizeResponseAdditionalForZoneCut(response, _conditionalForwardingZoneCut); //keep additional section within zone cut
             }
 
@@ -4976,6 +5016,18 @@ namespace TechnitiumLibrary.Net.Dns
                         if (_conditionalForwardingZoneCut is not null)
                         {
                             response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
+
+                            //check if answer contains CNAME under the zone cut
+                            foreach (DnsResourceRecord answer in response.Answer)
+                            {
+                                if ((answer.Type == DnsResourceRecordType.CNAME) && (answer.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) || answer.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    //remove any SOA in authority to avoid caching this response as NODATA/NXDOMAIN and allow the CNAME to be separately resolved by the DNS server
+                                    response = SanitizeResponseAuthorityForZoneCut(response, _conditionalForwardingZoneCut); //keep authority section within zone cut
+                                    break;
+                                }
+                            }
+
                             response = SanitizeResponseAdditionalForZoneCut(response, _conditionalForwardingZoneCut); //keep additional section within zone cut
                         }
 
