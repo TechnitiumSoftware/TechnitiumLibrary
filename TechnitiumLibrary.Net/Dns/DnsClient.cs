@@ -4671,7 +4671,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     else
                                                     {
                                                         server.Metadata.UpdateFailure(_timeout * _retries);
-                                                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, (response.Metadata is null ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
+                                                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, (response.Metadata is null ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
 
                                                         if (lastResponse is not null)
                                                             response.AddDnsClientExtendedErrorFrom(lastResponse);
@@ -4701,7 +4701,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     else
                                                     {
                                                         server.Metadata.UpdateFailure(_timeout * _retries);
-                                                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, (response.Metadata is null ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
+                                                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, (response.Metadata is null ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
 
                                                         if (lastResponse is not null)
                                                             response.AddDnsClientExtendedErrorFrom(lastResponse);
@@ -4712,7 +4712,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                 default:
                                                     server.Metadata.UpdateFailure(_timeout * _retries);
-                                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, (response.Metadata is null ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
+                                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, (response.Metadata is null ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
 
                                                     if (lastResponse is not null)
                                                         response.AddDnsClientExtendedErrorFrom(lastResponse);
