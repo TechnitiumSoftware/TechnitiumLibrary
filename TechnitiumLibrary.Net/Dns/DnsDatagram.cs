@@ -563,14 +563,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (domainPosition > 0)
                 domainPosition--;
 
-            try
-            {
-                return new string(domain.Slice(0, domainPosition));
-            }
-            catch (ArgumentOutOfRangeException ex)
-            {
-                throw new ArgumentOutOfRangeException("Specified argument was out of the range of valid values: " + domain.ToString() + ", pos: " + domainPosition, ex);
-            }
+            return new string(domain.Slice(0, domainPosition));
         }
 
         public static int GetSerializeDomainNameLength(string domain)
