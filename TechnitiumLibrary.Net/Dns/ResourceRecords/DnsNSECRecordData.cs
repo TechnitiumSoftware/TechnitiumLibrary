@@ -442,7 +442,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             using (MemoryStream mS = new MemoryStream(_rData))
             {
                 _nextDomainName = DnsDatagram.DeserializeDomainName(mS);
-                _types = ReadTypeBitMapsFrom(mS, _rdLength - DnsDatagram.GetSerializeDomainNameLength(_nextDomainName));
+                _types = ReadTypeBitMapsFrom(mS, (int)(mS.Length - mS.Position));
             }
 
             CheckForDelegation();
