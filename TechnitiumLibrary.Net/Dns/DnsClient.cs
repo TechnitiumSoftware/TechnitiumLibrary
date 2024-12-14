@@ -160,7 +160,7 @@ namespace TechnitiumLibrary.Net.Dns
             { }
         }
 
-        private DnsClient()
+        protected DnsClient()
         { }
 
         public DnsClient(Uri dohEndPoint)
@@ -512,7 +512,9 @@ namespace TechnitiumLibrary.Net.Dns
                 nameServerIndex = data.NameServerIndex;
                 hopCount = data.HopCount;
                 lastResponse = data.LastResponse;
-                lastException = data.LastException;
+
+                if (data.LastException is not null) //preserve last exception across stack
+                    lastException = data.LastException;
             }
 
             void InspectCacheNameServersForLoops(List<NameServerAddress> cacheNameServers)
@@ -1178,6 +1180,8 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 if (ex.Response is not null)
                                 {
+                                    extendedDnsErrors.AddRange(ex.Response.DnsClientExtendedErrors);
+
                                     foreach (EDnsExtendedDnsErrorOptionData eDnsOption in ex.Response.DnsClientExtendedErrors)
                                     {
                                         if (eDnsOption.InfoCode == EDnsExtendedDnsErrorCode.UnsupportedNSEC3IterationsValue)
@@ -4553,6 +4557,7 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     DateTime startTime = DateTime.UtcNow;
+                    DateTime successTime = default;
 
                     bool protocolWasSwitched = false;
                     try
@@ -4639,6 +4644,8 @@ namespace TechnitiumLibrary.Net.Dns
                                             {
                                                 case DnsResponseCode.NoError:
                                                 case DnsResponseCode.YXDomain:
+                                                    successTime = DateTime.UtcNow;
+
                                                     if (response.Metadata is not null)
                                                         server.Metadata.UpdateSuccess(response.Metadata.RoundTripTime);
 
@@ -4646,6 +4653,8 @@ namespace TechnitiumLibrary.Net.Dns
                                                     return response;
 
                                                 case DnsResponseCode.NxDomain:
+                                                    successTime = DateTime.UtcNow;
+
                                                     if (response.Metadata is not null)
                                                         server.Metadata.UpdateSuccess(response.Metadata.RoundTripTime);
 
@@ -4807,9 +4816,32 @@ namespace TechnitiumLibrary.Net.Dns
                     catch (OperationCanceledException)
                     {
                         //task was canceled
-                        double timeTaken = (DateTime.UtcNow - startTime).TotalMilliseconds;
-                        double average = ((_timeout * _retries) - timeTaken) / 2;
-                        server.Metadata.UpdateFailure(average);
+                        double timeTaken;
+
+                        if (successTime == default)
+                        {
+                            //no successful response resolved from any server
+                            timeTaken = (DateTime.UtcNow - startTime).TotalMilliseconds;
+                        }
+                        else
+                        {
+                            //response successfully resolved via another server
+                            timeTaken = (successTime - startTime).TotalMilliseconds;
+                        }
+
+                        double maxWaitTime = _timeout * _retries;
+
+                        if (maxWaitTime > timeTaken)
+                        {
+                            double mean = timeTaken + ((maxWaitTime - timeTaken) / 2);
+                            server.Metadata.UpdateFailure(mean);
+                        }
+                        else
+                        {
+                            //resolver thread pool overload probably caused too much time to process response/raise OperationCanceledException
+                            server.Metadata.UpdateFailure(maxWaitTime);
+                        }
+
                         throw;
                     }
                     catch (DnsClientNoResponseException ex)
