@@ -281,6 +281,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
+            long startPosition = s.Position;
+
             _typeCovered = (DnsResourceRecordType)DnsDatagram.ReadUInt16NetworkOrder(s);
             _algorithm = (DnssecAlgorithm)s.ReadByteValue();
             _labels = s.ReadByteValue();
@@ -289,7 +291,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _signatureInception = DnsDatagram.ReadUInt32NetworkOrder(s);
             _keyTag = DnsDatagram.ReadUInt16NetworkOrder(s);
             _signersName = DnsDatagram.DeserializeDomainName(s);
-            _signature = s.ReadExactly(_rdLength - 2 - 1 - 1 - 4 - 4 - 4 - 2 - DnsDatagram.GetSerializeDomainNameLength(_signersName));
+
+            _signature = s.ReadExactly(_rdLength - (int)(s.Position - startPosition));
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
