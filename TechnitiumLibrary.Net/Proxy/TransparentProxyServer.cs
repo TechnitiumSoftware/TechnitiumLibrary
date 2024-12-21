@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -92,7 +92,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 _connectionManager = new DefaultProxyServerConnectionManager();
 
             //accept requests async
-            int tasks = Math.Max(1, Environment.ProcessorCount);
+            int tasks = Environment.ProcessorCount;
             for (int i = 0; i < tasks; i++)
                 _ = Task.Factory.StartNew(AcceptRequestAsync, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
         }

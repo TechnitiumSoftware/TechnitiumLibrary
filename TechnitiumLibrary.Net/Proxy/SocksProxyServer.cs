@@ -73,7 +73,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 _connectionManager = new DefaultProxyServerConnectionManager();
 
             //accept requests async
-            int tasks = Math.Max(1, Environment.ProcessorCount);
+            int tasks = Environment.ProcessorCount;
             for (int i = 0; i < tasks; i++)
                 _ = Task.Factory.StartNew(AcceptRequestAsync, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
         }
