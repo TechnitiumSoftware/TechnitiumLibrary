@@ -1762,7 +1762,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
-                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + question.ToString());
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
 
                             if (eDnsClientSubnet is not null)
                                 failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
@@ -1802,7 +1802,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
-                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + question.ToString());
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
 
                             if (eDnsClientSubnet is not null)
                                 failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
@@ -1818,7 +1818,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
                             if (ex2.SocketErrorCode == SocketError.TimedOut)
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString());
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString() + " at delegation " + zoneCut + ".");
                             else
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error for " + question.ToString() + ": " + ex2.SocketErrorCode.ToString());
 
@@ -1838,7 +1838,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if (ex3.InnerException is SocketException ex3a)
                             {
                                 if (ex3a.SocketErrorCode == SocketError.TimedOut)
-                                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString());
+                                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString() + " at delegation " + zoneCut + ".");
                                 else
                                     failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NetworkError, "Socket error for " + question.ToString() + ": " + ex3a.SocketErrorCode.ToString());
                             }
@@ -1869,7 +1869,7 @@ namespace TechnitiumLibrary.Net.Dns
                             cache.CacheResponse(failureResponse);
                         }
 
-                        throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': no response from name servers [" + nameServers.Join() + "].", lastException);
+                        throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': no response from name servers [" + nameServers.Join() + "] at delegation " + zoneCut + ".", lastException);
                     }
                     else
                     {
