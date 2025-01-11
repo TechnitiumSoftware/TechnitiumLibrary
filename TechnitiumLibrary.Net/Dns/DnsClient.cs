@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -548,7 +548,7 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            List<NameServerAddress> ResolveNameServerAddressesFromCache(List<NameServerAddress> nameServers)
+            async Task<List<NameServerAddress>> ResolveNameServerAddressesFromCacheAsync(List<NameServerAddress> nameServers)
             {
                 List<NameServerAddress> newNameServers = new List<NameServerAddress>(preferIPv6 ? nameServers.Count * 2 : nameServers.Count);
 
@@ -565,7 +565,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (preferIPv6)
                     {
                         DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [new DnsQuestionRecord(nameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN)]);
-                        DnsDatagram cacheResponse = cache.Query(cacheRequest);
+                        DnsDatagram cacheResponse = await cache.QueryAsync(cacheRequest);
                         if ((cacheResponse is not null) && (cacheResponse.Answer.Count > 0) && (cacheResponse.Answer[0].Type == DnsResourceRecordType.AAAA))
                         {
                             resolved = true;
@@ -575,7 +575,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     {
                         DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [new DnsQuestionRecord(nameServer.DomainEndPoint.Address, DnsResourceRecordType.A, DnsClass.IN)]);
-                        DnsDatagram cacheResponse = cache.Query(cacheRequest);
+                        DnsDatagram cacheResponse = await cache.QueryAsync(cacheRequest);
                         if ((cacheResponse is not null) && (cacheResponse.Answer.Count > 0) && (cacheResponse.Answer[0].Type == DnsResourceRecordType.A))
                         {
                             resolved = true;
@@ -619,7 +619,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     //query cache without CD flag to not get response from "bad cache" and DO flag, if validation is enabled, to get DNSSEC records for correctly reading DS from response
                     DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, ednsFlags, resolverStack.Count == 0 ? eDnsClientSubnetOption : null);
-                    DnsDatagram cacheResponse = cache.Query(cacheRequest, findClosestNameServers: true);
+                    DnsDatagram cacheResponse = await cache.QueryAsync(cacheRequest, findClosestNameServers: true);
                     if (cacheResponse is not null)
                     {
                         extendedDnsErrors.AddRange(cacheResponse.DnsClientExtendedErrors);
@@ -802,7 +802,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     currentDomain = currentDomain.Substring(i + 1);
 
                                                     //find name servers with glue; cannot find DS with this query
-                                                    DnsDatagram cachedNsResponse = cache.Query(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }), findClosestNameServers: true);
+                                                    DnsDatagram cachedNsResponse = await cache.QueryAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }), findClosestNameServers: true);
                                                     if (cachedNsResponse is null)
                                                         continue;
 
@@ -1566,7 +1566,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     }
                                                 }
 
-                                                nextNameServers = ResolveNameServerAddressesFromCache(nextNameServers);
+                                                nextNameServers = await ResolveNameServerAddressesFromCacheAsync(nextNameServers);
                                                 nextNameServers.Shuffle(); //do initial shuffle to avoid querying the same first NS everytime
 
                                                 bool prioritizeOnesWithIPAddress = asyncNsRevalidation || asyncNsResolution || (resolverStack.Count > 0);
@@ -3237,7 +3237,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             //query cache without CD & DO flags
             DnsDatagram cacheDnsKeyRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [dnsKeyQuestion], null, null, null, udpPayloadSize, EDnsHeaderFlags.None);
-            DnsDatagram cacheDnsKeyResponse = QueryCache(cache, cacheDnsKeyRequest);
+            DnsDatagram cacheDnsKeyResponse = await QueryCacheAsync(cache, cacheDnsKeyRequest);
             if (cacheDnsKeyResponse is not null)
             {
                 //cache response is trusted due to no CD & DO flags in request
@@ -3356,7 +3356,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             //query cache with no CD flag to not get response from "bad cache" and DO flag to get DNSSEC records for correctly reading DS from response
             DnsDatagram cacheDSRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [dsQuestion], null, null, null, udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK);
-            DnsDatagram cacheDSResponse = QueryCache(cache, cacheDSRequest);
+            DnsDatagram cacheDSResponse = await QueryCacheAsync(cache, cacheDSRequest);
             if (cacheDSResponse is not null)
             {
                 Tuple<bool, IReadOnlyList<DnsResourceRecord>> tupleCacheDSRecords = await TryGetDSFromResponseAsync(cacheDSResponse, ownerName);
@@ -5142,7 +5142,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if (_advancedForwardingClientSubnet)
                     newRequest.SetShadowEDnsClientSubnetOption(_eDnsClientSubnet, true);
 
-                DnsDatagram cacheResponse = QueryCache(_cache, newRequest);
+                DnsDatagram cacheResponse = await QueryCacheAsync(_cache, newRequest);
                 if (cacheResponse is not null)
                     return cacheResponse;
 
@@ -5264,9 +5264,9 @@ namespace TechnitiumLibrary.Net.Dns
             });
         }
 
-        private static DnsDatagram QueryCache(IDnsCache cache, DnsDatagram request)
+        private static async Task<DnsDatagram> QueryCacheAsync(IDnsCache cache, DnsDatagram request)
         {
-            DnsDatagram cacheResponse = cache.Query(request);
+            DnsDatagram cacheResponse = await cache.QueryAsync(request);
             if (cacheResponse is not null)
             {
                 if ((cacheResponse.RCODE != DnsResponseCode.NoError) || (cacheResponse.Answer.Count > 0) || (cacheResponse.Authority.Count == 0) || cacheResponse.IsFirstAuthoritySOA())
