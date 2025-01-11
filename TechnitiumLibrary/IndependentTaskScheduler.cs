@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -39,11 +39,11 @@ namespace TechnitiumLibrary
 
         #region constructors
 
-        public IndependentTaskScheduler(ThreadPriority priority = ThreadPriority.Normal)
-            : this(Environment.ProcessorCount, priority)
+        public IndependentTaskScheduler(ThreadPriority priority = ThreadPriority.Normal, string threadName = null)
+            : this(Environment.ProcessorCount, priority, threadName)
         { }
 
-        public IndependentTaskScheduler(int maximumConcurrencyLevel, ThreadPriority priority = ThreadPriority.Normal)
+        public IndependentTaskScheduler(int maximumConcurrencyLevel, ThreadPriority priority = ThreadPriority.Normal, string threadName = null)
         {
             _maximumConcurrencyLevel = maximumConcurrencyLevel;
             _priority = priority;
@@ -58,7 +58,7 @@ namespace TechnitiumLibrary
                         TryExecuteTask(task);
                 });
 
-                thread.Name = this.GetType().Name;
+                thread.Name = threadName ?? GetType().Name;
                 thread.IsBackground = true;
                 thread.Priority = _priority;
                 thread.Start();
