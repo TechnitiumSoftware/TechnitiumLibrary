@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
 namespace TechnitiumLibrary.Net.Dns
@@ -42,24 +43,24 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public DnsDatagram QueryClosestDelegation(DnsDatagram request)
+        public Task<DnsDatagram> QueryClosestDelegationAsync(DnsDatagram request)
         {
-            return _cache.QueryClosestDelegation(request);
+            return _cache.QueryClosestDelegationAsync(request);
         }
 
-        public DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false, bool resetExpiry = false)
+        public Task<DnsDatagram> QueryAsync(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false, bool resetExpiry = false)
         {
             if (_revalidationQuestion.Equals(request.Question[0]))
             {
                 string parentZone = DnsCache.GetParentZone(_revalidationQuestion.Name);
                 if (parentZone is null)
-                    return null; //parent zone is root
+                    return Task.FromResult<DnsDatagram>(null); //parent zone is root
 
                 //return the closest name servers for parent zone
-                return _cache.QueryClosestDelegation(new DnsDatagram(request.Identifier, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(parentZone, DnsResourceRecordType.A, DnsClass.IN) }));
+                return _cache.QueryClosestDelegationAsync(new DnsDatagram(request.Identifier, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(parentZone, DnsResourceRecordType.A, DnsClass.IN) }));
             }
 
-            return _cache.Query(request, serveStale, findClosestNameServers, resetExpiry);
+            return _cache.QueryAsync(request, serveStale, findClosestNameServers, resetExpiry);
         }
 
         public void CacheResponse(DnsDatagram response, bool isDnssecBadCache = false, string zoneCut = null)
