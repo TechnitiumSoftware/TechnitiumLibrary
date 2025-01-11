@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,63 +29,113 @@ namespace TechnitiumLibrary
 
         private static string[] ReadArray(JsonElement jsonArray)
         {
-            string[] array = new string[jsonArray.GetArrayLength()];
-            int i = 0;
+            switch (jsonArray.ValueKind)
+            {
+                case JsonValueKind.Array:
+                    string[] array = new string[jsonArray.GetArrayLength()];
+                    int i = 0;
 
-            foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
-                array[i++] = jsonItem.GetString();
+                    foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
+                        array[i++] = jsonItem.GetString();
 
-            return array;
+                    return array;
+
+                case JsonValueKind.Null:
+                    return null;
+
+                default:
+                    throw new InvalidOperationException();
+            }
         }
 
         private static T[] ReadArray<T>(JsonElement jsonArray, Func<string, T> getObject)
         {
-            T[] array = new T[jsonArray.GetArrayLength()];
-            int i = 0;
+            switch (jsonArray.ValueKind)
+            {
+                case JsonValueKind.Array:
+                    T[] array = new T[jsonArray.GetArrayLength()];
+                    int i = 0;
 
-            foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
-                array[i++] = getObject(jsonItem.GetString());
+                    foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
+                        array[i++] = getObject(jsonItem.GetString());
 
-            return array;
+                    return array;
+
+                case JsonValueKind.Null:
+                    return null;
+
+                default:
+                    throw new InvalidOperationException();
+            }
         }
 
         private static T[] ReadArray<T>(JsonElement jsonArray, Func<JsonElement, T> getObject)
         {
-            T[] array = new T[jsonArray.GetArrayLength()];
-            int i = 0;
+            switch (jsonArray.ValueKind)
+            {
+                case JsonValueKind.Array:
+                    T[] array = new T[jsonArray.GetArrayLength()];
+                    int i = 0;
 
-            foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
-                array[i++] = getObject(jsonItem);
+                    foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
+                        array[i++] = getObject(jsonItem);
 
-            return array;
+                    return array;
+
+                case JsonValueKind.Null:
+                    return null;
+
+                default:
+                    throw new InvalidOperationException();
+            }
         }
 
         private static Dictionary<TKey, TValue> ReadArrayAsMap<TKey, TValue>(JsonElement jsonArray, Func<JsonElement, Tuple<TKey, TValue>> getObject)
         {
-            Dictionary<TKey, TValue> map = new Dictionary<TKey, TValue>(jsonArray.GetArrayLength());
-
-            foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
+            switch (jsonArray.ValueKind)
             {
-                Tuple<TKey, TValue> item = getObject(jsonItem);
-                if (item is not null)
-                    map.Add(item.Item1, item.Item2);
-            }
+                case JsonValueKind.Array:
+                    Dictionary<TKey, TValue> map = new Dictionary<TKey, TValue>(jsonArray.GetArrayLength());
 
-            return map;
+                    foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
+                    {
+                        Tuple<TKey, TValue> item = getObject(jsonItem);
+                        if (item is not null)
+                            map.Add(item.Item1, item.Item2);
+                    }
+
+                    return map;
+
+                case JsonValueKind.Null:
+                    return null;
+
+                default:
+                    throw new InvalidOperationException();
+            }
         }
 
         private static Dictionary<TKey, TValue> ReadObjectAsMap<TKey, TValue>(JsonElement jsonMap, Func<string, JsonElement, Tuple<TKey, TValue>> getObject)
         {
-            Dictionary<TKey, TValue> map = new Dictionary<TKey, TValue>();
-
-            foreach (JsonProperty jsonProperty in jsonMap.EnumerateObject())
+            switch (jsonMap.ValueKind)
             {
-                Tuple<TKey, TValue> item = getObject(jsonProperty.Name, jsonProperty.Value);
-                if (item is not null)
-                    map.Add(item.Item1, item.Item2);
-            }
+                case JsonValueKind.Object:
+                    Dictionary<TKey, TValue> map = new Dictionary<TKey, TValue>();
 
-            return map;
+                    foreach (JsonProperty jsonProperty in jsonMap.EnumerateObject())
+                    {
+                        Tuple<TKey, TValue> item = getObject(jsonProperty.Name, jsonProperty.Value);
+                        if (item is not null)
+                            map.Add(item.Item1, item.Item2);
+                    }
+
+                    return map;
+
+                case JsonValueKind.Null:
+                    return null;
+
+                default:
+                    throw new InvalidOperationException();
+            }
         }
 
         #endregion
