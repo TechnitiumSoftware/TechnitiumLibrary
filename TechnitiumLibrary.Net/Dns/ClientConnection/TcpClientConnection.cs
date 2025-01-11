@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -466,7 +466,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                         _firstResponse.SetMetadata(server, _stopwatch.Elapsed.TotalMilliseconds);
 
-                        _responseTask.TrySetResult(_firstResponse);
+                        //set result in another thread to avoid blocking read task causing deadlock
+                        _ = Task.Factory.StartNew(delegate ()
+                        {
+                            _responseTask.TrySetResult(_firstResponse);
+                        }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
                     }
                 }
                 else
@@ -475,13 +479,21 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     response.SetMetadata(server, _stopwatch.Elapsed.TotalMilliseconds);
 
-                    _responseTask.TrySetResult(response);
+                    //set result in another thread to avoid blocking read task causing deadlock
+                    _ = Task.Factory.StartNew(delegate ()
+                    {
+                        _responseTask.TrySetResult(response);
+                    }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
                 }
             }
 
             public void SetException(Exception ex)
             {
-                _responseTask.SetException(ex);
+                //set exception in another thread to avoid blocking read task causing deadlock
+                _ = Task.Factory.StartNew(delegate ()
+                {
+                    _responseTask.SetException(ex);
+                }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             }
 
             #endregion
