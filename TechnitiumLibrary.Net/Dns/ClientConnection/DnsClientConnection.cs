@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -297,9 +297,6 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         protected static void ValidateResponse(DnsDatagram request, DnsDatagram response)
         {
-            if (response.Identifier != request.Identifier)
-                throw new DnsClientResponseValidationException("Invalid response was received: query ID mismatch.");
-
             if (response.Question.Count == request.Question.Count)
             {
                 for (int i = 0; i < response.Question.Count; i++)
@@ -372,6 +369,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         throw new DnsClientResponseValidationException("Invalid response was received: question count mismatch.");
                 }
             }
+
+            if (response.Identifier != request.Identifier)
+                throw new DnsClientResponseSpoofedException("Invalid response was received: query ID mismatch."); //possible spoof attempt for UDP transport since QNAME, QTYPE, QCLASS & ECS match but ID does not match
         }
 
         protected static Tuple<IPEndPoint, byte[]> GetIPv4SourceEP()
