@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
@@ -411,18 +412,18 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public virtual DnsDatagram QueryClosestDelegation(DnsDatagram request)
+        public virtual Task<DnsDatagram> QueryClosestDelegationAsync(DnsDatagram request)
         {
             IReadOnlyList<DnsResourceRecord> closestAuthority = GetClosestNameServers(request.Question[0].Name, request.DnssecOk);
             if (closestAuthority is null)
-                return null;
+                return Task.FromResult<DnsDatagram>(null);
 
             IReadOnlyList<DnsResourceRecord> additional = GetAdditionalRecords(closestAuthority);
 
-            return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, closestAuthority, additional);
+            return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, DnsResponseCode.NoError, request.Question, null, closestAuthority, additional));
         }
 
-        public virtual DnsDatagram Query(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false, bool resetExpiry = false)
+        public virtual Task<DnsDatagram> QueryAsync(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false, bool resetExpiry = false)
         {
             if (serveStale || resetExpiry)
                 throw new NotImplementedException("DnsCache does not implement serve stale.");
@@ -460,13 +461,13 @@ namespace TechnitiumLibrary.Net.Dns
                             }
 
                             if (request.CheckingDisabled)
-                                return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, request.CheckingDisabled, dnsSpecialCacheRecord.OriginalRCODE, request.Question, dnsSpecialCacheRecord.OriginalAnswer, dnsSpecialCacheRecord.OriginalAuthority, dnsSpecialCacheRecord.OriginalAdditional, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions);
+                                return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, request.CheckingDisabled, dnsSpecialCacheRecord.OriginalRCODE, request.Question, dnsSpecialCacheRecord.OriginalAnswer, dnsSpecialCacheRecord.OriginalAuthority, dnsSpecialCacheRecord.OriginalAdditional, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions));
                             else
-                                return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, request.CheckingDisabled, dnsSpecialCacheRecord.RCODE, request.Question, dnsSpecialCacheRecord.Answer, dnsSpecialCacheRecord.Authority, null, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions);
+                                return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, request.CheckingDisabled, dnsSpecialCacheRecord.RCODE, request.Question, dnsSpecialCacheRecord.Answer, dnsSpecialCacheRecord.Authority, null, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions));
                         }
                         else
                         {
-                            return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, dnsSpecialCacheRecord.RCODE, request.Question, dnsSpecialCacheRecord.NoDnssecAnswer, dnsSpecialCacheRecord.NoDnssecAuthority, null, request.EDNS is null ? ushort.MinValue : request.EDNS.UdpPayloadSize, EDnsHeaderFlags.None, dnsSpecialCacheRecord.EDnsOptions);
+                            return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, dnsSpecialCacheRecord.RCODE, request.Question, dnsSpecialCacheRecord.NoDnssecAnswer, dnsSpecialCacheRecord.NoDnssecAuthority, null, request.EDNS is null ? ushort.MinValue : request.EDNS.UdpPayloadSize, EDnsHeaderFlags.None, dnsSpecialCacheRecord.EDnsOptions));
                         }
                     }
 
@@ -545,7 +546,7 @@ namespace TechnitiumLibrary.Net.Dns
                             break;
                     }
 
-                    return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, answers[0].DnssecStatus == DnssecStatus.Secure, request.CheckingDisabled, DnsResponseCode.NoError, request.Question, answers, authority, additional);
+                    return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, answers[0].DnssecStatus == DnssecStatus.Secure, request.CheckingDisabled, DnsResponseCode.NoError, request.Question, answers, authority, additional));
                 }
             }
 
@@ -560,7 +561,7 @@ namespace TechnitiumLibrary.Net.Dns
                     //find parent zone NS
                     domain = GetParentZone(question.Name);
                     if (domain is null)
-                        return null; //dont find NS for root
+                        return Task.FromResult<DnsDatagram>(null); //dont find NS for root
                 }
                 else
                 {
@@ -572,11 +573,11 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     IReadOnlyList<DnsResourceRecord> additionalRecords = GetAdditionalRecords(closestAuthority);
 
-                    return new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, closestAuthority[0].DnssecStatus == DnssecStatus.Secure, request.CheckingDisabled, DnsResponseCode.NoError, request.Question, null, closestAuthority, additionalRecords);
+                    return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, closestAuthority[0].DnssecStatus == DnssecStatus.Secure, request.CheckingDisabled, DnsResponseCode.NoError, request.Question, null, closestAuthority, additionalRecords));
                 }
             }
 
-            return null;
+            return Task.FromResult<DnsDatagram>(null);
         }
 
         public void CacheResponse(DnsDatagram response, bool isDnssecBadCache = false, string zoneCut = null)
