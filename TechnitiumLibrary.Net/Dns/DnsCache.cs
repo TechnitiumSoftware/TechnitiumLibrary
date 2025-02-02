@@ -461,13 +461,16 @@ namespace TechnitiumLibrary.Net.Dns
                             }
 
                             if (request.CheckingDisabled)
-                                return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, request.CheckingDisabled, dnsSpecialCacheRecord.OriginalRCODE, request.Question, dnsSpecialCacheRecord.OriginalAnswer, dnsSpecialCacheRecord.OriginalAuthority, dnsSpecialCacheRecord.OriginalAdditional, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions));
+                                return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, true, dnsSpecialCacheRecord.OriginalRCODE, request.Question, dnsSpecialCacheRecord.OriginalAnswer, dnsSpecialCacheRecord.OriginalAuthority, dnsSpecialCacheRecord.OriginalAdditional, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions));
                             else
-                                return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, request.CheckingDisabled, dnsSpecialCacheRecord.RCODE, request.Question, dnsSpecialCacheRecord.Answer, dnsSpecialCacheRecord.Authority, null, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions));
+                                return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, authenticData, false, dnsSpecialCacheRecord.RCODE, request.Question, dnsSpecialCacheRecord.Answer, dnsSpecialCacheRecord.Authority, null, request.EDNS.UdpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, dnsSpecialCacheRecord.EDnsOptions));
                         }
                         else
                         {
-                            return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, dnsSpecialCacheRecord.RCODE, request.Question, dnsSpecialCacheRecord.NoDnssecAnswer, dnsSpecialCacheRecord.NoDnssecAuthority, null, request.EDNS is null ? ushort.MinValue : request.EDNS.UdpPayloadSize, EDnsHeaderFlags.None, dnsSpecialCacheRecord.EDnsOptions));
+                            if (request.CheckingDisabled)
+                                return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, true, dnsSpecialCacheRecord.OriginalRCODE, request.Question, dnsSpecialCacheRecord.OriginalNoDnssecAnswer, dnsSpecialCacheRecord.OriginalNoDnssecAuthority, dnsSpecialCacheRecord.OriginalAdditional, request.EDNS is null ? ushort.MinValue : request.EDNS.UdpPayloadSize, EDnsHeaderFlags.None, dnsSpecialCacheRecord.EDnsOptions));
+                            else
+                                return Task.FromResult(new DnsDatagram(request.Identifier, true, DnsOpcode.StandardQuery, false, false, request.RecursionDesired, true, false, false, dnsSpecialCacheRecord.RCODE, request.Question, dnsSpecialCacheRecord.NoDnssecAnswer, dnsSpecialCacheRecord.NoDnssecAuthority, null, request.EDNS is null ? ushort.MinValue : request.EDNS.UdpPayloadSize, EDnsHeaderFlags.None, dnsSpecialCacheRecord.EDnsOptions));
                         }
                     }
 
@@ -1364,8 +1367,6 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     switch (record1.Type)
                     {
-                        case DnsResourceRecordType.DS:
-                        case DnsResourceRecordType.DNSKEY:
                         case DnsResourceRecordType.RRSIG:
                         case DnsResourceRecordType.NSEC:
                         case DnsResourceRecordType.NSEC3:
@@ -1375,8 +1376,6 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 switch (record2.Type)
                                 {
-                                    case DnsResourceRecordType.DS:
-                                    case DnsResourceRecordType.DNSKEY:
                                     case DnsResourceRecordType.RRSIG:
                                     case DnsResourceRecordType.NSEC:
                                     case DnsResourceRecordType.NSEC3:
@@ -1613,6 +1612,9 @@ namespace TechnitiumLibrary.Net.Dns
             public IReadOnlyList<DnsResourceRecord> OriginalAnswer
             { get { return _answer; } }
 
+            public IReadOnlyList<DnsResourceRecord> OriginalNoDnssecAnswer
+            { get { return _noDnssecAnswer; } }
+
             public IReadOnlyList<DnsResourceRecord> Answer
             {
                 get
@@ -1638,12 +1640,15 @@ namespace TechnitiumLibrary.Net.Dns
             public IReadOnlyList<DnsResourceRecord> OriginalAuthority
             { get { return _authority; } }
 
+            public IReadOnlyList<DnsResourceRecord> OriginalNoDnssecAuthority
+            { get { return _noDnssecAuthority; } }
+
             public IReadOnlyList<DnsResourceRecord> Authority
             {
                 get
                 {
                     if (_type == DnsSpecialCacheRecordType.BadCache)
-                        return Array.Empty<DnsResourceRecord>();
+                        return [];
 
                     return _authority;
                 }
@@ -1654,7 +1659,7 @@ namespace TechnitiumLibrary.Net.Dns
                 get
                 {
                     if (_type == DnsSpecialCacheRecordType.BadCache)
-                        return Array.Empty<DnsResourceRecord>();
+                        return [];
 
                     return _noDnssecAuthority;
                 }
