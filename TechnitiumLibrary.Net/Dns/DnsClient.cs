@@ -1142,7 +1142,19 @@ namespace TechnitiumLibrary.Net.Dns
                                 if (ednsFlags.HasFlag(EDnsHeaderFlags.DNSSEC_OK))
                                 {
                                     //dnssec validate response
-                                    await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken1);
+                                    try
+                                    {
+                                        await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken1);
+                                    }
+                                    catch (DnsClientResponseDnssecValidationException ex)
+                                    {
+                                        if ((ex.Response.Question.Count > 0) && ex.Response.Question[0].Equals(question))
+                                            throw; //validation failure for same question; throw same exception
+
+                                        //validation failure for a different question; preserve current response in new exception
+                                        response.AddDnsClientExtendedErrorFrom(ex.Response);
+                                        throw new DnsClientResponseDnssecValidationException(ex.Message, response, ex);
+                                    }
 
                                     //sanitize response after DNSSEC validation
                                     response = SanitizeResponseAfterDnssecValidation(response);
@@ -1771,26 +1783,11 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                         else if (lastException is DnsClientResponseDnssecValidationException ex)
                         {
-                            if ((ex.Response.Question.Count > 0) && ex.Response.Question[0].Equals(question))
-                            {
-                                //was already cached as bad cache
-                            }
-                            else
-                            {
-                                //response is not for current question; cache its extended errors as failure response
-                                DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+                            //cached as bad cache
+                            if (extendedDnsErrors.Count > 0)
+                                ex.Response.AddDnsClientExtendedError(extendedDnsErrors);
 
-                                if (extendedDnsErrors.Count > 0)
-                                    failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
-
-                                failureResponse.AddDnsClientExtendedErrorFrom(ex.Response);
-
-                                if (eDnsClientSubnet is not null)
-                                    failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
-
-                                //cache as failure
-                                cache.CacheResponse(failureResponse);
-                            }
+                            cache.CacheResponse(ex.Response, true);
 
                             ExceptionDispatchInfo.Throw(lastException);
                         }
@@ -5064,7 +5061,19 @@ namespace TechnitiumLibrary.Net.Dns
                         }
 
                         //dnssec validate response
-                        await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(response), this, cache, _udpPayloadSize, cancellationToken1);
+                        try
+                        {
+                            await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(response), this, cache, _udpPayloadSize, cancellationToken1);
+                        }
+                        catch (DnsClientResponseDnssecValidationException ex)
+                        {
+                            if ((ex.Response.Question.Count > 0) && ex.Response.Question[0].Equals(question))
+                                throw; //validation failure for same question; throw same exception
+
+                            //validation failure for a different question; preserve current response in new exception
+                            response.AddDnsClientExtendedErrorFrom(ex.Response);
+                            throw new DnsClientResponseDnssecValidationException(ex.Message, response, ex);
+                        }
 
                         //sanitize response after DNSSEC validation
                         response = SanitizeResponseAfterDnssecValidation(response);
@@ -5171,22 +5180,8 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     if (ex is DnsClientResponseDnssecValidationException ex2)
                     {
-                        if ((ex2.Response.Question.Count > 0) && ex2.Response.Question[0].Equals(q))
-                        {
-                            //was already cached as bad cache
-                        }
-                        else
-                        {
-                            //response is not for current question; cache its extended errors as failure response
-                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { q });
-                            failureResponse.AddDnsClientExtendedErrorFrom(ex2.Response);
-
-                            if (_eDnsClientSubnet is not null)
-                                failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(_eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.PrefixLength, _eDnsClientSubnet.Address));
-
-                            //cache as failure
-                            _cache.CacheResponse(failureResponse);
-                        }
+                        //cached as bad cache
+                        _cache.CacheResponse(ex2.Response, true);
                     }
                     else if (ex is DnsClientNoResponseException)
                     {
