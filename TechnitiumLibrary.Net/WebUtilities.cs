@@ -383,7 +383,7 @@ namespace TechnitiumLibrary.Net
             return false;
         }
 
-        public static IReadOnlyList<IPAddress> GetValidKestralLocalAddresses(IReadOnlyList<IPAddress> localAddresses)
+        public static IReadOnlyList<IPAddress> GetValidKestrelLocalAddresses(IReadOnlyList<IPAddress> localAddresses)
         {
             List<IPAddress> supportedLocalAddresses = new List<IPAddress>(localAddresses.Count);
 
