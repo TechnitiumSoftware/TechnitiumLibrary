@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,10 +18,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Mime;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Http.Client;
@@ -379,6 +381,89 @@ namespace TechnitiumLibrary.Net
             }
 
             return false;
+        }
+
+        public static IReadOnlyList<IPAddress> GetValidKestralLocalAddresses(IReadOnlyList<IPAddress> localAddresses)
+        {
+            List<IPAddress> supportedLocalAddresses = new List<IPAddress>(localAddresses.Count);
+
+            foreach (IPAddress localAddress in localAddresses)
+            {
+                switch (localAddress.AddressFamily)
+                {
+                    case AddressFamily.InterNetwork:
+                        if (Socket.OSSupportsIPv4)
+                        {
+                            if (!supportedLocalAddresses.Contains(localAddress))
+                                supportedLocalAddresses.Add(localAddress);
+                        }
+
+                        break;
+
+                    case AddressFamily.InterNetworkV6:
+                        if (Socket.OSSupportsIPv6)
+                        {
+                            if (!supportedLocalAddresses.Contains(localAddress))
+                                supportedLocalAddresses.Add(localAddress);
+                        }
+
+                        break;
+                }
+            }
+
+            bool containsUnicastAddress = false;
+
+            foreach (IPAddress localAddress in supportedLocalAddresses)
+            {
+                if (!localAddress.Equals(IPAddress.Any) && !localAddress.Equals(IPAddress.IPv6Any))
+                {
+                    containsUnicastAddress = true;
+                    break;
+                }
+            }
+
+            List<IPAddress> newLocalAddresses = new List<IPAddress>(supportedLocalAddresses.Count);
+
+            if (containsUnicastAddress)
+            {
+                //replace any with loopback address
+                foreach (IPAddress localAddress in supportedLocalAddresses)
+                {
+                    if (localAddress.Equals(IPAddress.Any))
+                    {
+                        if (!newLocalAddresses.Contains(IPAddress.Loopback))
+                            newLocalAddresses.Add(IPAddress.Loopback);
+                    }
+                    else if (localAddress.Equals(IPAddress.IPv6Any))
+                    {
+                        if (!newLocalAddresses.Contains(IPAddress.IPv6Loopback))
+                            newLocalAddresses.Add(IPAddress.IPv6Loopback);
+                    }
+                    else
+                    {
+                        if (!newLocalAddresses.Contains(localAddress))
+                            newLocalAddresses.Add(localAddress);
+                    }
+                }
+            }
+            else
+            {
+                //remove "0.0.0.0" if [::] exists
+                foreach (IPAddress localAddress in supportedLocalAddresses)
+                {
+                    if (localAddress.Equals(IPAddress.Any))
+                    {
+                        if (!supportedLocalAddresses.Contains(IPAddress.IPv6Any))
+                            newLocalAddresses.Add(localAddress);
+                    }
+                    else
+                    {
+                        newLocalAddresses.Add(localAddress);
+                    }
+                }
+            }
+
+            return newLocalAddresses;
         }
     }
 }
