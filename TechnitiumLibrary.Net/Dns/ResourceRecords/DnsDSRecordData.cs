@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -132,6 +132,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnssecAlgorithm.RSASHA1_NSEC3_SHA1:
                 case DnssecAlgorithm.ECDSAP256SHA256:
                 case DnssecAlgorithm.ECDSAP384SHA384:
+                case DnssecAlgorithm.ED25519:
+                case DnssecAlgorithm.ED448:
                     return true;
 
                 default:
@@ -257,8 +259,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteStartObject();
 
             jsonWriter.WriteNumber("KeyTag", _keyTag);
-            jsonWriter.WriteString("Algorithm", _algorithm.ToString());
-            jsonWriter.WriteString("DigestType", _digestType.ToString());
+            jsonWriter.WriteString("Algorithm", _algorithm.ToString() + " (" + (byte)_algorithm + ")");
+            jsonWriter.WriteString("DigestType", _digestType.ToString() + " (" + (byte)_digestType + ")");
             jsonWriter.WriteString("Digest", Convert.ToHexString(_digest));
 
             jsonWriter.WriteEndObject();
