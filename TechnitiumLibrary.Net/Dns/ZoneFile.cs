@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,6 +29,11 @@ namespace TechnitiumLibrary.Net.Dns
     public class ZoneFile
     {
         #region variables
+
+        const uint WEEK = 7 * 24 * 60 * 60;
+        const uint DAY = 24 * 60 * 60;
+        const uint HOUR = 60 * 60;
+        const uint MINUTE = 60;
 
         readonly static char[] _trimSeperator = new char[] { ' ', '\t' };
         readonly static char[] _popSeperator = new char[] { ' ', '\t', '(', ')', ';' };
@@ -140,7 +145,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (domain == "@")
             {
                 if (_originDomain is null)
-                    throw new FormatException("The zone file parser failed to parse 'domain' field on line # " + _lineNo + ".");
+                    throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
 
                 return _originDomain;
             }
@@ -149,9 +154,19 @@ namespace TechnitiumLibrary.Net.Dns
                 return domain.Substring(0, domain.Length - 1);
 
             if (_originDomain is null)
-                throw new FormatException("The zone file parser failed to parse 'domain' field on line # " + _lineNo + ".");
+                throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
 
             return domain + "." + _originDomain;
+        }
+
+        internal async Task<uint> PopTtlAsync(string fieldName = "ttl")
+        {
+            string strTtl = await PopItemAsync();
+
+            if (!TryParseTtl(strTtl, out uint ttl))
+                throw new FormatException($"The zone file parser failed to parse '{fieldName}' field on line # " + _lineNo + ".");
+
+            return ttl;
         }
 
         internal async Task<string> PopItemAsync(bool newEntry = false)
@@ -332,69 +347,34 @@ namespace TechnitiumLibrary.Net.Dns
                     _originDomain = await PopDomainAsync();
 
                     if (!DnsClient.IsDomainNameValid(_originDomain))
-                        throw new FormatException("The zone file parser failed to parse 'domain' field on line # " + _lineNo + ".");
+                        throw new FormatException("The zone file parser failed to parse $ORIGIN 'domain-name' field on line # " + _lineNo + ".");
 
+                    lastDomain = _originDomain;
                     continue;
                 }
 
                 if (item == "$TTL")
                 {
-                    _defaultTtl = uint.Parse(await PopItemAsync());
+                    if (!TryParseTtl(await PopItemAsync(), out _defaultTtl))
+                        throw new FormatException("The zone file parser failed to parse $TTL 'default-ttl' field on line # " + _lineNo + ".");
+
                     continue;
                 }
 
                 if (item == "$INCLUDE")
                     throw new NotSupportedException("The zone file parser does not support $INCLUDE control entry on line # " + _lineNo + ".");
 
-                string domain;
-
-                if (item.Length > 0)
-                {
-                    domain = item;
-                    if (domain == "@")
-                    {
-                        if (_originDomain is null)
-                            throw new FormatException("The zone file parser failed to parse 'domain' field on line # " + _lineNo + ".");
-
-                        domain = _originDomain;
-                    }
-                    else if (domain.EndsWith('.'))
-                    {
-                        domain = domain.Substring(0, domain.Length - 1);
-                    }
-                    else
-                    {
-                        if (_originDomain is null)
-                            throw new FormatException("The zone file parser failed to parse 'domain' field on line # " + _lineNo + ".");
-
-                        domain += "." + _originDomain;
-                    }
-
-                    if (!DnsClient.IsDomainNameValid(domain))
-                        throw new FormatException("The zone file parser failed to parse 'domain' field on line # " + _lineNo + ".");
-                }
-                else
-                {
-                    //use last RR domain
-                    if (lastDomain is null)
-                        throw new FormatException("The zone file parser failed to parse 'domain' field on line # " + _lineNo + ".");
-
-                    domain = lastDomain;
-                }
-
+                string domain = null;
                 uint ttl = 0;
                 DnsClass @class = DnsClass.Unknown;
                 DnsResourceRecordType type;
+                bool domainRead = false;
                 bool ttlRead = false;
                 bool classRead = false;
 
-                item = await PopItemAsync();
-                if (item is null)
-                    throw new FormatException("The zone file parser failed to parse 'rr' field on line # " + _lineNo + ".");
-
                 do
                 {
-                    if (!ttlRead && uint.TryParse(item, out ttl))
+                    if (!ttlRead && TryParseTtl(item, out ttl))
                     {
                         ttlRead = true;
                     }
@@ -416,6 +396,37 @@ namespace TechnitiumLibrary.Net.Dns
                         type = (DnsResourceRecordType)valType;
                         break;
                     }
+                    else if (!domainRead)
+                    {
+                        domain = item;
+                        if (domain.Length == 0)
+                        {
+                            domain = lastDomain;
+                        }
+                        else if (domain == "@")
+                        {
+                            if (_originDomain is null)
+                                throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
+
+                            domain = _originDomain;
+                        }
+                        else if (domain.EndsWith('.'))
+                        {
+                            domain = domain.Substring(0, domain.Length - 1);
+                        }
+                        else
+                        {
+                            if (_originDomain is null)
+                                throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
+
+                            domain += "." + _originDomain;
+                        }
+
+                        if (!DnsClient.IsDomainNameValid(domain))
+                            throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
+
+                        domainRead = true;
+                    }
                     else
                     {
                         throw new FormatException("The zone file parser failed to parse 'rr' field on line # " + _lineNo + ".");
@@ -426,6 +437,15 @@ namespace TechnitiumLibrary.Net.Dns
                         throw new FormatException("The zone file parser failed to parse 'rr' field on line # " + _lineNo + ".");
                 }
                 while (true);
+
+                if (!domainRead)
+                {
+                    //use last domain
+                    if (lastDomain is null)
+                        throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
+
+                    domain = lastDomain;
+                }
 
                 if (!ttlRead)
                 {
@@ -478,7 +498,12 @@ namespace TechnitiumLibrary.Net.Dns
                 _line = _line.TrimStart(_trimSeperator);
 
                 if (_line.StartsWith(';'))
-                    return _line.Substring(1);
+                {
+                    string comment = _line.Substring(1);
+                    _line = "";
+
+                    return comment;
+                }
 
                 _ = await PopItemAsync();
             }
@@ -531,6 +556,121 @@ namespace TechnitiumLibrary.Net.Dns
 
                 return word;
             }
+        }
+
+        public static bool TryParseTtl(string value, out uint ttl)
+        {
+            //1w2d1h30m
+            if (uint.TryParse(value, out ttl))
+                return true;
+
+            if (value.Length == 0)
+                return false;
+
+            string strTtl = "";
+            ttl = 0;
+
+            foreach (char c in value)
+            {
+                if (char.IsAsciiDigit(c))
+                {
+                    strTtl += c;
+                }
+                else if (char.IsAsciiLetter(c))
+                {
+                    if (!uint.TryParse(strTtl, out uint number))
+                        return false;
+
+                    switch (c)
+                    {
+                        case 's':
+                        case 'S':
+                            ttl += number;
+                            break;
+
+                        case 'm':
+                        case 'M':
+                            ttl += number * 60;
+                            break;
+
+                        case 'h':
+                        case 'H':
+                            ttl += number * 60 * 60;
+                            break;
+
+                        case 'd':
+                        case 'D':
+                            ttl += number * 24 * 60 * 60;
+                            break;
+
+                        case 'w':
+                        case 'W':
+                            ttl += number * 7 * 24 * 60 * 60;
+                            break;
+
+                        default:
+                            return false;
+                    }
+
+                    strTtl = "";
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            if (strTtl.Length > 0)
+            {
+                if (!uint.TryParse(strTtl, out uint number))
+                    return false;
+
+                ttl += number;
+            }
+
+            return true;
+        }
+
+        public static string GetTtlString(uint ttl)
+        {
+            string value = "";
+
+            if (ttl > WEEK)
+            {
+                uint weeks = ttl / WEEK;
+                ttl -= weeks * WEEK;
+
+                value = weeks + "w";
+            }
+
+            if (ttl > DAY)
+            {
+                uint days = ttl / DAY;
+                ttl -= days * DAY;
+
+                value += days + "d";
+            }
+
+            if (ttl > HOUR)
+            {
+                uint hours = ttl / HOUR;
+                ttl -= hours * HOUR;
+
+                value += hours + "h";
+            }
+
+            if (ttl > MINUTE)
+            {
+                uint minutes = ttl / MINUTE;
+                ttl -= minutes * MINUTE;
+
+                value += minutes + "m";
+            }
+
+            if (ttl > 0)
+                value += ttl + "s";
+
+            return value;
         }
 
         private async Task<DnsResourceRecordData> ParseRecordDataAsync(DnsResourceRecordType type)
