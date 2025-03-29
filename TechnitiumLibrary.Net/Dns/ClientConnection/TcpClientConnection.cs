@@ -492,7 +492,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 //set exception in another thread to avoid blocking read task causing deadlock
                 _ = Task.Factory.StartNew(delegate ()
                 {
-                    _responseTask.SetException(ex);
+                    _responseTask.TrySetException(ex);
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
             }
 
