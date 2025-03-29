@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -281,7 +281,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             jsonWriter.WriteString("Flags", _flags.ToString());
             jsonWriter.WriteNumber("Protocol", _protocol);
-            jsonWriter.WriteString("Algorithm", _algorithm.ToString());
+            jsonWriter.WriteString("Algorithm", _algorithm.ToString() + " (" + (byte)_algorithm + ")");
             jsonWriter.WriteString("PublicKey", Convert.ToBase64String(_publicKey.RawPublicKey));
             jsonWriter.WriteNumber("ComputedKeyTag", _computedKeyTag);
 
