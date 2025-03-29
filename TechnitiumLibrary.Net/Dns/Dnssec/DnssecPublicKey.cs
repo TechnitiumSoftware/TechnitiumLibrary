@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -60,6 +60,10 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
                 case DnssecAlgorithm.ECDSAP256SHA256:
                 case DnssecAlgorithm.ECDSAP384SHA384:
                     return new DnssecEcdsaPublicKey(rawPublicKey, algorithm);
+
+                case DnssecAlgorithm.ED25519:
+                case DnssecAlgorithm.ED448:
+                    return new DnssecEddsaPublicKey(rawPublicKey, algorithm);
 
                 default:
                     return new DnssecPublicKey(rawPublicKey);
