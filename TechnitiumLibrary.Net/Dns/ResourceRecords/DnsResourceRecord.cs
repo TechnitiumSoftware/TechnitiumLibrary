@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -124,6 +124,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         ANAME = 65280, //private use - draft-ietf-dnsop-aname-04
         FWD = 65281, //private use - conditional forwarder
         APP = 65282, //private use - application
+        CHILD_NS = 65283, //private use - cached child side NS records
         ALIAS = 65357 //private use - SimpleDNS ALIAS
     }
 
@@ -465,6 +466,28 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #endregion
 
         #region public
+
+        public DnsResourceRecord CloneAs(DnsResourceRecordType type)
+        {
+            DnsResourceRecord newRecord = new DnsResourceRecord();
+
+            newRecord._name = _name;
+            newRecord._type = type;
+            newRecord._class = _class;
+            newRecord._ttl = _ttl;
+            newRecord._rData = _rData;
+
+            newRecord._setExpiry = _setExpiry;
+            newRecord._wasExpiryReset = _wasExpiryReset;
+            newRecord._ttlExpires = _ttlExpires;
+            newRecord._serveStaleTtlExpires = _serveStaleTtlExpires;
+            newRecord._serveStaleAnswerTtl = _serveStaleAnswerTtl;
+            newRecord._dnssecStatus = _dnssecStatus;
+
+            newRecord.Tag = Tag;
+
+            return newRecord;
+        }
 
         public void SetExpiry(uint minimumTtl, uint maximumTtl, uint serveStaleTtl, uint serveStaleAnswerTtl)
         {
