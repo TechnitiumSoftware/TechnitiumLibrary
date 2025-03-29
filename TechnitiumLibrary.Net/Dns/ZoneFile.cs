@@ -134,6 +134,121 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        public static bool TryParseTtl(string value, out uint ttl)
+        {
+            //1w2d1h30m
+            if (uint.TryParse(value, out ttl))
+                return true;
+
+            if (value.Length == 0)
+                return false;
+
+            string strTtl = "";
+            ttl = 0;
+
+            foreach (char c in value)
+            {
+                if (char.IsAsciiDigit(c))
+                {
+                    strTtl += c;
+                }
+                else if (char.IsAsciiLetter(c))
+                {
+                    if (!uint.TryParse(strTtl, out uint number))
+                        return false;
+
+                    switch (c)
+                    {
+                        case 's':
+                        case 'S':
+                            ttl += number;
+                            break;
+
+                        case 'm':
+                        case 'M':
+                            ttl += number * 60;
+                            break;
+
+                        case 'h':
+                        case 'H':
+                            ttl += number * 60 * 60;
+                            break;
+
+                        case 'd':
+                        case 'D':
+                            ttl += number * 24 * 60 * 60;
+                            break;
+
+                        case 'w':
+                        case 'W':
+                            ttl += number * 7 * 24 * 60 * 60;
+                            break;
+
+                        default:
+                            return false;
+                    }
+
+                    strTtl = "";
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            if (strTtl.Length > 0)
+            {
+                if (!uint.TryParse(strTtl, out uint number))
+                    return false;
+
+                ttl += number;
+            }
+
+            return true;
+        }
+
+        public static string GetTtlString(uint ttl)
+        {
+            string value = "";
+
+            if (ttl > WEEK)
+            {
+                uint weeks = ttl / WEEK;
+                ttl -= weeks * WEEK;
+
+                value = weeks + "w";
+            }
+
+            if (ttl > DAY)
+            {
+                uint days = ttl / DAY;
+                ttl -= days * DAY;
+
+                value += days + "d";
+            }
+
+            if (ttl > HOUR)
+            {
+                uint hours = ttl / HOUR;
+                ttl -= hours * HOUR;
+
+                value += hours + "h";
+            }
+
+            if (ttl > MINUTE)
+            {
+                uint minutes = ttl / MINUTE;
+                ttl -= minutes * MINUTE;
+
+                value += minutes + "m";
+            }
+
+            if (ttl > 0)
+                value += ttl + "s";
+
+            return value;
+        }
+
         #endregion
 
         #region internal
@@ -556,121 +671,6 @@ namespace TechnitiumLibrary.Net.Dns
 
                 return word;
             }
-        }
-
-        public static bool TryParseTtl(string value, out uint ttl)
-        {
-            //1w2d1h30m
-            if (uint.TryParse(value, out ttl))
-                return true;
-
-            if (value.Length == 0)
-                return false;
-
-            string strTtl = "";
-            ttl = 0;
-
-            foreach (char c in value)
-            {
-                if (char.IsAsciiDigit(c))
-                {
-                    strTtl += c;
-                }
-                else if (char.IsAsciiLetter(c))
-                {
-                    if (!uint.TryParse(strTtl, out uint number))
-                        return false;
-
-                    switch (c)
-                    {
-                        case 's':
-                        case 'S':
-                            ttl += number;
-                            break;
-
-                        case 'm':
-                        case 'M':
-                            ttl += number * 60;
-                            break;
-
-                        case 'h':
-                        case 'H':
-                            ttl += number * 60 * 60;
-                            break;
-
-                        case 'd':
-                        case 'D':
-                            ttl += number * 24 * 60 * 60;
-                            break;
-
-                        case 'w':
-                        case 'W':
-                            ttl += number * 7 * 24 * 60 * 60;
-                            break;
-
-                        default:
-                            return false;
-                    }
-
-                    strTtl = "";
-                }
-                else
-                {
-                    return false;
-                }
-            }
-
-            if (strTtl.Length > 0)
-            {
-                if (!uint.TryParse(strTtl, out uint number))
-                    return false;
-
-                ttl += number;
-            }
-
-            return true;
-        }
-
-        public static string GetTtlString(uint ttl)
-        {
-            string value = "";
-
-            if (ttl > WEEK)
-            {
-                uint weeks = ttl / WEEK;
-                ttl -= weeks * WEEK;
-
-                value = weeks + "w";
-            }
-
-            if (ttl > DAY)
-            {
-                uint days = ttl / DAY;
-                ttl -= days * DAY;
-
-                value += days + "d";
-            }
-
-            if (ttl > HOUR)
-            {
-                uint hours = ttl / HOUR;
-                ttl -= hours * HOUR;
-
-                value += hours + "h";
-            }
-
-            if (ttl > MINUTE)
-            {
-                uint minutes = ttl / MINUTE;
-                ttl -= minutes * MINUTE;
-
-                value += minutes + "m";
-            }
-
-            if (ttl > 0)
-                value += ttl + "s";
-
-            return value;
         }
 
         private async Task<DnsResourceRecordData> ParseRecordDataAsync(DnsResourceRecordType type)
