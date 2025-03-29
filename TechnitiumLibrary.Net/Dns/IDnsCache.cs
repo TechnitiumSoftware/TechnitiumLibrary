@@ -23,8 +23,6 @@ namespace TechnitiumLibrary.Net.Dns
 {
     public interface IDnsCache
     {
-        Task<DnsDatagram> QueryClosestDelegationAsync(DnsDatagram request);
-
         Task<DnsDatagram> QueryAsync(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false, bool resetExpiry = false);
 
         void CacheResponse(DnsDatagram response, bool isDnssecBadCache = false, string zoneCut = null);
