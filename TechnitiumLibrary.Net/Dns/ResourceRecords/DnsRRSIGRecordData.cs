@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -201,6 +201,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         hash = SHA512.HashData(mS);
                         break;
 
+                    case DnssecAlgorithm.ED25519:
+                    case DnssecAlgorithm.ED448:
+                        hash = mS.ToArray(); //EdDSA uses raw data directly without hashing
+                        break;
+
                     default:
                         hash = null;
                         extendedDnsErrorCode = EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm;
@@ -234,6 +239,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnssecAlgorithm.RSASHA512:
                     return HashAlgorithmName.SHA512;
+
+                case DnssecAlgorithm.ED25519:
+                case DnssecAlgorithm.ED448:
+                    return default; //EdDSA uses raw data directly without hashing
 
                 default:
                     throw new NotSupportedException("DNSSEC algorithm is not supported: " + algorithm.ToString());
@@ -544,7 +553,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteStartObject();
 
             jsonWriter.WriteString("TypeCovered", _typeCovered.ToString());
-            jsonWriter.WriteString("Algorithm", _algorithm.ToString());
+            jsonWriter.WriteString("Algorithm", _algorithm.ToString() + " (" + (byte)_algorithm + ")");
             jsonWriter.WriteNumber("Labels", _labels);
             jsonWriter.WriteNumber("OriginalTtl", _originalTtl);
             jsonWriter.WriteString("SignatureExpiration", DateTime.UnixEpoch.AddSeconds(_signatureExpiration));
