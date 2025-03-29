@@ -257,10 +257,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             jsonWriter.WriteString("ResponsiblePerson", _responsiblePerson);
             jsonWriter.WriteNumber("Serial", _serial);
-            jsonWriter.WriteNumber("Refresh", _refresh);
-            jsonWriter.WriteNumber("Retry", _retry);
-            jsonWriter.WriteNumber("Expire", _expire);
-            jsonWriter.WriteNumber("Minimum", _minimum);
+            jsonWriter.WriteString("Refresh", _refresh + " (" + ZoneFile.GetTtlString(_refresh) + ")");
+            jsonWriter.WriteString("Retry", _retry + " (" + ZoneFile.GetTtlString(_retry) + ")");
+            jsonWriter.WriteString("Expire", _expire + " (" + ZoneFile.GetTtlString(_expire) + ")");
+            jsonWriter.WriteString("Minimum", _minimum + " (" + ZoneFile.GetTtlString(_minimum) + ")");
 
             jsonWriter.WriteEndObject();
         }
