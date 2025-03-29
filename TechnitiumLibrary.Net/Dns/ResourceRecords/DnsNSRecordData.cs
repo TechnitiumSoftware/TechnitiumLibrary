@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,11 +31,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #region variables
 
         string _nameServer;
-
-        bool _parentSideTtlExpirySet;
-        DateTime _parentSideTtlExpires;
-        const uint PARENT_SIDE_NS_MINIMUM_TTL = 3600u; //1 hr to prevent frequent revalidations
-        const uint PARENT_SIDE_NS_MAXIMUM_TTL = 86400u; //1 day to revalidate within this limit
 
         NameServerMetadata _metadata;
 
@@ -141,38 +136,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public string NameServer
         { get { return _nameServer; } }
-
-        public uint ParentSideTtl
-        {
-            get
-            {
-                if (!_parentSideTtlExpirySet)
-                    throw new InvalidOperationException();
-
-                DateTime utcNow = DateTime.UtcNow;
-
-                if (utcNow > _parentSideTtlExpires)
-                    return 0u;
-
-                return Convert.ToUInt32((_parentSideTtlExpires - utcNow).TotalSeconds);
-            }
-            set
-            {
-                if (_parentSideTtlExpirySet)
-                    throw new InvalidOperationException();
-
-                if (value < PARENT_SIDE_NS_MINIMUM_TTL)
-                    value = PARENT_SIDE_NS_MINIMUM_TTL;
-                else if (value > PARENT_SIDE_NS_MAXIMUM_TTL)
-                    value = PARENT_SIDE_NS_MAXIMUM_TTL;
-
-                _parentSideTtlExpires = DateTime.UtcNow.AddSeconds(value);
-                _parentSideTtlExpirySet = true;
-            }
-        }
-
-        public bool IsParentSideTtlSet
-        { get { return _parentSideTtlExpirySet; } }
 
         public NameServerMetadata Metadata
         {
