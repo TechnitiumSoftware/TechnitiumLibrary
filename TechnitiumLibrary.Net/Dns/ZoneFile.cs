@@ -211,7 +211,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             string value = "";
 
-            if (ttl > WEEK)
+            if (ttl >= WEEK)
             {
                 uint weeks = ttl / WEEK;
                 ttl -= weeks * WEEK;
@@ -219,7 +219,7 @@ namespace TechnitiumLibrary.Net.Dns
                 value = weeks + "w";
             }
 
-            if (ttl > DAY)
+            if (ttl >= DAY)
             {
                 uint days = ttl / DAY;
                 ttl -= days * DAY;
@@ -227,7 +227,7 @@ namespace TechnitiumLibrary.Net.Dns
                 value += days + "d";
             }
 
-            if (ttl > HOUR)
+            if (ttl >= HOUR)
             {
                 uint hours = ttl / HOUR;
                 ttl -= hours * HOUR;
@@ -235,7 +235,7 @@ namespace TechnitiumLibrary.Net.Dns
                 value += hours + "h";
             }
 
-            if (ttl > MINUTE)
+            if (ttl >= MINUTE)
             {
                 uint minutes = ttl / MINUTE;
                 ttl -= minutes * MINUTE;
