@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -120,10 +120,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             string primaryNameServer = await zoneFile.PopDomainAsync();
             string responsiblePerson = await zoneFile.PopDomainAsync();
             uint serial = uint.Parse(await zoneFile.PopItemAsync());
-            uint refresh = uint.Parse(await zoneFile.PopItemAsync());
-            uint retry = uint.Parse(await zoneFile.PopItemAsync());
-            uint expire = uint.Parse(await zoneFile.PopItemAsync());
-            uint minimum = uint.Parse(await zoneFile.PopItemAsync());
+            uint refresh = await zoneFile.PopTtlAsync("refresh");
+            uint retry = await zoneFile.PopTtlAsync("retry");
+            uint expire = await zoneFile.PopTtlAsync("expire");
+            uint minimum = await zoneFile.PopTtlAsync("minimum");
 
             return new DnsSOARecordData(primaryNameServer, responsiblePerson, serial, refresh, retry, expire, minimum);
         }
