@@ -653,7 +653,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             jsonWriter.WriteString("Type", _type.ToString());
             jsonWriter.WriteString("Class", _class.ToString());
-            jsonWriter.WriteString("TTL", _ttl + " (" + WebUtilities.GetFormattedTime((int)_ttl) + ")");
+            jsonWriter.WriteString("TTL", _ttl + " (" + ZoneFile.GetTtlString(_ttl) + ")");
             jsonWriter.WriteString("RDLENGTH", _rData.RDLENGTH + " bytes");
 
             jsonWriter.WritePropertyName("RDATA");
