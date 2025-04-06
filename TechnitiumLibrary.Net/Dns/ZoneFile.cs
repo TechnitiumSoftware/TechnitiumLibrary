@@ -134,6 +134,14 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        public static uint ParseTtl(string value)
+        {
+            if (!TryParseTtl(value, out uint ttl))
+                throw new FormatException("Failed to parse TTL from value: " + value);
+
+            return ttl;
+        }
+
         public static bool TryParseTtl(string value, out uint ttl)
         {
             //1w2d1h30m
@@ -245,6 +253,8 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (ttl > 0)
                 value += ttl + "s";
+            else if ((ttl == 0) && (value.Length == 0))
+                value = "0s";
 
             return value;
         }
