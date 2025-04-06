@@ -124,7 +124,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         ANAME = 65280, //private use - draft-ietf-dnsop-aname-04
         FWD = 65281, //private use - conditional forwarder
         APP = 65282, //private use - application
-        CHILD_NS = 65283, //private use - cached child side NS records
+        CHILD_NS = 65283, //private use - cached child side NS records to support https://datatracker.ietf.org/doc/draft-fujiwara-dnsop-resolver-update/
         ALIAS = 65357 //private use - SimpleDNS ALIAS
     }
 
