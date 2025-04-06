@@ -2569,7 +2569,6 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static List<NameServerAddress> GetOrderedNameServersToPreferPerformance(IReadOnlyCollection<NameServerAddress> nameServers, bool prioritizeOnesWithIPAddress, bool preferIPv6)
         {
-            //create copy of root name servers array so that the values in original array are not messed due to shuffling/sorting feature
             List<NameServerAddress> nameServersList = new List<NameServerAddress>(nameServers);
 
             //Using Epsilon-Greedy Algorithm
