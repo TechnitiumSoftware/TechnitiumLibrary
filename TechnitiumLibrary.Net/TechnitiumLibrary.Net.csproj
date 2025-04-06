@@ -18,7 +18,7 @@
     <RepositoryType></RepositoryType>
     <Description></Description>
     <PackageId>TechnitiumLibrary.Net</PackageId>
-    <Version>11.2.1</Version>
+    <Version>12.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
@@ -34,6 +34,10 @@
     <Content Include="root-anchors.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.5.1" />
   </ItemGroup>
 
   <ItemGroup>
