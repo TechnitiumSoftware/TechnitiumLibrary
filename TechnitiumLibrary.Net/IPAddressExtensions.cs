@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -111,12 +111,12 @@ namespace TechnitiumLibrary.Net
             return new IPAddress(addr);
         }
 
-        public static int GetSubnetMaskWidth(this IPAddress address)
+        public static int GetSubnetMaskWidth(this IPAddress subnetMask)
         {
-            if (address.AddressFamily != AddressFamily.InterNetwork)
+            if (subnetMask.AddressFamily != AddressFamily.InterNetwork)
                 throw new ArgumentException("Address Family not supported.");
 
-            uint subnetMaskNumber = address.ConvertIpToNumber();
+            uint subnetMaskNumber = subnetMask.ConvertIpToNumber();
             int subnetMaskWidth = 0;
 
             while (subnetMaskNumber > 0u)
@@ -415,7 +415,7 @@ namespace TechnitiumLibrary.Net
                             throw new InvalidOperationException();
 
                         for (int i = ipBytes.Length - 1; i >= 0; i--)
-                            name.Append((ipBytes[i] & 0x0F).ToString("X")).Append('.').Append((ipBytes[i] >> 4).ToString("X")).Append('.');
+                            name.Append((ipBytes[i] & 0x0F).ToString("x")).Append('.').Append((ipBytes[i] >> 4).ToString("x")).Append('.');
 
                         name.Append("ip6.arpa");
                     }
