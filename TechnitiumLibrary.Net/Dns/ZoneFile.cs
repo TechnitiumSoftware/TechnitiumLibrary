@@ -457,7 +457,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             List<DnsResourceRecord> records = new List<DnsResourceRecord>();
 
-            string lastDomain = null;
+            string lastDomain = _originDomain;
             uint lastTtl = 0;
             DnsClass lastClass = DnsClass.Unknown;
 
