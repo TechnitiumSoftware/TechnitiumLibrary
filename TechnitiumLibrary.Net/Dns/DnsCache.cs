@@ -1825,7 +1825,7 @@ namespace TechnitiumLibrary.Net.Dns
             #endregion
         }
 
-        public class DnsResourceRecordInfo
+        protected class DnsResourceRecordInfo
         {
             #region variables
 
