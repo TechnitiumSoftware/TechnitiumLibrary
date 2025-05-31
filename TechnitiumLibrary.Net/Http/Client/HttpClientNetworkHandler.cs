@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns;
@@ -170,7 +171,7 @@ namespace TechnitiumLibrary.Net.Http.Client
                     }
                     else
                     {
-                        IReadOnlyList<IPAddress> addresses = null;
+                        IReadOnlyList<IPAddress> addresses;
 
                         try
                         {
@@ -190,28 +191,23 @@ namespace TechnitiumLibrary.Net.Http.Client
 
                                     break;
 
-                                case HttpClientNetworkType.PreferIPv6:
-                                    addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
-                                    if (addresses.Count < 1)
-                                    {
-                                        addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
-                                        if (addresses.Count < 1)
-                                            throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host);
-                                    }
-
-                                    break;
-
                                 default:
-                                    if (IsPublicIPv6Available())
-                                        addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
-
-                                    if ((addresses is null) || (addresses.Count < 1))
                                     {
-                                        addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
-                                        if (addresses.Count < 1)
-                                            throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host);
-                                    }
+                                        Task<DnsDatagram> ipv6Task = (_networkType == HttpClientNetworkType.PreferIPv6) || IsPublicIPv6Available() ? _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken) : null;
+                                        Task<DnsDatagram> ipv4Task = _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken);
 
+                                        List<IPAddress> allAddresses = new List<IPAddress>();
+
+                                        if (ipv6Task is not null)
+                                            allAddresses.AddRange(Dns.DnsClient.ParseResponseAAAA(await ipv6Task));
+
+                                        allAddresses.AddRange(Dns.DnsClient.ParseResponseA(await ipv4Task));
+
+                                        if (allAddresses.Count < 1)
+                                            throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host);
+
+                                        addresses = allAddresses;
+                                    }
                                     break;
                             }
                         }
@@ -220,26 +216,50 @@ namespace TechnitiumLibrary.Net.Http.Client
                             throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host, ex);
                         }
 
-                        switch (addresses[0].AddressFamily)
+                        response = null;
+                        Exception lastException = null;
+
+                        foreach (IPAddress address in addresses)
                         {
-                            case AddressFamily.InterNetwork:
-                                request.RequestUri = new Uri(request.RequestUri.Scheme + "://" + addresses[0].ToString() + ":" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
-                                break;
+                            switch (address.AddressFamily)
+                            {
+                                case AddressFamily.InterNetwork:
+                                    request.RequestUri = new Uri(request.RequestUri.Scheme + "://" + address.ToString() + ":" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
+                                    break;
 
-                            case AddressFamily.InterNetworkV6:
-                                request.RequestUri = new Uri(request.RequestUri.Scheme + "://[" + addresses[0].ToString() + "]:" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
-                                break;
+                                case AddressFamily.InterNetworkV6:
+                                    request.RequestUri = new Uri(request.RequestUri.Scheme + "://[" + address.ToString() + "]:" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
+                                    break;
 
-                            default:
-                                throw new NotSupportedException("AddressFamily was not supported.");
+                                default:
+                                    continue;
+                            }
+
+                            if (request.RequestUri.IsDefaultPort)
+                                request.Headers.Host = host;
+                            else
+                                request.Headers.Host = host + ":" + request.RequestUri.Port;
+
+                            try
+                            {
+                                response = await InternalSendAsync(request, cancellationToken);
+                                lastException = null;
+                                break;
+                            }
+                            catch (HttpRequestException ex)
+                            {
+                                if (ex.InnerException is SocketException)
+                                {
+                                    lastException = ex;
+                                    continue; //try next IP address
+                                }
+
+                                throw;
+                            }
                         }
 
-                        if (request.RequestUri.IsDefaultPort)
-                            request.Headers.Host = host;
-                        else
-                            request.Headers.Host = host + ":" + request.RequestUri.Port;
-
-                        response = await InternalSendAsync(request, cancellationToken);
+                        if (lastException is not null)
+                            ExceptionDispatchInfo.Throw(lastException);
                     }
                 }
 
