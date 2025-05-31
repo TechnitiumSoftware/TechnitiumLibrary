@@ -4519,7 +4519,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             //unexpected truncated response for the transport protocol
                                             server.Metadata.UpdateFailure(_timeout * _retries);
-                                            lastException = new DnsClientResponseValidationException("Invalid response was received: truncated response over " + server.Protocol.ToString().ToUpper() + " transport.");
+                                            lastException = new DnsClientResponseValidationException("Invalid response was received: truncated response over " + server.Protocol.ToString().ToUpperInvariant() + " transport.");
                                         }
                                     }
                                     else
@@ -5303,7 +5303,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public async Task ValidateDaneAsync(SslStream sslStream, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors, CancellationToken cancellationToken = default)
+        public async Task ValidateDaneAsync(SslStream sslStream, X509Certificate2 certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors, CancellationToken cancellationToken = default)
         {
             if (sslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateNotAvailable))
                 throw new AuthenticationException("The remote certificate is invalid according to the validation procedure: " + sslPolicyErrors.ToString());
