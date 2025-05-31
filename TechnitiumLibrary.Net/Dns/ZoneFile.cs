@@ -336,7 +336,17 @@ namespace TechnitiumLibrary.Net.Dns
                     if (newEntry)
                     {
                         if (_line.StartsWith(' ') || _line.StartsWith('\t'))
+                        {
+                            _line = _line.TrimStart(_trimSeperator);
+                            if (_line.Length == 0)
+                            {
+                                //skip empty line
+                                _line = null;
+                                continue;
+                            }
+
                             return "";
+                        }
                     }
                 }
 
@@ -489,16 +499,47 @@ namespace TechnitiumLibrary.Net.Dns
                 if (item == "$INCLUDE")
                     throw new NotSupportedException("The zone file parser does not support $INCLUDE control entry on line # " + _lineNo + ".");
 
-                string domain = null;
+                string domain = item;
+
+                if (domain.Length == 0)
+                {
+                    domain = lastDomain;
+                }
+                else if (domain == "@")
+                {
+                    if (_originDomain is null)
+                        throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
+
+                    domain = _originDomain;
+                }
+                else if (domain.EndsWith('.'))
+                {
+                    domain = domain.Substring(0, domain.Length - 1);
+                }
+                else
+                {
+                    if (_originDomain is null)
+                        throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
+
+                    domain += "." + _originDomain;
+                }
+
+                if (!DnsClient.IsDomainNameValid(domain))
+                    throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
+
+                //parse RR
                 uint ttl = 0;
                 DnsClass @class = DnsClass.Unknown;
                 DnsResourceRecordType type;
-                bool domainRead = false;
                 bool ttlRead = false;
                 bool classRead = false;
 
                 do
                 {
+                    item = await PopItemAsync();
+                    if (item is null)
+                        throw new FormatException("The zone file parser failed to parse 'rr' field on line # " + _lineNo + ".");
+
                     if (!ttlRead && TryParseTtl(item, out ttl))
                     {
                         ttlRead = true;
@@ -521,56 +562,12 @@ namespace TechnitiumLibrary.Net.Dns
                         type = (DnsResourceRecordType)valType;
                         break;
                     }
-                    else if (!domainRead)
-                    {
-                        domain = item;
-                        if (domain.Length == 0)
-                        {
-                            domain = lastDomain;
-                        }
-                        else if (domain == "@")
-                        {
-                            if (_originDomain is null)
-                                throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
-
-                            domain = _originDomain;
-                        }
-                        else if (domain.EndsWith('.'))
-                        {
-                            domain = domain.Substring(0, domain.Length - 1);
-                        }
-                        else
-                        {
-                            if (_originDomain is null)
-                                throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
-
-                            domain += "." + _originDomain;
-                        }
-
-                        if (!DnsClient.IsDomainNameValid(domain))
-                            throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
-
-                        domainRead = true;
-                    }
                     else
                     {
                         throw new FormatException("The zone file parser failed to parse 'rr' field on line # " + _lineNo + ".");
                     }
-
-                    item = await PopItemAsync();
-                    if (item is null)
-                        throw new FormatException("The zone file parser failed to parse 'rr' field on line # " + _lineNo + ".");
                 }
                 while (true);
-
-                if (!domainRead)
-                {
-                    //use last domain
-                    if (lastDomain is null)
-                        throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
-
-                    domain = lastDomain;
-                }
 
                 if (!ttlRead)
                 {
