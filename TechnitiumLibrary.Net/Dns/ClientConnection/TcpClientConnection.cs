@@ -387,8 +387,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             #region variables
 
-            readonly bool _isZoneTransferRequest;
-            readonly bool _isIXFR;
+            readonly DnsDatagram _request;
 
             readonly Stopwatch _stopwatch = new Stopwatch();
             readonly TaskCompletionSource<DnsDatagram> _responseTask = new TaskCompletionSource<DnsDatagram>();
@@ -402,9 +401,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             public Transaction(DnsDatagram request)
             {
-                _isZoneTransferRequest = request.IsZoneTransfer;
-                if (_isZoneTransferRequest)
-                    _isIXFR = request.Question[0].Type == DnsResourceRecordType.IXFR;
+                _request = request;
 
                 _stopwatch.Start();
             }
@@ -440,7 +437,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             public void SetResponse(DnsDatagram response, NameServerAddress server)
             {
-                if (_isZoneTransferRequest)
+                if (_request.IsZoneTransfer)
                 {
                     bool isFirstResponse = false;
                     if (_firstResponse is null)
@@ -455,13 +452,34 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     _lastResponse = response;
 
-                    if (
-                        (_lastResponse.Answer.Count == 0) || //empty response
-                        (_isIXFR && (_lastResponse.Answer.Count == 1) && (_lastResponse.Answer[0].Type == DnsResourceRecordType.SOA)) || //IXFR not modified response
-                        ((_lastResponse.Answer[_lastResponse.Answer.Count - 1].Type == DnsResourceRecordType.SOA) && ((_lastResponse.Answer.Count > 1) || !isFirstResponse))
-                       )
+                    bool isLastResponse;
+
+                    if (_lastResponse.Answer.Count == 0)
+                    {
+                        //empty response
+                        isLastResponse = true;
+                    }
+                    else if (
+                                (_request.Question[0].Type == DnsResourceRecordType.IXFR) && (_lastResponse.Answer.Count == 1) && (_lastResponse.Answer[0].RDATA is DnsSOARecordData serverSoa) &&
+                                (_request.Authority.Count > 0) && (_request.Authority[0].RDATA is DnsSOARecordData clientSoa) &&
+                                (!clientSoa.IsZoneUpdateAvailable(serverSoa))
+                            )
+                    {
+                        //IXFR not modified response
+                        isLastResponse = true;
+                    }
+                    else if ((_lastResponse.Answer[_lastResponse.Answer.Count - 1].Type == DnsResourceRecordType.SOA) && ((_lastResponse.Answer.Count > 1) || !isFirstResponse))
                     {
                         //found last response
+                        isLastResponse = true;
+                    }
+                    else
+                    {
+                        isLastResponse = false;
+                    }
+
+                    if (isLastResponse)
+                    {
                         _stopwatch.Stop();
 
                         _firstResponse.SetMetadata(server, _stopwatch.Elapsed.TotalMilliseconds);
