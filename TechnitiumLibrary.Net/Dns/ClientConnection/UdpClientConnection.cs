@@ -21,6 +21,7 @@ using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.ExceptionServices;
@@ -36,7 +37,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region variables
 
         const int SOCKET_POOL_SIZE = 2500;
-        static int[] _socketPoolExcludedPorts;
+        static ushort[] _socketPoolExcludedPorts;
         static PooledSocket[] _ipv4PooledSockets;
         static PooledSocket[] _ipv6PooledSockets;
         static readonly object _poolLock = new object();
@@ -187,10 +188,59 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             return new PooledSocket(serverEP.AddressFamily);
         }
 
-        public static int[] SocketPoolExcludedPorts
+        public static ushort[] SocketPoolExcludedPorts
         {
             get { return _socketPoolExcludedPorts; }
-            set { _socketPoolExcludedPorts = value; }
+            set
+            {
+                if ((value is null) || (value.Length == 0))
+                {
+                    _socketPoolExcludedPorts = null;
+                }
+                else
+                {
+                    bool updateSocketPool = !value.HasSameItems(_socketPoolExcludedPorts);
+                    _socketPoolExcludedPorts = value;
+
+                    if (updateSocketPool)
+                    {
+                        //update socket pool async in background
+                        ThreadPool.QueueUserWorkItem(delegate (object state)
+                        {
+                            lock (_poolLock)
+                            {
+                                if (_ipv4PooledSockets is not null)
+                                {
+                                    for (int i = 0; i < SOCKET_POOL_SIZE; i++)
+                                    {
+                                        PooledSocket pooledSocket = _ipv4PooledSockets[i];
+
+                                        if (_socketPoolExcludedPorts.Contains((ushort)pooledSocket.Socket.LocalEndPoint.GetPort()))
+                                        {
+                                            _ipv4PooledSockets[i] = new PooledSocket(AddressFamily.InterNetwork, i);
+                                            pooledSocket.DisposePooled();
+                                        }
+                                    }
+                                }
+
+                                if (_ipv6PooledSockets is not null)
+                                {
+                                    for (int i = 0; i < SOCKET_POOL_SIZE; i++)
+                                    {
+                                        PooledSocket pooledSocket = _ipv6PooledSockets[i];
+
+                                        if (_socketPoolExcludedPorts.Contains((ushort)pooledSocket.Socket.LocalEndPoint.GetPort()))
+                                        {
+                                            _ipv6PooledSockets[i] = new PooledSocket(AddressFamily.InterNetworkV6, i);
+                                            pooledSocket.DisposePooled();
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            }
         }
 
         #endregion
@@ -475,18 +525,20 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             private static int GetRandomPort()
             {
-                int port = RandomNumberGenerator.GetInt32(1000, ushort.MaxValue);
+                ushort port;
+                int tries = 0;
 
-                if (_socketPoolExcludedPorts is not null)
+                do
                 {
-                    foreach (int excludedPort in _socketPoolExcludedPorts)
-                    {
-                        if (port == excludedPort)
-                            return 0;
-                    }
-                }
+                    port = (ushort)RandomNumberGenerator.GetInt32(1000, ushort.MaxValue);
 
-                return port;
+                    if ((_socketPoolExcludedPorts is null) || !_socketPoolExcludedPorts.Contains(port))
+                        return port;
+
+                }
+                while (tries++ < 10);
+
+                return 0;
             }
 
             #endregion
