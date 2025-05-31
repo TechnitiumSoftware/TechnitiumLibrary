@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -42,7 +42,10 @@ namespace TechnitiumLibrary.Net.Http.Client
 
             innerHandler.SslOptions.RemoteCertificateValidationCallback += delegate (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
             {
-                _dnsClient.ValidateDaneAsync(sender as SslStream, certificate, chain, sslPolicyErrors).Sync();
+                if (certificate is not X509Certificate2 certificate2)
+                    certificate2 = new X509Certificate2(certificate);
+
+                _dnsClient.ValidateDaneAsync(sender as SslStream, certificate2, chain, sslPolicyErrors).Sync();
                 return true;
             };
         }
