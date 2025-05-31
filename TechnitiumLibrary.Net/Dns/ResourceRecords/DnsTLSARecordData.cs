@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -153,7 +153,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region static
 
-        public static byte[] GetCertificateAssociatedData(DnsTLSASelector selector, DnsTLSAMatchingType matchingType, X509Certificate certificate)
+        public static byte[] GetCertificateAssociatedData(DnsTLSASelector selector, DnsTLSAMatchingType matchingType, X509Certificate2 certificate)
         {
             byte[] certificateData;
 
@@ -164,7 +164,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     break;
 
                 case DnsTLSASelector.SPKI:
-                    certificateData = (certificate as X509Certificate2).PublicKey.ExportSubjectPublicKeyInfo();
+                    certificateData = certificate.PublicKey.ExportSubjectPublicKeyInfo();
                     break;
 
                 default:
