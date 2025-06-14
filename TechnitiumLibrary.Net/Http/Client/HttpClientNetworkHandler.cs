@@ -155,45 +155,6 @@ namespace TechnitiumLibrary.Net.Http.Client
                 return new DnsResolutionResult([ip], null, null);
             }
 
-            async Task<(string, IReadOnlyList<DnsTLSARecordData>)> ResolveTlsaRecordsAsync(DnsDatagram response)
-            {
-                string baseDomain = host;
-
-                foreach (DnsResourceRecord record in response.Answer)
-                {
-                    if ((record.Type == DnsResourceRecordType.CNAME) && record.Name.Equals(baseDomain, StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (record.DnssecStatus != DnssecStatus.Secure)
-                        {
-                            baseDomain = host; //rfc7671#section-7
-                            break;
-                        }
-
-                        baseDomain = (record.RDATA as DnsCNAMERecordData).Domain;
-                    }
-                }
-
-                Task<DnsDatagram> tlsaTask1 = _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + baseDomain, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
-                Task<DnsDatagram> tlsaTask2 = host.Equals(baseDomain, StringComparison.OrdinalIgnoreCase) ? null : _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + host, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
-
-                IReadOnlyList<DnsTLSARecordData> tlsaRecords1 = Dns.DnsClient.ParseResponseTLSA(await tlsaTask1);
-                IReadOnlyList<DnsTLSARecordData> tlsaRecords2 = tlsaTask2 is null ? null : Dns.DnsClient.ParseResponseTLSA(await tlsaTask2);
-
-                bool tlsaAvailable1 = (tlsaRecords1 is not null) && (tlsaRecords1.Count > 0);
-                bool tlsaAvailable2 = (tlsaRecords2 is not null) && (tlsaRecords2.Count > 0);
-
-                if (tlsaAvailable1 && tlsaAvailable2)
-                    return (baseDomain, [.. tlsaRecords1, .. tlsaRecords2]);
-
-                if (tlsaAvailable1)
-                    return (baseDomain, tlsaRecords1);
-
-                if (tlsaAvailable2)
-                    return (host, tlsaRecords2);
-
-                return (null, null);
-            }
-
             if (_dnsClient is null)
             {
                 DnsClient dnsClient = new DnsClient((_networkType == HttpClientNetworkType.IPv6Only) || (_networkType == HttpClientNetworkType.PreferIPv6));
@@ -265,7 +226,46 @@ namespace TechnitiumLibrary.Net.Http.Client
             {
                 try
                 {
-                    (tlsaBaseDomain, tlsaRecords) = await ResolveTlsaRecordsAsync(response);
+                    string baseDomain = host;
+
+                    foreach (DnsResourceRecord record in response.Answer)
+                    {
+                        if ((record.Type == DnsResourceRecordType.CNAME) && record.Name.Equals(baseDomain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (record.DnssecStatus != DnssecStatus.Secure)
+                            {
+                                baseDomain = host; //rfc7671#section-7
+                                break;
+                            }
+
+                            baseDomain = (record.RDATA as DnsCNAMERecordData).Domain;
+                        }
+                    }
+
+                    Task<DnsDatagram> tlsaTask1 = _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + baseDomain, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
+                    Task<DnsDatagram> tlsaTask2 = host.Equals(baseDomain, StringComparison.OrdinalIgnoreCase) ? null : _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + host, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
+
+                    IReadOnlyList<DnsTLSARecordData> tlsaRecords1 = Dns.DnsClient.ParseResponseTLSA(await tlsaTask1);
+                    IReadOnlyList<DnsTLSARecordData> tlsaRecords2 = tlsaTask2 is null ? null : Dns.DnsClient.ParseResponseTLSA(await tlsaTask2);
+
+                    bool tlsaAvailable1 = (tlsaRecords1 is not null) && (tlsaRecords1.Count > 0);
+                    bool tlsaAvailable2 = (tlsaRecords2 is not null) && (tlsaRecords2.Count > 0);
+
+                    if (tlsaAvailable1 && tlsaAvailable2)
+                    {
+                        tlsaBaseDomain = baseDomain;
+                        tlsaRecords = [.. tlsaRecords1, .. tlsaRecords2];
+                    }
+                    else if (tlsaAvailable1)
+                    {
+                        tlsaBaseDomain = baseDomain;
+                        tlsaRecords = tlsaRecords1;
+                    }
+                    else if (tlsaAvailable2)
+                    {
+                        tlsaBaseDomain = host;
+                        tlsaRecords = tlsaRecords2;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -280,15 +280,6 @@ namespace TechnitiumLibrary.Net.Http.Client
         {
             if (sslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateNotAvailable))
                 throw new AuthenticationException("The remote certificate is invalid according to the validation procedure: " + sslPolicyErrors.ToString());
-
-            if ((tlsaRecords is null) || (tlsaRecords.Count == 0))
-            {
-                //no TLSA records available; process as usual
-                if (sslPolicyErrors == SslPolicyErrors.None)
-                    return;
-
-                throw new AuthenticationException("The remote certificate is invalid according to the validation procedure: " + sslPolicyErrors.ToString());
-            }
 
             foreach (DnsTLSARecordData tlsa in tlsaRecords)
             {
