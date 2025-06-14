@@ -27,6 +27,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Http.Client;
+using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net
 {
@@ -347,15 +348,14 @@ namespace TechnitiumLibrary.Net
             return new ContentType(mimeType);
         }
 
-        public static async Task<bool> IsWebAccessibleAsync(Uri[] uriCheckList = null, IWebProxy proxy = null, HttpClientNetworkType networkType = HttpClientNetworkType.Default, int timeout = 10000, bool throwException = false)
+        public static async Task<bool> IsWebAccessibleAsync(Uri[] uriCheckList = null, NetProxy proxy = null, HttpClientNetworkType networkType = HttpClientNetworkType.Default, int timeout = 10000, bool throwException = false)
         {
             if (uriCheckList == null)
-                uriCheckList = new Uri[] { new Uri("https://www.google.com/"), new Uri("https://www.microsoft.com/") };
+                uriCheckList = [new Uri("https://www.google.com/"), new Uri("https://www.microsoft.com/")];
 
-            SocketsHttpHandler handler = new SocketsHttpHandler();
-            handler.Proxy = proxy;
-
-            HttpClientNetworkHandler networkHandler = new HttpClientNetworkHandler(handler, networkType);
+            HttpClientNetworkHandler networkHandler = new HttpClientNetworkHandler();
+            networkHandler.Proxy = proxy;
+            networkHandler.NetworkType = networkType;
 
             using (HttpClient http = new HttpClient(networkHandler))
             {
