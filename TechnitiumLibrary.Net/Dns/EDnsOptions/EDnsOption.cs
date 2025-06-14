@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,8 +25,9 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 {
     public enum EDnsOptionCode : ushort
     {
+        RESERVED = 0,
         LLQ = 1,
-        UL = 2,
+        UPDATE_LEASE = 2,
         NSID = 3,
         DAU = 5,
         DHU = 6,
@@ -41,6 +42,8 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         EXTENDED_DNS_ERROR = 15,
         EDNS_CLIENT_TAG = 16,
         EDNS_SERVER_TAG = 17,
+        REPORT_CHANNEL = 18,
+        ZONEVERSION = 19,
         UMBRELLA_IDENT = 20292,
         DEVICE_ID = 26946
     }
