@@ -23,13 +23,10 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
-using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
-using System.Security.Authentication;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -62,8 +59,6 @@ namespace TechnitiumLibrary.Net.Dns
         static IReadOnlyList<DnsResourceRecord> ROOT_TRUST_ANCHORS;
 
         readonly static IdnMapping _idnMapping = new IdnMapping() { AllowUnassigned = true };
-
-        readonly static PropertyInfo _sslStream_innerStream = typeof(SslStream).GetProperty("InnerStream", BindingFlags.Instance | BindingFlags.NonPublic);
 
         const int MAX_DELEGATION_HOPS = 16; //max NS referrals to follow
         internal const int MAX_CNAME_HOPS = 16; //max CNAMEs to follow
@@ -5301,179 +5296,6 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 _trustAnchors.Add(domain, new DnsResourceRecord[] { dsRecord });
             }
-        }
-
-        public async Task ValidateDaneAsync(SslStream sslStream, X509Certificate2 certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors, CancellationToken cancellationToken = default)
-        {
-            if (sslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateNotAvailable))
-                throw new AuthenticationException("The remote certificate is invalid according to the validation procedure: " + sslPolicyErrors.ToString());
-
-            NetworkStream networkStream = _sslStream_innerStream.GetValue(sslStream) as NetworkStream;
-            IReadOnlyList<DnsTLSARecordData> tlsaRecords = ParseResponseTLSA(await ResolveAsync("_" + networkStream.Socket.RemoteEndPoint.GetPort() + "._tcp." + sslStream.TargetHostName, DnsResourceRecordType.TLSA, cancellationToken));
-
-            if ((tlsaRecords is null) || (tlsaRecords.Count == 0))
-            {
-                //no TLSA records available; process as usual
-                if (sslPolicyErrors == SslPolicyErrors.None)
-                    return;
-
-                throw new AuthenticationException("The remote certificate is invalid according to the validation procedure: " + sslPolicyErrors.ToString());
-            }
-
-            foreach (DnsTLSARecordData tlsa in tlsaRecords)
-            {
-                switch (tlsa.CertificateUsage)
-                {
-                    case DnsTLSACertificateUsage.PKIX_TA:
-                        {
-                            if (sslPolicyErrors == SslPolicyErrors.None)
-                            {
-                                //PKIX is validating; validate TLSA
-                                for (int i = 1; i < chain.ChainElements.Count; i++)
-                                {
-                                    X509ChainElement chainElement = chain.ChainElements[i];
-                                    byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, chainElement.Certificate);
-
-                                    if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData))
-                                        return; //TLSA is validating
-                                }
-                            }
-                        }
-                        break;
-
-                    case DnsTLSACertificateUsage.PKIX_EE:
-                        {
-                            if (sslPolicyErrors == SslPolicyErrors.None)
-                            {
-                                //PKIX is validating; validate TLSA
-                                byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, certificate);
-
-                                if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData))
-                                    return; //TLSA is validating
-                            }
-                        }
-                        break;
-
-                    case DnsTLSACertificateUsage.DANE_TA:
-                        {
-                            bool pkixFailed = false;
-
-                            for (int i = 0; i < chain.ChainElements.Count; i++)
-                            {
-                                X509ChainElement chainElement = chain.ChainElements[i];
-
-                                if (i == 0)
-                                {
-                                    //validate PKIX
-                                    if (sslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateNameMismatch) || (chainElement.ChainElementStatus.Length > 0))
-                                    {
-                                        //cert has validation issues
-                                        pkixFailed = true;
-                                        break;
-                                    }
-
-                                    //first i.e. end entity certificate only requires cert validation
-                                    continue;
-                                }
-
-                                //validate TLSA
-                                byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, chainElement.Certificate);
-                                bool tlsaVerified = BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData);
-
-                                //validate PKIX
-                                foreach (X509ChainStatus chainStatus in chainElement.ChainElementStatus)
-                                {
-                                    switch (chainStatus.Status)
-                                    {
-                                        case X509ChainStatusFlags.PartialChain:
-                                        case X509ChainStatusFlags.UntrustedRoot:
-                                            if (tlsaVerified)
-                                                continue; //ignored issues since cert is TA
-
-                                            //cert has validation issues
-                                            break;
-                                    }
-
-                                    //cert has validation issues
-                                    pkixFailed = true;
-                                    break;
-                                }
-
-                                if (pkixFailed)
-                                    break; //cert has validation issues; DANE-TA failed to validate
-
-                                if (tlsaVerified)
-                                    return; //TLSA is validating; DANE-TA was validated successfully
-                            }
-
-                            if (!pkixFailed && (tlsa.MatchingType == DnsTLSAMatchingType.Full))
-                            {
-                                switch (tlsa.Selector)
-                                {
-                                    case DnsTLSASelector.Cert:
-                                        {
-                                            //validate TA cert from TLSA record
-                                            X509Certificate2 taCert = new X509Certificate2(tlsa.CertificateAssociationData);
-                                            X509Certificate2 lastCert = chain.ChainElements[chain.ChainElements.Count - 1].Certificate;
-
-                                            using (X509Chain taChain = new X509Chain())
-                                            {
-                                                taChain.ChainPolicy.CustomTrustStore.Add(taCert);
-
-                                                if (taChain.Build(lastCert))
-                                                    return; //TA cert chain is validating
-                                            }
-                                        }
-                                        break;
-
-                                    case DnsTLSASelector.SPKI:
-                                        //validation using only public key is not supported
-                                        break;
-                                }
-                            }
-                        }
-                        break;
-
-                    case DnsTLSACertificateUsage.DANE_EE:
-                        {
-                            //validate PKIX
-                            bool pkixFailed = false;
-
-                            foreach (X509ChainStatus chainStatus in chain.ChainElements[0].ChainElementStatus)
-                            {
-                                switch (chainStatus.Status)
-                                {
-                                    case X509ChainStatusFlags.PartialChain:
-                                    case X509ChainStatusFlags.UntrustedRoot:
-                                    case X509ChainStatusFlags.HasExcludedNameConstraint:
-                                    case X509ChainStatusFlags.HasNotDefinedNameConstraint:
-                                    case X509ChainStatusFlags.HasNotPermittedNameConstraint:
-                                    case X509ChainStatusFlags.HasNotSupportedNameConstraint:
-                                    case X509ChainStatusFlags.InvalidNameConstraints:
-                                    case X509ChainStatusFlags.NotTimeValid:
-                                        //ignored issues
-                                        continue;
-                                }
-
-                                //cert has validation issues
-                                pkixFailed = true;
-                                break;
-                            }
-
-                            if (pkixFailed)
-                                break; //cert has validation issues
-
-                            //PKIX is validating; validate TLSA
-                            byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, certificate);
-
-                            if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData))
-                                return; //TLSA is validating
-                        }
-                        break;
-                }
-            }
-
-            throw new AuthenticationException("The SSL connection could not be established since the TLS certificate failed DANE validation: no matching TLSA record was found, or the certificate had one or more issues.");
         }
 
         #endregion
