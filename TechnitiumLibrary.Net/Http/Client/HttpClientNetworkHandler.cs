@@ -19,14 +19,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Net.Security;
 using System.Net.Sockets;
-using System.Runtime.ExceptionServices;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
+using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Http.Client
 {
@@ -38,6 +42,9 @@ namespace TechnitiumLibrary.Net.Http.Client
         PreferIPv6 = 3
     }
 
+    //The DNS-Based Authentication of Named Entities (DANE) Protocol: Updates and Operational Guidance (RFC 7671)
+    //https://datatracker.ietf.org/doc/rfc7671/
+
     public class HttpClientNetworkHandler : DelegatingHandler
     {
         #region variables
@@ -47,33 +54,393 @@ namespace TechnitiumLibrary.Net.Http.Client
         const int PUBLIC_IPv6_CHECK_FREQUENCY = 300000;
 
         readonly SocketsHttpHandler _innerHandler;
+
         HttpClientNetworkType _networkType = HttpClientNetworkType.Default;
         IDnsClient _dnsClient;
-        int _retries = 3;
-        bool _allowAutoRedirect;
-        int _maxAutomaticRedirections;
+        NetProxy _proxy;
+        bool _enableDANE;
 
         #endregion
 
         #region constructor
 
-        public HttpClientNetworkHandler(SocketsHttpHandler innerHandler, HttpClientNetworkType networkType = HttpClientNetworkType.Default, IDnsClient dnsClient = null)
-            : base(innerHandler)
+        public HttpClientNetworkHandler()
+            : base(new SocketsHttpHandler())
         {
-            _innerHandler = innerHandler;
-            _dnsClient = dnsClient ?? new DnsClient((_networkType == HttpClientNetworkType.IPv6Only) || (_networkType == HttpClientNetworkType.PreferIPv6));
-            _networkType = networkType;
+            _innerHandler = base.InnerHandler as SocketsHttpHandler;
 
-            _allowAutoRedirect = _innerHandler.AllowAutoRedirect;
-            _maxAutomaticRedirections = _innerHandler.MaxAutomaticRedirections;
+            _innerHandler.EnableMultipleHttp2Connections = true;
+            _innerHandler.AutomaticDecompression = DecompressionMethods.All;
 
-            if (_innerHandler.AllowAutoRedirect)
-                _innerHandler.AllowAutoRedirect = false;
+            _innerHandler.ConnectCallback = ConnectCallback;
         }
 
         #endregion
 
         #region private
+
+        private async ValueTask<Stream> ConnectCallback(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+        {
+            if (_innerHandler.UseProxy && (_innerHandler.Proxy is not null))
+                throw new NotSupportedException("Proxy is not supported at SocketsHttpHandler level.");
+
+            DnsResolutionResult dnsResult = await ResolveAddressesAsync(context.DnsEndPoint.Host, context.DnsEndPoint.Port, cancellationToken);
+            Socket socket;
+
+            if (_proxy is null)
+            {
+                socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+                socket.NoDelay = true;
+
+                await socket.ConnectAsync(dnsResult.Addresses, context.DnsEndPoint.Port);
+            }
+            else
+            {
+                socket = await _proxy.ConnectAsync(dnsResult.Addresses, context.DnsEndPoint.Port, cancellationToken);
+            }
+
+            Stream stream = new NetworkStream(socket, true);
+
+            if (!context.InitialRequestMessage.RequestUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+                return stream;
+
+            SslClientAuthenticationOptions sslOptions = new SslClientAuthenticationOptions();
+
+            if (context.InitialRequestMessage.Version == HttpVersion.Version20)
+                sslOptions.ApplicationProtocols = [SslApplicationProtocol.Http2];
+
+            if (_enableDANE && (dnsResult.TlsaRecords is not null) && (dnsResult.TlsaRecords.Count > 0))
+            {
+                sslOptions.TargetHost = dnsResult.TlsaBaseDomain;
+                sslOptions.RemoteCertificateValidationCallback += delegate (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+                {
+                    if (certificate is not X509Certificate2 certificate2)
+                        certificate2 = new X509Certificate2(certificate);
+
+                    ValidateDane(certificate2, chain, sslPolicyErrors, dnsResult.TlsaRecords);
+                    return true;
+                };
+            }
+            else
+            {
+                sslOptions.TargetHost = context.DnsEndPoint.Host;
+            }
+
+            SslStream sslStream = new SslStream(stream);
+
+            await sslStream.AuthenticateAsClientAsync(sslOptions, cancellationToken);
+
+            return sslStream;
+        }
+
+        private async ValueTask<DnsResolutionResult> ResolveAddressesAsync(string host, int port, CancellationToken cancellationToken)
+        {
+            if (IPAddress.TryParse(host, out IPAddress ip))
+            {
+                switch (_networkType)
+                {
+                    case HttpClientNetworkType.IPv4Only:
+                        if (ip.AddressFamily != AddressFamily.InterNetwork)
+                            throw new HttpRequestException("HttpClientNetworkHandler current network type allows only IPv4 access.");
+
+                        break;
+
+                    case HttpClientNetworkType.IPv6Only:
+                        if (ip.AddressFamily != AddressFamily.InterNetworkV6)
+                            throw new HttpRequestException("HttpClientNetworkHandler current network type allows only IPv6 access.");
+
+                        break;
+                }
+
+                return new DnsResolutionResult([ip], null, null);
+            }
+
+            async Task<(string, IReadOnlyList<DnsTLSARecordData>)> ResolveTlsaRecordsAsync(DnsDatagram response)
+            {
+                string baseDomain = host;
+
+                foreach (DnsResourceRecord record in response.Answer)
+                {
+                    if ((record.Type == DnsResourceRecordType.CNAME) && record.Name.Equals(baseDomain, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (record.DnssecStatus != DnssecStatus.Secure)
+                        {
+                            baseDomain = host; //rfc7671#section-7
+                            break;
+                        }
+
+                        baseDomain = (record.RDATA as DnsCNAMERecordData).Domain;
+                    }
+                }
+
+                Task<DnsDatagram> tlsaTask1 = _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + baseDomain, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
+                Task<DnsDatagram> tlsaTask2 = host.Equals(baseDomain, StringComparison.OrdinalIgnoreCase) ? null : _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + host, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
+
+                IReadOnlyList<DnsTLSARecordData> tlsaRecords1 = Dns.DnsClient.ParseResponseTLSA(await tlsaTask1);
+                IReadOnlyList<DnsTLSARecordData> tlsaRecords2 = tlsaTask2 is null ? null : Dns.DnsClient.ParseResponseTLSA(await tlsaTask2);
+
+                bool tlsaAvailable1 = (tlsaRecords1 is not null) && (tlsaRecords1.Count > 0);
+                bool tlsaAvailable2 = (tlsaRecords2 is not null) && (tlsaRecords2.Count > 0);
+
+                if (tlsaAvailable1 && tlsaAvailable2)
+                    return (baseDomain, [.. tlsaRecords1, .. tlsaRecords2]);
+
+                if (tlsaAvailable1)
+                    return (baseDomain, tlsaRecords1);
+
+                if (tlsaAvailable2)
+                    return (host, tlsaRecords2);
+
+                return (null, null);
+            }
+
+            if (_dnsClient is null)
+            {
+                DnsClient dnsClient = new DnsClient((_networkType == HttpClientNetworkType.IPv6Only) || (_networkType == HttpClientNetworkType.PreferIPv6));
+                dnsClient.Cache = new DnsCache();
+                dnsClient.Proxy = _proxy;
+                dnsClient.DnssecValidation = true;
+
+                _dnsClient = dnsClient;
+            }
+
+            DnsDatagram response;
+            IReadOnlyList<IPAddress> addresses;
+
+            try
+            {
+                switch (_networkType)
+                {
+                    case HttpClientNetworkType.IPv4Only:
+                        {
+                            response = await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken);
+
+                            addresses = Dns.DnsClient.ParseResponseA(response);
+                            if (addresses.Count < 1)
+                                throw new HttpRequestException("HttpClientNetworkHandler could not resolve IPv4 address for host: " + host);
+                        }
+                        break;
+
+                    case HttpClientNetworkType.IPv6Only:
+                        {
+                            response = await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken);
+
+                            addresses = Dns.DnsClient.ParseResponseAAAA(response);
+                            if (addresses.Count < 1)
+                                throw new HttpRequestException("HttpClientNetworkHandler could not resolve IPv6 address for host: " + host);
+                        }
+                        break;
+
+                    default:
+                        {
+                            Task<DnsDatagram> ipv6Task = (_networkType == HttpClientNetworkType.PreferIPv6) || IsPublicIPv6Available() ? _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken) : null;
+                            Task<DnsDatagram> ipv4Task = _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken);
+
+                            List<IPAddress> allAddresses = new List<IPAddress>();
+
+                            if (ipv6Task is not null)
+                                allAddresses.AddRange(Dns.DnsClient.ParseResponseAAAA(await ipv6Task));
+
+                            response = await ipv4Task;
+
+                            allAddresses.AddRange(Dns.DnsClient.ParseResponseA(response));
+
+                            if (allAddresses.Count < 1)
+                                throw new HttpRequestException("HttpClientNetworkHandler could not resolve IP address for host: " + host);
+
+                            addresses = allAddresses;
+                        }
+                        break;
+                }
+            }
+            catch (DnsClientException ex)
+            {
+                throw new HttpRequestException("HttpClientNetworkHandler could not resolve IP address for host: " + host, ex);
+            }
+
+            string tlsaBaseDomain = null;
+            IReadOnlyList<DnsTLSARecordData> tlsaRecords = null;
+
+            if (_enableDANE)
+            {
+                try
+                {
+                    (tlsaBaseDomain, tlsaRecords) = await ResolveTlsaRecordsAsync(response);
+                }
+                catch (Exception ex)
+                {
+                    throw new HttpRequestException("HttpClientNetworkHandler could not resolve DANE TLSA record for host: " + host, ex);
+                }
+            }
+
+            return new DnsResolutionResult([.. addresses], tlsaBaseDomain, tlsaRecords);
+        }
+
+        private static void ValidateDane(X509Certificate2 certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors, IReadOnlyList<DnsTLSARecordData> tlsaRecords)
+        {
+            if (sslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateNotAvailable))
+                throw new AuthenticationException("The remote certificate is invalid according to the validation procedure: " + sslPolicyErrors.ToString());
+
+            if ((tlsaRecords is null) || (tlsaRecords.Count == 0))
+            {
+                //no TLSA records available; process as usual
+                if (sslPolicyErrors == SslPolicyErrors.None)
+                    return;
+
+                throw new AuthenticationException("The remote certificate is invalid according to the validation procedure: " + sslPolicyErrors.ToString());
+            }
+
+            foreach (DnsTLSARecordData tlsa in tlsaRecords)
+            {
+                switch (tlsa.CertificateUsage)
+                {
+                    case DnsTLSACertificateUsage.PKIX_TA:
+                        {
+                            if (sslPolicyErrors == SslPolicyErrors.None)
+                            {
+                                //PKIX is validating; validate TLSA
+                                for (int i = 1; i < chain.ChainElements.Count; i++)
+                                {
+                                    X509ChainElement chainElement = chain.ChainElements[i];
+                                    byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, chainElement.Certificate);
+
+                                    if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData))
+                                        return; //TLSA is validating
+                                }
+                            }
+                        }
+                        break;
+
+                    case DnsTLSACertificateUsage.PKIX_EE:
+                        {
+                            if (sslPolicyErrors == SslPolicyErrors.None)
+                            {
+                                //PKIX is validating; validate TLSA
+                                byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, certificate);
+
+                                if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData))
+                                    return; //TLSA is validating
+                            }
+                        }
+                        break;
+
+                    case DnsTLSACertificateUsage.DANE_TA:
+                        {
+                            bool pkixFailed = false;
+
+                            for (int i = 0; i < chain.ChainElements.Count; i++)
+                            {
+                                X509ChainElement chainElement = chain.ChainElements[i];
+
+                                if (i == 0)
+                                {
+                                    //validate PKIX
+                                    if (sslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateNameMismatch) || (chainElement.ChainElementStatus.Length > 0))
+                                    {
+                                        //cert has validation issues
+                                        pkixFailed = true;
+                                        break;
+                                    }
+
+                                    //first i.e. end entity certificate only requires cert validation
+                                    continue;
+                                }
+
+                                //validate TLSA
+                                byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, chainElement.Certificate);
+                                bool tlsaVerified = BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData);
+
+                                //validate PKIX
+                                foreach (X509ChainStatus chainStatus in chainElement.ChainElementStatus)
+                                {
+                                    switch (chainStatus.Status)
+                                    {
+                                        case X509ChainStatusFlags.PartialChain:
+                                        case X509ChainStatusFlags.UntrustedRoot:
+                                            if (tlsaVerified)
+                                                continue; //ignored issues since cert is TA
+
+                                            //cert has validation issues
+                                            break;
+                                    }
+
+                                    //cert has validation issues
+                                    pkixFailed = true;
+                                    break;
+                                }
+
+                                if (pkixFailed)
+                                    break; //cert has validation issues; DANE-TA failed to validate
+
+                                if (tlsaVerified)
+                                    return; //TLSA is validating; DANE-TA was validated successfully
+                            }
+
+                            if (!pkixFailed)
+                            {
+                                //server probably did not include TA cert in its chain
+                                //validation using only digest-based matching type is not possible - rfc7671#section-5.2.2
+                                //validation using only public key is not supported - rfc7671#section-5.2.3
+                                //DANE-TA(2) Cert(0) Full(0) is only possible case where the server need not provide the TA cert in it chain
+                                if ((tlsa.Selector == DnsTLSASelector.Cert) && (tlsa.MatchingType == DnsTLSAMatchingType.Full))
+                                {
+                                    //validate using TA cert from TLSA record
+                                    X509Certificate2 taCert = new X509Certificate2(tlsa.CertificateAssociationData);
+                                    X509Certificate2 lastCert = chain.ChainElements[chain.ChainElements.Count - 1].Certificate;
+
+                                    using (X509Chain taChain = new X509Chain())
+                                    {
+                                        taChain.ChainPolicy.CustomTrustStore.Add(taCert);
+
+                                        if (taChain.Build(lastCert))
+                                            return; //TA cert chain is validating
+                                    }
+                                }
+                            }
+                        }
+                        break;
+
+                    case DnsTLSACertificateUsage.DANE_EE:
+                        {
+                            //validate PKIX
+                            bool pkixFailed = false;
+
+                            foreach (X509ChainStatus chainStatus in chain.ChainElements[0].ChainElementStatus)
+                            {
+                                switch (chainStatus.Status)
+                                {
+                                    case X509ChainStatusFlags.PartialChain:
+                                    case X509ChainStatusFlags.UntrustedRoot:
+                                    case X509ChainStatusFlags.HasExcludedNameConstraint:
+                                    case X509ChainStatusFlags.HasNotDefinedNameConstraint:
+                                    case X509ChainStatusFlags.HasNotPermittedNameConstraint:
+                                    case X509ChainStatusFlags.HasNotSupportedNameConstraint:
+                                    case X509ChainStatusFlags.InvalidNameConstraints:
+                                    case X509ChainStatusFlags.NotTimeValid:
+                                        //ignored issues
+                                        continue;
+                                }
+
+                                //cert has validation issues
+                                pkixFailed = true;
+                                break;
+                            }
+
+                            if (pkixFailed)
+                                break; //cert has validation issues
+
+                            //PKIX is validating; validate TLSA
+                            byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, certificate);
+
+                            if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData))
+                                return; //TLSA is validating
+                        }
+                        break;
+                }
+            }
+
+            throw new AuthenticationException($"The SSL connection could not be established since the TLS certificate failed DANE validation: no matching TLSA record was found, or the certificate had one or more issues [{sslPolicyErrors}].");
+        }
 
         private static bool IsPublicIPv6Available()
         {
@@ -89,207 +456,32 @@ namespace TechnitiumLibrary.Net.Http.Client
             return _publicIpv6Available;
         }
 
-        private async Task<HttpResponseMessage> InternalSendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            int retry = 0;
-
-            while (retry++ < _retries)
-            {
-                try
-                {
-                    return await base.SendAsync(request, cancellationToken);
-                }
-                catch (HttpRequestException ex)
-                {
-                    if (ex.InnerException is SocketException ex2)
-                    {
-                        switch (ex2.SocketErrorCode)
-                        {
-                            case SocketError.ConnectionRefused:
-                                throw;
-
-                            case SocketError.NetworkUnreachable:
-                                if (_publicIpv6Available && (_networkType == HttpClientNetworkType.Default))
-                                {
-                                    _publicIpv6Available = false;
-                                    _publicIpv6AvailableLastCheckedOn = default;
-                                }
-
-                                throw;
-                        }
-                    }
-
-                    if (retry >= _retries)
-                        throw;
-                }
-            }
-
-            throw new InvalidOperationException();
-        }
-
         #endregion
 
         #region protected
 
+        protected override HttpResponseMessage Send(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.Version == HttpVersion.Version30)
+                request.Version = HttpVersion.Version20; //downgrade since http/3 is currently not supported
+
+            return base.Send(request, cancellationToken);
+        }
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            if (_innerHandler.AllowAutoRedirect)
-                throw new InvalidOperationException("Inner HTTP handler must not be configured to perform auto redirection.");
+            if (request.Version == HttpVersion.Version30)
+                request.Version = HttpVersion.Version20; //downgrade since http/3 is currently not supported
 
-            HttpResponseMessage response;
-            int redirections = 0;
-
-            do
-            {
-                if (_innerHandler.UseProxy && (_innerHandler.Proxy is not null))
-                {
-                    //no DNS resolution when proxy is used
-                    response = await InternalSendAsync(request, cancellationToken);
-                }
-                else
-                {
-                    string host = request.RequestUri.Host;
-
-                    if (IPAddress.TryParse(host, out IPAddress ip))
-                    {
-                        switch (_networkType)
-                        {
-                            case HttpClientNetworkType.IPv4Only:
-                                if (ip.AddressFamily != AddressFamily.InterNetwork)
-                                    throw new HttpRequestException("HttpClient current network type allows only IPv4 access.");
-
-                                break;
-
-                            case HttpClientNetworkType.IPv6Only:
-                                if (ip.AddressFamily != AddressFamily.InterNetworkV6)
-                                    throw new HttpRequestException("HttpClient current network type allows only IPv6 access.");
-
-                                break;
-                        }
-
-                        response = await InternalSendAsync(request, cancellationToken);
-                    }
-                    else
-                    {
-                        IReadOnlyList<IPAddress> addresses;
-
-                        try
-                        {
-                            switch (_networkType)
-                            {
-                                case HttpClientNetworkType.IPv4Only:
-                                    addresses = Dns.DnsClient.ParseResponseA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
-                                    if (addresses.Count < 1)
-                                        throw new HttpRequestException("HttpClient could not resolve IPv4 address for host: " + host);
-
-                                    break;
-
-                                case HttpClientNetworkType.IPv6Only:
-                                    addresses = Dns.DnsClient.ParseResponseAAAA(await _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
-                                    if (addresses.Count < 1)
-                                        throw new HttpRequestException("HttpClient could not resolve IPv6 address for host: " + host);
-
-                                    break;
-
-                                default:
-                                    {
-                                        Task<DnsDatagram> ipv6Task = (_networkType == HttpClientNetworkType.PreferIPv6) || IsPublicIPv6Available() ? _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken) : null;
-                                        Task<DnsDatagram> ipv4Task = _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken);
-
-                                        List<IPAddress> allAddresses = new List<IPAddress>();
-
-                                        if (ipv6Task is not null)
-                                            allAddresses.AddRange(Dns.DnsClient.ParseResponseAAAA(await ipv6Task));
-
-                                        allAddresses.AddRange(Dns.DnsClient.ParseResponseA(await ipv4Task));
-
-                                        if (allAddresses.Count < 1)
-                                            throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host);
-
-                                        addresses = allAddresses;
-                                    }
-                                    break;
-                            }
-                        }
-                        catch (DnsClientException ex)
-                        {
-                            throw new HttpRequestException("HttpClient could not resolve IP address for host: " + host, ex);
-                        }
-
-                        response = null;
-                        Exception lastException = null;
-
-                        foreach (IPAddress address in addresses)
-                        {
-                            switch (address.AddressFamily)
-                            {
-                                case AddressFamily.InterNetwork:
-                                    request.RequestUri = new Uri(request.RequestUri.Scheme + "://" + address.ToString() + ":" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
-                                    break;
-
-                                case AddressFamily.InterNetworkV6:
-                                    request.RequestUri = new Uri(request.RequestUri.Scheme + "://[" + address.ToString() + "]:" + request.RequestUri.Port + request.RequestUri.PathAndQuery);
-                                    break;
-
-                                default:
-                                    continue;
-                            }
-
-                            if (request.RequestUri.IsDefaultPort)
-                                request.Headers.Host = host;
-                            else
-                                request.Headers.Host = host + ":" + request.RequestUri.Port;
-
-                            try
-                            {
-                                response = await InternalSendAsync(request, cancellationToken);
-                                lastException = null;
-                                break;
-                            }
-                            catch (HttpRequestException ex)
-                            {
-                                if (ex.InnerException is SocketException)
-                                {
-                                    lastException = ex;
-                                    continue; //try next IP address
-                                }
-
-                                throw;
-                            }
-                        }
-
-                        if (lastException is not null)
-                            ExceptionDispatchInfo.Throw(lastException);
-                    }
-                }
-
-                switch (response.StatusCode)
-                {
-                    case HttpStatusCode.MovedPermanently:
-                    case HttpStatusCode.PermanentRedirect:
-                    case HttpStatusCode.Found:
-                    case HttpStatusCode.RedirectKeepVerb:
-                        request.RequestUri = response.Headers.Location;
-                        break;
-
-                    case HttpStatusCode.RedirectMethod:
-                        request.Method = HttpMethod.Get;
-                        request.RequestUri = response.Headers.Location;
-                        request.Content = null;
-                        break;
-
-                    default:
-                        return response;
-                }
-            }
-            while (_allowAutoRedirect && (redirections++ < _maxAutomaticRedirections));
-
-            return response;
+            return await base.SendAsync(request, cancellationToken);
         }
 
         #endregion
 
         #region properties
+
+        public new SocketsHttpHandler InnerHandler
+        { get { return _innerHandler; } }
 
         public HttpClientNetworkType NetworkType
         {
@@ -303,30 +495,53 @@ namespace TechnitiumLibrary.Net.Http.Client
             set { _dnsClient = value; }
         }
 
-        public int Retries
+        public NetProxy Proxy
         {
-            get { return _retries; }
-            set
-            {
-                if (value < 1)
-                    throw new ArgumentOutOfRangeException(nameof(Retries), "HttpClient retries value cannot be less than 1.");
-
-                _retries = value;
-            }
+            get { return _proxy; }
+            set { _proxy = value; }
         }
 
-        public bool AllowAutoRedirect
+        public bool EnableDANE
         {
-            get { return _allowAutoRedirect; }
-            set { _allowAutoRedirect = value; }
-        }
-
-        public int MaxAutomaticRedirections
-        {
-            get { return _maxAutomaticRedirections; }
-            set { _maxAutomaticRedirections = value; }
+            get { return _enableDANE; }
+            set { _enableDANE = value; }
         }
 
         #endregion
+
+        class DnsResolutionResult
+        {
+            #region variables
+
+            readonly IPAddress[] _addresses;
+            readonly string _tlsaBaseDomain;
+            readonly IReadOnlyList<DnsTLSARecordData> _tlsaRecords;
+
+            #endregion
+
+            #region constructor
+
+            public DnsResolutionResult(IPAddress[] addresses, string tlsaBaseDomain, IReadOnlyList<DnsTLSARecordData> tlsaRecords)
+            {
+                _addresses = addresses;
+                _tlsaBaseDomain = tlsaBaseDomain;
+                _tlsaRecords = tlsaRecords;
+            }
+
+            #endregion
+
+            #region properties
+
+            public IPAddress[] Addresses
+            { get { return _addresses; } }
+
+            public string TlsaBaseDomain
+            { get { return _tlsaBaseDomain; } }
+
+            public IReadOnlyList<DnsTLSARecordData> TlsaRecords
+            { get { return _tlsaRecords; } }
+
+            #endregion
+        }
     }
 }
