@@ -45,7 +45,7 @@ namespace TechnitiumLibrary.Net.Http.Client
     //The DNS-Based Authentication of Named Entities (DANE) Protocol: Updates and Operational Guidance (RFC 7671)
     //https://datatracker.ietf.org/doc/rfc7671/
 
-    public class HttpClientNetworkHandler : DelegatingHandler
+    public sealed class HttpClientNetworkHandler : DelegatingHandler
     {
         #region variables
 
@@ -92,7 +92,7 @@ namespace TechnitiumLibrary.Net.Http.Client
                 socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
                 socket.NoDelay = true;
 
-                await socket.ConnectAsync(dnsResult.Addresses, context.DnsEndPoint.Port);
+                await socket.ConnectAsync(dnsResult.Addresses, context.DnsEndPoint.Port, cancellationToken);
             }
             else
             {
@@ -106,14 +106,21 @@ namespace TechnitiumLibrary.Net.Http.Client
 
             SslClientAuthenticationOptions sslOptions = new SslClientAuthenticationOptions();
 
-            if (context.InitialRequestMessage.Version == HttpVersion.Version20)
-                sslOptions.ApplicationProtocols = [SslApplicationProtocol.Http2];
+            sslOptions.AllowRenegotiation = _innerHandler.SslOptions.AllowRenegotiation;
+            sslOptions.AllowTlsResume = _innerHandler.SslOptions.AllowTlsResume;
+            sslOptions.LocalCertificateSelectionCallback = _innerHandler.SslOptions.LocalCertificateSelectionCallback;
 
             if (_enableDANE && (dnsResult.TlsaRecords is not null) && (dnsResult.TlsaRecords.Count > 0))
             {
                 sslOptions.TargetHost = dnsResult.TlsaBaseDomain;
                 sslOptions.RemoteCertificateValidationCallback += delegate (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
                 {
+                    if (_innerHandler.SslOptions.RemoteCertificateValidationCallback is not null)
+                    {
+                        if (_innerHandler.SslOptions.RemoteCertificateValidationCallback(sender, certificate, chain, sslPolicyErrors))
+                            return true; //validation passed by user callback
+                    }
+
                     if (certificate is not X509Certificate2 certificate2)
                         certificate2 = new X509Certificate2(certificate);
 
@@ -123,8 +130,26 @@ namespace TechnitiumLibrary.Net.Http.Client
             }
             else
             {
-                sslOptions.TargetHost = context.DnsEndPoint.Host;
+                if (!string.IsNullOrEmpty(_innerHandler.SslOptions.TargetHost))
+                    sslOptions.TargetHost = _innerHandler.SslOptions.TargetHost;
+                else
+                    sslOptions.TargetHost = context.DnsEndPoint.Host;
+
+                sslOptions.RemoteCertificateValidationCallback = _innerHandler.SslOptions.RemoteCertificateValidationCallback;
             }
+
+            if (_innerHandler.SslOptions.ApplicationProtocols is not null)
+                sslOptions.ApplicationProtocols = _innerHandler.SslOptions.ApplicationProtocols;
+            else if (context.InitialRequestMessage.Version == HttpVersion.Version20)
+                sslOptions.ApplicationProtocols = [SslApplicationProtocol.Http2];
+
+            sslOptions.ClientCertificates = _innerHandler.SslOptions.ClientCertificates;
+            sslOptions.ClientCertificateContext = _innerHandler.SslOptions.ClientCertificateContext;
+            sslOptions.CertificateRevocationCheckMode = _innerHandler.SslOptions.CertificateRevocationCheckMode;
+            sslOptions.EncryptionPolicy = _innerHandler.SslOptions.EncryptionPolicy;
+            sslOptions.EnabledSslProtocols = _innerHandler.SslOptions.EnabledSslProtocols;
+            sslOptions.CipherSuitesPolicy = _innerHandler.SslOptions.CipherSuitesPolicy;
+            sslOptions.CertificateChainPolicy = _innerHandler.SslOptions.CertificateChainPolicy;
 
             SslStream sslStream = new SslStream(stream);
 
@@ -453,6 +478,9 @@ namespace TechnitiumLibrary.Net.Http.Client
 
         protected override HttpResponseMessage Send(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (_innerHandler.ConnectCallback != ConnectCallback)
+                throw new NotSupportedException("ConnectCallback is not supported for SocketsHttpHandler.");
+
             if (request.Version == HttpVersion.Version30)
                 request.Version = HttpVersion.Version20; //downgrade since http/3 is currently not supported
 
@@ -461,6 +489,9 @@ namespace TechnitiumLibrary.Net.Http.Client
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (_innerHandler.ConnectCallback != ConnectCallback)
+                throw new NotSupportedException("ConnectCallback is not supported for SocketsHttpHandler.");
+
             if (request.Version == HttpVersion.Version30)
                 request.Version = HttpVersion.Version20; //downgrade since http/3 is currently not supported
 
