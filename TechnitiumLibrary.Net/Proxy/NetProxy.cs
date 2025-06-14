@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -216,6 +217,32 @@ namespace TechnitiumLibrary.Net.Proxy
         public async Task<Socket> ConnectAsync(string address, int port, CancellationToken cancellationToken = default)
         {
             return await ConnectAsync(EndPointExtensions.GetEndPoint(address, port), cancellationToken);
+        }
+
+        public async Task<Socket> ConnectAsync(IReadOnlyCollection<IPAddress> addresses, int port, CancellationToken cancellationToken = default)
+        {
+            IPEndPoint endPoint = null;
+            Exception lastException = null;
+
+            foreach (IPAddress address in addresses)
+            {
+                if (endPoint is null)
+                    endPoint = new IPEndPoint(address, port);
+                else
+                    endPoint.Address = address;
+
+                try
+                {
+                    return await ConnectAsync(endPoint, cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    lastException = ex;
+                }
+            }
+
+            ExceptionDispatchInfo.Throw(lastException);
+            throw new InvalidOperationException();
         }
 
         public async Task<Socket> ConnectAsync(EndPoint remoteEP, CancellationToken cancellationToken = default)
