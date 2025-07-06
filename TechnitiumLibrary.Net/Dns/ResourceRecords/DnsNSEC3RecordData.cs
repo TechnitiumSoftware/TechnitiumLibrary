@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -119,24 +119,28 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region private
 
-        internal static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string wildcardNextCloserName)
+        internal static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string wildcardNextCloserName, string wildcardZoneName)
         {
             //find proof for closest encloser
             string closestEncloser;
             string nextCloserName;
+            string closestEncloserZoneName;
             bool foundClosestEncloserProof;
 
             if (wildcardAnswerValidation)
             {
                 //wildcard answer case
+                //rfc5155#section-7.2.6 - It is not necessary to return an NSEC3 RR that matches the closest encloser, as the existence of this closest encloser is proven by the presence of the expanded wildcard in the response.
                 closestEncloser = GetParentZone(wildcardNextCloserName);
                 nextCloserName = wildcardNextCloserName;
+                closestEncloserZoneName = wildcardZoneName;
                 foundClosestEncloserProof = true;
             }
             else
             {
                 closestEncloser = domain;
                 nextCloserName = null;
+                closestEncloserZoneName = null;
                 foundClosestEncloserProof = false;
             }
 
@@ -156,7 +160,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (nsec3.Iterations > DnsClient.MAX_NSEC3_ITERATIONS)
                         return DnssecProofOfNonExistence.UnsupportedNSEC3IterationsValue;
 
-                    string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
+                    string nsec3ZoneName = GetHashedOwnerNameZoneNameFrom(nsec3Record.Name);
 
                     if (hashedClosestEncloser is null)
                     {
@@ -177,7 +181,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         }
                     }
 
-                    if (hashedOwnerName.Equals(hashedClosestEncloser, StringComparison.OrdinalIgnoreCase))
+                    string hashedClosestEncloserDomain = hashedClosestEncloser + (nsec3ZoneName.Length > 0 ? "." + nsec3ZoneName : "");
+
+                    if (nsec3Record.Name.Equals(hashedClosestEncloserDomain, StringComparison.OrdinalIgnoreCase))
                     {
                         //found proof for closest encloser
 
@@ -192,6 +198,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                             return nsec3.GetProofOfNonExistenceFromRecordTypes(type);
                         }
 
+                        closestEncloserZoneName = nsec3ZoneName;
                         foundClosestEncloserProof = true;
                         break;
                     }
@@ -216,12 +223,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     continue;
 
                 DnsNSEC3RecordData nsec3 = nsec3Record.RDATA as DnsNSEC3RecordData;
-                string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
+                string nsec3ZoneName = GetHashedOwnerNameZoneNameFrom(nsec3Record.Name);
+                string nextHashedOwnerName = nsec3._nextHashedOwnerName + (nsec3ZoneName.Length > 0 ? "." + nsec3ZoneName : "");
 
                 if (hashedNextCloserName is null)
-                    hashedNextCloserName = nsec3.ComputeHashedOwnerName(nextCloserName);
+                    hashedNextCloserName = nsec3.ComputeHashedOwnerName(nextCloserName) + (closestEncloserZoneName.Length > 0 ? "." + closestEncloserZoneName : "");
 
-                if (DnsNSECRecordData.IsDomainCovered(hashedOwnerName, nsec3._nextHashedOwnerName, hashedNextCloserName))
+                if (DnsNSECRecordData.IsDomainCovered(nsec3Record.Name, nextHashedOwnerName, hashedNextCloserName))
                 {
                     //found proof of cover for hashed next closer name
 
@@ -254,12 +262,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     continue;
 
                 DnsNSEC3RecordData nsec3 = nsec3Record.RDATA as DnsNSEC3RecordData;
-                string hashedOwnerName = GetHashedOwnerNameBase32HexStringFrom(nsec3Record.Name);
+                string nsec3ZoneName = GetHashedOwnerNameZoneNameFrom(nsec3Record.Name);
+                string nextHashedOwnerName = nsec3._nextHashedOwnerName + (nsec3ZoneName.Length > 0 ? "." + nsec3ZoneName : "");
 
                 if (hashedWildcardDomainName is null)
-                    hashedWildcardDomainName = nsec3.ComputeHashedOwnerName(wildcardDomain);
+                    hashedWildcardDomainName = nsec3.ComputeHashedOwnerName(wildcardDomain) + (closestEncloserZoneName.Length > 0 ? "." + closestEncloserZoneName : "");
 
-                if (hashedOwnerName.Equals(hashedWildcardDomainName, StringComparison.OrdinalIgnoreCase))
+                if (nsec3Record.Name.Equals(hashedWildcardDomainName, StringComparison.OrdinalIgnoreCase))
                 {
                     //found proof for wildcard domain
 
@@ -270,7 +279,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     //wildcard domain exists; find if record set exists or no data
                     return nsec3.GetProofOfNonExistenceFromRecordTypes(type);
                 }
-                else if (DnsNSECRecordData.IsDomainCovered(hashedOwnerName, nsec3._nextHashedOwnerName, hashedWildcardDomainName))
+                else if (DnsNSECRecordData.IsDomainCovered(nsec3Record.Name, nextHashedOwnerName, hashedWildcardDomainName))
                 {
                     //found proof of cover for wildcard domain
 
@@ -317,6 +326,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return domain;
 
             return domain.Substring(0, i);
+        }
+
+        private static string GetHashedOwnerNameZoneNameFrom(string domain)
+        {
+            int i = domain.IndexOf('.');
+            if (i < 0)
+                return "";
+
+            return domain.Substring(i + 1);
         }
 
         private static string GetParentZone(string domain)
