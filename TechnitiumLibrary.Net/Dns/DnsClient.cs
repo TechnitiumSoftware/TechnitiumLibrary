@@ -31,6 +31,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using TechnitiumLibrary.Net.Dns.ClientConnection;
+using TechnitiumLibrary.Net.Dns.Dnssec;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 using TechnitiumLibrary.Net.Proxy;
@@ -2723,8 +2724,9 @@ namespace TechnitiumLibrary.Net.Dns
                                     //For every wildcard expansion, we need to prove that the expansion was allowed.
 
                                     //validate wildcard
-                                    DnsResourceRecordType typeCovered = (rrsigRecord.RDATA as DnsRRSIGRecordData).TypeCovered;
-                                    DnssecProofOfNonExistence proofOfNonExistence = await GetValidatedProofOfNonExistenceAsync(response, rrsigRecord.Name, typeCovered, true, nextCloserName);
+                                    DnsRRSIGRecordData rrsig = rrsigRecord.RDATA as DnsRRSIGRecordData;
+                                    DnsResourceRecordType typeCovered = rrsig.TypeCovered;
+                                    DnssecProofOfNonExistence proofOfNonExistence = await GetValidatedProofOfNonExistenceAsync(response, rrsigRecord.Name, typeCovered, true, nextCloserName, rrsig.SignersName);
                                     switch (proofOfNonExistence)
                                     {
                                         case DnssecProofOfNonExistence.OptOut:
@@ -3573,7 +3575,7 @@ namespace TechnitiumLibrary.Net.Dns
             return dsRecords;
         }
 
-        private static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(DnsDatagram response, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation = false, string wildcardNextCloserName = null)
+        private static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(DnsDatagram response, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation = false, string wildcardNextCloserName = null, string wildcardZoneName = null)
         {
             //authority section may contain both NSEC and NSEC3 records corresponding to different CNAME records in answer section
             bool hasNSEC = false;
@@ -3602,7 +3604,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (hasNSEC3)
             {
-                DnssecProofOfNonExistence proof = await DnsNSEC3RecordData.GetValidatedProofOfNonExistenceAsync(response.Authority, domain, type, wildcardAnswerValidation, wildcardNextCloserName);
+                DnssecProofOfNonExistence proof = await DnsNSEC3RecordData.GetValidatedProofOfNonExistenceAsync(response.Authority, domain, type, wildcardAnswerValidation, wildcardNextCloserName, wildcardZoneName);
                 if (proof == DnssecProofOfNonExistence.UnsupportedNSEC3IterationsValue)
                 {
                     foreach (DnsResourceRecord authority in response.Authority)
@@ -4521,6 +4523,13 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         if (response.ParsingException is not null)
                                         {
+                                            if ((asyncRequest.EDNS is not null) && !_dnssecValidation)
+                                            {
+                                                //disable EDNS and retry the request
+                                                asyncRequest = asyncRequest.CloneWithoutEDns();
+                                                retryRequest = true;
+                                            }
+
                                             server.Metadata.UpdateFailure(_timeout * _retries);
                                             lastException = response.ParsingException;
                                         }
@@ -5268,7 +5277,20 @@ namespace TechnitiumLibrary.Net.Dns
 
         public void AddTrustAnchor(string domain, DnsDSRecordData dsRecord)
         {
-            AddTrustAnchor(domain, dsRecord.KeyTag, dsRecord.Algorithm, dsRecord.DigestType, dsRecord.Digest);
+            if (_trustAnchors is null)
+                _trustAnchors = new Dictionary<string, IReadOnlyList<DnsResourceRecord>>();
+
+            DnsResourceRecord dsRR = new DnsResourceRecord(domain, DnsResourceRecordType.DS, DnsClass.IN, 0, dsRecord);
+
+            if (_trustAnchors.TryGetValue(domain, out IReadOnlyList<DnsResourceRecord> existingRecords))
+                _trustAnchors[domain] = [.. existingRecords, dsRR];
+            else
+                _trustAnchors.Add(domain, [dsRR]);
+        }
+
+        public void AddTrustAnchor(string domain, ushort keyTag, DnssecAlgorithm algorithm, DnssecDigestType digestType, byte[] digest)
+        {
+            AddTrustAnchor(domain, new DnsDSRecordData(keyTag, algorithm, digestType, digest));
         }
 
         public void AddTrustAnchor(string domain, ushort keyTag, DnssecAlgorithm algorithm, DnssecDigestType digestType, string digest)
@@ -5276,26 +5298,24 @@ namespace TechnitiumLibrary.Net.Dns
             AddTrustAnchor(domain, keyTag, algorithm, digestType, Convert.FromHexString(digest));
         }
 
-        public void AddTrustAnchor(string domain, ushort keyTag, DnssecAlgorithm algorithm, DnssecDigestType digestType, byte[] digest)
+        public void AddTrustAnchor(string domain, DnsDNSKEYRecordData dnskeyRecord)
         {
-            if (_trustAnchors is null)
-                _trustAnchors = new Dictionary<string, IReadOnlyList<DnsResourceRecord>>();
+            AddTrustAnchor(domain, dnskeyRecord.CreateDS(domain, DnssecDigestType.SHA256));
+        }
 
-            DnsResourceRecord dsRecord = new DnsResourceRecord(domain, DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecordData(keyTag, algorithm, digestType, digest));
+        public void AddTrustAnchor(string domain, DnsDnsKeyFlag flags, DnssecAlgorithm algorithm, DnssecPublicKey publicKey)
+        {
+            AddTrustAnchor(domain, new DnsDNSKEYRecordData(flags, 3, algorithm, publicKey));
+        }
 
-            if (_trustAnchors.TryGetValue(domain, out IReadOnlyList<DnsResourceRecord> existingRecords))
-            {
-                List<DnsResourceRecord> newRecords = new List<DnsResourceRecord>(existingRecords.Count + 1);
+        public void AddTrustAnchor(string domain, DnsDnsKeyFlag flags, DnssecAlgorithm algorithm, byte[] publicKey)
+        {
+            AddTrustAnchor(domain, flags, algorithm, DnssecPublicKey.Parse(algorithm, publicKey));
+        }
 
-                newRecords.AddRange(existingRecords);
-                newRecords.Add(dsRecord);
-
-                _trustAnchors[domain] = newRecords;
-            }
-            else
-            {
-                _trustAnchors.Add(domain, new DnsResourceRecord[] { dsRecord });
-            }
+        public void AddTrustAnchor(string domain, DnsDnsKeyFlag flags, DnssecAlgorithm algorithm, string publicKey)
+        {
+            AddTrustAnchor(domain, flags, algorithm, Convert.FromBase64String(publicKey));
         }
 
         #endregion
