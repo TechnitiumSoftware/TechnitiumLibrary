@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -33,56 +33,48 @@ namespace TechnitiumLibrary
         readonly int _maximumConcurrencyLevel;
 
         readonly Channel<KeyValuePair<object, Func<object, Task>>> _channel;
+        readonly ChannelWriter<KeyValuePair<object, Func<object, Task>>> _channelWriter;
 
         #endregion
 
         #region constructors
 
-        public TaskPool()
-            : this(-1)
-        { }
-
-        public TaskPool(int queueSize)
-            : this(queueSize, Environment.ProcessorCount)
-        { }
-
-        public TaskPool(int queueSize, int maximumConcurrencyLevel)
-            : this(queueSize, maximumConcurrencyLevel, TaskScheduler.Default)
-        { }
-
-        public TaskPool(int queueSize, int maximumConcurrencyLevel, TaskScheduler taskScheduler)
+        public TaskPool(int queueSize = -1, int maximumConcurrencyLevel = -1, TaskScheduler taskScheduler = null)
         {
             if (maximumConcurrencyLevel < 1)
-                throw new ArgumentOutOfRangeException(nameof(maximumConcurrencyLevel), "Value cannot be less than 1.");
+                maximumConcurrencyLevel = Environment.ProcessorCount;
+
+            if (taskScheduler is null)
+                taskScheduler = TaskScheduler.Default;
 
             _queueSize = queueSize;
             _maximumConcurrencyLevel = maximumConcurrencyLevel;
 
             if (_queueSize < 1)
+            {
                 _channel = Channel.CreateUnbounded<KeyValuePair<object, Func<object, Task>>>();
+            }
             else
-                _channel = Channel.CreateBounded<KeyValuePair<object, Func<object, Task>>>(new BoundedChannelOptions(_queueSize));
+            {
+                BoundedChannelOptions options = new BoundedChannelOptions(_queueSize);
+                options.FullMode = BoundedChannelFullMode.DropWrite;
 
+                _channel = Channel.CreateBounded<KeyValuePair<object, Func<object, Task>>>(options);
+            }
+
+            _channelWriter = _channel.Writer;
             ChannelReader<KeyValuePair<object, Func<object, Task>>> channelReader = _channel.Reader;
 
             for (int i = 0; i < _maximumConcurrencyLevel; i++)
             {
                 Task.Factory.StartNew(async delegate ()
                 {
-                    while (!_disposed)
+                    await foreach (KeyValuePair<object, Func<object, Task>> task in channelReader.ReadAllAsync())
                     {
-                        try
-                        {
-                            KeyValuePair<object, Func<object, Task>> task = await channelReader.ReadAsync();
-
-                            await task.Value(task.Key);
-                        }
-                        catch (ChannelClosedException)
-                        {
+                        if (_disposed)
                             break;
-                        }
-                        catch
-                        { }
+
+                        await task.Value(task.Key);
                     }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, taskScheduler);
             }
@@ -99,9 +91,10 @@ namespace TechnitiumLibrary
             if (_disposed)
                 return;
 
-            _channel?.Writer.TryComplete();
+            _channelWriter?.TryComplete();
 
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
 
         #endregion
@@ -115,12 +108,13 @@ namespace TechnitiumLibrary
 
         public bool TryQueueTask(Func<object, Task> task, object state)
         {
-            return _channel.Writer.TryWrite(new KeyValuePair<object, Func<object, Task>>(state, task));
+            return _channelWriter.TryWrite(new KeyValuePair<object, Func<object, Task>>(state, task));
         }
 
-        public void Stop()
+        public async Task StopAndWaitForCompletionAsync()
         {
-            _channel.Writer.TryComplete();
+            if (_channelWriter.TryComplete())
+                await _channel.Reader.Completion;
         }
 
         #endregion
