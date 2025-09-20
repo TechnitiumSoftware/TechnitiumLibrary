@@ -30,7 +30,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _nameServer;
+        protected string _nameServer;
 
         NameServerMetadata _metadata;
 
