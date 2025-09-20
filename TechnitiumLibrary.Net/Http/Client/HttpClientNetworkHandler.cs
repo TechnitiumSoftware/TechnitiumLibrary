@@ -465,7 +465,7 @@ namespace TechnitiumLibrary.Net.Http.Client
 
             if (DateTime.UtcNow > _publicIpv6AvailableLastCheckedOn.AddMilliseconds(PUBLIC_IPv6_CHECK_FREQUENCY))
             {
-                _publicIpv6Available = NetUtilities.GetDefaultIPv6NetworkInfo() is not null;
+                _publicIpv6Available = NetUtilities.GetDefaultIPv6NetworkInfo(true) is not null;
                 _publicIpv6AvailableLastCheckedOn = DateTime.UtcNow;
             }
 
