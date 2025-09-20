@@ -3286,6 +3286,16 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find a SEP DNSKEY matching the DS for owner name: " + dnsKeyQuestion.Name.ToLowerInvariant(), dnsKeyResponse);
                 }
 
+                if (DnsDSRecordData.IsAnyDnssecAlgorithmSupported(lastDSRecords) && !DnsDNSKEYRecordData.IsAnyDnssecAlgorithmSupported(sepDnsKeyRecords))
+                {
+                    foreach (DnsResourceRecord sepDnsKeyRecord in sepDnsKeyRecords)
+                        dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.UnsupportedDnsKeyAlgorithm, sepDnsKeyRecord.Name.ToLowerInvariant() + "; keyTag: " + (sepDnsKeyRecord.RDATA as DnsDNSKEYRecordData).ComputedKeyTag);
+
+                    dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "Attack detected! No SEP matching the DS found for " + dnsKeyQuestion.Name.ToLowerInvariant());
+                    cache.CacheResponse(dnsKeyResponse, true);
+                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find a SEP DNSKEY matching the DS for owner name: " + dnsKeyQuestion.Name.ToLowerInvariant(), dnsKeyResponse);
+                }
+
                 //validate signature for DNSKEY response
                 try
                 {
