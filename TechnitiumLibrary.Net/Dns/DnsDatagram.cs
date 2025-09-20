@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -510,7 +510,9 @@ namespace TechnitiumLibrary.Net.Dns
                     string domainSuffix = DeserializeDomainName(s, maxDepth - 1, ignoreMissingNullTermination, isEmailAddress);
                     if (domainSuffix.Length > 0)
                     {
-                        domainSuffix.AsSpan().CopyTo(domain.Slice(domainPosition));
+                        if (!domainSuffix.AsSpan().TryCopyTo(domain.Slice(domainPosition)))
+                            throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
+
                         domainPosition += domainSuffix.Length;
                         domain[domainPosition++] = '.';
                     }
@@ -519,11 +521,14 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
                 }
 
+                if (labelLength > 63)
+                    throw new DnsClientException("Error while reading domain name: label length cannot exceed 63 bytes.");
+
                 Span<byte> label = buffer.Slice(0, labelLength);
                 s.ReadExactly(label);
 
                 if (!Encoding.ASCII.TryGetChars(label, domain.Slice(domainPosition), out _))
-                    throw new DnsClientException("Error while reading domain name: length cannot exceed 255 bytes.");
+                    throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
 
                 domainPosition += labelLength;
 
@@ -563,14 +568,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (domainPosition > 0)
                 domainPosition--;
 
-            try
-            {
-                return new string(domain.Slice(0, domainPosition));
-            }
-            catch (ArgumentOutOfRangeException ex)
-            {
-                throw new ArgumentOutOfRangeException("Specified argument was out of the range of valid values: " + domain.ToString() + ", pos: " + domainPosition, ex);
-            }
+            return new string(domain.Slice(0, domainPosition));
         }
 
         public static int GetSerializeDomainNameLength(string domain)
