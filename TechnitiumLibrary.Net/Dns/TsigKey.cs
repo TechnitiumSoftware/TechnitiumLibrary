@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -73,14 +73,18 @@ namespace TechnitiumLibrary.Net.Dns
         }
 
         public TsigKey(string keyName, string algorithmName)
+            : this(keyName, GetTsigAlgorithm(algorithmName))
+        { }
+
+        public TsigKey(string keyName, TsigAlgorithm algorithm)
         {
             _keyName = keyName;
-            _algorithmName = algorithmName;
+            _algorithmName = GetTsigAlgorithmName(algorithm);
 
             if (_algorithmName.Equals("hmac-md5", StringComparison.OrdinalIgnoreCase))
                 _algorithmName = DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5;
 
-            _algorithm = GetTsigAlgorithm(_algorithmName);
+            _algorithm = algorithm;
 
             int keyLength;
 
