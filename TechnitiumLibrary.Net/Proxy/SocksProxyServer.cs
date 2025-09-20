@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -507,7 +507,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                 {
                                     case AddressFamily.InterNetwork:
                                     case AddressFamily.InterNetworkV6:
-                                        EndPoint localEP = new IPEndPoint((_localSocket.LocalEndPoint as IPEndPoint).Address, 0);
+                                        IPEndPoint localEP = new IPEndPoint((_localSocket.LocalEndPoint as IPEndPoint).Address, 0);
 
                                         _udpRelaySocket = new Socket(localEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
                                         _udpRelaySocket.Bind(localEP);

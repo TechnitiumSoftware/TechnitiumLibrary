@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -81,7 +81,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             public BindHandler(AddressFamily family)
             {
-                EndPoint localEP = null;
+                IPEndPoint localEP = null;
                 NetworkInfo networkInfo = null;
 
                 switch (family)
