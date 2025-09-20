@@ -30,13 +30,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _primaryNameServer;
+        protected string _primaryNameServer;
         string _responsiblePerson;
         uint _serial;
         uint _refresh;
         uint _retry;
         uint _expire;
-        uint _minimum;
+        protected uint _minimum;
 
         #endregion
 
