@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -37,22 +37,7 @@ namespace TechnitiumLibrary
             return array;
         }
 
-        public static string Join<T>(this ICollection<T> values, char separator = ',')
-        {
-            string strValue = null;
-
-            foreach (T value in values)
-            {
-                if (strValue is null)
-                    strValue = value.ToString();
-                else
-                    strValue += separator + " " + value.ToString();
-            }
-
-            return strValue;
-        }
-
-        public static string Join<T>(this IReadOnlyCollection<T> values, char separator = ',')
+        public static string Join<T>(this IEnumerable<T> values, char separator = ',')
         {
             string strValue = null;
 
