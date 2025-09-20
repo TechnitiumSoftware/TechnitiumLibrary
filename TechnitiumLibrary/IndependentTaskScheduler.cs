@@ -25,37 +25,41 @@ using System.Threading.Tasks;
 
 namespace TechnitiumLibrary
 {
-    public class IndependentTaskScheduler : TaskScheduler
+    public sealed class IndependentTaskScheduler : TaskScheduler, IDisposable
     {
         #region variables
 
         readonly int _maximumConcurrencyLevel;
         readonly ThreadPriority _priority;
 
-        readonly List<Thread> _threads;
+        readonly HashSet<Thread> _threads;
         readonly BlockingCollection<Task> _tasks = new BlockingCollection<Task>();
 
         #endregion
 
         #region constructors
 
-        public IndependentTaskScheduler(ThreadPriority priority = ThreadPriority.Normal, string threadName = null)
-            : this(Environment.ProcessorCount, priority, threadName)
-        { }
-
-        public IndependentTaskScheduler(int maximumConcurrencyLevel, ThreadPriority priority = ThreadPriority.Normal, string threadName = null)
+        public IndependentTaskScheduler(int maximumConcurrencyLevel = -1, ThreadPriority priority = ThreadPriority.Normal, string threadName = null)
         {
+            if (maximumConcurrencyLevel < 1)
+                maximumConcurrencyLevel = Environment.ProcessorCount;
+
             _maximumConcurrencyLevel = maximumConcurrencyLevel;
             _priority = priority;
 
-            _threads = new List<Thread>(_maximumConcurrencyLevel);
+            _threads = new HashSet<Thread>(_maximumConcurrencyLevel);
 
             for (int i = 0; i < _maximumConcurrencyLevel; i++)
             {
                 Thread thread = new Thread(delegate ()
                 {
-                    foreach (Task task in _tasks.GetConsumingEnumerable())
-                        TryExecuteTask(task);
+                    try
+                    {
+                        foreach (Task task in _tasks.GetConsumingEnumerable())
+                            TryExecuteTask(task);
+                    }
+                    catch (ObjectDisposedException)
+                    { }
                 });
 
                 thread.Name = threadName ?? GetType().Name;
@@ -63,8 +67,26 @@ namespace TechnitiumLibrary
                 thread.Priority = _priority;
                 thread.Start();
 
-                _threads.Add(thread);
+                if (!_threads.Add(thread))
+                    throw new InvalidOperationException();
             }
+        }
+
+        #endregion
+
+        #region IDisposable
+
+        bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _tasks?.Dispose();
+
+            _disposed = true;
+            GC.SuppressFinalize(this);
         }
 
         #endregion
@@ -92,7 +114,12 @@ namespace TechnitiumLibrary
             }
             else
             {
-                _tasks.Add(task);
+                try
+                {
+                    _tasks.Add(task);
+                }
+                catch (ObjectDisposedException)
+                { }
             }
         }
 
