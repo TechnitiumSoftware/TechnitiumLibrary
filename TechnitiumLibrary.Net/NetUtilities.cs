@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -189,7 +189,7 @@ namespace TechnitiumLibrary.Net
             return null;
         }
 
-        public static NetworkInfo GetDefaultIPv6NetworkInfo()
+        public static NetworkInfo GetDefaultIPv6NetworkInfo(bool skipTeredo = false)
         {
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
@@ -208,7 +208,7 @@ namespace TechnitiumLibrary.Net
                         {
                             if (ip.Address.AddressFamily == AddressFamily.InterNetworkV6)
                             {
-                                if (IsPublicIPv6(ip.Address))
+                                if ((!skipTeredo || !ip.Address.IsIPv6Teredo) && IsPublicIPv6(ip.Address))
                                 {
                                     if (OperatingSystem.IsWindows())
                                     {
@@ -250,7 +250,7 @@ namespace TechnitiumLibrary.Net
                 {
                     if (ip.Address.AddressFamily == AddressFamily.InterNetworkV6)
                     {
-                        if (IsPublicIPv6(ip.Address))
+                        if ((!skipTeredo || !ip.Address.IsIPv6Teredo) && IsPublicIPv6(ip.Address))
                         {
                             if (OperatingSystem.IsWindows())
                             {
