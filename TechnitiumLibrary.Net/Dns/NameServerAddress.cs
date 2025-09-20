@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         bool _ipEndPointExpires;
         DateTime _ipEndPointExpiresOn;
-        const int IP_ENDPOINT_DEFAULT_TTL = 900;
+        const uint IP_ENDPOINT_DEFAULT_TTL = 300;
 
         NameServerMetadata _metadata;
 
@@ -486,9 +486,13 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static List<NameServerAddress> GetNameServersFromResponse(DnsDatagram response, bool preferIPv6, bool filterLoopbackAddresses)
         {
+            if (response.Question.Count != 1)
+                return [];
+
+            DnsQuestionRecord question = response.Question[0];
             IReadOnlyList<DnsResourceRecord> authorityRecords;
 
-            if ((response.Question.Count > 0) && (response.Question[0].Type == DnsResourceRecordType.NS) && (response.Answer.Count > 0))
+            if ((question.Type == DnsResourceRecordType.NS) && (response.Answer.Count > 0))
             {
                 bool found = false;
 
@@ -517,46 +521,49 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (authorityRecord.Type == DnsResourceRecordType.NS)
                 {
-                    DnsNSRecordData nsRecord = (DnsNSRecordData)authorityRecord.RDATA;
-
-                    if (IPAddress.TryParse(nsRecord.NameServer, out _))
-                        continue; //skip misconfigured NS record
-
-                    IPEndPoint endPoint = null;
-
-                    //find ip address of authoritative name server from additional records
-                    foreach (DnsResourceRecord rr in response.Additional)
+                    if ((authorityRecord.Name.Length == 0) || question.Name.Equals(authorityRecord.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authorityRecord.Name, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (nsRecord.NameServer.Equals(rr.Name, StringComparison.OrdinalIgnoreCase))
+                        DnsNSRecordData nsRecord = (DnsNSRecordData)authorityRecord.RDATA;
+
+                        if (IPAddress.TryParse(nsRecord.NameServer, out _))
+                            continue; //skip misconfigured NS record
+
+                        IPEndPoint endPoint = null;
+
+                        //find ip address of authoritative name server from additional records
+                        foreach (DnsResourceRecord rr in response.Additional)
                         {
-                            switch (rr.Type)
+                            if (nsRecord.NameServer.Equals(rr.Name, StringComparison.OrdinalIgnoreCase))
                             {
-                                case DnsResourceRecordType.A:
-                                    endPoint = new IPEndPoint(((DnsARecordData)rr.RDATA).Address, 53);
-
-                                    if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
-                                        continue;
-
-                                    nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint) { _metadata = nsRecord.Metadata });
-                                    break;
-
-                                case DnsResourceRecordType.AAAA:
-                                    if (preferIPv6)
-                                    {
-                                        endPoint = new IPEndPoint(((DnsAAAARecordData)rr.RDATA).Address, 53);
+                                switch (rr.Type)
+                                {
+                                    case DnsResourceRecordType.A:
+                                        endPoint = new IPEndPoint(((DnsARecordData)rr.RDATA).Address, 53);
 
                                         if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
                                             continue;
 
                                         nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint) { _metadata = nsRecord.Metadata });
-                                    }
-                                    break;
+                                        break;
+
+                                    case DnsResourceRecordType.AAAA:
+                                        if (preferIPv6)
+                                        {
+                                            endPoint = new IPEndPoint(((DnsAAAARecordData)rr.RDATA).Address, 53);
+
+                                            if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
+                                                continue;
+
+                                            nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint) { _metadata = nsRecord.Metadata });
+                                        }
+                                        break;
+                                }
                             }
                         }
-                    }
 
-                    if (endPoint is null)
-                        nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NameServer, 53)) { _metadata = nsRecord.Metadata });
+                        if (endPoint is null)
+                            nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NameServer, 53)) { _metadata = nsRecord.Metadata });
+                    }
                 }
             }
 
@@ -710,14 +717,42 @@ namespace TechnitiumLibrary.Net.Dns
                 return;
             }
 
-            IReadOnlyList<IPAddress> serverIPs = await DnsClient.ResolveIPAsync(dnsClient, domain, preferIPv6, cancellationToken);
+            DnsDatagram response = null;
+            IReadOnlyList<IPAddress> serverIPs = null;
+
+            if (preferIPv6)
+            {
+                response = await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken);
+                serverIPs = DnsClient.ParseResponseAAAA(response);
+            }
+
+            if ((serverIPs is null) || (serverIPs.Count == 0))
+            {
+                response = await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cancellationToken);
+                serverIPs = DnsClient.ParseResponseA(response);
+            }
 
             if (serverIPs.Count == 0)
                 throw new DnsClientException("No IP address was found for name server: " + domain);
 
+            uint ttl = IP_ENDPOINT_DEFAULT_TTL;
+
+            foreach (DnsResourceRecord answer in response.Answer)
+            {
+                switch (answer.Type)
+                {
+                    case DnsResourceRecordType.A:
+                    case DnsResourceRecordType.AAAA:
+                        if (answer.TTL > ttl)
+                            ttl = answer.TTL;
+
+                        break;
+                }
+            }
+
             _ipEndPoint = new IPEndPoint(serverIPs[0], Port);
             _ipEndPointExpires = true;
-            _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
+            _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(ttl);
         }
 
         public async Task RecursiveResolveIPAddressAsync(IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, CancellationToken cancellationToken = default)
@@ -746,18 +781,42 @@ namespace TechnitiumLibrary.Net.Dns
                 return;
             }
 
-            IPEndPoint ipEndPoint = null;
+            DnsDatagram response = null;
+            IReadOnlyList<IPAddress> serverIPs = null;
 
-            IReadOnlyList<IPAddress> addresses = await DnsClient.RecursiveResolveIPAsync(domain, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, null, retries, timeout, concurrency, maxStackCount, cancellationToken);
-            if (addresses.Count > 0)
-                ipEndPoint = new IPEndPoint(addresses[0], Port);
+            if (preferIPv6)
+            {
+                response = await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, null, retries, timeout, concurrency, maxStackCount, cancellationToken);
+                serverIPs = DnsClient.ParseResponseAAAA(response);
+            }
 
-            if (ipEndPoint is null)
+            if ((serverIPs is null) || (serverIPs.Count == 0))
+            {
+                response = await DnsClient.RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, false, false, null, retries, timeout, concurrency, maxStackCount, cancellationToken);
+                serverIPs = DnsClient.ParseResponseA(response);
+            }
+
+            if (serverIPs.Count == 0)
                 throw new DnsClientException("No IP address was found for name server: " + domain);
 
-            _ipEndPoint = ipEndPoint;
+            uint ttl = IP_ENDPOINT_DEFAULT_TTL;
+
+            foreach (DnsResourceRecord answer in response.Answer)
+            {
+                switch (answer.Type)
+                {
+                    case DnsResourceRecordType.A:
+                    case DnsResourceRecordType.AAAA:
+                        if (answer.TTL > ttl)
+                            ttl = answer.TTL;
+
+                        break;
+                }
+            }
+
+            _ipEndPoint = new IPEndPoint(serverIPs[0], Port);
             _ipEndPointExpires = true;
-            _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(IP_ENDPOINT_DEFAULT_TTL);
+            _ipEndPointExpiresOn = DateTime.UtcNow.AddSeconds(ttl);
         }
 
         public async Task ResolveDomainNameAsync(IDnsClient dnsClient, CancellationToken cancellationToken = default)
@@ -810,7 +869,6 @@ namespace TechnitiumLibrary.Net.Dns
                 switch (_domainEndPoint.Port)
                 {
                     case 53:
-                    case 853:
                         value = _domainEndPoint.Address;
                         break;
 
@@ -824,7 +882,6 @@ namespace TechnitiumLibrary.Net.Dns
                 switch (_ipEndPoint.Port)
                 {
                     case 53:
-                    case 853:
                         return _ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6 ? "[" + _ipEndPoint.Address.ToString() + "]" : _ipEndPoint.Address.ToString();
 
                     default:
@@ -832,7 +889,7 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            if (_ipEndPoint is not null)
+            if (!IsIPEndPointStale)
             {
                 string address = _ipEndPoint.AddressFamily == AddressFamily.InterNetworkV6 ? "[" + _ipEndPoint.Address.ToString() + "]" : _ipEndPoint.Address.ToString();
 
