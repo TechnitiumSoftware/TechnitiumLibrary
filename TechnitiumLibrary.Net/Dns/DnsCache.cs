@@ -968,33 +968,41 @@ namespace TechnitiumLibrary.Net.Dns
                                     switch (authority.Type)
                                     {
                                         case DnsResourceRecordType.NS:
-                                            cachableRecords.Add(authority);
-
-                                            DnsNSRecordData ns = authority.RDATA as DnsNSRecordData;
-
-                                            //add glue from additional section
-                                            string nsDomain = ns.NameServer;
-
-                                            foreach (DnsResourceRecord additional in response.Additional)
+                                            foreach (DnsQuestionRecord question in response.Question)
                                             {
-                                                if (nsDomain.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                                if (question.Name.Equals(authority.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authority.Name, StringComparison.OrdinalIgnoreCase))
                                                 {
-                                                    switch (additional.Type)
+                                                    cachableRecords.Add(authority);
+
+                                                    DnsNSRecordData ns = authority.RDATA as DnsNSRecordData;
+
+                                                    //add glue from additional section
+                                                    string nsDomain = ns.NameServer;
+
+                                                    foreach (DnsResourceRecord additional in response.Additional)
                                                     {
-                                                        case DnsResourceRecordType.A:
-                                                            if (IPAddress.IsLoopback((additional.RDATA as DnsARecordData).Address))
-                                                                continue; //skip loopback address to avoid creating resolution loops
+                                                        if (nsDomain.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                                        {
+                                                            switch (additional.Type)
+                                                            {
+                                                                case DnsResourceRecordType.A:
+                                                                    if (IPAddress.IsLoopback((additional.RDATA as DnsARecordData).Address))
+                                                                        continue; //skip loopback address to avoid creating resolution loops
 
-                                                            GetRecordInfo(authority).AddGlueRecord(additional);
-                                                            break;
+                                                                    GetRecordInfo(authority).AddGlueRecord(additional);
+                                                                    break;
 
-                                                        case DnsResourceRecordType.AAAA:
-                                                            if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecordData).Address))
-                                                                continue; //skip loopback address to avoid creating resolution loops
+                                                                case DnsResourceRecordType.AAAA:
+                                                                    if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecordData).Address))
+                                                                        continue; //skip loopback address to avoid creating resolution loops
 
-                                                            GetRecordInfo(authority).AddGlueRecord(additional);
-                                                            break;
+                                                                    GetRecordInfo(authority).AddGlueRecord(additional);
+                                                                    break;
+                                                            }
+                                                        }
                                                     }
+
+                                                    break;
                                                 }
                                             }
                                             break;
