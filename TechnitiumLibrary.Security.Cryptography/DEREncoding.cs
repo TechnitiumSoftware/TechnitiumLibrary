@@ -101,7 +101,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                 int numberLenBytes = length1 & 0x7F;
 
                 byte[] valueBytes = new byte[4];
-                s.Read(valueBytes, 0, numberLenBytes);
+                s.ReadExactly(valueBytes, 0, numberLenBytes);
 
                 switch (numberLenBytes)
                 {
@@ -134,7 +134,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
 
             byte[] value = new byte[valueLength];
-            s.Read(value, 0, valueLength);
+            s.ReadExactly(value, 0, valueLength);
 
             return new DEREncoding(type, value);
         }

@@ -87,7 +87,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         protected override void ReadPlainTextFrom(Stream s)
         {
             byte[] format = new byte[2];
-            s.Read(format, 0, 2);
+            s.ReadExactly(format, 0, 2);
 
             if (Encoding.ASCII.GetString(format) != "CS")
                 throw new InvalidCryptoContainerException("Invalid CertificateStore format.");

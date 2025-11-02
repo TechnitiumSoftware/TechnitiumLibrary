@@ -106,7 +106,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
                 case EDnsClientSubnetAddressFamily.IPv4:
                     {
                         Span<byte> buffer = stackalloc byte[4];
-                        s.Read(buffer.Slice(0, count));
+                        s.ReadExactly(buffer.Slice(0, count));
                         _address = new IPAddress(buffer);
                     }
                     break;
@@ -114,7 +114,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
                 case EDnsClientSubnetAddressFamily.IPv6:
                     {
                         Span<byte> buffer = stackalloc byte[16];
-                        s.Read(buffer.Slice(0, count));
+                        s.ReadExactly(buffer.Slice(0, count));
                         _address = new IPAddress(buffer);
                     }
                     break;

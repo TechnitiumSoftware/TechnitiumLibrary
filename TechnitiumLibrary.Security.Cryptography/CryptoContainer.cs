@@ -97,7 +97,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         private void ReadFrom(Stream s, string password)
         {
             byte[] format = new byte[2];
-            s.Read(format, 0, 2);
+            s.ReadExactly(format, 0, 2);
 
             if (Encoding.ASCII.GetString(format) != "CC")
                 throw new InvalidCryptoContainerException("Invalid CryptoContainer format.");
@@ -120,7 +120,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                         int keySizeBytes = s.ReadByte();
 
                         byte[] IV = new byte[s.ReadByte()];
-                        s.Read(IV, 0, IV.Length);
+                        s.ReadExactly(IV, 0, IV.Length);
 
                         byte[] key;
 
@@ -161,13 +161,13 @@ namespace TechnitiumLibrary.Security.Cryptography
                         int keySizeBytes = s.ReadByte();
 
                         byte[] IV = new byte[s.ReadByte()];
-                        s.Read(IV, 0, IV.Length);
+                        s.ReadExactly(IV, 0, IV.Length);
 
                         byte[] salt = new byte[s.ReadByte()];
-                        s.Read(salt, 0, salt.Length);
+                        s.ReadExactly(salt, 0, salt.Length);
 
                         byte[] HMAC = new byte[s.ReadByte()];
-                        s.Read(HMAC, 0, HMAC.Length);
+                        s.ReadExactly(HMAC, 0, HMAC.Length);
 
                         _kdf = PBKDF2.CreateHMACSHA256(password, salt, PBKDF2_ITERATION_COUNT);
                         byte[] key = _kdf.GetBytes(keySizeBytes);

@@ -201,7 +201,7 @@ namespace TechnitiumLibrary.IO
         private void ReadFrom()
         {
             byte[] buffer = new byte[2];
-            _s.Read(buffer, 0, 2); //format
+            _s.ReadExactly(buffer, 0, 2); //format
 
             if (Encoding.ASCII.GetString(buffer) != "TP")
                 throw new IOException("Invalid Package data format.");
