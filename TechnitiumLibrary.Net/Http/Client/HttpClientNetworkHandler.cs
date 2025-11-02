@@ -401,7 +401,7 @@ namespace TechnitiumLibrary.Net.Http.Client
                                 if ((tlsa.Selector == DnsTLSASelector.Cert) && (tlsa.MatchingType == DnsTLSAMatchingType.Full))
                                 {
                                     //validate using TA cert from TLSA record
-                                    X509Certificate2 taCert = new X509Certificate2(tlsa.CertificateAssociationData);
+                                    X509Certificate2 taCert = X509CertificateLoader.LoadCertificate(tlsa.CertificateAssociationData);
                                     X509Certificate2 lastCert = chain.ChainElements[chain.ChainElements.Count - 1].Certificate;
 
                                     using (X509Chain taChain = new X509Chain())
