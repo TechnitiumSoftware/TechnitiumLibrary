@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ namespace TechnitiumLibrary.ByteTree
             : base(keySpace)
         { }
 
-        protected override byte[] ConvertToByteKey(byte[] key)
+        protected override byte[] ConvertToByteKey(byte[] key, bool throwException = true)
         {
             return key;
         }
@@ -60,14 +60,20 @@ namespace TechnitiumLibrary.ByteTree
 
         #region protected
 
-        protected abstract byte[] ConvertToByteKey(TKey key);
+        protected abstract byte[] ConvertToByteKey(TKey key, bool throwException = true);
 
         protected bool TryRemove(TKey key, out TValue value, out Node currentNode)
         {
             if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
-            byte[] bKey = ConvertToByteKey(key);
+            byte[] bKey = ConvertToByteKey(key, false);
+            if (bKey is null)
+            {
+                value = default;
+                currentNode = default;
+                return false;
+            }
 
             NodeValue removedValue = _root.RemoveNodeValue(bKey, out currentNode);
             if (removedValue is null)
@@ -88,7 +94,13 @@ namespace TechnitiumLibrary.ByteTree
             if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
-            byte[] bKey = ConvertToByteKey(key);
+            byte[] bKey = ConvertToByteKey(key, false);
+            if (bKey is null)
+            {
+                value = default;
+                currentNode = default;
+                return false;
+            }
 
             NodeValue nodeValue = _root.FindNodeValue(bKey, out currentNode);
             if (nodeValue is null)
@@ -126,7 +138,12 @@ namespace TechnitiumLibrary.ByteTree
             if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
-            byte[] bKey = ConvertToByteKey(key);
+            byte[] bKey = ConvertToByteKey(key, false);
+            if (bKey is null)
+            {
+                value = default;
+                return false;
+            }
 
             return _root.AddNodeValue(bKey, delegate () { return new NodeValue(bKey, value); }, _keySpace, out _, out _);
         }
@@ -156,7 +173,9 @@ namespace TechnitiumLibrary.ByteTree
             if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
-            byte[] bKey = ConvertToByteKey(key);
+            byte[] bKey = ConvertToByteKey(key, false);
+            if (bKey is null)
+                return false;
 
             return _root.FindNodeValue(bKey, out _) is not null;
         }
@@ -194,7 +213,9 @@ namespace TechnitiumLibrary.ByteTree
             if (key is null)
                 throw new ArgumentNullException(nameof(key));
 
-            byte[] bKey = ConvertToByteKey(key);
+            byte[] bKey = ConvertToByteKey(key, false);
+            if (bKey is null)
+                return false;
 
             NodeValue nodeValue = _root.FindNodeValue(bKey, out _);
             if (nodeValue is null)
