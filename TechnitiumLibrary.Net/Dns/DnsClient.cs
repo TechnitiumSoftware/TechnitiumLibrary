@@ -2633,9 +2633,6 @@ namespace TechnitiumLibrary.Net.Dns
             if (response.RCODE != DnsResponseCode.NoError)
                 throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response with RCODE: " + response.RCODE + ((response.Metadata is null) || (response.Metadata.NameServer is null) ? "" : " from Name server: " + response.Metadata.NameServer.ToString()), response);
 
-            if (!response.AuthoritativeAnswer)
-                throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response without AuthoritativeAnswer flag set" + ((response.Metadata is null) || (response.Metadata.NameServer is null) ? "." : " from Name server: " + response.Metadata?.NameServer?.ToString()), response);
-
             if ((response.Answer.Count == 0) || (response.Authority.Count > 0) || (response.Additional.Count == 0))
                 throw new DnsClientFailureResponseException("DnsClient failed to resolve the request '" + question.ToString() + "'. Received a response without any answer" + ((response.Metadata is null) || (response.Metadata.NameServer is null) ? "." : " from Name server: " + response.Metadata?.NameServer?.ToString()), response);
 
