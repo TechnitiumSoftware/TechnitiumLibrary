@@ -1,48 +1,48 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <OutputPath>..\bin\</OutputPath>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<OutputPath>..\bin\</OutputPath>
+	</PropertyGroup>
 
-  <PropertyGroup>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <Authors>Shreyas Zare</Authors>
-    <Company>Technitium</Company>
-    <Product>Technitium Library</Product>
-    <PackageProjectUrl></PackageProjectUrl>
-    <RepositoryUrl>https://github.com/TechnitiumSoftware/TechnitiumLibrary</RepositoryUrl>
-    <RepositoryType></RepositoryType>
-    <Description></Description>
-    <PackageId>TechnitiumLibrary.Net</PackageId>
-    <Version>12.0.1</Version>
-    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-  </PropertyGroup>
+	<PropertyGroup>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<Authors>Shreyas Zare</Authors>
+		<Company>Technitium</Company>
+		<Product>Technitium Library</Product>
+		<PackageProjectUrl></PackageProjectUrl>
+		<RepositoryUrl>https://github.com/TechnitiumSoftware/TechnitiumLibrary</RepositoryUrl>
+		<RepositoryType></RepositoryType>
+		<Description></Description>
+		<PackageId>TechnitiumLibrary.Net</PackageId>
+		<Version>13.0</Version>
+		<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <None Remove="named.root" />
-    <None Remove="root-anchors.xml" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Remove="named.root" />
+		<None Remove="root-anchors.xml" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Content Include="named.root">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="root-anchors.xml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
+	<ItemGroup>
+		<Content Include="named.root">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="root-anchors.xml">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.5.1" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj" />
-    <ProjectReference Include="..\TechnitiumLibrary\TechnitiumLibrary.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj" />
+		<ProjectReference Include="..\TechnitiumLibrary\TechnitiumLibrary.csproj" />
+	</ItemGroup>
 
 </Project>
