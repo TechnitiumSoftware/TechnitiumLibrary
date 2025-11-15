@@ -222,14 +222,17 @@ namespace TechnitiumLibrary.Net.Http.Client
                             Task<DnsDatagram> ipv6Task = (_networkType == HttpClientNetworkType.PreferIPv6) || IsPublicIPv6Available() ? _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken) : null;
                             Task<DnsDatagram> ipv4Task = _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken);
 
-                            List<IPAddress> allAddresses = new List<IPAddress>();
-
-                            if (ipv6Task is not null)
-                                allAddresses.AddRange(Dns.DnsClient.ParseResponseAAAA(await ipv6Task));
-
                             response = await ipv4Task;
 
-                            allAddresses.AddRange(Dns.DnsClient.ParseResponseA(response));
+                            IReadOnlyList<IPAddress> ipv6Addresses = ipv6Task is null ? null : Dns.DnsClient.ParseResponseAAAA(await ipv6Task);
+                            IReadOnlyList<IPAddress> ipv4Addresses = Dns.DnsClient.ParseResponseA(response);
+
+                            List<IPAddress> allAddresses = new List<IPAddress>((ipv6Addresses is null ? 0 : ipv6Addresses.Count) + ipv4Addresses.Count);
+
+                            if (ipv6Addresses is not null)
+                                allAddresses.AddRange(ipv6Addresses);
+
+                            allAddresses.AddRange(ipv4Addresses);
 
                             if (allAddresses.Count < 1)
                                 throw new HttpRequestException("HttpClientNetworkHandler could not resolve IP address for host: " + host);
