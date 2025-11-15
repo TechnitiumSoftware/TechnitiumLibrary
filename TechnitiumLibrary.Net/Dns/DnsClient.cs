@@ -1864,26 +1864,38 @@ namespace TechnitiumLibrary.Net.Dns
             if (cache is null)
                 cache = new DnsCache();
 
-            if (preferIPv6)
-            {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, concurrency, maxStackCount, cancellationToken));
-                if (addresses.Count > 0)
-                    return addresses;
-            }
+            Task<DnsDatagram> ipv6Task = preferIPv6 ? RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, concurrency, maxStackCount, cancellationToken) : null;
+            Task<DnsDatagram> ipv4Task = RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, concurrency, maxStackCount, cancellationToken);
 
-            return ParseResponseA(await RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, concurrency, maxStackCount, cancellationToken));
+            IReadOnlyList<IPAddress> ipv6Addresses = preferIPv6 ? ParseResponseAAAA(await ipv6Task) : null;
+            IReadOnlyList<IPAddress> ipv4Addresses = ParseResponseA(await ipv4Task);
+
+            List<IPAddress> ipAddresses = new List<IPAddress>((ipv6Addresses is null ? 0 : ipv6Addresses.Count) + ipv4Addresses.Count);
+
+            if (preferIPv6)
+                ipAddresses.AddRange(ipv6Addresses);
+
+            ipAddresses.AddRange(ipv4Addresses);
+
+            return ipAddresses;
         }
 
         public static async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(IDnsClient dnsClient, string domain, bool preferIPv6 = false, CancellationToken cancellationToken = default)
         {
-            if (preferIPv6)
-            {
-                IReadOnlyList<IPAddress> addresses = ParseResponseAAAA(await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken));
-                if (addresses.Count > 0)
-                    return addresses;
-            }
+            Task<DnsDatagram> ipv6Task = preferIPv6 ? dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken) : null;
+            Task<DnsDatagram> ipv4Task = dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cancellationToken);
 
-            return ParseResponseA(await dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cancellationToken));
+            IReadOnlyList<IPAddress> ipv6Addresses = preferIPv6 ? ParseResponseAAAA(await ipv6Task) : null;
+            IReadOnlyList<IPAddress> ipv4Addresses = ParseResponseA(await ipv4Task);
+
+            List<IPAddress> ipAddresses = new List<IPAddress>((ipv6Addresses is null ? 0 : ipv6Addresses.Count) + ipv4Addresses.Count);
+
+            if (preferIPv6)
+                ipAddresses.AddRange(ipv6Addresses);
+
+            ipAddresses.AddRange(ipv4Addresses);
+
+            return ipAddresses;
         }
 
         public static async Task<IReadOnlyList<string>> ResolveMXAsync(IDnsClient dnsClient, string domain, bool resolveIP = false, bool preferIPv6 = false, CancellationToken cancellationToken = default)
@@ -1926,11 +1938,8 @@ namespace TechnitiumLibrary.Net.Dns
                         switch (record.Type)
                         {
                             case DnsResourceRecordType.A:
-                                if (!preferIPv6)
-                                {
-                                    mxAddresses.Add((record.RDATA as DnsARecordData).Address.ToString());
-                                    glueRecordFound = true;
-                                }
+                                mxAddresses.Add((record.RDATA as DnsARecordData).Address.ToString());
+                                glueRecordFound = true;
                                 break;
 
                             case DnsResourceRecordType.AAAA:
