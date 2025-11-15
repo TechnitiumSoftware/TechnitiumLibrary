@@ -264,8 +264,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 else
                     sendBufferSize = request.EDNS.UdpPayloadSize;
 
+                int recvBufferSize = sendBufferSize;
+
                 sendBuffer = ArrayPool<byte>.Shared.Rent(sendBufferSize);
-                receiveBuffer = ArrayPool<byte>.Shared.Rent(sendBufferSize);
+                receiveBuffer = ArrayPool<byte>.Shared.Rent(recvBufferSize);
 
                 try
                 {
@@ -286,6 +288,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 bool IsResponseValid(int receivedBytes)
                 {
+                    if (receivedBytes > recvBufferSize)
+                        throw new DnsClientResponseSpoofedException(); //possible fragmentation based spoofing attack; use TCP fallback mechanism
+
                     try
                     {
                         //parse response
