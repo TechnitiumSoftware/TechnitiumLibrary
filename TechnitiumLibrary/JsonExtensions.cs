@@ -48,6 +48,26 @@ namespace TechnitiumLibrary
             }
         }
 
+        private static HashSet<string> ReadArrayAsSet(JsonElement jsonArray)
+        {
+            switch (jsonArray.ValueKind)
+            {
+                case JsonValueKind.Array:
+                    HashSet<string> set = new HashSet<string>(jsonArray.GetArrayLength());
+
+                    foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
+                        set.Add(jsonItem.GetString());
+
+                    return set;
+
+                case JsonValueKind.Null:
+                    return null;
+
+                default:
+                    throw new InvalidOperationException();
+            }
+        }
+
         private static T[] ReadArray<T>(JsonElement jsonArray, Func<string, T> getObject)
         {
             switch (jsonArray.ValueKind)
@@ -195,6 +215,23 @@ namespace TechnitiumLibrary
             }
 
             array = null;
+            return false;
+        }
+
+        public static HashSet<string> ReadArrayAsSet(this JsonElement jsonElement, string propertyName)
+        {
+            return ReadArrayAsSet(jsonElement.GetProperty(propertyName));
+        }
+
+        public static bool TryReadArrayAsSet(this JsonElement jsonElement, string propertyName, out HashSet<string> set)
+        {
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            {
+                set = ReadArrayAsSet(jsonArray);
+                return true;
+            }
+
+            set = null;
             return false;
         }
 
