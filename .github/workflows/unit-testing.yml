@@ -1,0 +1,41 @@
+name: Unit testing (Windows / MSBuild)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+  schedule:
+    - cron: "0 0 * * 0"   # weekly, Sunday 00:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+
+    env:
+      SOLUTION_NAME: TechnitiumLibrary.sln
+      BUILD_CONFIGURATION: Debug
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v1
+
+      - name: Restore
+        run: msbuild ${{ env.SOLUTION_NAME }} /t:Restore
+
+      - name: Build
+        run: msbuild ${{ env.SOLUTION_NAME }} /m /p:Configuration=${{ env.BUILD_CONFIGURATION }}
+
+      - name: Test (msbuild)
+        run: msbuild TechnitiumLibrary.Tests\TechnitiumLibrary.Tests.csproj /t:Test /p:Configuration=${{ env.BUILD_CONFIGURATION }}
