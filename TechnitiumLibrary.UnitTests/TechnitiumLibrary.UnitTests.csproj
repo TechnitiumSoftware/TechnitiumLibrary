@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TechnitiumLibrary\TechnitiumLibrary.csproj" />
+    <ProjectReference Include="..\TechnitiumLibrary.Net.Firewall\TechnitiumLibrary.Net.Firewall.csproj" />
   </ItemGroup>
 
 </Project>
