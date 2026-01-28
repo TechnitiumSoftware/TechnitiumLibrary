@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 18
-VisualStudioVersion = 18.1.11312.151 d18.0
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31912.275
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TechnitiumLibrary.IO", "TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj", "{E0BA5456-FEAA-4380-92BB-6B1C4BC3DC70}"
 EndProject
