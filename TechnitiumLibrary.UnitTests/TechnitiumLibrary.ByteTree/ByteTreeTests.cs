@@ -195,6 +195,13 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.ByteTree
             Assert.AreEqual("original", tree[Key(7)]);
         }
 
+        [TestMethod]
+        public void TryUpdate_ShouldThrow_WhenNullKey()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.TryUpdate(null, "x", "y"));
+        }
+
         // ---------------------------
         // AddOrUpdate
         // ---------------------------
