@@ -397,7 +397,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Proxy
                 if (ShouldThrow)
                     throw new SocketException((int)ThrowError);
 
-                Socket socket = new Socket(Family, SocketType.Stream, ProtocolType.Tcp);
+                using Socket socket = new Socket(Family, SocketType.Stream, ProtocolType.Tcp);
                 return Task.FromResult(socket);
             }
 
@@ -448,7 +448,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Proxy
 
             public Task<Socket> AcceptAsync(CancellationToken cancellationToken = default)
             {
-                Socket socket = new Socket(
+                using Socket socket = new Socket(
                     ((IPEndPoint)ProxyLocalEndPoint).AddressFamily,
                     SocketType.Stream,
                     ProtocolType.Tcp);

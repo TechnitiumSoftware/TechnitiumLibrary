@@ -318,6 +318,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Proxy
                 Socket serverSocket = await listener.AcceptSocketAsync(cancellationToken);
 
                 listener.Stop();
+                listener.Dispose();
 
                 // We only return the client side to the proxy; the server side is discarded.
                 serverSocket.Dispose();
