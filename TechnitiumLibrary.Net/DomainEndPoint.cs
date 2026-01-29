@@ -61,6 +61,12 @@ namespace TechnitiumLibrary.Net
 
         public static bool TryParse(string value, out DomainEndPoint ep)
         {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                ep = null;
+                return false;
+            }
+
             string[] parts = value.Split(':');
             if (parts.Length > 2)
             {
