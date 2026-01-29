@@ -5,7 +5,7 @@ using TechnitiumLibrary.Net.Firewall;
 namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Firewall
 {
     [TestClass]
-    public sealed class WindowsFirewallPublicTests
+    public sealed class WindowsFirewallTests
     {
         [TestMethod]
         public void AddPort_ShouldThrow_WhenUnsupportedProtocol()
