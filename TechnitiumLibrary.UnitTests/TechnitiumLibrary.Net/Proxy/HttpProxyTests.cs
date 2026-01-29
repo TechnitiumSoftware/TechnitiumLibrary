@@ -91,6 +91,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Proxy
 
             result.Dispose();
             listener.Stop();
+            listener.Dispose();
         }
 
         // ------------------------------------------------------------
@@ -126,6 +127,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Proxy
             await Assert.ThrowsExactlyAsync<HttpProxyAuthenticationFailedException>(() => connectTask);
 
             listener.Stop();
+            listener.Dispose();
         }
 
         // ------------------------------------------------------------
@@ -155,6 +157,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Proxy
             await Assert.ThrowsExactlyAsync<HttpProxyException>(() => connectTask);
 
             listener.Stop();
+            listener.Dispose();
         }
 
         // ------------------------------------------------------------
@@ -178,6 +181,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Proxy
             await Assert.ThrowsExactlyAsync<HttpProxyException>(() => connectTask);
 
             listener.Stop();
+            listener.Dispose();
         }
 
         // ------------------------------------------------------------
@@ -202,6 +206,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Proxy
             await Assert.ThrowsExactlyAsync<HttpProxyException>(() => connectTask);
 
             listener.Stop();
+            listener.Dispose();
         }
 
         // ------------------------------------------------------------
@@ -238,6 +243,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Proxy
 
             finalSocket.Dispose();
             listener.Stop();
+            listener.Dispose();
         }
     }
 }
