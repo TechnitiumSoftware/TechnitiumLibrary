@@ -55,7 +55,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public static PBKDF2 CreateHMACSHA1(byte[] password, byte[] salt, int iterationCount)
         {
-            return new PBKDF2(new HMACSHA256(password), salt, iterationCount);
+            return new PBKDF2(new HMACSHA1(password), salt, iterationCount);
         }
 
         public static PBKDF2 CreateHMACSHA1(string password, int saltLength, int iterationCount)
