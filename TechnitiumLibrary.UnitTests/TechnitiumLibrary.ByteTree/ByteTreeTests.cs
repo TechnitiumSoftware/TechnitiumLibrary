@@ -211,6 +211,35 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.ByteTree
 
 
         // ---------------------------
+        // GetOrAdd
+        // ---------------------------
+
+        [TestMethod]
+        public void GetOrAdd_ShouldReturnExistingValue_WhenKeyExists()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(2, 2), "existing");
+            string val = tree.GetOrAdd(Key(2, 2), "new");
+            Assert.AreEqual("existing", val);
+        }
+
+        [TestMethod]
+        public void GetOrAdd_ShouldInsertAndReturnNewValue_WhenKeyMissing()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            string val = tree.GetOrAdd(Key(3, 3), "added");
+            Assert.AreEqual("added", val);
+            Assert.AreEqual("added", tree[Key(3, 3)]);
+        }
+
+        [TestMethod]
+        public void GetOrAdd_ShouldThrow_WhenNullKey()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.GetOrAdd(null, "x"));
+        }
+
+        // ---------------------------
         // AddOrUpdate
         // ---------------------------
         [TestMethod]
