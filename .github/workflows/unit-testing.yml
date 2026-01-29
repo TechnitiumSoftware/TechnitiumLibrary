@@ -38,4 +38,4 @@ jobs:
         run: msbuild ${{ env.SOLUTION_NAME }} /m /p:Configuration=${{ env.BUILD_CONFIGURATION }}
 
       - name: Test (msbuild)
-        run: msbuild TechnitiumLibrary.Tests\TechnitiumLibrary.Tests.csproj /t:Test /p:Configuration=${{ env.BUILD_CONFIGURATION }}
+        run: msbuild TechnitiumLibrary.UnitTests\TechnitiumLibrary.UnitTests.csproj /t:Test /p:Configuration=${{ env.BUILD_CONFIGURATION }}
