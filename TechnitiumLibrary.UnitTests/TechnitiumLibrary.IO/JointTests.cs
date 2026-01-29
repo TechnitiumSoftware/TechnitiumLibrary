@@ -116,8 +116,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
             await WaitForCopyCompletion();
 
             // THEN
-            Assert.ThrowsExactly<ObjectDisposedException>(() => { long _ = s1.Length; });
-            Assert.ThrowsExactly<ObjectDisposedException>(() => { long _ = s2.Length; });
+            Assert.ThrowsExactly<ObjectDisposedException>(() => { _ = s1.Length; });
+            Assert.ThrowsExactly<ObjectDisposedException>(() => { _ = s2.Length; });
         }
 
         [TestMethod]

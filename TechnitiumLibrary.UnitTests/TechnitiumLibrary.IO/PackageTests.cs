@@ -9,8 +9,6 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
     [TestClass]
     public sealed class PackageTests
     {
-        private static MemoryStream CreateWritableStream() => new MemoryStream();
-
         private static byte[] BuildEmptyPackageFile()
         {
             // Header:
@@ -23,41 +21,6 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
                 .ToArray();
         }
 
-        /// <summary>
-        /// Creates a serialized single PackageItem with name "A" and empty content.
-        /// </summary>
-        private static byte[] CreateMinimalItem()
-        {
-            using MemoryStream ms = new MemoryStream();
-            using BinaryWriter writer = new BinaryWriter(ms);
-
-            // Write NAME field (short)
-            writer.Write((byte)1);          // length
-            writer.Write("A"u8.ToArray());  // ASCII name
-
-            // Extract location = 0
-            writer.Write((byte)0);
-
-            // Flags = 0
-            writer.Write((byte)0);
-
-            // File size = 0 (Int64)
-            writer.Write((long)0);
-
-            // Because file size = 0, Write no content
-            return ms.ToArray();
-        }
-
-        private static void WriteItem(Stream stream)
-        {
-            using MemoryStream data = new MemoryStream(); // empty payload
-            using PackageItem item = new PackageItem("A", data);
-
-            item.WriteTo(stream);
-        }
-
-
-
         // -------------------------------------------------------------
         // CONSTRUCTION
         // -------------------------------------------------------------
@@ -65,7 +28,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         [TestMethod]
         public void Constructor_ShouldWriteHeader_WhenCreating()
         {
-            using MemoryStream backing = CreateWritableStream();
+            using MemoryStream backing = new MemoryStream();
 
             using (Package pkg = new Package(backing, PackageMode.Create))
             {
@@ -119,12 +82,12 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         [TestMethod]
         public void Items_ShouldThrow_WhenNotInOpenMode()
         {
-            using MemoryStream backing = CreateWritableStream();
+            using MemoryStream backing = new MemoryStream();
             using Package pkg = new Package(backing, PackageMode.Create);
 
             Assert.ThrowsExactly<IOException>(() =>
             {
-                System.Collections.ObjectModel.ReadOnlyCollection<PackageItem> _ = pkg.Items;
+                _ = pkg.Items;
             });
         }
 
@@ -135,12 +98,12 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         [TestMethod]
         public void WriteAndRead_ShouldReturnSameItems()
         {
-            using MemoryStream backing = CreateWritableStream();
+            using MemoryStream backing = new MemoryStream();
 
             // Write
             using (Package pkg = new Package(backing, PackageMode.Create))
             {
-                WriteItem(backing);
+                pkg.AddItem(new PackageItem("A", Stream.Null));
                 pkg.Close();
             }
 
@@ -154,9 +117,9 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         [TestMethod]
         public void Close_ShouldWriteEOF_Once()
         {
-            using MemoryStream backing = CreateWritableStream();
+            using MemoryStream backing = new MemoryStream();
             using Package pkg = new Package(backing, PackageMode.Create);
-            WriteItem(backing);
+            pkg.AddItem(new PackageItem("A", Stream.Null));
             pkg.Close();
             long len1 = backing.Length;
             pkg.Close();
@@ -202,7 +165,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         [TestMethod]
         public void Dispose_ShouldNotCloseExternalStream()
         {
-            using MemoryStream backing = CreateWritableStream();
+            using MemoryStream backing = new MemoryStream();
             using (Package pkg = new Package(backing, PackageMode.Create, ownsStream: false))
                 pkg.Close();
 

@@ -298,7 +298,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
 
             Assert.ThrowsExactly<IOException>(() =>
             {
-                PackageItem _ = PackageItem.Parse(buffer);
+                _ = PackageItem.Parse(buffer);
             });
         }
 
