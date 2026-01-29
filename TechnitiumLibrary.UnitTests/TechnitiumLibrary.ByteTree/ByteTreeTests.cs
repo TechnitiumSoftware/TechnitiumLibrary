@@ -202,6 +202,14 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.ByteTree
             Assert.ThrowsExactly<ArgumentNullException>(() => tree.TryUpdate(null, "x", "y"));
         }
 
+        [TestMethod]
+        public void TryUpdate_ShouldReturnFalse_WhenKeyMissing()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.IsFalse(tree.TryUpdate(Key(9), "x", "y"));
+        }
+
+
         // ---------------------------
         // AddOrUpdate
         // ---------------------------
