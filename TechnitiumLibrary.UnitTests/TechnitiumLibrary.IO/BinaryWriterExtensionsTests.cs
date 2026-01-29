@@ -10,16 +10,6 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
     [TestClass]
     public sealed class BinaryWriterExtensionsTests
     {
-        private static (BinaryWriter writer, MemoryStream stream) CreateWriter()
-        {
-            MemoryStream ms = new MemoryStream();
-            BinaryWriter bw = new BinaryWriter(ms);
-            return (bw, ms);
-        }
-
-        private static byte[] WrittenBytes(MemoryStream ms) =>
-            ms.ToArray();
-
         // ---------------------------------------
         // WriteLength() tests
         // ---------------------------------------
@@ -28,20 +18,23 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void WriteLength_ShouldEncodeSingleByte_WhenLessThan128()
         {
             // GIVEN
-            (BinaryWriter bw, MemoryStream ms) = CreateWriter();
+            using MemoryStream ms = new MemoryStream();
+            using BinaryWriter bw = new BinaryWriter(ms);
 
             // WHEN
             bw.WriteLength(42);
 
             // THEN
-            CollectionAssert.AreEqual(new byte[] { 42 }, WrittenBytes(ms));
+
+            CollectionAssert.AreEqual(new byte[] { 42 }, ms.ToArray());
         }
 
         [TestMethod]
         public void WriteLength_ShouldEncodeMultiByte_BigEndianForm()
         {
             // GIVEN
-            (BinaryWriter bw, MemoryStream ms) = CreateWriter();
+            using MemoryStream ms = new MemoryStream();
+            using BinaryWriter bw = new BinaryWriter(ms);
 
             // WHEN
             // length = 0x0000012C (300 decimal)
@@ -50,10 +43,17 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
             // THEN
             // Prefix = 0x82 (2 bytes follow)
             // Then big-endian 01 2C
-            CollectionAssert.AreEqual(
-                new byte[] { 0x82, 0x01, 0x2C },
-                WrittenBytes(ms)
-            );
+            try
+            {
+                CollectionAssert.AreEqual(
+                    new byte[] { 0x82, 0x01, 0x2C },
+                    ms.ToArray()
+                );
+            }
+            finally
+            {
+                ms.Dispose();
+            }
         }
 
         // ---------------------------------------
@@ -64,34 +64,50 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void WriteBuffer_ShouldPrefixLength_AndWriteBytes()
         {
             // GIVEN
-            (BinaryWriter bw, MemoryStream ms) = CreateWriter();
+            using MemoryStream ms = new MemoryStream();
+            using BinaryWriter bw = new BinaryWriter(ms);
             byte[] data = new byte[] { 0xAA, 0xBB, 0xCC };
 
             // WHEN
             bw.WriteBuffer(data);
 
             // THEN
-            CollectionAssert.AreEqual(
-                new byte[] { 0x03, 0xAA, 0xBB, 0xCC },
-                WrittenBytes(ms)
-            );
+            try
+            {
+                CollectionAssert.AreEqual(
+                   new byte[] { 0x03, 0xAA, 0xBB, 0xCC },
+                   ms.ToArray()
+               );
+            }
+            finally
+            {
+                ms.Dispose();
+            }
         }
 
         [TestMethod]
         public void WriteBuffer_WithOffset_ShouldWriteExpectedSegment()
         {
             // GIVEN
-            (BinaryWriter bw, MemoryStream ms) = CreateWriter();
+            using MemoryStream ms = new MemoryStream();
+            using BinaryWriter bw = new BinaryWriter(ms);
             byte[] data = new byte[] { 1, 2, 3, 4, 5 };
 
             // WHEN
             bw.WriteBuffer(data, offset: 1, count: 3);
 
             // THEN
-            CollectionAssert.AreEqual(
-                new byte[] { 0x03, 2, 3, 4 },
-                WrittenBytes(ms)
-            );
+            try
+            {
+                CollectionAssert.AreEqual(
+                   new byte[] { 0x03, 2, 3, 4 },
+                   ms.ToArray()
+               );
+            }
+            finally
+            {
+                ms.Dispose();
+            }
         }
 
         // ---------------------------------------
@@ -102,7 +118,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void WriteShortString_ShouldWriteUtf8EncodedWithLength()
         {
             // GIVEN
-            (BinaryWriter bw, MemoryStream ms) = CreateWriter();
+            using MemoryStream ms = new MemoryStream();
+            using BinaryWriter bw = new BinaryWriter(ms);
             string text = "Hello";
             byte[] utf8 = Encoding.UTF8.GetBytes(text);
 
@@ -114,14 +131,22 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
                 .Concat(utf8)
                 .ToArray();
 
-            CollectionAssert.AreEqual(expected, WrittenBytes(ms));
+            try
+            {
+                CollectionAssert.AreEqual(expected, ms.ToArray());
+            }
+            finally
+            {
+                ms.Dispose();
+            }
         }
 
         [TestMethod]
         public void WriteShortString_ShouldUseSpecifiedEncoding()
         {
             // GIVEN
-            (BinaryWriter bw, MemoryStream ms) = CreateWriter();
+            using MemoryStream ms = new MemoryStream();
+            using BinaryWriter bw = new BinaryWriter(ms);
             string text = "Å";
             Encoding enc = Encoding.UTF32;
             byte[] bytes = enc.GetBytes(text);
@@ -134,14 +159,22 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
                 .Concat(bytes)
                 .ToArray();
 
-            CollectionAssert.AreEqual(expected, WrittenBytes(ms));
+            try
+            {
+                CollectionAssert.AreEqual(expected, ms.ToArray());
+            }
+            finally
+            {
+                ms.Dispose();
+            }
         }
 
         [TestMethod]
         public void WriteShortString_ShouldThrow_WhenStringTooLong()
         {
             // GIVEN
-            (BinaryWriter bw, MemoryStream _) = CreateWriter();
+            using MemoryStream ms = new MemoryStream();
+            using BinaryWriter bw = new BinaryWriter(ms);
             string input = new string('x', 256); // UTF-8 => 256 bytes
 
             // WHEN–THEN
@@ -162,13 +195,14 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
             long millis = (long)(expected - DateTime.UnixEpoch).TotalMilliseconds;
 
             byte[] bytes = BitConverter.GetBytes(millis);
-            (BinaryWriter bw, MemoryStream ms) = CreateWriter();
+            using MemoryStream ms = new MemoryStream();
+            using BinaryWriter bw = new BinaryWriter(ms);
 
             // WHEN
             bw.Write(expected);
 
             // THEN
-            CollectionAssert.AreEqual(bytes, WrittenBytes(ms));
+            CollectionAssert.AreEqual(bytes, ms.ToArray());
         }
     }
 }
