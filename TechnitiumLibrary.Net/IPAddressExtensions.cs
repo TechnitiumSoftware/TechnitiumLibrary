@@ -444,6 +444,14 @@ namespace TechnitiumLibrary.Net
                 //192.168.10.1
 
                 string[] parts = ptrDomain.Split('.');
+
+                // Expecting 6 parts: 4 octets + in-addr + arpa
+                if (parts.Length != 6)
+                {
+                    address = null;
+                    return false;
+                }
+
                 Span<byte> buffer = stackalloc byte[4];
 
                 for (int i = 0, j = parts.Length - 3; (i < 4) && (j > -1); i++, j--)
