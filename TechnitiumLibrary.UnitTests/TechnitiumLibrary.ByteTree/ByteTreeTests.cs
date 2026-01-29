@@ -96,7 +96,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.ByteTree
         {
             ByteTree<string> tree = new ByteTree<string>();
 
-            bool result = tree.TryGet(Key(9), out string? value);
+            bool result = tree.TryGet(Key("\t"u8.ToArray()), out string? value);
 
             Assert.IsFalse(result);
             Assert.IsNull(value);
@@ -142,13 +142,13 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.ByteTree
         public void TryRemove_ShouldReturnTrue_WhenKeyExists()
         {
             ByteTree<string> tree = new ByteTree<string>();
-            tree.Add(Key(10), "v");
+            tree.Add(Key("\n"u8.ToArray()), "v");
 
-            bool result = tree.TryRemove(Key(10), out string? removed);
+            bool result = tree.TryRemove(Key("\n"u8.ToArray()), out string? removed);
 
             Assert.IsTrue(result);
             Assert.AreEqual("v", removed);
-            Assert.IsFalse(tree.ContainsKey(Key(10)));
+            Assert.IsFalse(tree.ContainsKey(Key("\n"u8.ToArray())));
         }
 
         [TestMethod]
@@ -225,6 +225,16 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.ByteTree
             Assert.AreEqual("first_changed", updated);
         }
 
+        [TestMethod]
+        public void AddOrUpdate_ShouldThrow_WhenNullKey()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.AddOrUpdate(
+                null!,
+                _ => "x",
+                (_, __) => "y"));
+        }
+
         // ---------------------------
         // Indexer get/set
         // ---------------------------
@@ -232,9 +242,9 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.ByteTree
         public void Indexer_Get_ShouldReturnExactValue()
         {
             ByteTree<string> tree = new ByteTree<string>();
-            tree.Add(Key(99), "stored");
+            tree.Add(Key("c"u8.ToArray()), "stored");
 
-            Assert.AreEqual("stored", tree[Key(99)]);
+            Assert.AreEqual("stored", tree[Key("c"u8.ToArray())]);
         }
 
         [TestMethod]
