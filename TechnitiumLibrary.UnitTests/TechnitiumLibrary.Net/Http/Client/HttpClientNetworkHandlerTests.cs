@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http.Client
             using HttpClientNetworkHandler handler = new HttpClientNetworkHandler();
             using HttpMessageInvoker invoker = new HttpMessageInvoker(handler);
 
-            HttpRequestMessage request = new HttpRequestMessage(
+            using HttpRequestMessage request = new HttpRequestMessage(
                 HttpMethod.Get,
                 "http://example.com")
             {
@@ -76,7 +76,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http.Client
 
             using HttpMessageInvoker invoker = new HttpMessageInvoker(handler);
 
-            HttpRequestMessage request = new HttpRequestMessage(
+            using HttpRequestMessage request = new HttpRequestMessage(
                 HttpMethod.Get,
                 "http://example.com");
 
@@ -92,7 +92,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http.Client
             using HttpClientNetworkHandler handler = new HttpClientNetworkHandler();
             using HttpMessageInvoker invoker = new HttpMessageInvoker(handler);
 
-            HttpRequestMessage request = new HttpRequestMessage(
+            using HttpRequestMessage request = new HttpRequestMessage(
                 HttpMethod.Get,
                 "http://example.com")
             {
