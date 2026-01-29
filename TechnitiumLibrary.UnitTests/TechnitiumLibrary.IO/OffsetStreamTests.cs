@@ -9,8 +9,6 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
     [TestClass]
     public sealed class OffsetStreamTests
     {
-        private static MemoryStream CreateStream(byte[] data) => new MemoryStream(data, writable: true);
-
         public TestContext TestContext { get; set; } = null!;
 
 
@@ -22,10 +20,10 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Constructor_ShouldExposeCorrectBasicProperties()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 1, 2, 3, 4, 5 });
+            using MemoryStream source = new MemoryStream(new byte[] { 1, 2, 3, 4, 5 }, writable: true);
 
             // WHEN
-            OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 3);
+            using OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 3);
 
             // THEN
             Assert.AreEqual(3, offsetStream.Length);
@@ -38,10 +36,10 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Constructor_ShouldRespectReadOnlyFlag()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[10]);
+            using MemoryStream source = new MemoryStream(new byte[10], writable: true);
 
             // WHEN
-            OffsetStream offsetStream = new OffsetStream(source, readOnly: true);
+            using OffsetStream offsetStream = new OffsetStream(source, readOnly: true);
 
             // THEN
             Assert.IsFalse(offsetStream.CanWrite);
@@ -55,8 +53,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Read_ShouldReturnSegmentWithinBounds()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 10, 20, 30, 40, 50 });
-            OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 3);
+            using MemoryStream source = new MemoryStream(new byte[] { 10, 20, 30, 40, 50 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 3);
 
             byte[] buffer = new byte[10];
 
@@ -72,8 +70,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Read_ShouldReturnZero_WhenPastLength()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 1, 2, 3, 4 });
-            OffsetStream offsetStream = new OffsetStream(source, offset: 2, length: 1);
+            using MemoryStream source = new MemoryStream(new byte[] { 1, 2, 3, 4 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, offset: 2, length: 1);
 
             byte[] buffer = new byte[5];
             offsetStream.Position = 1;
@@ -89,8 +87,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void ReadAsync_ShouldReturnCorrectData()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 9, 8, 7, 6 });
-            OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 2);
+            using MemoryStream source = new MemoryStream(new byte[] { 9, 8, 7, 6 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 2);
             byte[] buffer = new byte[10];
 
             // WHEN
@@ -109,8 +107,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Write_ShouldPlaceDataAtOffset()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 1, 2, 3, 4 });
-            OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 2);
+            using MemoryStream source = new MemoryStream(new byte[] { 1, 2, 3, 4 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 2);
 
             // WHEN
             offsetStream.Write("23"u8.ToArray(), 0, 2);
@@ -123,8 +121,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Write_ShouldExtendLength()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 1, 2, 3 });
-            OffsetStream offsetStream = new OffsetStream(source, offset: 0, length: 2);
+            using MemoryStream source = new MemoryStream(new byte[] { 1, 2, 3 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, offset: 0, length: 2);
 
             // WHEN
             offsetStream.Position = 2;
@@ -138,8 +136,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Write_ShouldThrow_WhenReadOnly()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 1, 2, 3 });
-            OffsetStream offsetStream = new OffsetStream(source, readOnly: true);
+            using MemoryStream source = new MemoryStream(new byte[] { 1, 2, 3 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, readOnly: true);
 
             // WHEN–THEN
             Assert.ThrowsExactly<InvalidOperationException>(() =>
@@ -154,8 +152,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Seek_ShouldMoveWithinValidRange()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 1, 2, 3, 4 });
-            OffsetStream offsetStream = new OffsetStream(source, offset: 0, length: 4);
+            using MemoryStream source = new MemoryStream(new byte[] { 1, 2, 3, 4 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, offset: 0, length: 4);
 
             // WHEN
             long newPos = offsetStream.Seek(2, SeekOrigin.Begin);
@@ -169,8 +167,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Seek_ShouldThrow_WhenSeekingPastEnd()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 1, 2, 3 });
-            OffsetStream offsetStream = new OffsetStream(source, offset: 0, length: 3);
+            using MemoryStream source = new MemoryStream(new byte[] { 1, 2, 3 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, offset: 0, length: 3);
 
             // WHEN–THEN
             Assert.ThrowsExactly<EndOfStreamException>(() =>
@@ -185,8 +183,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Dispose_ShouldCloseBaseStream_WhenOwnsStream()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 1 });
-            OffsetStream offsetStream = new OffsetStream(source, ownsStream: true);
+            using MemoryStream source = new MemoryStream(new byte[] { 1 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, ownsStream: true);
 
             // WHEN
             offsetStream.Dispose();
@@ -199,8 +197,8 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void Dispose_ShouldNotCloseBaseStream_WhenNotOwned()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 1 });
-            OffsetStream offsetStream = new OffsetStream(source, ownsStream: false);
+            using MemoryStream source = new MemoryStream(new byte[] { 1 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, ownsStream: false);
 
             // WHEN
             offsetStream.Dispose();
@@ -217,9 +215,9 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public void WriteTo_ShouldCopyOnlyOffsetRange()
         {
             // GIVEN
-            MemoryStream source = CreateStream(new byte[] { 10, 20, 30, 40 });
-            OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 2);
-            MemoryStream target = new MemoryStream();
+            using MemoryStream source = new MemoryStream(new byte[] { 10, 20, 30, 40 }, writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 2);
+            using MemoryStream target = new MemoryStream();
 
             // WHEN
             offsetStream.WriteTo(target);
@@ -232,9 +230,9 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
         public async Task WriteToAsync_ShouldCopyOnlyOffsetRange()
         {
             // GIVEN
-            MemoryStream source = CreateStream("2<F"u8.ToArray());
-            OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 2);
-            MemoryStream target = new MemoryStream();
+            using MemoryStream source = new MemoryStream("2<F"u8.ToArray(), writable: true);
+            using OffsetStream offsetStream = new OffsetStream(source, offset: 1, length: 2);
+            using MemoryStream target = new MemoryStream();
 
             // WHEN
             await offsetStream.WriteToAsync(target);
