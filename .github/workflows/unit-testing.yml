@@ -29,7 +29,7 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v1
+        uses: microsoft/setup-msbuild@v2
 
       - name: Restore
         run: msbuild ${{ env.SOLUTION_NAME }} /t:Restore
