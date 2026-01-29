@@ -11,6 +11,9 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
     {
         private static MemoryStream CreateStream(byte[] data) => new MemoryStream(data, writable: true);
 
+        public TestContext TestContext { get; set; } = null!;
+
+
         // ------------------------------------------------------
         // CONSTRUCTION & BASIC METADATA
         // ------------------------------------------------------
@@ -239,7 +242,5 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.IO
             // THEN
             CollectionAssert.AreEqual("<F"u8.ToArray(), target.ToArray());
         }
-
-        public TestContext TestContext { get; set; }
     }
 }
