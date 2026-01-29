@@ -151,7 +151,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary
         }
 
         [TestMethod]
-        public void FromBase32HexString_GivenNullStringSpace_ThrowsException()
+        public void FromBase32HexString_GivenStringWithSpace_ThrowsException()
         {
             Assert.ThrowsExactly<IndexOutOfRangeException>(() => Base32.FromBase32HexString("MZXW6YTBOI====== "));
         }
