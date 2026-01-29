@@ -23,7 +23,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
                 "\r\n" +
                 "5\r\nabc";
 
-            using MemoryStream stream = MakeStream(raw);
+            using MemoryStream stream = new MemoryStream(Encoding.ASCII.GetBytes(raw));
 
             HttpResponse resp = await HttpResponse.ReadResponseAsync(
                 stream,
@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
                 "Content-Length 10\r\n" + // missing colon
                 "\r\n";
 
-            using MemoryStream stream = MakeStream(raw);
+            using MemoryStream stream = new MemoryStream(Encoding.ASCII.GetBytes(raw));
 
             await Assert.ThrowsExactlyAsync<InvalidDataException>(async () =>
             {
@@ -60,7 +60,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
                 "HTTP/1.1 200 OK\r\n" +
                 "Content-Length: 0\r\n"; // missing terminating CRLF
 
-            using MemoryStream stream = MakeStream(raw);
+            using MemoryStream stream = new MemoryStream(Encoding.ASCII.GetBytes(raw));
 
             await Assert.ThrowsExactlyAsync<EndOfStreamException>(async () =>
             {
@@ -78,7 +78,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
                 "Content-Length: 0\r\n" +
                 "\r\n";
 
-            using MemoryStream stream = MakeStream(raw);
+            using MemoryStream stream = new MemoryStream(Encoding.ASCII.GetBytes(raw));
 
             await Assert.ThrowsExactlyAsync<FormatException>(async () =>
             {
@@ -96,7 +96,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
                 "Content-Length: 0\r\n" +
                 "\r\n";
 
-            using MemoryStream stream = MakeStream(raw);
+            using MemoryStream stream = new MemoryStream(Encoding.ASCII.GetBytes(raw));
 
             await Assert.ThrowsExactlyAsync<InvalidDataException>(async () =>
             {
@@ -117,7 +117,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
                 "3\r\nbar\r\n" +
                 "0\r\n\r\n";
 
-            using MemoryStream stream = MakeStream(raw);
+            using MemoryStream stream = new MemoryStream(Encoding.ASCII.GetBytes(raw));
 
             HttpResponse resp = await HttpResponse.ReadResponseAsync(
                 stream,
@@ -138,7 +138,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
                 "Transfer-Encoding: br\r\n" +
                 "\r\n";
 
-            using MemoryStream stream = MakeStream(raw);
+            using MemoryStream stream = new MemoryStream(Encoding.ASCII.GetBytes(raw));
 
             await Assert.ThrowsExactlyAsync<HttpRequestException>(async () =>
             {
@@ -157,7 +157,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
                 "\r\n" +
                 "TestEXTRA";
 
-            using MemoryStream stream = MakeStream(raw);
+            using MemoryStream stream = new MemoryStream(Encoding.ASCII.GetBytes(raw));
 
             HttpResponse resp = await HttpResponse.ReadResponseAsync(
                 stream,
@@ -182,9 +182,6 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
                 "Test",
                 Encoding.ASCII.GetString(buffer, 0, totalRead));
         }
-
-        private static MemoryStream MakeStream(string ascii)
-                                                            => new MemoryStream(Encoding.ASCII.GetBytes(ascii));
 
         private static async Task<string> ReadAllAsciiAsync(Stream s, CancellationToken ct)
         {

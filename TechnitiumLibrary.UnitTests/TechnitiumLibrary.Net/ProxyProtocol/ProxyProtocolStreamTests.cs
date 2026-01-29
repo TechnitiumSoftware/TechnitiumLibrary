@@ -6,8 +6,9 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TechnitiumLibrary.Net.ProxyProtocol;
 
-namespace TechnitiumLibrary.Net.ProxyProtocol.Tests
+namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.ProxyProtocol
 {
     [TestClass]
     public class ProxyProtocolStreamTests
@@ -236,7 +237,7 @@ namespace TechnitiumLibrary.Net.ProxyProtocol.Tests
                 await ProxyProtocolStream.CreateAsServerAsync(baseStream, TestContext.CancellationToken);
 
             byte[] buffer = new byte[payload.Length];
-            int read = await proxy.ReadAsync(buffer, 0, buffer.Length, TestContext.CancellationToken);
+            int read = await proxy.ReadAsync(buffer, TestContext.CancellationToken);
 
             Assert.AreEqual(payload.Length, read);
             Assert.AreEqual("ASYNC", Encoding.ASCII.GetString(buffer));
@@ -300,11 +301,11 @@ namespace TechnitiumLibrary.Net.ProxyProtocol.Tests
             byte[] sig = MakeV2sig();
             byte command = (byte)(local ? 0x0 : 0x1); // LOCAL or PROXY
             byte versionNibble = 0x2;
-            byte verCmd = (byte)((versionNibble << 4) | command);
+            byte verCmd = (byte)(versionNibble << 4 | command);
 
             byte afNibble = 1;
             byte protoNibble = streamProto ? (byte)1 : (byte)2;
-            byte famProto = (byte)((afNibble << 4) | protoNibble);
+            byte famProto = (byte)(afNibble << 4 | protoNibble);
 
             ushort len = 12;
             byte[] h = new byte[16 + len];
@@ -358,8 +359,7 @@ namespace TechnitiumLibrary.Net.ProxyProtocol.Tests
 
             public override int Read(byte[] buffer, int offset, int count)
             {
-                if (_disposed)
-                    throw new ObjectDisposedException(nameof(FragmentedReadStream));
+                ObjectDisposedException.ThrowIf(_disposed, nameof(FragmentedReadStream));
 
                 if (_pos >= _data.Length)
                     return 0;
