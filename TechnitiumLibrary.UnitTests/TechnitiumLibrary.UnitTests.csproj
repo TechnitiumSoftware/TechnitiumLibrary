@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TechnitiumLibrary\TechnitiumLibrary.csproj" />
+    <ProjectReference Include="..\TechnitiumLibrary.Net\TechnitiumLibrary.Net.csproj" />
   </ItemGroup>
 
 </Project>
