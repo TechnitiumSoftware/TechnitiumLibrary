@@ -310,9 +310,6 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net
         [TestMethod]
         public void TryParseReverseDomain_ShouldReturnFalseAndNull_ForUnknownSuffix()
         {
-            // GIVEN
-            IPAddress original = IPAddress.Loopback; // must be overwritten on failure
-
             // WHEN
             bool ok = IPAddressExtensions.TryParseReverseDomain("example.com", out IPAddress? parsed);
 
