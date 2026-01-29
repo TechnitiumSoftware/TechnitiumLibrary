@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Net.Sockets;
 
 namespace TechnitiumLibrary.Net
 {
@@ -28,6 +29,7 @@ namespace TechnitiumLibrary.Net
         #region variables
 
         readonly List<IpEntry> _ipLookupList;
+        AddressFamily _networkFamily = AddressFamily.Unspecified;
         bool _sorted;
 
         #endregion
@@ -105,6 +107,16 @@ namespace TechnitiumLibrary.Net
         {
             lock (_ipLookupList)
             {
+                // The first entry decides what kind of network map
+                // we are creating
+                if (_networkFamily == AddressFamily.Unspecified)
+                {
+                    _networkFamily = networkAddress.AddressFamily;
+                }
+                else if (_networkFamily != networkAddress.AddressFamily)
+                {
+                    throw new InvalidOperationException("Cannot add network address of different address family to the map.");
+                }
                 _ipLookupList.Add(new IpEntry(networkAddress.Address, value));
                 _ipLookupList.Add(new IpEntry(networkAddress.GetLastAddress(), value));
 
@@ -119,12 +131,19 @@ namespace TechnitiumLibrary.Net
 
         public bool Remove(NetworkAddress networkAddress)
         {
+            if (networkAddress.AddressFamily != _networkFamily)
+            {
+                return false;
+            }
+
             lock (_ipLookupList)
             {
                 bool v1 = _ipLookupList.Remove(new IpEntry(networkAddress.Address));
                 bool v2 = _ipLookupList.Remove(new IpEntry(networkAddress.GetLastAddress()));
 
                 _sorted = false;
+
+                if (_ipLookupList.Count == 0) _networkFamily = AddressFamily.Unspecified; // reset internal address family, class may be reused.
                 return v1 & v2;
             }
         }
@@ -136,6 +155,12 @@ namespace TechnitiumLibrary.Net
 
         public bool TryGetValue(IPAddress address, out T value)
         {
+            if (address.AddressFamily != _networkFamily)
+            {
+                value = default;
+                return false;
+            }
+
             if (!_sorted)
             {
                 lock (_ipLookupList)
@@ -149,7 +174,6 @@ namespace TechnitiumLibrary.Net
             }
 
             IpEntry findEntry = new IpEntry(address);
-
             IpEntry floorEntry = GetFloorEntry(findEntry);
             IpEntry ceilingEntry = GetCeilingEntry(findEntry);
 
