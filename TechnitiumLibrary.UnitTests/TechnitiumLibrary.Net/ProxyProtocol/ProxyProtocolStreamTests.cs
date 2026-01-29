@@ -97,7 +97,7 @@ namespace TechnitiumLibrary.Net.ProxyProtocol.Tests
             Assert.AreEqual(28, proxy.DataOffset, "IPv4 PROXY v2 header must be 16 + 12 bytes.");
 
             byte[] buffer = new byte[payload.Length];
-            int read = proxy.Read(buffer, 0, buffer.Length);
+            _ = proxy.Read(buffer, 0, buffer.Length);
 
             Assert.AreEqual("DATA", Encoding.ASCII.GetString(buffer));
         }
@@ -127,7 +127,7 @@ namespace TechnitiumLibrary.Net.ProxyProtocol.Tests
             Assert.AreEqual(8443, proxy.DestinationPort);
 
             byte[] buffer = new byte[payload.Length];
-            int read = proxy.Read(buffer, 0, buffer.Length);
+            _ = proxy.Read(buffer, 0, buffer.Length);
 
             Assert.AreEqual("FRAG", Encoding.ASCII.GetString(buffer));
         }
