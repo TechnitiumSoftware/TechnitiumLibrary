@@ -45,8 +45,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 try
                 {
-                    using (JsonDocument jsonDocument = JsonDocument.Parse(data))
-                    { }
+                    _ = JsonDocument.Parse(data);
                 }
                 catch (JsonException)
                 {
