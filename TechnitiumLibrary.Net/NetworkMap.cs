@@ -143,7 +143,6 @@ namespace TechnitiumLibrary.Net
 
                 _sorted = false;
 
-                if (_ipLookupList.Count == 0) _networkFamily = AddressFamily.Unspecified; // reset internal address family, class may be reused.
                 return v1 & v2;
             }
         }
