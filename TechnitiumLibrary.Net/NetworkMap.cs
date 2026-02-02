@@ -29,7 +29,7 @@ namespace TechnitiumLibrary.Net
         #region variables
 
         readonly List<IpEntry> _ipLookupList;
-        AddressFamily _networkFamily = AddressFamily.Unspecified;
+        volatile AddressFamily _networkFamily = AddressFamily.Unspecified;
         bool _sorted;
 
         #endregion
