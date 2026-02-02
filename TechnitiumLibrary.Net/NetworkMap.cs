@@ -131,13 +131,13 @@ namespace TechnitiumLibrary.Net
 
         public bool Remove(NetworkAddress networkAddress)
         {
-            if (networkAddress.AddressFamily != _networkFamily)
-            {
-                return false;
-            }
-
             lock (_ipLookupList)
             {
+                if (networkAddress.AddressFamily != _networkFamily)
+                {
+                    return false;
+                }
+
                 bool v1 = _ipLookupList.Remove(new IpEntry(networkAddress.Address));
                 bool v2 = _ipLookupList.Remove(new IpEntry(networkAddress.GetLastAddress()));
 
