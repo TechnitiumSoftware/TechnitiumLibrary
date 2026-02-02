@@ -43,8 +43,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             if (data.StartsWith('{') || data.StartsWith('['))
             {
-                using (JsonDocument jsonDocument = JsonDocument.Parse(data))
-                { }
+                try
+                {
+                    using (JsonDocument jsonDocument = JsonDocument.Parse(data))
+                    { }
+                }
+                catch (JsonException)
+                {
+                    throw new ArgumentException("Data is not a valid JSON string.", nameof(data));
+                }
             }
 
             _appName = appName;
