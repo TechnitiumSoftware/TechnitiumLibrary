@@ -174,6 +174,7 @@ namespace TechnitiumLibrary.Net
             }
 
             IpEntry findEntry = new IpEntry(address);
+
             IpEntry floorEntry = GetFloorEntry(findEntry);
             IpEntry ceilingEntry = GetCeilingEntry(findEntry);
 
