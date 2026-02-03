@@ -71,9 +71,6 @@ ep.Port, "TransparentProxyServer must bind to an ephemeral port when port=0 is s
         [TestMethod]
         public void Constructor_DNAT_OnNonUnix_MustThrowNotSupportedException()
         {
-            if (Environment.OSVersion.Platform == PlatformID.Unix)
-                Assert.Inconclusive("DNAT platform restriction applies only on non-Unix systems.");
-
             Assert.ThrowsExactly<NotSupportedException>(
                 () => new TransparentProxyServer(
                     localEP: new IPEndPoint(IPAddress.Loopback, 0),
@@ -83,11 +80,9 @@ ep.Port, "TransparentProxyServer must bind to an ephemeral port when port=0 is s
         }
 
         [TestMethod]
+        [OSCondition(OperatingSystems.Linux | OperatingSystems.OSX | OperatingSystems.FreeBSD)]
         public void Constructor_DNAT_WithIPv6_MustThrowNotSupportedException()
         {
-            if (Environment.OSVersion.Platform != PlatformID.Unix)
-                return; // explicitly skip, not inconclusive
-
             Assert.ThrowsExactly<NotSupportedException>(
                 () => new TransparentProxyServer(
                     localEP: new IPEndPoint(IPAddress.IPv6Loopback, 0),
