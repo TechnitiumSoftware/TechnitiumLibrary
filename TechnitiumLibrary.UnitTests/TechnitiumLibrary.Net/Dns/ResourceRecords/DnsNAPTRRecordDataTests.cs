@@ -45,7 +45,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             string longValue = new string('a', 256);
 
-            Assert.ThrowsExactly<DnsClientException>(() =>
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
                 new DnsNAPTRRecordData(
                     0, 0,
                     longValue,
