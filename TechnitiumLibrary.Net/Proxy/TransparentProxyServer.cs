@@ -63,7 +63,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public TransparentProxyServer(IPEndPoint localEP, IProxyServerConnectionManager connectionManager = null, TransparentProxyServerMethod method = TransparentProxyServerMethod.DNAT, int backlog = 10)
         {
-            if (_method != TransparentProxyServerMethod.Tunnel)
+            if (method != TransparentProxyServerMethod.Tunnel)
             {
                 if (Environment.OSVersion.Platform != PlatformID.Unix)
                     throw new NotSupportedException("Only Unix/Linux is supported.");
