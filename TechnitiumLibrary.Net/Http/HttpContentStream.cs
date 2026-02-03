@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -43,6 +44,23 @@ namespace TechnitiumLibrary.Net.Http
 
         public HttpContentStream(Stream baseStream, byte[] buffer, int offset, int length, int contentLength = -1)
         {
+            ArgumentOutOfRangeException.ThrowIfNegative(length);
+            ArgumentNullException.ThrowIfNull(baseStream);
+            ArgumentNullException.ThrowIfNull(buffer);
+            if (offset < 0 || offset + length > buffer.Length)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+
+            // Validate Content-Length semantics
+            if (contentLength < -1)
+                throw new InvalidDataException("Invalid Content-Length value.");
+
+            int bufferedBodyBytes = length - offset;
+
+            // RFC 9112 §6.3 — recipient MUST NOT read beyond Content-Length
+            if (contentLength != -1 && bufferedBodyBytes > contentLength)
+                throw new HttpRequestException(
+                    $"HTTP protocol violation: buffered {bufferedBodyBytes} body bytes, " +
+                    $"but Content-Length is {contentLength}.");
             _baseStream = baseStream;
 
             _buffer = buffer;
