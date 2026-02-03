@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
@@ -46,6 +47,75 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsNAPTRRecordData(ushort order, ushort preference, string flags, string services, string regexp, string replacement)
         {
+            ArgumentNullException.ThrowIfNull(flags);
+
+            ArgumentNullException.ThrowIfNull(services);
+
+            ArgumentNullException.ThrowIfNull(regexp);
+
+            ArgumentNullException.ThrowIfNull(replacement);
+
+            // RFC 3403: REGEXP and REPLACEMENT are mutually exclusive 
+            // If both are present (non-empty), the record is in error and MUST be rejected or ignored.
+            if (regexp.Length > 0 && replacement.Length > 0)
+                throw new ArgumentException(
+                    "REGEXP and REPLACEMENT are mutually exclusive per RFC 3403.");
+
+            // RFC 3403: FLAGS validation 
+            // Flags are single characters from A–Z and 0–9, case-insensitive.
+            for (int i = 0; i < flags.Length; i++)
+            {
+                char c = flags[i];
+                if (!(char.IsAsciiLetter(c) || char.IsDigit(c)))
+                    throw new ArgumentException(
+                        $"Invalid NAPTR flag '{c}'. Allowed set is A–Z and 0–9.",
+                        nameof(flags));
+            }
+
+            // RFC 3403: SERVICES is a DNS <character-string> 
+            // RFC intentionally does NOT define semantics here; only basic sanity checks.
+            // Enforce non-control UTF-16 chars; deeper validation is application-specific.
+            for (int i = 0; i < services.Length; i++)
+            {
+                if (char.IsControl(services[i]))
+                    throw new ArgumentException(
+                        "SERVICES contains control characters, which are not permitted.",
+                        nameof(services));
+            }
+
+            // RFC 3403: REPLACEMENT must be a fully qualified domain name 
+            if (replacement.Length > 0)
+            {
+                // Must end with a root label (trailing dot)
+                if (!replacement.EndsWith(".", StringComparison.Ordinal))
+                    throw new ArgumentException(
+                        "REPLACEMENT must be a fully qualified domain name ending with a dot.",
+                        nameof(replacement));
+
+                // No name compression, no empty labels except the root
+                if (replacement.Contains("..", StringComparison.Ordinal))
+                    throw new ArgumentException(
+                        "REPLACEMENT contains empty DNS labels.",
+                        nameof(replacement));
+            }
+
+            // RFC 3403: REGEXP sanity 
+            // The RFC requires POSIX ERE semantics but does not mandate compile-time validation.
+            // Enforce only that it is non-empty when used.
+            if (regexp.Length == 0 && replacement.Length == 0)
+                throw new ArgumentException(
+                    "Either REGEXP or REPLACEMENT must be specified per RFC 3403.");
+
+            // OPTIONAL: Validate regex, not defined in RFC.
+            // It is a NICE-TO-HAVE, not a MUST.
+            if (!IsValidRegex(regexp))
+            {
+                throw new ArgumentException(
+                    "REGEXP is not a valid regular expression.",
+                    nameof(regexp));
+            }
+
+            //  DNS <character-string> constraints 
             if (DnsClient.IsDomainNameUnicode(replacement))
                 replacement = DnsClient.ConvertDomainNameToAscii(replacement);
 
@@ -81,6 +151,23 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 DnsDatagram.SerializeDomainName(_replacement, mS);
 
                 _rData = mS.ToArray();
+            }
+        }
+
+        private bool IsValidRegex(string pattern)
+        {
+            if (pattern is null) return false;
+            try
+            {
+                _ = new Regex(
+                    pattern,
+                    RegexOptions.None,
+                    TimeSpan.FromMilliseconds(100));
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                return false;
             }
         }
 
