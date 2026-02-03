@@ -25,7 +25,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Dns.ResourceRecords
         [TestMethod]
         public void Constructor_InvalidJson_Throws()
         {
-            Assert.ThrowsExactly<ArgumentException>(() =>
+            Assert.Throws<System.Text.Json.JsonException>(() =>
                 new DnsApplicationRecordData(
                     "app",
                     "path",
