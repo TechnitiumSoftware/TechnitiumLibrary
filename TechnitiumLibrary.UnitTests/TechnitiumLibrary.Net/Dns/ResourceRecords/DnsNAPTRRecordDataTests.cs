@@ -57,7 +57,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Dns.ResourceRecords
         [TestMethod]
         public void Constructor_NonAsciiCharacter_Throws()
         {
-            Assert.ThrowsExactly<DnsClientException>(() =>
+            Assert.ThrowsExactly<ArgumentException>(() =>
                 new DnsNAPTRRecordData(
                     0, 0,
                     "Ü",
