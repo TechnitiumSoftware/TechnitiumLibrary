@@ -8,6 +8,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Firewall
     public sealed class WindowsFirewallTests
     {
         [TestMethod]
+        [OSCondition(OperatingSystems.Windows)]
         public void AddPort_ShouldThrow_WhenUnsupportedProtocol()
         {
             // Protocol ICMPv4 cannot be added using AddPort
@@ -15,6 +16,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Firewall
         }
 
         [TestMethod]
+        [OSCondition(OperatingSystems.Windows)]
         public void RemovePort_ShouldThrow_WhenUnsupportedProtocol()
         {
             // RemovePort validates only TCP, UDP, ANY
@@ -22,12 +24,14 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Firewall
         }
 
         [TestMethod]
+        [OSCondition(OperatingSystems.Windows)]
         public void PortExists_ShouldThrow_WhenUnsupportedProtocol()
         {
             Assert.ThrowsExactly<Exception>(() => WindowsFirewall.PortExists(Protocol.IGMP, 44));
         }
 
         [TestMethod]
+        [OSCondition(OperatingSystems.Windows)]
         public void RuleExistsVista_ShouldReturnDoesNotExist_WhenInputsClearlyNotMatchingAnything()
         {
             // Since firewall is not guaranteed to have this rule,
@@ -40,6 +44,7 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Firewall
         }
 
         [TestMethod]
+        [OSCondition(OperatingSystems.Windows)]
         public void ApplicationExists_ShouldReturnDoesNotExist_WhenApplicationIsNotRegistered()
         {
             // Public observable guarantee:
