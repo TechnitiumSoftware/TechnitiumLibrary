@@ -149,38 +149,24 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
         }
 
         [TestMethod]
-        public async Task ReadResponseAsync_WithContentLength_ExposesExactlyContentLengthBytesInTotal()
+        public async Task ReadResponseAsync_WithContentLength_ThrowsWhenBodyIsLargerThanContentLength()
         {
+            // RFC 9112 §6.3 — MUST NOT read beyond Content-Length
             string raw =
                 "HTTP/1.1 200 OK\r\n" +
                 "Content-Length: 4\r\n" +
                 "\r\n" +
                 "TestEXTRA";
 
-            using MemoryStream stream = new MemoryStream(Encoding.ASCII.GetBytes(raw));
 
-            HttpResponse resp = await HttpResponse.ReadResponseAsync(
-                stream,
-                TestContext.CancellationToken);
-
-            byte[] buffer = new byte[8];
-
-            int totalRead = 0;
-            int r;
-
-            while ((r = await resp.OutputStream.ReadAsync(buffer, TestContext.CancellationToken)) > 0)
+            await Assert.ThrowsExactlyAsync<HttpRequestException>(async () =>
             {
-                totalRead += r;
-            }
+                using MemoryStream stream = new MemoryStream(Encoding.ASCII.GetBytes(raw));
 
-            Assert.AreEqual(
-                4,
-                totalRead,
-                "OutputStream must expose exactly Content-Length bytes (RFC 9112).");
-
-            Assert.AreEqual(
-                "Test",
-                Encoding.ASCII.GetString(buffer, 0, totalRead));
+                HttpResponse resp = await HttpResponse.ReadResponseAsync(
+                    stream,
+                    TestContext.CancellationToken);
+            });
         }
 
         private static async Task<string> ReadAllAsciiAsync(Stream s, CancellationToken ct)

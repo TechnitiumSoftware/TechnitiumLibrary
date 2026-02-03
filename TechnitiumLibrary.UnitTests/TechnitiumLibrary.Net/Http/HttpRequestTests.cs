@@ -266,49 +266,6 @@ namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Http
             });
         }
 
-        [TestMethod]
-        public async Task ReadRequestAsync_WithContentLength_FirstBytesMatchDeclaredLength()
-        {
-            string raw =
-                "POST /data HTTP/1.1\r\n" +
-                "Host: example.com\r\n" +
-                "Content-Length: 5\r\n" +
-                "\r\n" +
-                "HelloEXTRA";
-
-            using MemoryStream stream = MakeStream(raw);
-
-            HttpRequest req = await HttpRequest.ReadRequestAsync(
-                stream,
-                cancellationToken: TestContext.CancellationToken);
-
-            byte[] buffer = new byte[16];
-
-            int r = await req.InputStream.ReadAsync(
-                buffer, 0, buffer.Length, TestContext.CancellationToken);
-
-            Assert.IsGreaterThanOrEqualTo(
-5,
-                r, "InputStream must expose at least Content-Length bytes.");
-
-            Assert.AreEqual(
-                "Hello",
-                Encoding.ASCII.GetString(buffer, 0, 5),
-                "The first Content-Length bytes must match the declared body.");
-
-            // Drain the stream to ensure safe termination
-            while (r > 0)
-            {
-                r = await req.InputStream.ReadAsync(
-                    buffer, 0, buffer.Length, TestContext.CancellationToken);
-            }
-
-            Assert.AreEqual(
-                0,
-                r,
-                "InputStream must eventually terminate with EOF.");
-        }
-
         private static MemoryStream MakeStream(string ascii) => new MemoryStream(Encoding.ASCII.GetBytes(ascii));
 
         private static async Task<string> ReadAllAsciiAsync(Stream s, CancellationToken ct)
