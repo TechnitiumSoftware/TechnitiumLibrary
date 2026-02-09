@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             for (int i = 0; i < flags.Length; i++)
             {
                 char c = flags[i];
-                if (!(char.IsAsciiLetter(c) || char.IsDigit(c)))
+                if (!(char.IsAsciiLetter(c) || char.IsAsciiDigit(c)))
                     throw new ArgumentException(
                         $"Invalid NAPTR flag '{c}'. Allowed set is A–Z and 0–9.",
                         nameof(flags));
@@ -87,10 +87,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (replacement.Length > 0)
             {
                 // Must end with a root label (trailing dot)
-                if (!replacement.EndsWith(".", StringComparison.Ordinal))
-                    throw new ArgumentException(
-                        "REPLACEMENT must be a fully qualified domain name ending with a dot.",
-                        nameof(replacement));
+                // But zoneFile.PopDomainAsync() removes the trailing dot.
+                // Therefore the check is useless.
 
                 // No name compression, no empty labels except the root
                 if (replacement.Contains("..", StringComparison.Ordinal))
