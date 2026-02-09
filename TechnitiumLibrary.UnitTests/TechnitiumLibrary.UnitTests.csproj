@@ -9,7 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TechnitiumLibrary\TechnitiumLibrary.csproj" />
+    <Folder Include="TechnitiumLibrary.Security.OTP\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TechnitiumLibrary.Security.OTP\TechnitiumLibrary.Security.OTP.csproj" />
   </ItemGroup>
 
 </Project>
