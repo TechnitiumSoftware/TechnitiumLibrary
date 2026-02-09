@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
 
@@ -104,15 +103,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 throw new ArgumentException(
                     "Either REGEXP or REPLACEMENT must be specified per RFC 3403.");
 
-            // OPTIONAL: Validate regex, not defined in RFC.
-            // It is a NICE-TO-HAVE, not a MUST.
-            if (!IsValidRegex(regexp))
-            {
-                throw new ArgumentException(
-                    "REGEXP is not a valid regular expression.",
-                    nameof(regexp));
-            }
-
             //  DNS <character-string> constraints 
             if (DnsClient.IsDomainNameUnicode(replacement))
                 replacement = DnsClient.ConvertDomainNameToAscii(replacement);
@@ -149,23 +139,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 DnsDatagram.SerializeDomainName(_replacement, mS);
 
                 _rData = mS.ToArray();
-            }
-        }
-
-        private bool IsValidRegex(string pattern)
-        {
-            if (pattern is null) return false;
-            try
-            {
-                _ = new Regex(
-                    pattern,
-                    RegexOptions.None,
-                    TimeSpan.FromMilliseconds(100));
-                return true;
-            }
-            catch (ArgumentException)
-            {
-                return false;
             }
         }
 
