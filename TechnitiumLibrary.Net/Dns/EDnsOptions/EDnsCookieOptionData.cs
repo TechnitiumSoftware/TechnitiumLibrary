@@ -79,7 +79,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
             // Valid serverLen: 0 OR 8..32.
             if (serverLen != 0 && (serverLen < SERVER_COOKIE_MIN_LENGTH || serverLen > SERVER_COOKIE_MAX_LENGTH))
-                throw new InvalidDataException($"Invalid server cookie length: {serverLen} bytes");
+                throw new InvalidDataException($"Invalid server cookie length: {serverLen} bytes. Valid lengths are exactly 0 bytes, or between {SERVER_COOKIE_MIN_LENGTH} and {SERVER_COOKIE_MAX_LENGTH} bytes.");
 
             _clientCookie = new byte[CLIENT_COOKIE_LENGTH];
             s.ReadExactly(_clientCookie);
