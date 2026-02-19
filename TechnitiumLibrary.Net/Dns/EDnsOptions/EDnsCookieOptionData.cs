@@ -145,10 +145,10 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         {
             writer.WriteStartObject();
 
-            writer.WriteString("client", Convert.ToHexString(_clientCookie));
+            writer.WriteString("ClientCookie", Convert.ToHexString(_clientCookie));
 
             if (_serverCookie is not null)
-                writer.WriteString("server", Convert.ToHexString(_serverCookie));
+                writer.WriteString("ServerCookie", Convert.ToHexString(_serverCookie));
 
             writer.WriteEndObject();
         }
