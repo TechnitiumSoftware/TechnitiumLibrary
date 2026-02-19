@@ -30,19 +30,19 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
     /// - Server cookie: 0 or 8-32 bytes (MAY)
     /// Total option data length: 8 OR 16-40 bytes.
     /// </summary>
-    public sealed class EDnsCookieOptionData : EDnsOptionData, IEquatable<EDnsCookieOptionData>
+    public class EDnsCookieOptionData : EDnsOptionData
     {
+        #region variables
+
         public const int CLIENT_COOKIE_LENGTH = 8;
-        public const int SERVER_COOKIE_MIN_LENGTH = 8;
         public const int SERVER_COOKIE_MAX_LENGTH = 32;
-
+        public const int SERVER_COOKIE_MIN_LENGTH = 8;
         byte[] _clientCookie;
-        byte[] _serverCookie; // null means absent (client-cookie-only)
+        byte[] _serverCookie; // null means absent (client-cookie-only) 
 
-        public ReadOnlySpan<byte> ClientCookie => _clientCookie;
-        public ReadOnlySpan<byte> ServerCookie => _serverCookie is null ? ReadOnlySpan<byte>.Empty : _serverCookie;
+        #endregion
 
-        public bool HasServerCookie => _serverCookie is not null;
+        #region constructor
 
         public EDnsCookieOptionData(byte[] clientCookie, byte[] serverCookie = null)
         {
@@ -67,7 +67,9 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             : base(s)
         { }
 
-        public override int UncompressedLength => CLIENT_COOKIE_LENGTH + (_serverCookie?.Length ?? 0);
+        #endregion
+
+        #region protected
 
         protected override void ReadOptionData(Stream s)
         {
@@ -102,25 +104,9 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
                 s.Write(_serverCookie);
         }
 
-        public override void SerializeTo(Utf8JsonWriter writer)
-        {
-            writer.WriteStartObject();
+        #endregion
 
-            writer.WriteString("client", Convert.ToHexString(_clientCookie));
-
-            if (_serverCookie is not null)
-                writer.WriteString("server", Convert.ToHexString(_serverCookie));
-
-            writer.WriteEndObject();
-        }
-
-        public override string ToString()
-        {
-            if (_serverCookie is null)
-                return $"COOKIE client={Convert.ToHexString(_clientCookie)}";
-
-            return $"COOKIE client={Convert.ToHexString(_clientCookie)} server={Convert.ToHexString(_serverCookie)}";
-        }
+        #region public
 
         public bool Equals(EDnsCookieOptionData other)
         {
@@ -154,5 +140,35 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
             return hash.ToHashCode();
         }
+
+        public override void SerializeTo(Utf8JsonWriter writer)
+        {
+            writer.WriteStartObject();
+
+            writer.WriteString("client", Convert.ToHexString(_clientCookie));
+
+            if (_serverCookie is not null)
+                writer.WriteString("server", Convert.ToHexString(_serverCookie));
+
+            writer.WriteEndObject();
+        }
+
+        public override string ToString()
+        {
+            if (_serverCookie is null)
+                return $"COOKIE client={Convert.ToHexString(_clientCookie)}";
+
+            return $"COOKIE client={Convert.ToHexString(_clientCookie)} server={Convert.ToHexString(_serverCookie)}";
+        }
+
+        #endregion
+
+        #region properties
+        public ReadOnlySpan<byte> ClientCookie => _clientCookie;
+        public bool HasServerCookie => _serverCookie is not null;
+        public ReadOnlySpan<byte> ServerCookie => _serverCookie is null ? ReadOnlySpan<byte>.Empty : _serverCookie;
+        public override int UncompressedLength => CLIENT_COOKIE_LENGTH + (_serverCookie?.Length ?? 0);
+
+        #endregion
     }
 }
