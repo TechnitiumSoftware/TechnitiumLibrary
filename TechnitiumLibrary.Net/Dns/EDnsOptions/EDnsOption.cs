@@ -153,12 +153,12 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
                 jsonWriter.WritePropertyName(nameof(Data));
                 _data.SerializeTo(jsonWriter);
             }
-
+            jsonWriter.WriteEndObject();
         }
 
         #endregion
 
-            #region properties
+        #region properties
 
         public EDnsOptionCode Code
         { get { return _code; } }
