@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -359,14 +359,28 @@ namespace TechnitiumLibrary.Net.Dns
 
         public virtual Task<DnsDatagram> QueryAsync(DnsDatagram request, bool serveStale = false, bool findClosestNameServers = false, bool resetExpiry = false)
         {
-            if (serveStale || resetExpiry)
-                throw new NotImplementedException("DnsCache does not implement serve stale.");
-
             DnsQuestionRecord question = request.Question[0];
 
             if (_cache.TryGetValue(question.Name.ToLowerInvariant(), out DnsCacheEntry entry))
             {
-                IReadOnlyList<DnsResourceRecord> answers = entry.QueryRecords(question.Type == DnsResourceRecordType.NS ? DnsResourceRecordType.CHILD_NS : question.Type, false);
+                DnsResourceRecordType qtype;
+
+                switch (question.Type)
+                {
+                    case DnsResourceRecordType.NS:
+                        qtype = DnsResourceRecordType.CHILD_NS;
+                        break;
+
+                    case DnsResourceRecordType.PARENT_NS:
+                        qtype = DnsResourceRecordType.NS;
+                        break;
+
+                    default:
+                        qtype = question.Type;
+                        break;
+                }
+
+                IReadOnlyList<DnsResourceRecord> answers = entry.QueryRecords(qtype, false);
                 if (answers.Count > 0)
                 {
                     DnsResourceRecord firstRR = answers[0];
@@ -704,10 +718,11 @@ namespace TechnitiumLibrary.Net.Dns
                             case DnsResourceRecordType.NS:
                                 if ((question.Type == DnsResourceRecordType.NS) || (question.Type == DnsResourceRecordType.ANY))
                                 {
-                                    cachableRecords.Add(answer.CloneAs(DnsResourceRecordType.CHILD_NS));
+                                    DnsResourceRecord nsRecord = answer.CloneAs(DnsResourceRecordType.CHILD_NS);
+                                    cachableRecords.Add(nsRecord);
 
                                     //add glue from additional section
-                                    string nsDomain = (answer.RDATA as DnsNSRecordData).NameServer;
+                                    string nsDomain = (nsRecord.RDATA as DnsNSRecordData).NameServer;
 
                                     foreach (DnsResourceRecord additional in response.Additional)
                                     {
@@ -731,14 +746,14 @@ namespace TechnitiumLibrary.Net.Dns
                                                     if (IPAddress.IsLoopback((additional.RDATA as DnsARecordData).Address))
                                                         continue;
 
-                                                    GetRecordInfo(answer).AddGlueRecord(additional);
+                                                    GetRecordInfo(nsRecord).AddGlueRecord(additional);
                                                     break;
 
                                                 case DnsResourceRecordType.AAAA:
                                                     if (IPAddress.IsLoopback((additional.RDATA as DnsAAAARecordData).Address))
                                                         continue;
 
-                                                    GetRecordInfo(answer).AddGlueRecord(additional);
+                                                    GetRecordInfo(nsRecord).AddGlueRecord(additional);
                                                     break;
                                             }
                                         }
@@ -912,12 +927,17 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsResourceRecord lastAnswer = response.GetLastAnswerRecord();
                             if (lastAnswer.Type == DnsResourceRecordType.CNAME)
                             {
-                                foreach (DnsQuestionRecord question in response.Question)
-                                {
-                                    DnsResourceRecord record = new DnsResourceRecord((lastAnswer.RDATA as DnsCNAMERecordData).Domain, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
-                                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
+                                string cnameDomain = (lastAnswer.RDATA as DnsCNAMERecordData).Domain;
 
-                                    InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
+                                if (cnameDomain.Equals(firstAuthority.Name, StringComparison.OrdinalIgnoreCase) || cnameDomain.EndsWith("." + firstAuthority.Name, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    foreach (DnsQuestionRecord question in response.Question)
+                                    {
+                                        DnsResourceRecord record = new DnsResourceRecord(cnameDomain, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
+                                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
+
+                                        InternalCacheRecords([record], eDnsClientSubnet, response.Metadata);
+                                    }
                                 }
                             }
                         }
@@ -963,6 +983,33 @@ namespace TechnitiumLibrary.Net.Dns
                             if (isReferralResponse)
                             {
                                 //cache and glue suitable NS & DS records
+
+                                //find existing cached NS records for persistent metadata
+                                DnsDatagram cachedResponse = null;
+
+                                NameServerMetadata GetCachedMetadataFor(string zoneCut, string nsDomain)
+                                {
+                                    if ((cachedResponse is null) || (cachedResponse.Answer.Count == 0) || !cachedResponse.Answer[0].Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
+                                        cachedResponse = QueryAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [new DnsQuestionRecord(zoneCut, DnsResourceRecordType.PARENT_NS, DnsClass.IN)]), true, false, false).Sync();
+
+                                    if (cachedResponse is null)
+                                        return null;
+
+                                    foreach (DnsResourceRecord record in cachedResponse.Answer)
+                                    {
+                                        if (record.Type != DnsResourceRecordType.NS)
+                                            continue;
+
+                                        if (!record.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
+                                            continue;
+
+                                        if (record.RDATA is DnsNSRecordData nsRecord && nsRecord.NameServer.Equals(nsDomain, StringComparison.OrdinalIgnoreCase))
+                                            return nsRecord.Metadata;
+                                    }
+
+                                    return null;
+                                }
+
                                 foreach (DnsResourceRecord authority in response.Authority)
                                 {
                                     switch (authority.Type)
@@ -975,10 +1022,13 @@ namespace TechnitiumLibrary.Net.Dns
                                                     cachableRecords.Add(authority);
 
                                                     DnsNSRecordData ns = authority.RDATA as DnsNSRecordData;
-
-                                                    //add glue from additional section
                                                     string nsDomain = ns.NameServer;
 
+                                                    NameServerMetadata cachedMetadata = GetCachedMetadataFor(authority.Name, nsDomain);
+                                                    if (cachedMetadata is not null)
+                                                        ns.SetMetadata(cachedMetadata);
+
+                                                    //add glue from additional section
                                                     foreach (DnsResourceRecord additional in response.Additional)
                                                     {
                                                         if (nsDomain.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
@@ -1397,10 +1447,14 @@ namespace TechnitiumLibrary.Net.Dns
                 }
                 else
                 {
-                    bW.Write(Convert.ToByte(_ednsOptions.Count));
+                    int count = _ednsOptions.Count;
+                    if (count > byte.MaxValue)
+                        count = byte.MaxValue; //limit edns options to 255
 
-                    foreach (EDnsOption ednsOption in _ednsOptions)
-                        ednsOption.WriteTo(bW.BaseStream);
+                    bW.Write((byte)count);
+
+                    for (int i = 0; i < count; i++)
+                        _ednsOptions[i].WriteTo(bW.BaseStream);
                 }
             }
 
