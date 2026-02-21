@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -75,6 +75,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #endregion
 
         #region internal
+
+        internal void SetMetadata(NameServerMetadata metadata)
+        {
+            if (_metadata is not null)
+                throw new InvalidOperationException();
+
+            _metadata = metadata;
+        }
 
         internal override void NormalizeName()
         {
