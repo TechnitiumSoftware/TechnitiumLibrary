@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,7 +31,6 @@ using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Net.Dns.ClientConnection
 {
-#pragma warning disable CA2252 // This API requires opting into preview features
 #pragma warning disable CA1416 // Validate platform compatibility
     public class HttpsClientConnection : DnsClientConnection
     {
@@ -397,6 +396,5 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #endregion
     }
 
-#pragma warning restore CA2252 // This API requires opting into preview features
 #pragma warning restore CA1416 // Validate platform compatibility
 }
