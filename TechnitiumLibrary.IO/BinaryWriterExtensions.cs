@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -76,11 +76,7 @@ namespace TechnitiumLibrary.IO
         /// <returns>DateTime is always in UTC</returns>
         public static void Write(this BinaryWriter bW, DateTime date)
         {
-            // Millisecond in C# ticks
-            const long MillisecondAsTicks = 10_000;
-
-            long ts_utc_ms = (date.ToUniversalTime() - DateTime.UnixEpoch).Ticks / MillisecondAsTicks;
-            bW.Write(ts_utc_ms);
+            bW.Write(Convert.ToInt64((date.ToUniversalTime() - DateTime.UnixEpoch).TotalMilliseconds));
         }
 
         public static void WriteLength(this BinaryWriter bW, int valueLength)

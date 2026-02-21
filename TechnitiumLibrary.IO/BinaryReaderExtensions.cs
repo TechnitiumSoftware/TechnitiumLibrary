@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -60,11 +60,7 @@ namespace TechnitiumLibrary.IO
         /// <returns>DateTime is always in UTC</returns>
         public static DateTime ReadDateTime(this BinaryReader bR)
         {
-            // Millisecond in C# ticks
-            const long MillisecondAsTicks = 10_000;
-
-            long ts_utc_ms = bR.ReadInt64();
-            return new DateTime(DateTime.UnixEpoch.Ticks + ts_utc_ms * MillisecondAsTicks, DateTimeKind.Utc);
+            return DateTime.UnixEpoch.AddMilliseconds(bR.ReadInt64());
         }
 
         public static int ReadLength(this BinaryReader bR)
