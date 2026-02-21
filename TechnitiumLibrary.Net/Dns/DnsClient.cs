@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -50,6 +50,13 @@ namespace TechnitiumLibrary.Net.Dns
         TcpProxy = 254 //PROXY Protocol over TCP
     }
 
+    public enum IPv6Mode : byte
+    {
+        Disabled = 0,
+        Enabled = 1,
+        Preferred = 2
+    }
+
     public class DnsClient : IDnsClient
     {
         #region variables
@@ -82,7 +89,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         IDnsCache _cache;
         NetProxy _proxy;
-        bool _preferIPv6;
+        IPv6Mode _ipv6Mode;
         ushort _udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE;
         bool _randomizeName;
         bool _dnssecValidation;
@@ -176,11 +183,11 @@ namespace TechnitiumLibrary.Net.Dns
             _servers = servers;
         }
 
-        public DnsClient(bool preferIPv6 = false)
+        public DnsClient(IPv6Mode ipv6Mode = IPv6Mode.Disabled)
         {
-            _preferIPv6 = preferIPv6;
+            _ipv6Mode = ipv6Mode;
 
-            IReadOnlyList<IPAddress> systemDnsServers = GetSystemDnsServers(_preferIPv6);
+            IReadOnlyList<IPAddress> systemDnsServers = GetSystemDnsServers(_ipv6Mode);
             if (systemDnsServers.Count == 0)
                 throw new DnsClientException("No DNS servers were found configured on this system.");
 
@@ -365,7 +372,7 @@ namespace TechnitiumLibrary.Net.Dns
             ROOT_TRUST_ANCHORS = rootTrustAnchors;
         }
 
-        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, bool minimalResponse = false, bool asyncNsResolution = false, List<DnsDatagram> rawResponses = null, CancellationToken cancellationToken = default)
+        public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, IPv6Mode ipv6Mode = IPv6Mode.Disabled, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, bool minimalResponse = false, bool asyncNsResolution = false, List<DnsDatagram> rawResponses = null, CancellationToken cancellationToken = default)
         {
             if ((udpPayloadSize < 512) && (dnssecValidation || (eDnsClientSubnet is not null)))
                 throw new ArgumentOutOfRangeException(nameof(udpPayloadSize), "EDNS cannot be disabled by setting UDP payload size to less than 512 when DNSSEC validation or EDNS Client Subnet is enabled.");
@@ -384,10 +391,10 @@ namespace TechnitiumLibrary.Net.Dns
             List<EDnsExtendedDnsErrorOptionData> extendedDnsErrors = new List<EDnsExtendedDnsErrorOptionData>();
 
             //async resolve all name servers
-            Dictionary<string, object> asyncNsResolutionTasks = null;
+            HashSet<string> asyncNsResolutionTasks = null;
 
             if (asyncNsResolution)
-                asyncNsResolutionTasks = new Dictionary<string, object>();
+                asyncNsResolutionTasks = new HashSet<string>();
 
             void TriggerNsResolution()
             {
@@ -400,12 +407,12 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         List<Task> tasks = new List<Task>();
 
-                        foreach (KeyValuePair<string, object> entry in asyncNsResolutionTasks)
+                        foreach (string nsDomain in asyncNsResolutionTasks)
                         {
-                            if (preferIPv6)
-                                tasks.Add(RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, null, retries, timeout, concurrency, maxStackCount, cancellationToken: cancellationToken1));
+                            if (ipv6Mode != IPv6Mode.Disabled)
+                                tasks.Add(RecursiveResolveAsync(new DnsQuestionRecord(nsDomain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, ipv6Mode, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, null, retries, timeout, concurrency, maxStackCount, cancellationToken: cancellationToken1));
 
-                            tasks.Add(RecursiveResolveAsync(new DnsQuestionRecord(entry.Key, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, null, retries, timeout, concurrency, maxStackCount, cancellationToken: cancellationToken1));
+                            tasks.Add(RecursiveResolveAsync(new DnsQuestionRecord(nsDomain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, ipv6Mode, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, null, retries, timeout, concurrency, maxStackCount, cancellationToken: cancellationToken1));
                         }
 
                         await Task.WhenAll(tasks);
@@ -495,7 +502,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             async Task<List<NameServerAddress>> ResolveNameServerAddressesFromCacheAsync(List<NameServerAddress> nameServers)
             {
-                List<NameServerAddress> newNameServers = new List<NameServerAddress>(preferIPv6 ? nameServers.Count * 2 : nameServers.Count);
+                List<NameServerAddress> newNameServers = new List<NameServerAddress>(ipv6Mode != IPv6Mode.Disabled ? nameServers.Count * 2 : nameServers.Count);
 
                 foreach (NameServerAddress nameServer in nameServers)
                 {
@@ -507,7 +514,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     bool resolved = false;
 
-                    if (preferIPv6)
+                    if (ipv6Mode != IPv6Mode.Disabled)
                     {
                         DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [new DnsQuestionRecord(nameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA, DnsClass.IN)]);
                         DnsDatagram cacheResponse = await cache.QueryAsync(cacheRequest);
@@ -577,7 +584,6 @@ namespace TechnitiumLibrary.Net.Dns
                                     {
                                         if (resolverStack.Count == 0)
                                         {
-                                            TriggerNsResolution();
                                             return cacheResponse;
                                         }
                                         else
@@ -659,7 +665,6 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             if (resolverStack.Count == 0)
                                             {
-                                                TriggerNsResolution();
                                                 return cacheResponse;
                                             }
                                             else
@@ -693,7 +698,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             IReadOnlyList<DnsResourceRecord> nextDSRecords = lastDSRecords;
                                             List<NameServerAddress> nextNameServers = null;
 
-                                            nextNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, preferIPv6, false);
+                                            nextNameServers = NameServerAddress.GetNameServersFromResponse(cacheResponse, ipv6Mode, false);
                                             InspectCacheNameServersForLoops(nextNameServers);
 
                                             if (nextNameServers.Count > 0)
@@ -745,7 +750,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     if (cachedNsResponse is null)
                                                         continue;
 
-                                                    nextNameServers = NameServerAddress.GetNameServersFromResponse(cachedNsResponse, preferIPv6, false);
+                                                    nextNameServers = NameServerAddress.GetNameServersFromResponse(cachedNsResponse, ipv6Mode, false);
                                                     InspectCacheNameServersForLoops(nextNameServers);
 
                                                     if (nextNameServers.Count > 0)
@@ -796,7 +801,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 zoneCut = nextZoneCut;
                                                 dnssecValidationState = nextDnssecValidationState;
                                                 lastDSRecords = nextDSRecords;
-                                                nameServers = GetOrderedNameServersToPreferPerformance(nextNameServers, prioritizeOnesWithIPAddress, preferIPv6);
+                                                nameServers = GetOrderedNameServersToPreferPerformance(nextNameServers, prioritizeOnesWithIPAddress, ipv6Mode);
                                                 nameServerIndex = 0;
                                                 lastResponse = null;
                                             }
@@ -807,7 +812,6 @@ namespace TechnitiumLibrary.Net.Dns
                                         //both answer and authority sections are empty
                                         if (resolverStack.Count == 0)
                                         {
-                                            TriggerNsResolution();
                                             return cacheResponse;
                                         }
                                         else
@@ -838,7 +842,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     if (resolverStack.Count == 0)
                                     {
-                                        TriggerNsResolution();
                                         return cacheResponse;
                                     }
                                     else
@@ -871,7 +874,6 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     if (resolverStack.Count == 0)
                                     {
-                                        TriggerNsResolution();
                                         return cacheResponse;
                                     }
                                     else
@@ -903,7 +905,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if ((nameServers is null) || (nameServers.Count == 0))
                 {
                     zoneCut = "";
-                    nameServers = await GetRootServersUsingRootHintsAsync(cache, proxy, preferIPv6, udpPayloadSize, dnssecValidation, retries, timeout, concurrency, cancellationToken);
+                    nameServers = await GetRootServersUsingRootHintsAsync(cache, proxy, ipv6Mode, udpPayloadSize, dnssecValidation, retries, timeout, concurrency, cancellationToken);
                     nameServerIndex = 0;
                     lastResponse = null;
                 }
@@ -929,10 +931,12 @@ namespace TechnitiumLibrary.Net.Dns
 
                         for (int i = nameServerIndex; i < referralLimit; i++)
                         {
-                            if (nameServers[i].IPEndPoint is null)
+                            NameServerAddress nameServer = nameServers[i];
+
+                            if (nameServer.IPEndPoint is null)
                                 break;
 
-                            resolvedNameServers.Add(nameServers[i]);
+                            resolvedNameServers.Add(nameServer);
                         }
 
                         DnsClient dnsClient;
@@ -942,16 +946,34 @@ namespace TechnitiumLibrary.Net.Dns
                             //attempt to do concurrent requests to resolved name servers
                             nameServerIndex += resolvedNameServers.Count - 1; //set index to avoid querying these selected name servers again
 
+                            //remove misconfigured name servers from the list for optimization
+                            for (int i = resolvedNameServers.Count - 1; i > -1; i--)
+                            {
+                                if (resolvedNameServers[i].Metadata.IsMisconfigured)
+                                {
+                                    resolvedNameServers.RemoveAt(i);
+
+                                    if (referralLimit < nameServers.Count)
+                                        referralLimit++; //to allow using other names servers up to the limit
+                                }
+                            }
+
+                            if (resolvedNameServers.Count == 0)
+                                continue;
+
                             dnsClient = new DnsClient(resolvedNameServers);
                             dnsClient._concurrency = concurrency;
 
-                            if (preferIPv6)
+                            if (ipv6Mode != IPv6Mode.Disabled)
                             {
+                                //name server with only ipv4 glue requires adding another name server entry to attempt query for ipv6 support
                                 //find name server with no glue or no ipv6 glue and add additional name server entry to allow attempt over ipv6
-                                List<NameServerAddress> nameServersToAdd = new List<NameServerAddress>();
+                                int nsCount = nameServers.Count;
 
-                                foreach (NameServerAddress nameServerWithIpv4Glue in nameServers)
+                                for (int i = 0; i < nsCount; i++)
                                 {
+                                    NameServerAddress nameServerWithIpv4Glue = nameServers[i];
+
                                     if ((nameServerWithIpv4Glue.IPEndPoint is null) || (nameServerWithIpv4Glue.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
                                         continue; //has no glue or ipv6 glue
 
@@ -970,18 +992,30 @@ namespace TechnitiumLibrary.Net.Dns
                                     }
 
                                     if (!foundNoOrIpv6Glue)
-                                        nameServersToAdd.Add(nameServerWithIpv4Glue.Clone((IPEndPoint)null)); //add to allow future IPv6 address resolution if needed
+                                    {
+                                        //add cloned name server address to allow future IPv6 address resolution if needed
+                                        NameServerAddress nameServerForIpv6 = nameServerWithIpv4Glue.Clone((IPEndPoint)null);
+
+                                        switch (ipv6Mode)
+                                        {
+                                            case IPv6Mode.Enabled:
+                                                nameServers.Insert(i + 1, nameServerForIpv6);
+                                                i++; //to skip inserted item
+                                                nsCount++; //to prevent skipping existing items in list
+                                                break;
+
+                                            case IPv6Mode.Preferred:
+                                                nameServers.Add(nameServerForIpv6);
+                                                break;
+
+                                            default:
+                                                throw new InvalidOperationException();
+                                        }
+
+                                        if ((referralLimit < nameServers.Count) && (referralLimit < MAX_NS_TO_QUERY_PER_REFERRAL))
+                                            referralLimit++; //to allow using the added name server
+                                    }
                                 }
-
-                                foreach (NameServerAddress nameServer in nameServersToAdd)
-                                {
-                                    nameServers.Add(nameServer);
-
-                                    if (asyncNsResolution)
-                                        asyncNsResolutionTasks.TryAdd(nameServer.DomainEndPoint.Address.ToLowerInvariant(), null);
-                                }
-
-                                referralLimit += nameServersToAdd.Count;
                             }
                         }
                         else
@@ -989,7 +1023,7 @@ namespace TechnitiumLibrary.Net.Dns
                             //do sequential request to current name server after resolving it
                             NameServerAddress currentNameServer = nameServers[nameServerIndex];
 
-                            if (preferIPv6)
+                            if (ipv6Mode != IPv6Mode.Disabled)
                             {
                                 bool wasIPv4Attempted = false;
                                 bool wasIPv6Attempted = false;
@@ -1031,12 +1065,22 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     if (!wasIPv4Attempted)
                                     {
-                                        nameServers.Add(currentNameServer); //add to allow future IPv4 address resolution if needed
+                                        switch (ipv6Mode)
+                                        {
+                                            case IPv6Mode.Enabled:
+                                                nameServers.Insert(nameServerIndex + 1, currentNameServer); //insert to allow immediate IPv4 address resolution attempt if needed
+                                                break;
 
-                                        if (asyncNsResolution)
-                                            asyncNsResolutionTasks.TryAdd(currentNameServer.DomainEndPoint.Address.ToLowerInvariant(), null);
+                                            case IPv6Mode.Preferred:
+                                                nameServers.Add(currentNameServer); //add to allow future IPv4 address resolution if needed
+                                                break;
 
-                                        referralLimit++;
+                                            default:
+                                                throw new InvalidOperationException();
+                                        }
+
+                                        if ((referralLimit < nameServers.Count) && (referralLimit < MAX_NS_TO_QUERY_PER_REFERRAL))
+                                            referralLimit++; //to allow using the added name server
                                     }
 
                                     PushStack(currentNameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA);
@@ -1076,6 +1120,21 @@ namespace TechnitiumLibrary.Net.Dns
                                 if (dnssecValidationState)
                                 {
                                     //dnssec validate response
+                                    if (response.Metadata?.NameServer is not null)
+                                    {
+                                        //use new dns client to query the same name server that responded
+                                        //this allows updating metadata for success/failure against the same name server
+                                        DnsClient dnsClient1 = new DnsClient(response.Metadata.NameServer);
+
+                                        dnsClient1._proxy = dnsClient._proxy;
+                                        dnsClient1._randomizeName = dnsClient._randomizeName;
+                                        dnsClient1._dnssecValidation = dnsClient._dnssecValidation;
+                                        dnsClient1._retries = dnsClient._retries;
+                                        dnsClient1._timeout = dnsClient._timeout;
+
+                                        dnsClient = dnsClient1;
+                                    }
+
                                     try
                                     {
                                         await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken1);
@@ -1110,7 +1169,14 @@ namespace TechnitiumLibrary.Net.Dns
                                     foreach (DnsResourceRecord authorityRecord in response.Authority)
                                     {
                                         if ((authorityRecord.Type == DnsResourceRecordType.NS) && authorityRecord.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
-                                            throw new DnsClientResponseNotPreferredException(response); //found referral response with authority name servers that match the zone cut
+                                        {
+                                            //found referral response with authority name servers that match the zone cut
+
+                                            if (authorityRecord.Name.Contains('.')) //avoid marking root and TLD name servers
+                                                response.Metadata?.NameServer?.Metadata.MarkMisconfigured();
+
+                                            throw new DnsClientResponseNotPreferredException(response);
+                                        }
                                     }
                                 }
 
@@ -1455,8 +1521,6 @@ namespace TechnitiumLibrary.Net.Dns
                                                 if (resolverStack.Count == 0)
                                                 {
                                                     //cannot proceed forever; return what we have and stop
-                                                    TriggerNsResolution();
-
                                                     if (extendedDnsErrors.Count > 0)
                                                         response.AddDnsClientExtendedError(extendedDnsErrors);
 
@@ -1477,7 +1541,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             }
 
                                             //get next hop name servers with loopback filter to prevent loops in resolution
-                                            List<NameServerAddress> nextNameServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, true);
+                                            List<NameServerAddress> nextNameServers = NameServerAddress.GetNameServersFromResponse(response, ipv6Mode, true);
 
                                             if (nextNameServers.Count > 0)
                                             {
@@ -1520,7 +1584,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 zoneCut = nextZoneCut;
                                                 dnssecValidationState = nextDnssecValidationState;
                                                 lastDSRecords = nextDSRecords;
-                                                nameServers = GetOrderedNameServersToPreferPerformance(nextNameServers, prioritizeOnesWithIPAddress, preferIPv6);
+                                                nameServers = GetOrderedNameServersToPreferPerformance(nextNameServers, prioritizeOnesWithIPAddress, ipv6Mode);
                                                 nameServerIndex = 0;
                                                 hopCount++;
                                                 lastResponse = null; //reset last response for current zone cut
@@ -1534,7 +1598,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     {
                                                         if (nextNameServer.IPEndPoint is null)
                                                         {
-                                                            if (asyncNsResolutionTasks.TryAdd(nextNameServer.DomainEndPoint.Address.ToLowerInvariant(), null))
+                                                            if (asyncNsResolutionTasks.Add(nextNameServer.DomainEndPoint.Address.ToLowerInvariant()))
                                                             {
                                                                 maxNsResolutions--;
 
@@ -1675,8 +1739,6 @@ namespace TechnitiumLibrary.Net.Dns
                     //no successfull response was received from any of the name servers
                     if (resolverStack.Count == 0)
                     {
-                        TriggerNsResolution();
-
                         if (lastResponse is not null)
                         {
                             if ((lastResponse.Question.Count > 0) && lastResponse.Question[0].Equals(question))
@@ -1699,7 +1761,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
-                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No valid response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
 
                             if (eDnsClientSubnet is not null)
                                 failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
@@ -1737,7 +1799,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
 
-                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No valid response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
 
                             if (eDnsClientSubnet is not null)
                                 failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
@@ -1804,7 +1866,7 @@ namespace TechnitiumLibrary.Net.Dns
                             cache.CacheResponse(failureResponse);
                         }
 
-                        throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': no response from name servers [" + nameServers.Join() + "] at delegation " + zoneCut + ".", lastException);
+                        throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': no valid response from name servers [" + nameServers.Join() + "] at delegation " + zoneCut + ".", lastException);
                     }
                     else
                     {
@@ -1848,31 +1910,31 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, CancellationToken cancellationToken = default)
+        public static Task<DnsDatagram> RecursiveResolveQueryAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, IPv6Mode ipv6Mode = IPv6Mode.Disabled, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, CancellationToken cancellationToken = default)
         {
             if (cache is null)
                 cache = new DnsCache();
 
             return ResolveQueryAsync(question, delegate (DnsQuestionRecord q)
             {
-                return RecursiveResolveAsync(q, cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, concurrency, maxStackCount, true, cancellationToken: cancellationToken);
+                return RecursiveResolveAsync(q, cache, proxy, ipv6Mode, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, concurrency, maxStackCount, true, cancellationToken: cancellationToken);
             });
         }
 
-        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, bool preferIPv6 = false, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, CancellationToken cancellationToken = default)
+        public static async Task<IReadOnlyList<IPAddress>> RecursiveResolveIPAsync(string domain, IDnsCache cache = null, NetProxy proxy = null, IPv6Mode ipv6Mode = IPv6Mode.Disabled, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, CancellationToken cancellationToken = default)
         {
             if (cache is null)
                 cache = new DnsCache();
 
-            Task<DnsDatagram> ipv6Task = preferIPv6 ? RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, concurrency, maxStackCount, cancellationToken) : null;
-            Task<DnsDatagram> ipv4Task = RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, preferIPv6, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, concurrency, maxStackCount, cancellationToken);
+            Task<DnsDatagram> ipv6Task = ipv6Mode != IPv6Mode.Disabled ? RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cache, proxy, ipv6Mode, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, concurrency, maxStackCount, cancellationToken) : null;
+            Task<DnsDatagram> ipv4Task = RecursiveResolveQueryAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cache, proxy, ipv6Mode, udpPayloadSize, randomizeName, qnameMinimization, dnssecValidation, eDnsClientSubnet, retries, timeout, concurrency, maxStackCount, cancellationToken);
 
-            IReadOnlyList<IPAddress> ipv6Addresses = preferIPv6 ? ParseResponseAAAA(await ipv6Task) : null;
+            IReadOnlyList<IPAddress> ipv6Addresses = ipv6Mode != IPv6Mode.Disabled ? ParseResponseAAAA(await ipv6Task) : null;
             IReadOnlyList<IPAddress> ipv4Addresses = ParseResponseA(await ipv4Task);
 
             List<IPAddress> ipAddresses = new List<IPAddress>((ipv6Addresses is null ? 0 : ipv6Addresses.Count) + ipv4Addresses.Count);
 
-            if (preferIPv6)
+            if (ipv6Mode != IPv6Mode.Disabled)
                 ipAddresses.AddRange(ipv6Addresses);
 
             ipAddresses.AddRange(ipv4Addresses);
@@ -1880,17 +1942,17 @@ namespace TechnitiumLibrary.Net.Dns
             return ipAddresses;
         }
 
-        public static async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(IDnsClient dnsClient, string domain, bool preferIPv6 = false, CancellationToken cancellationToken = default)
+        public static async Task<IReadOnlyList<IPAddress>> ResolveIPAsync(IDnsClient dnsClient, string domain, IPv6Mode ipv6Mode = IPv6Mode.Disabled, CancellationToken cancellationToken = default)
         {
-            Task<DnsDatagram> ipv6Task = preferIPv6 ? dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken) : null;
+            Task<DnsDatagram> ipv6Task = ipv6Mode != IPv6Mode.Disabled ? dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken) : null;
             Task<DnsDatagram> ipv4Task = dnsClient.ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.A, DnsClass.IN), cancellationToken);
 
-            IReadOnlyList<IPAddress> ipv6Addresses = preferIPv6 ? ParseResponseAAAA(await ipv6Task) : null;
+            IReadOnlyList<IPAddress> ipv6Addresses = ipv6Mode != IPv6Mode.Disabled ? ParseResponseAAAA(await ipv6Task) : null;
             IReadOnlyList<IPAddress> ipv4Addresses = ParseResponseA(await ipv4Task);
 
             List<IPAddress> ipAddresses = new List<IPAddress>((ipv6Addresses is null ? 0 : ipv6Addresses.Count) + ipv4Addresses.Count);
 
-            if (preferIPv6)
+            if (ipv6Mode != IPv6Mode.Disabled)
                 ipAddresses.AddRange(ipv6Addresses);
 
             ipAddresses.AddRange(ipv4Addresses);
@@ -1898,7 +1960,7 @@ namespace TechnitiumLibrary.Net.Dns
             return ipAddresses;
         }
 
-        public static async Task<IReadOnlyList<string>> ResolveMXAsync(IDnsClient dnsClient, string domain, bool resolveIP = false, bool preferIPv6 = false, CancellationToken cancellationToken = default)
+        public static async Task<IReadOnlyList<string>> ResolveMXAsync(IDnsClient dnsClient, string domain, bool resolveIP = false, IPv6Mode ipv6Mode = IPv6Mode.Disabled, CancellationToken cancellationToken = default)
         {
             if (IPAddress.TryParse(domain, out _))
             {
@@ -1913,7 +1975,7 @@ namespace TechnitiumLibrary.Net.Dns
                 return mxEntries;
 
             //resolve IP addresses
-            List<string> mxAddresses = new List<string>(preferIPv6 ? mxEntries.Count * 2 : mxEntries.Count);
+            List<string> mxAddresses = new List<string>(ipv6Mode != IPv6Mode.Disabled ? mxEntries.Count * 2 : mxEntries.Count);
 
             //check glue records
             foreach (string mxEntry in mxEntries)
@@ -1943,7 +2005,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 break;
 
                             case DnsResourceRecordType.AAAA:
-                                if (preferIPv6)
+                                if (ipv6Mode != IPv6Mode.Disabled)
                                 {
                                     mxAddresses.Add((record.RDATA as DnsAAAARecordData).Address.ToString());
                                     glueRecordFound = true;
@@ -1957,7 +2019,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     try
                     {
-                        IReadOnlyList<IPAddress> ipList = await ResolveIPAsync(dnsClient, mxEntry, preferIPv6, cancellationToken);
+                        IReadOnlyList<IPAddress> ipList = await ResolveIPAsync(dnsClient, mxEntry, ipv6Mode, cancellationToken);
 
                         foreach (IPAddress ip in ipList)
                             mxAddresses.Add(ip.ToString());
@@ -2360,7 +2422,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static IReadOnlyList<IPAddress> GetSystemDnsServers(bool preferIPv6 = false)
+        public static IReadOnlyList<IPAddress> GetSystemDnsServers(IPv6Mode ipv6Mode = IPv6Mode.Disabled)
         {
             List<IPAddress> dnsAddresses = new List<IPAddress>();
 
@@ -2371,7 +2433,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 foreach (IPAddress dnsAddress in nic.GetIPProperties().DnsAddresses)
                 {
-                    if (!preferIPv6 && (dnsAddress.AddressFamily == AddressFamily.InterNetworkV6))
+                    if ((ipv6Mode == IPv6Mode.Disabled) && (dnsAddress.AddressFamily == AddressFamily.InterNetworkV6))
                         continue;
 
                     if ((dnsAddress.AddressFamily == AddressFamily.InterNetworkV6) && dnsAddress.IsIPv6SiteLocal)
@@ -2572,36 +2634,7 @@ namespace TechnitiumLibrary.Net.Dns
             return v1.CompareTo(v2);
         }
 
-        private static void EnsureOneIpv4NameServerAtTop(List<NameServerAddress> nameServers)
-        {
-            if (nameServers.Count < 3)
-                return; //not enough name servers for this
-
-            for (int i = 0; i < nameServers.Count; i++)
-            {
-                if (nameServers[i].IsIPEndPointStale)
-                {
-                    if (i < 3)
-                        return; //this does not work for name servers with no IP address
-
-                    continue;
-                }
-
-                if (nameServers[i].IPEndPoint.AddressFamily == AddressFamily.InterNetwork)
-                {
-                    if (i < 2)
-                        return; //one IPv4 name server is already present at top
-
-                    //swap this IPv4 name server to 2nd position
-                    NameServerAddress secondNameServer = nameServers[1];
-                    nameServers[1] = nameServers[i];
-                    nameServers[i] = secondNameServer;
-                    return;
-                }
-            }
-        }
-
-        private static List<NameServerAddress> GetOrderedNameServersToPreferPerformance(IReadOnlyCollection<NameServerAddress> nameServers, bool prioritizeOnesWithIPAddress, bool preferIPv6)
+        private static List<NameServerAddress> GetOrderedNameServersToPreferPerformance(IReadOnlyCollection<NameServerAddress> nameServers, bool prioritizeOnesWithIPAddress, IPv6Mode ipv6Mode)
         {
             List<NameServerAddress> nameServersList = [.. nameServers];
 
@@ -2617,35 +2650,49 @@ namespace TechnitiumLibrary.Net.Dns
             if (prioritizeOnesWithIPAddress)
                 nameServersList.Sort(CompareNameServersToPreferOnesWithIPAddress); //sort name servers to prioritize ones with IP address
 
-            if (preferIPv6)
-            {
+            if (ipv6Mode == IPv6Mode.Preferred)
                 nameServersList.Sort(CompareNameServersToPreferIPv6); //sort name servers to prefer IPv6
-                EnsureOneIpv4NameServerAtTop(nameServersList); //ensure one IPv4 name server at top
-            }
 
             return nameServersList;
         }
 
-        private static async Task<List<NameServerAddress>> GetRootServersUsingRootHintsAsync(IDnsCache cache, NetProxy proxy, bool preferIPv6, ushort udpPayloadSize, bool dnssecValidation, int retries, int timeout, int concurrency, CancellationToken cancellationToken = default)
+        private static async Task<List<NameServerAddress>> GetRootServersUsingRootHintsAsync(IDnsCache cache, NetProxy proxy, IPv6Mode ipv6Mode, ushort udpPayloadSize, bool dnssecValidation, int retries, int timeout, int concurrency, CancellationToken cancellationToken = default)
         {
             //create copy of root name servers array so that the values in original array are not messed due to shuffling feature
-            List<NameServerAddress> rootHints;
+            IReadOnlyList<NameServerAddress> rootHints;
 
-            if (preferIPv6)
+            switch (ipv6Mode)
             {
-                List<NameServerAddress> nameServersList = [.. IPv6_ROOT_HINTS, .. IPv4_ROOT_HINTS];
-                nameServersList.Shuffle();
-                nameServersList.Sort(CompareNameServersToPreferIPv6);
-                EnsureOneIpv4NameServerAtTop(nameServersList); //ensure one IPv4 name server at top
+                case IPv6Mode.Enabled:
+                    {
+                        List<NameServerAddress> ipv4Hints = [.. IPv4_ROOT_HINTS];
+                        List<NameServerAddress> ipv6Hints = [.. IPv6_ROOT_HINTS];
 
-                rootHints = nameServersList;
-            }
-            else
-            {
-                List<NameServerAddress> nameServersList = [.. IPv4_ROOT_HINTS];
-                nameServersList.Shuffle();
+                        ipv4Hints.Shuffle();
+                        ipv6Hints.Shuffle();
 
-                rootHints = nameServersList;
+                        rootHints = ipv6Hints.Interleave(ipv4Hints); //interleave name servers
+                    }
+                    break;
+
+                case IPv6Mode.Preferred:
+                    {
+                        List<NameServerAddress> nameServersList = [.. IPv6_ROOT_HINTS, .. IPv4_ROOT_HINTS];
+                        nameServersList.Shuffle();
+                        nameServersList.Sort(CompareNameServersToPreferIPv6); //sort name servers to prefer IPv6
+
+                        rootHints = nameServersList;
+                    }
+                    break;
+
+                default:
+                    {
+                        List<NameServerAddress> ipv4Hints = [.. IPv4_ROOT_HINTS];
+                        ipv4Hints.Shuffle();
+
+                        rootHints = ipv4Hints;
+                    }
+                    break;
             }
 
             //get root servers by priming query
@@ -2653,7 +2700,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             dnsClient._cache = cache;
             dnsClient._proxy = proxy;
-            dnsClient._preferIPv6 = preferIPv6;
+            dnsClient._ipv6Mode = ipv6Mode;
             dnsClient._udpPayloadSize = udpPayloadSize;
             dnsClient._dnssecValidation = dnssecValidation;
             dnsClient._retries = retries;
@@ -2666,7 +2713,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (dnssecValidation)
                 response = await dnsClient.InternalDnssecResolveAsync(question, cancellationToken);
             else
-                response = await dnsClient.InternalNoDnssecResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, dnssecValidation, DnsResponseCode.NoError, [question], null, null, null, udpPayloadSize, dnssecValidation ? EDnsHeaderFlags.DNSSEC_OK : EDnsHeaderFlags.None, null), cancellationToken);
+                response = await dnsClient.InternalNoDnssecResolveAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [question], udpPayloadSize: udpPayloadSize), cancellationToken);
 
             //validate priming query response
             if (response.RCODE != DnsResponseCode.NoError)
@@ -2677,7 +2724,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             cache.CacheResponse(response);
 
-            List<NameServerAddress> rootServers = NameServerAddress.GetNameServersFromResponse(response, preferIPv6, true);
+            List<NameServerAddress> rootServers = NameServerAddress.GetNameServersFromResponse(response, ipv6Mode, true);
             rootServers.Shuffle();
 
             return rootServers;
@@ -3254,11 +3301,17 @@ namespace TechnitiumLibrary.Net.Dns
                         case DnsResponseCode.NoError:
                             dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "Attack detected! " + ((dnsKeyResponse.Metadata is null) || (dnsKeyResponse.Metadata.NameServer is null) ? "name server" : dnsKeyResponse.Metadata.NameServer.ToString()) + " returned no DNSKEYs for " + dnsKeyQuestion.Name.ToLowerInvariant());
                             cache.CacheResponse(dnsKeyResponse, true);
+
+                            dnsKeyResponse.Metadata?.NameServer?.Metadata.MarkMisconfigured();
+
                             throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to missing DNSKEY records for owner name: " + dnsKeyQuestion.Name.ToLowerInvariant(), dnsKeyResponse);
 
                         default:
                             dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "Attack detected! " + ((dnsKeyResponse.Metadata is null) || (dnsKeyResponse.Metadata.NameServer is null) ? "name server" : dnsKeyResponse.Metadata.NameServer.ToString()) + " returned RCODE=" + dnsKeyResponse.RCODE.ToString() + " for " + dnsKeyQuestion.ToString());
                             cache.CacheResponse(dnsKeyResponse, true);
+
+                            dnsKeyResponse.Metadata?.NameServer?.Metadata.MarkMisconfigured();
+
                             throw new DnsClientResponseDnssecValidationException("Attack detected! Failed to resolve the request '" + dnsKeyResponse.Question[0].ToString() + "'. Received a response with RCODE: " + dnsKeyResponse.RCODE + ((dnsKeyResponse.Metadata is null) || (dnsKeyResponse.Metadata.NameServer is null) ? "" : " from Name server: " + dnsKeyResponse.Metadata.NameServer.ToString()), dnsKeyResponse);
                     }
                 }
@@ -3319,6 +3372,9 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "Attack detected! No SEP matching the DS found for " + dnsKeyQuestion.Name.ToLowerInvariant());
                     cache.CacheResponse(dnsKeyResponse, true);
+
+                    dnsKeyResponse.Metadata?.NameServer?.Metadata.MarkMisconfigured();
+
                     throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find a SEP DNSKEY matching the DS for owner name: " + dnsKeyQuestion.Name.ToLowerInvariant(), dnsKeyResponse);
                 }
 
@@ -3329,6 +3385,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                     dnsKeyResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DNSKEYMissing, "Attack detected! No SEP matching the DS found for " + dnsKeyQuestion.Name.ToLowerInvariant());
                     cache.CacheResponse(dnsKeyResponse, true);
+
+                    dnsKeyResponse.Metadata?.NameServer?.Metadata.MarkMisconfigured();
+
                     throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find a SEP DNSKEY matching the DS for owner name: " + dnsKeyQuestion.Name.ToLowerInvariant(), dnsKeyResponse);
                 }
 
@@ -4416,7 +4475,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if (doNotReorderNameServers)
                     servers = _servers;
                 else
-                    servers = GetOrderedNameServersToPreferPerformance(_servers, false, _preferIPv6);
+                    servers = GetOrderedNameServersToPreferPerformance(_servers, false, _ipv6Mode);
 
                 concurrency = _concurrency;
             }
@@ -4461,7 +4520,7 @@ namespace TechnitiumLibrary.Net.Dns
                         if (lastException is not null)
                             ExceptionDispatchInfo.Throw(lastException);
 
-                        throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": no response from name servers [" + servers.Join() + "].");
+                        throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": no valid response from name servers [" + servers.Join() + "].");
                     }
 
                     NetProxy proxy = _proxy;
@@ -4479,7 +4538,7 @@ namespace TechnitiumLibrary.Net.Dns
                             //recursive resolve name server only when proxy is null else let proxy resolve it to allow using .onion or private domains
                             try
                             {
-                                await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _preferIPv6, _udpPayloadSize, _randomizeName, _retries, _timeout, concurrency, cancellationToken: cancellationToken);
+                                await server.RecursiveResolveIPAddressAsync(nsResolveCache, null, _ipv6Mode, _udpPayloadSize, _randomizeName, _retries, _timeout, concurrency, cancellationToken: cancellationToken);
                             }
                             catch (OperationCanceledException)
                             {
@@ -5161,7 +5220,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                         else
                         {
-                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No response from name servers for " + q.ToString());
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No valid response from name servers for " + q.ToString());
                         }
 
                         if (_eDnsClientSubnet is not null)
@@ -5305,9 +5364,9 @@ namespace TechnitiumLibrary.Net.Dns
                 return ResolveAsync(new DnsQuestionRecord(domain, type, DnsClass.IN), cancellationToken);
         }
 
-        public Task<IReadOnlyList<string>> ResolveMXAsync(string domain, bool resolveIP = false, bool preferIPv6 = false, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<string>> ResolveMXAsync(string domain, bool resolveIP = false, IPv6Mode ipv6Mode = IPv6Mode.Disabled, CancellationToken cancellationToken = default)
         {
-            return ResolveMXAsync(this, domain, resolveIP, preferIPv6, cancellationToken);
+            return ResolveMXAsync(this, domain, resolveIP, ipv6Mode, cancellationToken);
         }
 
         public async Task<IReadOnlyList<string>> ResolvePTRAsync(IPAddress ip, CancellationToken cancellationToken = default)
@@ -5320,9 +5379,9 @@ namespace TechnitiumLibrary.Net.Dns
             return ParseResponseTXT(await ResolveAsync(new DnsQuestionRecord(domain, DnsResourceRecordType.TXT, DnsClass.IN), cancellationToken));
         }
 
-        public Task<IReadOnlyList<IPAddress>> ResolveIPAsync(string domain, bool preferIPv6 = false, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<IPAddress>> ResolveIPAsync(string domain, IPv6Mode ipv6Mode = IPv6Mode.Disabled, CancellationToken cancellationToken = default)
         {
-            return ResolveIPAsync(this, domain, preferIPv6, cancellationToken);
+            return ResolveIPAsync(this, domain, ipv6Mode, cancellationToken);
         }
 
         public void AddTrustAnchor(string domain, DnsDSRecordData dsRecord)
@@ -5393,10 +5452,10 @@ namespace TechnitiumLibrary.Net.Dns
             set { _proxy = value; }
         }
 
-        public bool PreferIPv6
+        public IPv6Mode IPv6Mode
         {
-            get { return _preferIPv6; }
-            set { _preferIPv6 = value; }
+            get { return _ipv6Mode; }
+            set { _ipv6Mode = value; }
         }
 
         public ushort UdpPayloadSize
