@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -445,7 +445,9 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
-                    domainEntries.Add(new DnsDomainOffset(Convert.ToUInt16(s.Position), domain));
+                    //add domain list entry with offset overflow check
+                    if (s.Position <= 0x3FFF)
+                        domainEntries.Add(new DnsDomainOffset(Convert.ToUInt16(s.Position), domain));
                 }
 
                 if (isEmailAddress)
@@ -682,9 +684,24 @@ namespace TechnitiumLibrary.Net.Dns
             datagram._shadowHideECSOption = _shadowHideECSOption;
             datagram._shadowECSOption = _shadowECSOption;
 
+            datagram._size = _size;
+            datagram._parsedDatagramUnsigned = _parsedDatagramUnsigned;
+
+            datagram._Z = _Z;
+
+            datagram._parsingException = _parsingException;
             datagram._nextDatagram = _nextDatagram;
 
             datagram.Tag = Tag;
+
+            return datagram;
+        }
+
+        public DnsDatagram CloneWithMetadata(NameServerAddress server, double rtt = 0.0)
+        {
+            DnsDatagram datagram = Clone();
+
+            datagram._metadata = new DnsDatagramMetadata(server, _size, rtt);
 
             return datagram;
         }
@@ -953,6 +970,12 @@ namespace TechnitiumLibrary.Net.Dns
             return (firstAuthority is not null) && (firstAuthority.Type == DnsResourceRecordType.SOA);
         }
 
+        public bool IsFirstAuthoritySOAOrAPP()
+        {
+            DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
+            return (firstAuthority is not null) && ((firstAuthority.Type == DnsResourceRecordType.SOA) || (firstAuthority.Type == DnsResourceRecordType.APP));
+        }
+
         public DnsResourceRecordType FindFirstAuthorityType()
         {
             DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
@@ -966,12 +989,14 @@ namespace TechnitiumLibrary.Net.Dns
         {
             foreach (DnsResourceRecord record in _authority)
             {
-                switch (record.Type)
-                {
-                    case DnsResourceRecordType.SOA:
-                    case DnsResourceRecordType.NS:
-                        return record;
-                }
+                if (record.Type == DnsResourceRecordType.SOA)
+                    return record;
+            }
+
+            foreach (DnsResourceRecord record in _authority)
+            {
+                if (record.Type == DnsResourceRecordType.NS)
+                    return record;
             }
 
             if (_authority.Count > 0)
@@ -1209,7 +1234,7 @@ namespace TechnitiumLibrary.Net.Dns
                         list.Add(record);
                     }
 
-                    _additional = list;
+                    additional = list;
                 }
 
                 DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, question, answer, authority, additional);
@@ -1248,19 +1273,24 @@ namespace TechnitiumLibrary.Net.Dns
                 return this;
 
             List<DnsResourceRecord> answer = new List<DnsResourceRecord>(_answer.Count * 2);
+            List<DnsResourceRecord> authority = new List<DnsResourceRecord>(_authority.Count * 2);
+            List<DnsResourceRecord> additional = new List<DnsResourceRecord>(_additional.Count * 2);
             DnsDatagram current = this;
             int size = 0;
 
             do
             {
                 size += current._size;
+
                 answer.AddRange(current._answer);
+                authority.AddRange(current._authority);
+                additional.AddRange(current._additional);
 
                 current = current._nextDatagram;
             }
             while (current is not null);
 
-            DnsDatagram joinedDatagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, _authority, _additional);
+            DnsDatagram joinedDatagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, authority, additional);
             joinedDatagram._size = size;
             joinedDatagram.SetMetadata(_metadata.NameServer, _metadata.RoundTripTime);
             joinedDatagram.Tag = Tag;
