@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -125,6 +125,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         FWD = 65281, //private use - conditional forwarder
         APP = 65282, //private use - application
         CHILD_NS = 65283, //private use - cached child side NS records to support https://datatracker.ietf.org/doc/draft-fujiwara-dnsop-resolver-update/
+        PARENT_NS = 65284, //private use - cached parent side NS records to allow querying them explicitly
         ALIAS = 65357 //private use - SimpleDNS ALIAS
     }
 
