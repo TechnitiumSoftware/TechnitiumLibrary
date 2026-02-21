@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -72,6 +72,10 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             {
                 case EDnsOptionCode.EDNS_CLIENT_SUBNET:
                     _data = new EDnsClientSubnetOptionData(s);
+                    break;
+
+                case EDnsOptionCode.EDNS_EXPIRE:
+                    _data = new EDnsExpireOptionData(s);
                     break;
 
                 case EDnsOptionCode.EXTENDED_DNS_ERROR:
