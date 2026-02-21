@@ -38,11 +38,26 @@ namespace TechnitiumLibrary.IO
             bW.Write(buffer, 0, buffer.Length);
         }
 
+        /// <summary>
+        /// Write string as Length + byte[] IF its byte-length is strictly less than 256.
+        /// Default UTF8 encoding is used.
+        /// </summary>
+        /// <param name="bW"></param>
+        /// <param name="value"></param>
+        /// <exception cref="ArgumentOutOfRangeException">throws exception if byte-length is more than 255 bytes</exception>
         public static void WriteShortString(this BinaryWriter bW, string value)
         {
             WriteShortString(bW, value, Encoding.UTF8);
         }
 
+        /// <summary>
+        /// Write string as Length + byte[] IF its byte-length is strictly less than 256.
+        /// Method uses provided encoding.
+        /// </summary>
+        /// <param name="bW"></param>
+        /// <param name="value"></param>
+        /// <param name="encoding"></param>
+        /// <exception cref="ArgumentOutOfRangeException">throws exception if byte-length is more than 255 bytes</exception>
         public static void WriteShortString(this BinaryWriter bW, string value, Encoding encoding)
         {
             byte[] buffer = encoding.GetBytes(value);
@@ -53,9 +68,19 @@ namespace TechnitiumLibrary.IO
             bW.Write(buffer);
         }
 
+        /// <summary>
+        /// Convert DateTime to Unix milliseconds and write 8 bytes to the stream
+        /// </summary>
+        /// <param name="bW"></param>
+        /// <param name="date"></param>
+        /// <returns>DateTime is always in UTC</returns>
         public static void Write(this BinaryWriter bW, DateTime date)
         {
-            bW.Write(Convert.ToInt64((date.ToUniversalTime() - DateTime.UnixEpoch).TotalMilliseconds));
+            // Millisecond in C# ticks
+            const long MillisecondAsTicks = 10_000;
+
+            long ts_utc_ms = (date.ToUniversalTime() - DateTime.UnixEpoch).Ticks / MillisecondAsTicks;
+            bW.Write(ts_utc_ms);
         }
 
         public static void WriteLength(this BinaryWriter bW, int valueLength)
