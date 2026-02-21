@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -182,7 +182,25 @@ namespace TechnitiumLibrary.Net.Http.Client
 
             if (_dnsClient is null)
             {
-                DnsClient dnsClient = new DnsClient((_networkType == HttpClientNetworkType.IPv6Only) || (_networkType == HttpClientNetworkType.PreferIPv6));
+                IPv6Mode ipv6Mode;
+
+                switch(_networkType)
+                {
+                    case HttpClientNetworkType.IPv4Only:
+                        ipv6Mode = IPv6Mode.Disabled;
+                        break;
+
+                    case HttpClientNetworkType.IPv6Only:
+                    case HttpClientNetworkType.PreferIPv6:
+                        ipv6Mode = IPv6Mode.Preferred;
+                        break;
+
+                    default:
+                        ipv6Mode = IsPublicIPv6Available() ? IPv6Mode.Enabled : IPv6Mode.Disabled;
+                        break;
+                }
+
+                DnsClient dnsClient = new DnsClient(ipv6Mode);
                 dnsClient.Cache = new DnsCache();
                 dnsClient.Proxy = _proxy;
                 dnsClient.DnssecValidation = true;
@@ -227,17 +245,20 @@ namespace TechnitiumLibrary.Net.Http.Client
                             IReadOnlyList<IPAddress> ipv6Addresses = ipv6Task is null ? null : Dns.DnsClient.ParseResponseAAAA(await ipv6Task);
                             IReadOnlyList<IPAddress> ipv4Addresses = Dns.DnsClient.ParseResponseA(response);
 
-                            List<IPAddress> allAddresses = new List<IPAddress>((ipv6Addresses is null ? 0 : ipv6Addresses.Count) + ipv4Addresses.Count);
+                            if (ipv6Addresses is null)
+                            {
+                                addresses = ipv4Addresses;
+                            }
+                            else
+                            {
+                                if (_networkType == HttpClientNetworkType.PreferIPv6)
+                                    addresses = [.. ipv6Addresses, .. ipv4Addresses];
+                                else
+                                    addresses = ipv6Addresses.Interleave(ipv4Addresses);
+                            }
 
-                            if (ipv6Addresses is not null)
-                                allAddresses.AddRange(ipv6Addresses);
-
-                            allAddresses.AddRange(ipv4Addresses);
-
-                            if (allAddresses.Count < 1)
+                            if (addresses.Count < 1)
                                 throw new HttpRequestException("HttpClientNetworkHandler could not resolve IP address for host: " + host);
-
-                            addresses = allAddresses;
                         }
                         break;
                 }
