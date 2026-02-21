@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -297,6 +297,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         protected static void ValidateResponse(DnsDatagram request, DnsDatagram response)
         {
+            if (!response.IsResponse)
+                throw new DnsClientResponseValidationException("Invalid response was received: QR flag not set to response (1).");
+
             if (response.Question.Count == request.Question.Count)
             {
                 for (int i = 0; i < response.Question.Count; i++)
@@ -333,27 +336,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     if (responseECS is not null)
                     {
-                        if (requestECS.Family != responseECS.Family)
-                        {
-                            if (response.IsReferrerResponse())
-                                response.ShadowHideEDnsClientSubnetOption();
-                            else
-                                throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch (address family).");
-                        }
-                        else if (requestECS.SourcePrefixLength != responseECS.SourcePrefixLength)
-                        {
-                            if (response.IsReferrerResponse())
-                                response.ShadowHideEDnsClientSubnetOption();
-                            else
-                                throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch (source prefix).");
-                        }
-                        else if (!requestECS.Address.Equals(responseECS.Address))
-                        {
-                            if (response.IsReferrerResponse())
-                                response.ShadowHideEDnsClientSubnetOption();
-                            else
-                                throw new DnsClientResponseValidationException("Invalid response was received: EDNS Client Subnet mismatch (address).");
-                        }
+                        if ((requestECS.Family != responseECS.Family) || (requestECS.SourcePrefixLength != responseECS.SourcePrefixLength) || !requestECS.Address.Equals(responseECS.Address))
+                            response.SetShadowEDnsClientSubnetOption(requestECS); //overwrite unexpected ECS in response so that response is cached for 0.0.0.0/0
                     }
                 }
             }
@@ -371,7 +355,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
 
             if (response.Identifier != request.Identifier)
-                throw new DnsClientResponseSpoofedException("Invalid response was received: query ID mismatch."); //possible spoof attempt for UDP transport since QNAME, QTYPE, QCLASS & ECS match but ID does not match
+                throw new DnsClientResponseSpoofedException("Invalid response was received: query ID mismatch."); //possible spoof attempt for UDP transport since QNAME, QTYPE, & QCLASS match but ID does not match
         }
 
         protected static Tuple<IPEndPoint, byte[]> GetIPv4SourceEP()
