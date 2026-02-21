@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -110,6 +110,31 @@ namespace TechnitiumLibrary
                 hashCode ^= t.GetHashCode();
 
             return hashCode;
+        }
+
+        public static IReadOnlyList<T> Interleave<T>(this IReadOnlyList<T> list1, IReadOnlyList<T> list2)
+        {
+            int count = list1.Count + list2.Count;
+            List<T> finalList = new List<T>(count);
+            int i = 0;
+            int j = 0;
+
+            while (finalList.Count < count)
+            {
+                if (i < list1.Count)
+                {
+                    finalList.Add(list1[i]);
+                    i++;
+                }
+
+                if (j < list2.Count)
+                {
+                    finalList.Add(list2[j]);
+                    j++;
+                }
+            }
+
+            return finalList;
         }
     }
 }
