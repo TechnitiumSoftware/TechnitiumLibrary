@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -55,7 +55,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public static PBKDF2 CreateHMACSHA1(byte[] password, byte[] salt, int iterationCount)
         {
-            return new PBKDF2(new HMACSHA256(password), salt, iterationCount);
+            return new PBKDF2(new HMACSHA1(password), salt, iterationCount);
         }
 
         public static PBKDF2 CreateHMACSHA1(string password, int saltLength, int iterationCount)
