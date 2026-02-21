@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -143,7 +143,7 @@ namespace TechnitiumLibrary.Net
                     IReadOnlyList<IPAddress> ipAddresses;
 
                     if (useRecursiveResolver)
-                        ipAddresses = await DnsClient.RecursiveResolveIPAsync(dep.Address, preferIPv6: family == AddressFamily.InterNetworkV6, cancellationToken: cancellationToken);
+                        ipAddresses = await DnsClient.RecursiveResolveIPAsync(dep.Address, ipv6Mode: family == AddressFamily.InterNetworkV6 ? IPv6Mode.Enabled : IPv6Mode.Disabled, cancellationToken: cancellationToken);
                     else
                         ipAddresses = await System.Net.Dns.GetHostAddressesAsync(dep.Address, cancellationToken);
 
