@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -114,60 +114,14 @@ namespace TechnitiumLibrary.Net
                     if (ip.Address.AddressFamily == AddressFamily.InterNetwork)
                     {
                         byte[] addr = ip.Address.GetAddressBytes();
-                        byte[] mask;
-
-                        try
-                        {
-                            mask = ip.IPv4Mask.GetAddressBytes();
-                        }
-                        catch (NotImplementedException)
-                        {
-                            //method not implemented in mono framework for Linux
-                            if (addr[0] == 10)
-                            {
-                                mask = new byte[] { 255, 0, 0, 0 };
-                            }
-                            else if ((addr[0] == 192) && (addr[1] == 168))
-                            {
-                                mask = new byte[] { 255, 255, 255, 0 };
-                            }
-                            else if ((addr[0] == 169) && (addr[1] == 254))
-                            {
-                                mask = new byte[] { 255, 255, 0, 0 };
-                            }
-                            else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
-                            {
-                                mask = new byte[] { 255, 240, 0, 0 };
-                            }
-                            else
-                            {
-                                mask = new byte[] { 255, 255, 255, 0 };
-                            }
-                        }
-                        catch
-                        {
-                            continue;
-                        }
+                        byte[] mask = ip.IPv4Mask.GetAddressBytes();
 
                         foreach (GatewayIPAddressInformation gateway in ipInterface.GatewayAddresses)
                         {
                             if (gateway.Address.AddressFamily == AddressFamily.InterNetwork)
                             {
                                 byte[] gatewayAddr = gateway.Address.GetAddressBytes();
-                                bool isDefaultRoute = true;
                                 bool isInSameNetwork = true;
-
-                                for (int i = 0; i < 4; i++)
-                                {
-                                    if (gatewayAddr[i] != 0)
-                                    {
-                                        isDefaultRoute = false;
-                                        break;
-                                    }
-                                }
-
-                                if (isDefaultRoute)
-                                    return new NetworkInfo(nic, ip.Address, new IPAddress(mask));
 
                                 for (int i = 0; i < 4; i++)
                                 {
@@ -294,43 +248,7 @@ namespace TechnitiumLibrary.Net
                         case AddressFamily.InterNetwork:
                             #region ipv4
 
-                            byte[] addr = ip.Address.GetAddressBytes();
-                            byte[] mask;
-
-                            try
-                            {
-                                mask = ip.IPv4Mask.GetAddressBytes();
-                            }
-                            catch (NotImplementedException)
-                            {
-                                //method not implemented in mono framework for Linux
-                                if (addr[0] == 10)
-                                {
-                                    mask = new byte[] { 255, 0, 0, 0 };
-                                }
-                                else if ((addr[0] == 192) && (addr[1] == 168))
-                                {
-                                    mask = new byte[] { 255, 255, 255, 0 };
-                                }
-                                else if ((addr[0] == 169) && (addr[1] == 254))
-                                {
-                                    mask = new byte[] { 255, 255, 0, 0 };
-                                }
-                                else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
-                                {
-                                    mask = new byte[] { 255, 240, 0, 0 };
-                                }
-                                else
-                                {
-                                    mask = new byte[] { 255, 255, 255, 0 };
-                                }
-                            }
-                            catch
-                            {
-                                continue;
-                            }
-
-                            networkInfoList.Add(new NetworkInfo(nic, ip.Address, new IPAddress(mask)));
+                            networkInfoList.Add(new NetworkInfo(nic, ip.Address, ip.IPv4Mask));
 
                             #endregion
                             break;
@@ -373,40 +291,7 @@ namespace TechnitiumLibrary.Net
                                 #region ipv4
                                 {
                                     byte[] addr = ip.Address.GetAddressBytes();
-                                    byte[] mask;
-
-                                    try
-                                    {
-                                        mask = ip.IPv4Mask.GetAddressBytes();
-                                    }
-                                    catch (NotImplementedException)
-                                    {
-                                        //method not implemented in mono framework for Linux
-                                        if (addr[0] == 10)
-                                        {
-                                            mask = new byte[] { 255, 0, 0, 0 };
-                                        }
-                                        else if ((addr[0] == 192) && (addr[1] == 168))
-                                        {
-                                            mask = new byte[] { 255, 255, 255, 0 };
-                                        }
-                                        else if ((addr[0] == 169) && (addr[1] == 254))
-                                        {
-                                            mask = new byte[] { 255, 255, 0, 0 };
-                                        }
-                                        else if ((addr[0] == 172) && (addr[1] > 15) && (addr[1] < 32))
-                                        {
-                                            mask = new byte[] { 255, 240, 0, 0 };
-                                        }
-                                        else
-                                        {
-                                            mask = new byte[] { 255, 255, 255, 0 };
-                                        }
-                                    }
-                                    catch
-                                    {
-                                        continue;
-                                    }
+                                    byte[] mask = ip.IPv4Mask.GetAddressBytes();
 
                                     bool isInSameNetwork = true;
 
