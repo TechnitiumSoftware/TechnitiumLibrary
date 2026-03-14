@@ -77,6 +77,41 @@ namespace TechnitiumLibrary.Net.Http.Client
 
         #endregion
 
+        #region static
+
+        public static HttpClientNetworkType GetNetworkType(IPv6Mode ipv6Mode)
+        {
+            switch (ipv6Mode)
+            {
+                case IPv6Mode.Enabled:
+                    return HttpClientNetworkType.Default;
+
+                case IPv6Mode.Preferred:
+                    return HttpClientNetworkType.PreferIPv6;
+
+                default:
+                    return HttpClientNetworkType.IPv4Only;
+            }
+        }
+
+        public static IPv6Mode GetIPv6Mode(HttpClientNetworkType networkType)
+        {
+            switch (networkType)
+            {
+                case HttpClientNetworkType.IPv4Only:
+                    return IPv6Mode.Disabled;
+
+                case HttpClientNetworkType.IPv6Only:
+                case HttpClientNetworkType.PreferIPv6:
+                    return IPv6Mode.Preferred;
+
+                default:
+                    return IsPublicIPv6Available() ? IPv6Mode.Enabled : IPv6Mode.Disabled;
+            }
+        }
+
+        #endregion
+
         #region private
 
         private async ValueTask<Stream> ConnectCallback(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
@@ -182,25 +217,7 @@ namespace TechnitiumLibrary.Net.Http.Client
 
             if (_dnsClient is null)
             {
-                IPv6Mode ipv6Mode;
-
-                switch(_networkType)
-                {
-                    case HttpClientNetworkType.IPv4Only:
-                        ipv6Mode = IPv6Mode.Disabled;
-                        break;
-
-                    case HttpClientNetworkType.IPv6Only:
-                    case HttpClientNetworkType.PreferIPv6:
-                        ipv6Mode = IPv6Mode.Preferred;
-                        break;
-
-                    default:
-                        ipv6Mode = IsPublicIPv6Available() ? IPv6Mode.Enabled : IPv6Mode.Disabled;
-                        break;
-                }
-
-                DnsClient dnsClient = new DnsClient(ipv6Mode);
+                DnsClient dnsClient = new DnsClient(GetIPv6Mode(_networkType));
                 dnsClient.Cache = new DnsCache();
                 dnsClient.Proxy = _proxy;
                 dnsClient.DnssecValidation = true;
