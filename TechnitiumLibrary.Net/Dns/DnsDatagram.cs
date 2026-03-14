@@ -608,7 +608,7 @@ namespace TechnitiumLibrary.Net.Dns
             AddDnsClientExtendedError(new EDnsExtendedDnsErrorOptionData(errorCode, extraText));
         }
 
-        internal void AddDnsClientExtendedError(IReadOnlyCollection<EDnsExtendedDnsErrorOptionData> dnsErrors)
+        internal void AddDnsClientExtendedErrors(IReadOnlyCollection<EDnsExtendedDnsErrorOptionData> dnsErrors)
         {
             if (_dnsClientExtendedErrors is null)
                 _dnsClientExtendedErrors = new List<EDnsExtendedDnsErrorOptionData>();
@@ -629,7 +629,7 @@ namespace TechnitiumLibrary.Net.Dns
                 _dnsClientExtendedErrors.Add(dnsError);
         }
 
-        internal void AddDnsClientExtendedErrorFrom(DnsDatagram datagram)
+        internal void AddDnsClientExtendedErrorsFrom(DnsDatagram datagram)
         {
             //copy errors from OPT
             if (datagram._edns is not null)
@@ -791,6 +791,15 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             return Clone(null, null, newAdditional);
+        }
+
+        public DnsDatagram CloneAndAddDnsClientExtendedErrorsFrom(DnsDatagram datagram)
+        {
+            DnsDatagram finalDatagram = Clone();
+
+            finalDatagram.AddDnsClientExtendedErrorsFrom(datagram);
+
+            return finalDatagram;
         }
 
         public EDnsClientSubnetOptionData GetEDnsClientSubnetOption(bool noShadow = false)
