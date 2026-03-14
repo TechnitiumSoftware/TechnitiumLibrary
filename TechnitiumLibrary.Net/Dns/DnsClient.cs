@@ -555,7 +555,7 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
 
                     if (extendedDnsErrors.Count > 0)
-                        failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
+                        failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                     failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Recursion stack limit reached for " + question.ToString());
 
@@ -1145,7 +1145,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             throw; //validation failure for same question; throw same exception
 
                                         //validation failure for a different question; preserve current response in new exception
-                                        response.AddDnsClientExtendedErrorFrom(ex.Response);
+                                        response.AddDnsClientExtendedErrorsFrom(ex.Response);
                                         throw new DnsClientResponseDnssecValidationException(ex.Message, response, ex);
                                     }
 
@@ -1273,7 +1273,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                         //add any previous extended dns errors for caching
                         if ((response.RCODE != DnsResponseCode.NoError) && (extendedDnsErrors.Count > 0))
-                            response.AddDnsClientExtendedError(extendedDnsErrors);
+                            response.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                         //cache response
                         cache.CacheResponse(response, false, zoneCut);
@@ -1336,7 +1336,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             TriggerNsResolution();
 
                                             if (extendedDnsErrors.Count > 0)
-                                                response.AddDnsClientExtendedError(extendedDnsErrors);
+                                                response.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                                             if (minimalResponse)
                                                 return GetMinimalResponseWithoutNSAndGlue(response);
@@ -1452,7 +1452,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 TriggerNsResolution();
 
                                                 if (extendedDnsErrors.Count > 0)
-                                                    response.AddDnsClientExtendedError(extendedDnsErrors);
+                                                    response.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                                                 if (minimalResponse)
                                                     return GetMinimalResponseWithoutNSAndGlue(response);
@@ -1522,7 +1522,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 {
                                                     //cannot proceed forever; return what we have and stop
                                                     if (extendedDnsErrors.Count > 0)
-                                                        response.AddDnsClientExtendedError(extendedDnsErrors);
+                                                        response.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                                                     if (minimalResponse)
                                                         return GetMinimalResponseWithoutNSAndGlue(response);
@@ -1671,7 +1671,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         TriggerNsResolution();
 
                                         if (extendedDnsErrors.Count > 0)
-                                            response.AddDnsClientExtendedError(extendedDnsErrors);
+                                            response.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                                         if (minimalResponse)
                                             return GetMinimalResponseWithoutNSAndGlue(response);
@@ -1744,7 +1744,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if ((lastResponse.Question.Count > 0) && lastResponse.Question[0].Equals(question))
                             {
                                 if (extendedDnsErrors.Count > 0)
-                                    lastResponse.AddDnsClientExtendedError(extendedDnsErrors);
+                                    lastResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                                 if (minimalResponse)
                                     return GetMinimalResponseWithoutNSAndGlue(lastResponse);
@@ -1759,7 +1759,7 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
 
                             if (extendedDnsErrors.Count > 0)
-                                failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
+                                failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No valid response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
 
@@ -1772,7 +1772,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             //cached as bad cache
                             if (extendedDnsErrors.Count > 0)
-                                ex.Response.AddDnsClientExtendedError(extendedDnsErrors);
+                                ex.Response.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                             cache.CacheResponse(ex.Response, true);
 
@@ -1781,7 +1781,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 //qname not matching due to qname minimization; cache as failure
                                 DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, [question]);
 
-                                failureResponse.AddDnsClientExtendedErrorFrom(ex.Response);
+                                failureResponse.AddDnsClientExtendedErrorsFrom(ex.Response);
 
                                 if (eDnsClientSubnet is not null)
                                     failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
@@ -1797,7 +1797,7 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
 
                             if (extendedDnsErrors.Count > 0)
-                                failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
+                                failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No valid response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
 
@@ -1812,7 +1812,7 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
 
                             if (extendedDnsErrors.Count > 0)
-                                failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
+                                failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                             if (ex2.SocketErrorCode == SocketError.TimedOut)
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString() + " at delegation " + zoneCut + ".");
@@ -1830,7 +1830,7 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
 
                             if (extendedDnsErrors.Count > 0)
-                                failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
+                                failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                             if (ex3.InnerException is SocketException ex3a)
                             {
@@ -1855,7 +1855,7 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
 
                             if (extendedDnsErrors.Count > 0)
-                                failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
+                                failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                             if (lastException is not null)
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Resolver exception for " + question.ToString() + ": " + lastException.Message);
@@ -1888,7 +1888,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
 
                                 if (extendedDnsErrors.Count > 0)
-                                    failureResponse.AddDnsClientExtendedError(extendedDnsErrors);
+                                    failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.DnssecIndeterminate, "Attack detected! Unable to resolve DS for " + lastQuestion.Name.ToLowerInvariant());
 
@@ -3430,7 +3430,7 @@ namespace TechnitiumLibrary.Net.Dns
                     IReadOnlyList<DnsResourceRecord> cacheDSRecords = tupleCacheDSRecords.Item2;
 
                     if (cacheDSRecords is null)
-                        originalResponse.AddDnsClientExtendedErrorFrom(cacheDSResponse);
+                        originalResponse.AddDnsClientExtendedErrorsFrom(cacheDSResponse);
 
                     return cacheDSRecords;
                 }
@@ -3455,7 +3455,7 @@ namespace TechnitiumLibrary.Net.Dns
                         dsRecords = tupleDsRecords.Item2;
 
                         if (dsRecords is null)
-                            originalResponse.AddDnsClientExtendedErrorFrom(dsResponse);
+                            originalResponse.AddDnsClientExtendedErrorsFrom(dsResponse);
 
                         cache.CacheResponse(dsResponse);
                         return dsResponse;
@@ -4703,7 +4703,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                         response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, ((response.Metadata is null) || (response.Metadata.NameServer is null) ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
 
                                                         if (lastResponse is not null)
-                                                            response.AddDnsClientExtendedErrorFrom(lastResponse);
+                                                            response.AddDnsClientExtendedErrorsFrom(lastResponse);
 
                                                         lastResponse = response;
                                                     }
@@ -4733,7 +4733,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                         response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, ((response.Metadata is null) || (response.Metadata.NameServer is null) ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
 
                                                         if (lastResponse is not null)
-                                                            response.AddDnsClientExtendedErrorFrom(lastResponse);
+                                                            response.AddDnsClientExtendedErrorsFrom(lastResponse);
 
                                                         lastResponse = response;
                                                     }
@@ -4744,7 +4744,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, ((response.Metadata is null) || (response.Metadata.NameServer is null) ? "name server" : response.Metadata.NameServer.ToString()) + " returned RCODE=" + response.RCODE.ToString() + " for " + request.Question[0].ToString());
 
                                                     if (lastResponse is not null)
-                                                        response.AddDnsClientExtendedErrorFrom(lastResponse);
+                                                        response.AddDnsClientExtendedErrorsFrom(lastResponse);
 
                                                     lastResponse = response;
                                                     break;
@@ -4955,7 +4955,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     default:
                                         //copy EDE from last response
                                         if (lastResponse is not null)
-                                            response.AddDnsClientExtendedErrorFrom(lastResponse);
+                                            response.AddDnsClientExtendedErrorsFrom(lastResponse);
 
                                         //keep response
                                         lastResponse = response;
@@ -5094,7 +5094,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 throw; //validation failure for same question; throw same exception
 
                             //validation failure for a different question; preserve current response in new exception
-                            response.AddDnsClientExtendedErrorFrom(ex.Response);
+                            response.AddDnsClientExtendedErrorsFrom(ex.Response);
                             throw new DnsClientResponseDnssecValidationException(ex.Message, response, ex);
                         }
 
