@@ -5312,12 +5312,12 @@ namespace TechnitiumLibrary.Net.Dns
 
             return await InternalResolveAsync(signedRequest, delegate (DnsDatagram signedResponse, CancellationToken cancellationToken1)
             {
-                if (!signedResponse.VerifySignedResponse(signedRequest, key, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error))
+                if (!signedResponse.VerifySignedResponse(signedRequest, key, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error, out string errorMessage))
                 {
                     if (requestFailed)
-                        throw new DnsClientTsigRequestFailedException(rCode, error);
+                        throw new DnsClientTsigRequestFailedException(rCode, error, "TSIG Request failed (Server RCODE=" + rCode.ToString() + ", Server TSIG Error=" + error.ToString() + ").");
                     else
-                        throw new DnsClientTsigResponseVerificationException(rCode, error);
+                        throw new DnsClientTsigResponseVerificationException(rCode, error, "Response failed TSIG signature verification (Client RCODE=" + rCode.ToString() + "; Client TSIG Error=" + error.ToString() + (string.IsNullOrEmpty(errorMessage) ? "" : "; Client Error Mesage: " + errorMessage) + ").");
                 }
 
                 return Task.FromResult(unsignedResponse);
