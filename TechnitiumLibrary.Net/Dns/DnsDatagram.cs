@@ -1580,7 +1580,7 @@ namespace TechnitiumLibrary.Net.Dns
             return signedDatagram;
         }
 
-        public bool VerifySignedResponse(DnsDatagram signedRequest, TsigKey key, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error)
+        public bool VerifySignedResponse(DnsDatagram signedRequest, TsigKey key, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error, out string errorMessage)
         {
             if (!IsResponse)
                 throw new InvalidOperationException("Cannot verify this datagram: datagram must be a response.");
@@ -1592,6 +1592,7 @@ namespace TechnitiumLibrary.Net.Dns
                 requestFailed = false;
                 rCode = DnsResponseCode.FormatError;
                 error = DnsTsigError.NoError;
+                errorMessage = "Datagram was not signed.";
                 return false;
             }
 
@@ -1608,6 +1609,7 @@ namespace TechnitiumLibrary.Net.Dns
                 requestFailed = false;
                 rCode = DnsResponseCode.NotAuth;
                 error = DnsTsigError.BADKEY;
+                errorMessage = "Key Name or Algorithm mismatch, or TSIG Algorithm not supported.";
                 return false;
             }
 
@@ -1622,6 +1624,7 @@ namespace TechnitiumLibrary.Net.Dns
                         requestFailed = true;
                         rCode = _RCODE;
                         error = tsig.Error;
+                        errorMessage = null;
                         return false;
                 }
             }
@@ -1633,6 +1636,7 @@ namespace TechnitiumLibrary.Net.Dns
                 requestFailed = false;
                 rCode = DnsResponseCode.FormatError;
                 error = DnsTsigError.NoError;
+                errorMessage = "TSIG MAC length mismatch.";
                 return false;
             }
 
@@ -1645,6 +1649,7 @@ namespace TechnitiumLibrary.Net.Dns
                 requestFailed = false;
                 rCode = DnsResponseCode.NotAuth;
                 error = DnsTsigError.BADSIG;
+                errorMessage = "Bad signature.";
                 return false;
             }
 
@@ -1657,6 +1662,7 @@ namespace TechnitiumLibrary.Net.Dns
                     requestFailed = true;
                     rCode = _RCODE;
                     error = tsig.Error;
+                    errorMessage = null;
                     return false;
             }
 
@@ -1671,6 +1677,7 @@ namespace TechnitiumLibrary.Net.Dns
                 requestFailed = false;
                 rCode = DnsResponseCode.NotAuth;
                 error = DnsTsigError.BADTIME;
+                errorMessage = "Server/Client time mismatch.";
                 return false;
             }
 
@@ -1681,6 +1688,7 @@ namespace TechnitiumLibrary.Net.Dns
                 requestFailed = false;
                 rCode = DnsResponseCode.NotAuth;
                 error = DnsTsigError.BADTRUNC;
+                errorMessage = "Bad MAC truncation in response.";
                 return false;
             }
 
@@ -1706,6 +1714,7 @@ namespace TechnitiumLibrary.Net.Dns
                         requestFailed = false;
                         rCode = DnsResponseCode.FormatError;
                         error = DnsTsigError.NoError;
+                        errorMessage = "Found more than one TSIG.";
                         return false;
                     }
 
@@ -1740,6 +1749,7 @@ namespace TechnitiumLibrary.Net.Dns
                         requestFailed = false;
                         rCode = DnsResponseCode.FormatError;
                         error = DnsTsigError.NoError;
+                        errorMessage = "More than 99 intermediary messages without a TSIG.";
                         return false;
                     }
 
@@ -1754,6 +1764,7 @@ namespace TechnitiumLibrary.Net.Dns
                         requestFailed = false;
                         rCode = DnsResponseCode.FormatError;
                         error = DnsTsigError.NoError;
+                        errorMessage = "TSIG MAC length mismatch.";
                         return false;
                     }
 
@@ -1764,6 +1775,7 @@ namespace TechnitiumLibrary.Net.Dns
                         requestFailed = false;
                         rCode = DnsResponseCode.NotAuth;
                         error = DnsTsigError.BADSIG;
+                        errorMessage = "Bad signature.";
                         return false;
                     }
 
@@ -1777,6 +1789,7 @@ namespace TechnitiumLibrary.Net.Dns
                         requestFailed = false;
                         rCode = DnsResponseCode.NotAuth;
                         error = DnsTsigError.BADTIME;
+                        errorMessage = "Server/Client time mismatch.";
                         return false;
                     }
 
@@ -1787,6 +1800,7 @@ namespace TechnitiumLibrary.Net.Dns
                         requestFailed = false;
                         rCode = DnsResponseCode.NotAuth;
                         error = DnsTsigError.BADTRUNC;
+                        errorMessage = "Bad MAC truncation in response.";
                         return false;
                     }
 
@@ -1811,6 +1825,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 requestFailed = false;
                                 rCode = DnsResponseCode.FormatError;
                                 error = DnsTsigError.NoError;
+                                errorMessage = "Found more than one TSIG.";
                                 return false;
                             }
 
@@ -1836,6 +1851,7 @@ namespace TechnitiumLibrary.Net.Dns
                     requestFailed = false;
                     rCode = DnsResponseCode.FormatError;
                     error = DnsTsigError.NoError;
+                    errorMessage = "Last message was unsigned.";
                     return false;
                 }
             }
@@ -1844,6 +1860,7 @@ namespace TechnitiumLibrary.Net.Dns
             requestFailed = false;
             rCode = DnsResponseCode.NoError;
             error = DnsTsigError.NoError;
+            errorMessage = null;
             return true;
         }
 
