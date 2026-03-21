@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -68,8 +68,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 switch (version)
                 {
                     case 1:
-                        _appName = bR.ReadShortString();
-                        _classPath = bR.ReadShortString();
+                        _appName = s.ReadShortString();
+                        _classPath = s.ReadShortString();
                         _data = bR.ReadString();
                         break;
 
@@ -84,8 +84,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             using (BinaryWriter bW = new BinaryWriter(s, Encoding.UTF8, true))
             {
                 bW.Write((byte)1); //version
-                bW.WriteShortString(_appName);
-                bW.WriteShortString(_classPath);
+                s.WriteShortString(_appName);
+                s.WriteShortString(_classPath);
                 bW.Write(_data);
             }
         }

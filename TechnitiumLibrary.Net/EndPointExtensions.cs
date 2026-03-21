@@ -38,13 +38,13 @@ namespace TechnitiumLibrary.Net
             switch (bR.ReadByte())
             {
                 case 1:
-                    return new IPEndPoint(new IPAddress(bR.ReadBytes(4)), bR.ReadUInt16());
+                    return new IPEndPoint(new IPAddress(bR.BaseStream.ReadExactly(4)), bR.ReadUInt16());
 
                 case 2:
-                    return new IPEndPoint(new IPAddress(bR.ReadBytes(16)), bR.ReadUInt16());
+                    return new IPEndPoint(new IPAddress(bR.BaseStream.ReadExactly(16)), bR.ReadUInt16());
 
                 case 3:
-                    return new DomainEndPoint(bR.ReadShortString(), bR.ReadUInt16());
+                    return new DomainEndPoint(bR.BaseStream.ReadShortString(), bR.ReadUInt16());
 
                 default:
                     throw new NotSupportedException("Address Family not supported.");
@@ -69,7 +69,7 @@ namespace TechnitiumLibrary.Net
 
                 case AddressFamily.Unspecified: //domain end point
                     bW.Write((byte)3);
-                    bW.WriteShortString((ep as DomainEndPoint).Address);
+                    bW.BaseStream.WriteShortString((ep as DomainEndPoint).Address);
                     bW.Write(Convert.ToUInt16((ep as DomainEndPoint).Port));
                     break;
 

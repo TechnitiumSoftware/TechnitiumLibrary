@@ -151,7 +151,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 case 1:
                     if (bR.ReadBoolean())
-                        _dohEndPoint = new Uri(bR.ReadShortString());
+                        _dohEndPoint = new Uri(bR.BaseStream.ReadShortString());
 
                     if (bR.ReadBoolean())
                         _domainEndPoint = EndPointExtensions.ReadFrom(bR) as DomainEndPoint;
@@ -170,13 +170,13 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
 
                 case 2:
-                    InternalParse(bR.ReadShortString());
+                    InternalParse(bR.BaseStream.ReadShortString());
                     GuessProtocol();
                     break;
 
                 case 3:
                     _protocol = (DnsTransportProtocol)bR.ReadByte();
-                    InternalParse(bR.ReadShortString());
+                    InternalParse(bR.BaseStream.ReadShortString());
                     break;
 
                 default:
@@ -853,7 +853,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             bW.Write((byte)3); //version
             bW.Write((byte)_protocol);
-            bW.WriteShortString(_originalAddress);
+            bW.BaseStream.WriteShortString(_originalAddress);
         }
 
         public override string ToString()
