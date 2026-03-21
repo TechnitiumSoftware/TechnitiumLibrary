@@ -20,7 +20,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Buffers.Binary;
 using System.IO;
-using System.Text;
 
 namespace TechnitiumLibrary.IO
 {
@@ -36,47 +35,6 @@ namespace TechnitiumLibrary.IO
         {
             WriteLength(bW, buffer.Length);
             bW.Write(buffer, 0, buffer.Length);
-        }
-
-        /// <summary>
-        /// Write string as Length + byte[] IF its byte-length is strictly less than 256.
-        /// Default UTF8 encoding is used.
-        /// </summary>
-        /// <param name="bW"></param>
-        /// <param name="value"></param>
-        /// <exception cref="ArgumentOutOfRangeException">throws exception if byte-length is more than 255 bytes</exception>
-        public static void WriteShortString(this BinaryWriter bW, string value)
-        {
-            WriteShortString(bW, value, Encoding.UTF8);
-        }
-
-        /// <summary>
-        /// Write string as Length + byte[] IF its byte-length is strictly less than 256.
-        /// Method uses provided encoding.
-        /// </summary>
-        /// <param name="bW"></param>
-        /// <param name="value"></param>
-        /// <param name="encoding"></param>
-        /// <exception cref="ArgumentOutOfRangeException">throws exception if byte-length is more than 255 bytes</exception>
-        public static void WriteShortString(this BinaryWriter bW, string value, Encoding encoding)
-        {
-            byte[] buffer = encoding.GetBytes(value);
-            if (buffer.Length > 255)
-                throw new ArgumentOutOfRangeException(nameof(value), "Parameter 'value' exceeded max length of 255 bytes.");
-
-            bW.Write(Convert.ToByte(buffer.Length));
-            bW.Write(buffer);
-        }
-
-        /// <summary>
-        /// Convert DateTime to Unix milliseconds and write 8 bytes to the stream
-        /// </summary>
-        /// <param name="bW"></param>
-        /// <param name="date"></param>
-        /// <returns>DateTime is always in UTC</returns>
-        public static void Write(this BinaryWriter bW, DateTime date)
-        {
-            bW.Write(Convert.ToInt64((date.ToUniversalTime() - DateTime.UnixEpoch).TotalMilliseconds));
         }
 
         public static void WriteLength(this BinaryWriter bW, int valueLength)
