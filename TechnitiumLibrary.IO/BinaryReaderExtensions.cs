@@ -20,7 +20,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Buffers.Binary;
 using System.IO;
-using System.Text;
 
 namespace TechnitiumLibrary.IO
 {
@@ -28,39 +27,7 @@ namespace TechnitiumLibrary.IO
     {
         public static byte[] ReadBuffer(this BinaryReader bR)
         {
-            return bR.ReadBytes(ReadLength(bR));
-        }
-
-        /// <summary>
-        /// Read short string decoded as Length + byte[] ASSUMING its byte-length is strictly less than 256.
-        /// Default UTF8 encoding is used.
-        /// </summary>
-        /// <param name="bR"></param>
-        public static string ReadShortString(this BinaryReader bR)
-        {
-            return ReadShortString(bR, Encoding.UTF8);
-        }
-
-        /// <summary>
-        /// Read short string decoded as Length + byte[] ASSUMING its byte-length is strictly less than 256.
-        /// Method uses provided encoding.
-        /// </summary>
-        /// <param name="bR"></param>
-        /// <param name="encoding"></param>
-        public static string ReadShortString(this BinaryReader bR, Encoding encoding)
-        {
-            return encoding.GetString(bR.ReadBytes(bR.ReadByte()));
-        }
-
-        /// <summary>
-        /// Read 8 bytes from the stream and interpret them
-        /// as Unix timestamp in milliseconds from UnixEpoch
-        /// </summary>
-        /// <param name="bR"></param>
-        /// <returns>DateTime is always in UTC</returns>
-        public static DateTime ReadDateTime(this BinaryReader bR)
-        {
-            return DateTime.UnixEpoch.AddMilliseconds(bR.ReadInt64());
+            return bR.BaseStream.ReadExactly(ReadLength(bR));
         }
 
         public static int ReadLength(this BinaryReader bR)
