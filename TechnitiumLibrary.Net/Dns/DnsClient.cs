@@ -2498,22 +2498,6 @@ namespace TechnitiumLibrary.Net.Dns
                     return false;
                 }
 
-                if (domain[labelStart] == '-')
-                {
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot start with hyphen.");
-
-                    return false;
-                }
-
-                if (domain[labelEnd - 1] == '-')
-                {
-                    if (throwException)
-                        throw new DnsClientException("Invalid domain name [" + domain + "]: label cannot end with hyphen.");
-
-                    return false;
-                }
-
                 if (labelLength != 1 || domain[labelStart] != '*')
                 {
                     for (i = labelStart; i < labelEnd; i++)
