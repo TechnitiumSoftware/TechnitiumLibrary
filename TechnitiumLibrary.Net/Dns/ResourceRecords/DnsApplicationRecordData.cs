@@ -31,6 +31,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
+        readonly static JsonDocumentOptions _jsonParseOptions = new JsonDocumentOptions() { CommentHandling = JsonCommentHandling.Skip };
+
         string _appName;
         string _classPath;
         string _data;
@@ -43,7 +45,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             if (data.StartsWith('{') || data.StartsWith('['))
             {
-                using (JsonDocument jsonDocument = JsonDocument.Parse(data))
+                using (JsonDocument jsonDocument = JsonDocument.Parse(data, _jsonParseOptions))
                 { }
             }
 
