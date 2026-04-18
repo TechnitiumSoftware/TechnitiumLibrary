@@ -40,7 +40,7 @@ namespace TechnitiumLibrary.Net.Dns
         double _sprtt = 0; //Smoothed Penalty Round Trip Time (EWMA)
         const double ALPHA = 0.25; //N=7
 
-        const int MISCONFIGURED_MARK_TTL = 900;
+        const int MISCONFIGURED_MARK_TTL = 300; //RFC 9520 section 3.2 recommends max 5 minutes
         DateTime _misconfiguredMarkExpiry;
 
         #endregion
