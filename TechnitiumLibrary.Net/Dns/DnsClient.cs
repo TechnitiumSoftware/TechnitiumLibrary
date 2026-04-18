@@ -324,11 +324,11 @@ namespace TechnitiumLibrary.Net.Dns
                     switch (attribute.Name)
                     {
                         case "validFrom":
-                            validFrom = DateTime.ParseExact(attribute.Value, dateFormat, CultureInfo.CurrentCulture);
+                            validFrom = DateTime.ParseExact(attribute.Value, dateFormat, CultureInfo.InvariantCulture);
                             break;
 
                         case "validUntil":
-                            validUntil = DateTime.ParseExact(attribute.Value, dateFormat, CultureInfo.CurrentCulture);
+                            validUntil = DateTime.ParseExact(attribute.Value, dateFormat, CultureInfo.InvariantCulture);
                             break;
                     }
                 }
@@ -369,7 +369,8 @@ namespace TechnitiumLibrary.Net.Dns
                 rootTrustAnchors.Add(new DnsResourceRecord("", DnsResourceRecordType.DS, DnsClass.IN, 0, new DnsDSRecordData(keyTag, algorithm, digestType, Convert.FromHexString(digest))));
             }
 
-            ROOT_TRUST_ANCHORS = rootTrustAnchors;
+            if (rootTrustAnchors.Count > 0)
+                ROOT_TRUST_ANCHORS = rootTrustAnchors;
         }
 
         public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, IPv6Mode ipv6Mode = IPv6Mode.Disabled, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, bool minimalResponse = false, bool asyncNsResolution = false, List<DnsDatagram> rawResponses = null, CancellationToken cancellationToken = default)
@@ -959,7 +960,7 @@ namespace TechnitiumLibrary.Net.Dns
                             }
 
                             if (resolvedNameServers.Count == 0)
-                                continue;
+                                continue; //try next name server
 
                             dnsClient = new DnsClient(resolvedNameServers);
                             dnsClient._concurrency = concurrency;
@@ -1020,8 +1021,33 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                         else
                         {
+                            //check for NS referral loops before attempting to resolve NS domain
+                            bool foundNsLoop = false;
+
+                            foreach (ResolverData stack in resolverStack)
+                            {
+                                if (stack.ZoneCut.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    foundNsLoop = true;
+                                    break;
+                                }
+                            }
+
+                            if (foundNsLoop)
+                            {
+                                //mark all remaining name servers as misconfigured
+                                for (int i = nameServerIndex; i < nameServers.Count; i++)
+                                    nameServers[i].Metadata.MarkMisconfigured();
+
+                                //stop resolution for this stack
+                                break;
+                            }
+
                             //do sequential request to current name server after resolving it
                             NameServerAddress currentNameServer = nameServers[nameServerIndex];
+
+                            if (currentNameServer.Metadata.IsMisconfigured)
+                                continue; //try next name server
 
                             if (ipv6Mode != IPv6Mode.Disabled)
                             {
@@ -1105,6 +1131,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                         try
                         {
+                            //use stack variables by value inside validate response delegate to avoid issues due to concurrency when values change
+                            string currentZoneCut = zoneCut;
+                            IReadOnlyList<DnsResourceRecord> currentLastDSRecords = lastDSRecords;
+
                             response = await dnsClient.InternalResolveAsync(request, async delegate (DnsDatagram response, CancellationToken cancellationToken1)
                             {
                                 cancellationToken1.ThrowIfCancellationRequested();
@@ -1113,11 +1143,11 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 //sanitize response
                                 response = SanitizeResponseAnswerForQName(response);
-                                response = SanitizeResponseAnswerForZoneCut(response, zoneCut); //sanitize answer section
-                                response = SanitizeResponseAuthorityForZoneCut(response, zoneCut); //sanitize authority section
-                                response = SanitizeResponseAdditionalForZoneCut(response, zoneCut); //sanitize additional section
+                                response = SanitizeResponseAnswerForZoneCut(response, currentZoneCut); //sanitize answer section
+                                response = SanitizeResponseAuthorityForZoneCut(response, currentZoneCut); //sanitize authority section
+                                response = SanitizeResponseAdditionalForZoneCut(response, currentZoneCut); //sanitize additional section
 
-                                if (dnssecValidationState)
+                                if (dnsClient._dnssecValidation)
                                 {
                                     //dnssec validate response
                                     if (response.Metadata?.NameServer is not null)
@@ -1137,7 +1167,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                     try
                                     {
-                                        await DnssecValidateResponseAsync(response, lastDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken1);
+                                        await DnssecValidateResponseAsync(response, currentLastDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken1);
                                     }
                                     catch (DnsClientResponseDnssecValidationException ex)
                                     {
@@ -1168,7 +1198,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     foreach (DnsResourceRecord authorityRecord in response.Authority)
                                     {
-                                        if ((authorityRecord.Type == DnsResourceRecordType.NS) && authorityRecord.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
+                                        if ((authorityRecord.Type == DnsResourceRecordType.NS) && authorityRecord.Name.Equals(currentZoneCut, StringComparison.OrdinalIgnoreCase))
                                         {
                                             //found referral response with authority name servers that match the zone cut
 
@@ -4349,6 +4379,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     DnsDatagram lastResponse = response;
                     DnsDatagram newResponse = null;
+                    bool cnameLoopDetected = false;
                     double responseRtt = 0.0;
 
                     if (response.Metadata is not null)
@@ -4359,7 +4390,10 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         string cnameDomain = (lastRR.RDATA as DnsCNAMERecordData).Domain;
                         if (lastRR.Name.Equals(cnameDomain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            cnameLoopDetected = true;
                             break; //loop detected
+                        }
 
                         newResponse = await resolveAsync(new DnsQuestionRecord(cnameDomain, question.Type, question.Class));
                         if (newResponse is null)
@@ -4379,8 +4413,6 @@ namespace TechnitiumLibrary.Net.Dns
                             break; //cname was resolved
                         }
 
-                        bool foundRepeat = false;
-
                         foreach (DnsResourceRecord answerRecord in newAnswer)
                         {
                             if (answerRecord.Type != DnsResourceRecordType.CNAME)
@@ -4388,12 +4420,12 @@ namespace TechnitiumLibrary.Net.Dns
 
                             if (answerRecord.RDATA.Equals(lastRR.RDATA))
                             {
-                                foundRepeat = true;
+                                cnameLoopDetected = true;
                                 break;
                             }
                         }
 
-                        if (foundRepeat)
+                        if (cnameLoopDetected)
                             break; //loop detected
 
                         newAnswer.AddRange(newResponse.Answer);
@@ -4423,7 +4455,10 @@ namespace TechnitiumLibrary.Net.Dns
                     }
                     else
                     {
-                        rcode = newResponse.RCODE;
+                        if (cnameLoopDetected || (queryCount >= MAX_CNAME_HOPS))
+                            rcode = DnsResponseCode.ServerFailure;
+                        else
+                            rcode = newResponse.RCODE;
 
                         if (newAuthority.Count == 0)
                         {
@@ -5134,6 +5169,7 @@ namespace TechnitiumLibrary.Net.Dns
                             if (!selectedTrustAnchors.Contains(dsRecord))
                                 selectedTrustAnchors.Add(dsRecord);
                         }
+
                         break;
                     }
 
