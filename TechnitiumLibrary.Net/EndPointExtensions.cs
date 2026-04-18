@@ -179,6 +179,14 @@ namespace TechnitiumLibrary.Net
                 return new DomainEndPoint(address, port);
         }
 
+        public static EndPoint Parse(string value)
+        {
+            if (TryParse(value, out EndPoint ep))
+                return ep;
+
+            throw new FormatException("Failed to parse end point: " + value);
+        }
+
         public static bool TryParse(string value, out EndPoint ep)
         {
             if (IPEndPoint.TryParse(value, out IPEndPoint ep1))
