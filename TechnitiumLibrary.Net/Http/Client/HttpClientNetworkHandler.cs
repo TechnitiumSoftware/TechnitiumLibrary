@@ -166,9 +166,25 @@ namespace TechnitiumLibrary.Net.Http.Client
             else
             {
                 if (!string.IsNullOrEmpty(_innerHandler.SslOptions.TargetHost))
+                {
                     sslOptions.TargetHost = _innerHandler.SslOptions.TargetHost;
+                }
                 else
-                    sslOptions.TargetHost = context.DnsEndPoint.Host;
+                {
+                    string host = context.InitialRequestMessage.Headers.Host;
+                    if (!string.IsNullOrEmpty(host))
+                    {
+                        int i = host.IndexOf(':');
+                        if (i > -1)
+                            host = host.Substring(0, i);
+
+                        sslOptions.TargetHost = host;
+                    }
+                    else
+                    {
+                        sslOptions.TargetHost = context.DnsEndPoint.Host;
+                    }
+                }
 
                 sslOptions.RemoteCertificateValidationCallback = _innerHandler.SslOptions.RemoteCertificateValidationCallback;
             }
