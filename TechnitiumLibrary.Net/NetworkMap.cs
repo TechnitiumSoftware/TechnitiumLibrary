@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Net.Sockets;
 
 namespace TechnitiumLibrary.Net
 {
@@ -27,6 +28,7 @@ namespace TechnitiumLibrary.Net
     {
         #region variables
 
+        readonly AddressFamily _addressFamily;
         readonly List<IpEntry> _ipLookupList;
         bool _sorted;
 
@@ -34,13 +36,15 @@ namespace TechnitiumLibrary.Net
 
         #region constructor
 
-        public NetworkMap()
+        public NetworkMap(AddressFamily addressFamily)
         {
+            _addressFamily = addressFamily;
             _ipLookupList = new List<IpEntry>();
         }
 
-        public NetworkMap(int capacity)
+        public NetworkMap(AddressFamily addressFamily, int capacity)
         {
+            _addressFamily = addressFamily;
             _ipLookupList = new List<IpEntry>(capacity);
         }
 
@@ -103,6 +107,9 @@ namespace TechnitiumLibrary.Net
 
         public void Add(NetworkAddress networkAddress, T value)
         {
+            if (networkAddress.AddressFamily != _addressFamily)
+                throw new ArgumentException("The address family must be '" + _addressFamily.ToString() + "'.", nameof(networkAddress));
+
             lock (_ipLookupList)
             {
                 _ipLookupList.Add(new IpEntry(networkAddress.Address, value));
@@ -119,6 +126,9 @@ namespace TechnitiumLibrary.Net
 
         public bool Remove(NetworkAddress networkAddress)
         {
+            if (networkAddress.AddressFamily != _addressFamily)
+                throw new ArgumentException("The address family must be '" + _addressFamily.ToString() + "'.", nameof(networkAddress));
+
             lock (_ipLookupList)
             {
                 bool v1 = _ipLookupList.Remove(new IpEntry(networkAddress.Address));
@@ -136,6 +146,9 @@ namespace TechnitiumLibrary.Net
 
         public bool TryGetValue(IPAddress address, out T value)
         {
+            if (address.AddressFamily != _addressFamily)
+                throw new ArgumentException("The address family must be '" + _addressFamily.ToString() + "'.", nameof(address));
+
             if (!_sorted)
             {
                 lock (_ipLookupList)

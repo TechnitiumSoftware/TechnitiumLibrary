@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -38,13 +38,13 @@ namespace TechnitiumLibrary.Net
             switch (bR.ReadByte())
             {
                 case 1:
-                    return new IPEndPoint(new IPAddress(bR.ReadBytes(4)), bR.ReadUInt16());
+                    return new IPEndPoint(new IPAddress(bR.BaseStream.ReadExactly(4)), bR.ReadUInt16());
 
                 case 2:
-                    return new IPEndPoint(new IPAddress(bR.ReadBytes(16)), bR.ReadUInt16());
+                    return new IPEndPoint(new IPAddress(bR.BaseStream.ReadExactly(16)), bR.ReadUInt16());
 
                 case 3:
-                    return new DomainEndPoint(bR.ReadShortString(), bR.ReadUInt16());
+                    return new DomainEndPoint(bR.BaseStream.ReadShortString(), bR.ReadUInt16());
 
                 default:
                     throw new NotSupportedException("Address Family not supported.");
@@ -69,7 +69,7 @@ namespace TechnitiumLibrary.Net
 
                 case AddressFamily.Unspecified: //domain end point
                     bW.Write((byte)3);
-                    bW.WriteShortString((ep as DomainEndPoint).Address);
+                    bW.BaseStream.WriteShortString((ep as DomainEndPoint).Address);
                     bW.Write(Convert.ToUInt16((ep as DomainEndPoint).Port));
                     break;
 
@@ -143,7 +143,7 @@ namespace TechnitiumLibrary.Net
                     IReadOnlyList<IPAddress> ipAddresses;
 
                     if (useRecursiveResolver)
-                        ipAddresses = await DnsClient.RecursiveResolveIPAsync(dep.Address, preferIPv6: family == AddressFamily.InterNetworkV6, cancellationToken: cancellationToken);
+                        ipAddresses = await DnsClient.RecursiveResolveIPAsync(dep.Address, ipv6Mode: family == AddressFamily.InterNetworkV6 ? IPv6Mode.Enabled : IPv6Mode.Disabled, cancellationToken: cancellationToken);
                     else
                         ipAddresses = await System.Net.Dns.GetHostAddressesAsync(dep.Address, cancellationToken);
 
@@ -177,6 +177,14 @@ namespace TechnitiumLibrary.Net
                 return new IPEndPoint(ipAddress, port);
             else
                 return new DomainEndPoint(address, port);
+        }
+
+        public static EndPoint Parse(string value)
+        {
+            if (TryParse(value, out EndPoint ep))
+                return ep;
+
+            throw new FormatException("Failed to parse end point: " + value);
         }
 
         public static bool TryParse(string value, out EndPoint ep)

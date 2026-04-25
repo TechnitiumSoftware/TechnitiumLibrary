@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -64,7 +64,7 @@ namespace TechnitiumLibrary.Net.Http
             HttpRequest httpRequest = new HttpRequest();
 
             //parse http request headers
-            using (MemoryStream headerBuffer = new MemoryStream())
+            using (MemoryStream headerBuffer = new MemoryStream(1024))
             {
                 //read http request header into memory stream
                 byte[] buffer = new byte[BUFFER_SIZE];
@@ -97,10 +97,8 @@ namespace TechnitiumLibrary.Net.Http
 
                             default:
                                 crlfCount = 0;
-                                break;
+                                continue;
                         }
-
-                        headerBuffer.WriteByte(buffer[offset]);
 
                         if (crlfCount == 4)
                         {
@@ -108,6 +106,8 @@ namespace TechnitiumLibrary.Net.Http
                             break; //http request completed
                         }
                     }
+
+                    headerBuffer.Write(buffer, 0, offset);
                 }
 
                 //parse http header data from memory stream

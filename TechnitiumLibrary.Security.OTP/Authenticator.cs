@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.Security.OTP
         public Authenticator(AuthenticatorKeyUri keyUri)
         {
             if (!keyUri.Type.Equals("totp", StringComparison.OrdinalIgnoreCase))
-                throw new NotSupportedException($"The authenticator key URI type '{_keyUri.Type}' is not supported.");
+                throw new NotSupportedException($"The authenticator key URI type '{keyUri.Type}' is not supported.");
 
             _keyUri = keyUri;
             _key = Base32.FromBase32String(_keyUri.Secret);

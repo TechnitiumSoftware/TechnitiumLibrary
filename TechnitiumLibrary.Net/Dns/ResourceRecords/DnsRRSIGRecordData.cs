@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -330,14 +330,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             string strSignatureExpiration = await zoneFile.PopItemAsync();
             uint signatureExpiration;
             if (strSignatureExpiration.Length == 14)
-                signatureExpiration = Convert.ToUInt32((DateTime.ParseExact(strSignatureExpiration, "yyyyMMddHHmmss", CultureInfo.CurrentCulture) - DateTime.UnixEpoch).TotalSeconds);
+                signatureExpiration = Convert.ToUInt32((DateTime.ParseExact(strSignatureExpiration, "yyyyMMddHHmmss", CultureInfo.InvariantCulture) - DateTime.UnixEpoch).TotalSeconds);
             else
                 signatureExpiration = uint.Parse(strSignatureExpiration);
 
             string strSignatureInception = await zoneFile.PopItemAsync();
             uint signatureInception;
             if (strSignatureInception.Length == 14)
-                signatureInception = Convert.ToUInt32((DateTime.ParseExact(strSignatureInception, "yyyyMMddHHmmss", CultureInfo.CurrentCulture) - DateTime.UnixEpoch).TotalSeconds);
+                signatureInception = Convert.ToUInt32((DateTime.ParseExact(strSignatureInception, "yyyyMMddHHmmss", CultureInfo.InvariantCulture) - DateTime.UnixEpoch).TotalSeconds);
             else
                 signatureInception = uint.Parse(strSignatureInception);
 

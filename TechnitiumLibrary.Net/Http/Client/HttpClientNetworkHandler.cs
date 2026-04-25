@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -77,6 +77,41 @@ namespace TechnitiumLibrary.Net.Http.Client
 
         #endregion
 
+        #region static
+
+        public static HttpClientNetworkType GetNetworkType(IPv6Mode ipv6Mode)
+        {
+            switch (ipv6Mode)
+            {
+                case IPv6Mode.Enabled:
+                    return HttpClientNetworkType.Default;
+
+                case IPv6Mode.Preferred:
+                    return HttpClientNetworkType.PreferIPv6;
+
+                default:
+                    return HttpClientNetworkType.IPv4Only;
+            }
+        }
+
+        public static IPv6Mode GetIPv6Mode(HttpClientNetworkType networkType)
+        {
+            switch (networkType)
+            {
+                case HttpClientNetworkType.IPv4Only:
+                    return IPv6Mode.Disabled;
+
+                case HttpClientNetworkType.IPv6Only:
+                case HttpClientNetworkType.PreferIPv6:
+                    return IPv6Mode.Preferred;
+
+                default:
+                    return IsPublicIPv6Available() ? IPv6Mode.Enabled : IPv6Mode.Disabled;
+            }
+        }
+
+        #endregion
+
         #region private
 
         private async ValueTask<Stream> ConnectCallback(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
@@ -131,9 +166,25 @@ namespace TechnitiumLibrary.Net.Http.Client
             else
             {
                 if (!string.IsNullOrEmpty(_innerHandler.SslOptions.TargetHost))
+                {
                     sslOptions.TargetHost = _innerHandler.SslOptions.TargetHost;
+                }
                 else
-                    sslOptions.TargetHost = context.DnsEndPoint.Host;
+                {
+                    string host = context.InitialRequestMessage.Headers.Host;
+                    if (!string.IsNullOrEmpty(host))
+                    {
+                        int i = host.IndexOf(':');
+                        if (i > -1)
+                            host = host.Substring(0, i);
+
+                        sslOptions.TargetHost = host;
+                    }
+                    else
+                    {
+                        sslOptions.TargetHost = context.DnsEndPoint.Host;
+                    }
+                }
 
                 sslOptions.RemoteCertificateValidationCallback = _innerHandler.SslOptions.RemoteCertificateValidationCallback;
             }
@@ -182,7 +233,7 @@ namespace TechnitiumLibrary.Net.Http.Client
 
             if (_dnsClient is null)
             {
-                DnsClient dnsClient = new DnsClient((_networkType == HttpClientNetworkType.IPv6Only) || (_networkType == HttpClientNetworkType.PreferIPv6));
+                DnsClient dnsClient = new DnsClient(GetIPv6Mode(_networkType));
                 dnsClient.Cache = new DnsCache();
                 dnsClient.Proxy = _proxy;
                 dnsClient.DnssecValidation = true;
@@ -227,17 +278,20 @@ namespace TechnitiumLibrary.Net.Http.Client
                             IReadOnlyList<IPAddress> ipv6Addresses = ipv6Task is null ? null : Dns.DnsClient.ParseResponseAAAA(await ipv6Task);
                             IReadOnlyList<IPAddress> ipv4Addresses = Dns.DnsClient.ParseResponseA(response);
 
-                            List<IPAddress> allAddresses = new List<IPAddress>((ipv6Addresses is null ? 0 : ipv6Addresses.Count) + ipv4Addresses.Count);
+                            if (ipv6Addresses is null)
+                            {
+                                addresses = ipv4Addresses;
+                            }
+                            else
+                            {
+                                if (_networkType == HttpClientNetworkType.PreferIPv6)
+                                    addresses = [.. ipv6Addresses, .. ipv4Addresses];
+                                else
+                                    addresses = ipv6Addresses.Interleave(ipv4Addresses);
+                            }
 
-                            if (ipv6Addresses is not null)
-                                allAddresses.AddRange(ipv6Addresses);
-
-                            allAddresses.AddRange(ipv4Addresses);
-
-                            if (allAddresses.Count < 1)
+                            if (addresses.Count < 1)
                                 throw new HttpRequestException("HttpClientNetworkHandler could not resolve IP address for host: " + host);
-
-                            addresses = allAddresses;
                         }
                         break;
                 }

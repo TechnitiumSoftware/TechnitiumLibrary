@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+using System;
 using System.IO;
 using System.Threading;
 
@@ -38,6 +39,9 @@ namespace TechnitiumLibrary.Net.Dns
         double _srtt = 0; //Smoothed Round Trip Time (EWMA)
         double _sprtt = 0; //Smoothed Penalty Round Trip Time (EWMA)
         const double ALPHA = 0.25; //N=7
+
+        const int MISCONFIGURED_MARK_TTL = 300; //RFC 9520 section 3.2 recommends max 5 minutes
+        DateTime _misconfiguredMarkExpiry;
 
         #endregion
 
@@ -124,6 +128,11 @@ namespace TechnitiumLibrary.Net.Dns
             return (rate * _srtt) + ((1 - rate) * _sprtt);
         }
 
+        public void MarkMisconfigured()
+        {
+            _misconfiguredMarkExpiry = DateTime.UtcNow.AddSeconds(MISCONFIGURED_MARK_TTL);
+        }
+
         public void WriteTo(BinaryWriter bW)
         {
             bW.Write((byte)1); //version
@@ -149,6 +158,14 @@ namespace TechnitiumLibrary.Net.Dns
 
         public double SPRTT
         { get { return _sprtt; } }
+
+        public bool IsMisconfigured
+        {
+            get
+            {
+                return DateTime.UtcNow < _misconfiguredMarkExpiry;
+            }
+        }
 
         #endregion
     }

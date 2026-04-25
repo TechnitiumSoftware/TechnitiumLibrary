@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Buffers.Binary;
 using System.IO;
-using System.Text;
 
 namespace TechnitiumLibrary.IO
 {
@@ -28,22 +27,7 @@ namespace TechnitiumLibrary.IO
     {
         public static byte[] ReadBuffer(this BinaryReader bR)
         {
-            return bR.ReadBytes(ReadLength(bR));
-        }
-
-        public static string ReadShortString(this BinaryReader bR)
-        {
-            return ReadShortString(bR, Encoding.UTF8);
-        }
-
-        public static string ReadShortString(this BinaryReader bR, Encoding encoding)
-        {
-            return encoding.GetString(bR.ReadBytes(bR.ReadByte()));
-        }
-
-        public static DateTime ReadDateTime(this BinaryReader bR)
-        {
-            return DateTime.UnixEpoch.AddMilliseconds(bR.ReadInt64());
+            return bR.BaseStream.ReadExactly(ReadLength(bR));
         }
 
         public static int ReadLength(this BinaryReader bR)

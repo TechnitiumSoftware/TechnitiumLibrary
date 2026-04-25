@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,13 +32,6 @@ namespace TechnitiumLibrary.Net.Dns
         #endregion
 
         #region constructors
-
-        public DnsClientTsigResponseVerificationException(DnsResponseCode rCode, DnsTsigError error)
-            : base("Response failed TSIG signature verification (Client RCODE=" + rCode.ToString() + ", Client TSIG Error=" + error.ToString() + ").")
-        {
-            _rCode = rCode;
-            _error = error;
-        }
 
         public DnsClientTsigResponseVerificationException(DnsResponseCode rCode, DnsTsigError error, string message)
             : base(message)

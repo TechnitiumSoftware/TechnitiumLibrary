@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -259,7 +260,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     statusString = statusCode + " " + sb.ToString();
                 }
 
-                string response = "HTTP/1.1 " + statusCode + " " + statusString + "\r\nDate: " + DateTime.UtcNow.ToString("R") + "\r\nConnection: close\r\nContent-Type: text/html\r\nContent-Length: " + content.Length + "\r\n\r\n" + content;
+                string response = "HTTP/1.1 " + statusCode + " " + statusString + "\r\nDate: " + DateTime.UtcNow.ToString("R", CultureInfo.InvariantCulture) + "\r\nConnection: close\r\nContent-Type: text/html\r\nContent-Length: " + content.Length + "\r\n\r\n" + content;
 
                 try
                 {

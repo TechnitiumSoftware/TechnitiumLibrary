@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -63,7 +63,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public TransparentProxyServer(IPEndPoint localEP, IProxyServerConnectionManager connectionManager = null, TransparentProxyServerMethod method = TransparentProxyServerMethod.DNAT, int backlog = 10)
         {
-            if (_method != TransparentProxyServerMethod.Tunnel)
+            if (method != TransparentProxyServerMethod.Tunnel)
             {
                 if (Environment.OSVersion.Platform != PlatformID.Unix)
                     throw new NotSupportedException("Only Unix/Linux is supported.");

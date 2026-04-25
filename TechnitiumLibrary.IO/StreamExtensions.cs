@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -123,6 +124,44 @@ namespace TechnitiumLibrary.IO
 
             await s.WriteByteAsync((byte)buffer.Length, cancellationToken);
             await s.WriteAsync(buffer, cancellationToken);
+        }
+
+        public static DateTime ReadDateTime(this Stream s)
+        {
+            Span<byte> buffer = stackalloc byte[8];
+            s.ReadExactly(buffer);
+
+            long value = BinaryPrimitives.ReadInt64LittleEndian(buffer);
+            return DateTime.UnixEpoch.AddMilliseconds(value);
+        }
+
+        public static async Task<DateTime> ReadDateTimeAsync(this Stream s)
+        {
+            byte[] buffer = new byte[8];
+            await s.ReadExactlyAsync(buffer);
+
+            long value = BinaryPrimitives.ReadInt64LittleEndian(buffer);
+            return DateTime.UnixEpoch.AddMilliseconds(value);
+        }
+
+        public static void WriteDateTime(this Stream s, DateTime date)
+        {
+            long value = Convert.ToInt64((date.ToUniversalTime() - DateTime.UnixEpoch).TotalMilliseconds);
+
+            Span<byte> buffer = stackalloc byte[8];
+            BinaryPrimitives.WriteInt64LittleEndian(buffer, value);
+
+            s.Write(buffer);
+        }
+
+        public static async Task WriteDateTimeAsync(this Stream s, DateTime date)
+        {
+            long value = Convert.ToInt64((date.ToUniversalTime() - DateTime.UnixEpoch).TotalMilliseconds);
+
+            byte[] buffer = new byte[8];
+            BinaryPrimitives.WriteInt64LittleEndian(buffer, value);
+
+            await s.WriteAsync(buffer);
         }
 
         public static void CopyTo(this Stream s, Stream destination, int bufferSize, int length)

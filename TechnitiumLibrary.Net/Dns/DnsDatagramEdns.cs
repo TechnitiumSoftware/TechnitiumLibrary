@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -69,8 +69,10 @@ namespace TechnitiumLibrary.Net.Dns
         {
             DnsResourceRecord opt = null;
 
-            foreach (DnsResourceRecord record in additional)
+            for (int i = additional.Count - 1; i > -1; i--)
             {
+                DnsResourceRecord record = additional[i];
+
                 if (record.Type == DnsResourceRecordType.OPT)
                 {
                     opt = record;
