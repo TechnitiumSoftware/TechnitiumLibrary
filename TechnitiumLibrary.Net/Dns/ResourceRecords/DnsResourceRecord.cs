@@ -373,6 +373,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnsResourceRecordType.SSHFP:
                     return new DnsSSHFPRecordData(s);
 
+                case DnsResourceRecordType.CERT:
+                    return new DnsCERTRecordData(s);
+
                 case DnsResourceRecordType.RRSIG:
                     return new DnsRRSIGRecordData(s);
 

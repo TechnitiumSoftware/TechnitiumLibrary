@@ -735,6 +735,9 @@ namespace TechnitiumLibrary.Net.Dns
                 case DnsResourceRecordType.SSHFP:
                     return await DnsSSHFPRecordData.FromZoneFileEntryAsync(this);
 
+                case DnsResourceRecordType.CERT:
+                    return await DnsCERTRecordData.FromZoneFileEntryAsync(this);
+
                 case DnsResourceRecordType.RRSIG:
                     return await DnsRRSIGRecordData.FromZoneFileEntryAsync(this);
 
