@@ -979,10 +979,10 @@ namespace TechnitiumLibrary.Net.Dns
             return (firstAuthority is not null) && (firstAuthority.Type == DnsResourceRecordType.SOA);
         }
 
-        public bool IsFirstAuthoritySOAOrAPP()
+        public bool IsFirstAuthoritySOAOrFWDOrAPP()
         {
             DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
-            return (firstAuthority is not null) && ((firstAuthority.Type == DnsResourceRecordType.SOA) || (firstAuthority.Type == DnsResourceRecordType.APP));
+            return (firstAuthority is not null) && ((firstAuthority.Type == DnsResourceRecordType.SOA) || (firstAuthority.Type == DnsResourceRecordType.FWD) || (firstAuthority.Type == DnsResourceRecordType.APP));
         }
 
         public DnsResourceRecordType FindFirstAuthorityType()
