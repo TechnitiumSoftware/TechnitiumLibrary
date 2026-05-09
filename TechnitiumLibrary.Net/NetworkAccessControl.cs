@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -90,6 +90,9 @@ namespace TechnitiumLibrary.Net
 
         public static bool IsAddressAllowed(IPAddress address, IReadOnlyCollection<NetworkAccessControl> acl, bool allowLoopbackWhenNoMatch = false)
         {
+            if (address.IsIPv4MappedToIPv6)
+                address = address.MapToIPv4();
+
             if (acl is not null)
             {
                 foreach (NetworkAccessControl nac in acl)
