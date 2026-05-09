@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -153,7 +153,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal DnsQuestionRecord Clone()
         {
-            return new DnsQuestionRecord(_name, _type, _class) { _zoneCut = _zoneCut, _minimizedName = _minimizedName };
+            return new DnsQuestionRecord(_name, _type, _class, false) { _zoneCut = _zoneCut, _minimizedName = _minimizedName };
         }
 
         #endregion
