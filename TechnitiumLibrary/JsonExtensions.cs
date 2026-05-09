@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -77,7 +77,7 @@ namespace TechnitiumLibrary
                     int i = 0;
 
                     foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
-                        array[i++] = getObject(jsonItem.GetString());
+                        array[i++] = getObject(jsonItem.ToString());
 
                     return array;
 
