@@ -103,6 +103,26 @@ namespace TechnitiumLibrary.Tests.TechnitiumLibrary.Security.OTP
         }
 
         [Fact]
+        public void Authenticator_IsTOTPValid_AcceptsCodesInsideFutureAndPastFudgeWindow()
+        {
+            Authenticator authenticator = new Authenticator(new AuthenticatorKeyUri("totp", "issuer", "account", "JBSWY3DPEHPK3PXP", period: 3600));
+            string futureTotp = authenticator.GetTOTP(DateTime.UtcNow.AddSeconds(3600));
+            string pastTotp = authenticator.GetTOTP(DateTime.UtcNow.AddSeconds(-3600));
+
+            Assert.True(authenticator.IsTOTPValid(futureTotp, fudge: 1));
+            Assert.True(authenticator.IsTOTPValid(pastTotp, fudge: 1));
+        }
+
+        [Fact]
+        public void Authenticator_KeyUri_ReturnsOriginalKeyUri()
+        {
+            AuthenticatorKeyUri keyUri = new AuthenticatorKeyUri("totp", "issuer", "account", "JBSWY3DPEHPK3PXP");
+            Authenticator authenticator = new Authenticator(keyUri);
+
+            Assert.Same(keyUri, authenticator.KeyUri);
+        }
+
+        [Fact]
         public void AuthenticatorKeyUri_NullAlgorithmDefaultsToSha1()
         {
             AuthenticatorKeyUri keyUri = new AuthenticatorKeyUri("totp", "issuer", "account", "JBSWY3DPEHPK3PXP", algorithm: null);

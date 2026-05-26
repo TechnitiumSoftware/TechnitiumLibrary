@@ -17,11 +17,24 @@ namespace TechnitiumLibrary.Tests.Simulators.TechnitiumLibrary.Net
 
         public DnsTestServer()
         {
-            _tcpListener = new TcpListener(IPAddress.Loopback, 0);
-            _tcpListener.Start();
-            Port = ((IPEndPoint)_tcpListener.LocalEndpoint).Port;
+            for (int i = 0; ; i++)
+            {
+                TcpListener tcpListener = new TcpListener(IPAddress.Loopback, 0);
+                tcpListener.Start();
+                int port = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
 
-            _udpClient = new UdpClient(new IPEndPoint(IPAddress.Loopback, Port));
+                try
+                {
+                    _udpClient = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+                    _tcpListener = tcpListener;
+                    Port = port;
+                    break;
+                }
+                catch (SocketException) when (i < 10)
+                {
+                    tcpListener.Stop();
+                }
+            }
         }
 
         public int Port { get; }
