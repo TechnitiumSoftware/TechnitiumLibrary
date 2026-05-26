@@ -1,7 +1,7 @@
 using System;
 using Xunit;
 
-namespace TechnitiumLibrary.Tests
+namespace TechnitiumLibrary.Tests.TechnitiumLibrary
 {
     public class StringExtensionsTests
     {
