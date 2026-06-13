@@ -59,7 +59,7 @@ namespace TechnitiumLibrary
             return newArray;
         }
 
-        public static bool ListEquals<T>(this IReadOnlyList<T> value1, IReadOnlyList<T> value2)
+        public static bool ListEquals<T>(this IReadOnlyList<T> value1, IReadOnlyList<T> value2, Func<T, T, bool> equals = null)
         {
             if (ReferenceEquals(value1, value2))
                 return true;
@@ -70,10 +70,21 @@ namespace TechnitiumLibrary
             if (value1.Count != value2.Count)
                 return false;
 
-            for (int i = 0; i < value1.Count; i++)
+            if (equals is null)
             {
-                if (!value1[i].Equals(value2[i]))
-                    return false;
+                for (int i = 0; i < value1.Count; i++)
+                {
+                    if (!value1[i].Equals(value2[i]))
+                        return false;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < value1.Count; i++)
+                {
+                    if (!equals(value1[i], value2[i]))
+                        return false;
+                }
             }
 
             return true;
