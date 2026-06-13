@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        IReadOnlyList<string> _characterStrings;
+        IReadOnlyList<ArraySegment<byte>> _characterStrings;
 
         byte[] _rData;
 
@@ -39,11 +39,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
-        public DnsTXTRecordData(IReadOnlyList<string> characterStrings)
+        public DnsTXTRecordData(IReadOnlyList<ArraySegment<byte>> characterStrings)
         {
-            foreach (string characterString in characterStrings)
+            foreach (ArraySegment<byte> characterString in characterStrings)
             {
-                if (Encoding.ASCII.GetBytes(characterString).Length > 255)
+                if (characterString.Count > 255)
                     throw new DnsClientException("TXT record character-string length cannot exceed 255 bytes.");
             }
 
@@ -52,17 +52,35 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             Serialize();
         }
 
+        public DnsTXTRecordData(IReadOnlyList<string> characterStrings)
+        {
+            List<ArraySegment<byte>> cs = new List<ArraySegment<byte>>(characterStrings.Count);
+
+            foreach (string characterString in characterStrings)
+            {
+                byte[] value = Encoding.UTF8.GetBytes(characterString);
+                if (value.Length > 255)
+                    throw new DnsClientException("TXT record character-string length cannot exceed 255 bytes.");
+
+                cs.Add(value);
+            }
+
+            _characterStrings = cs;
+
+            Serialize();
+        }
+
         public DnsTXTRecordData(string text)
         {
-            byte[] data = Encoding.ASCII.GetBytes(text);
-            string[] characterStrings = new string[Convert.ToInt32(Math.Ceiling(text.Length / 255d))];
+            byte[] data = Encoding.UTF8.GetBytes(text);
+            ArraySegment<byte>[] characterStrings = new ArraySegment<byte>[Convert.ToInt32(Math.Ceiling(data.Length / 255d))];
 
             for (int i = 0; i < characterStrings.Length; i++)
             {
-                int index = i * 255;
-                int count = Math.Min(data.Length - index, 255);
+                int offset = i * 255;
+                int count = Math.Min(data.Length - offset, 255);
 
-                characterStrings[i] = Encoding.ASCII.GetString(data, index, count);
+                characterStrings[i] = new ArraySegment<byte>(data, offset, count);
             }
 
             _characterStrings = characterStrings;
@@ -80,18 +98,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         private void Serialize()
         {
-            using (MemoryStream mS = new MemoryStream(UncompressedLength))
+            using (MemoryStream mS = new MemoryStream(256))
             {
-                Span<byte> buffer = stackalloc byte[255];
-                int bytesWritten;
-
-                foreach (string characterString in _characterStrings)
+                foreach (ArraySegment<byte> characterString in _characterStrings)
                 {
-                    if (!Encoding.ASCII.TryGetBytes(characterString, buffer, out bytesWritten))
-                        throw new InvalidOperationException();
-
-                    mS.WriteByte((byte)bytesWritten);
-                    mS.Write(buffer.Slice(0, bytesWritten));
+                    mS.WriteByte((byte)characterString.Count);
+                    mS.Write(characterString);
                 }
 
                 _rData = mS.ToArray();
@@ -106,27 +118,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _rData = s.ReadExactly(_rdLength);
 
-            List<string> characterStrings = new List<string>(1);
+            List<ArraySegment<byte>> characterStrings = new List<ArraySegment<byte>>(Convert.ToInt32(Math.Ceiling(_rData.Length / 255d)));
+            int offset = 0;
+            int count;
 
-            using (MemoryStream mS = new MemoryStream(_rData))
+            while (offset < _rdLength)
             {
-                int bytesRead = 0;
-                int count;
-                Span<byte> buffer = stackalloc byte[255];
+                count = _rData[offset];
+                offset++;
 
-                while (bytesRead < _rdLength)
-                {
-                    count = mS.ReadByte();
-                    if (count < 0)
-                        throw new EndOfStreamException();
-
-                    Span<byte> bufferSlice = buffer.Slice(0, count);
-
-                    mS.ReadExactly(bufferSlice);
-                    characterStrings.Add(Encoding.ASCII.GetString(bufferSlice));
-
-                    bytesRead += count + 1;
-                }
+                characterStrings.Add(new ArraySegment<byte>(_rData, offset, count));
+                offset += count;
             }
 
             _characterStrings = characterStrings;
@@ -159,6 +161,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
             while (true);
 
+            if (characterStrings.Count == 1)
+                return new DnsTXTRecordData(characterStrings[0]);
+
             return new DnsTXTRecordData(characterStrings);
         }
 
@@ -166,12 +171,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             string value = null;
 
-            foreach (string characterString in _characterStrings)
+            foreach (ArraySegment<byte> characterString in _characterStrings)
             {
+                string cs = DnsDatagram.EncodeCharacterString(Encoding.UTF8.GetString(characterString));
+
                 if (value is null)
-                    value = DnsDatagram.EncodeCharacterString(characterString);
+                    value = cs;
                 else
-                    value += " " + DnsDatagram.EncodeCharacterString(characterString);
+                    value += " " + cs;
             }
 
             return value;
@@ -183,17 +190,23 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public string GetText()
         {
-            string text = null;
-
-            foreach (string characterString in _characterStrings)
+            using (MemoryStream mS = new MemoryStream(256 * _characterStrings.Count))
             {
-                if (text is null)
-                    text = characterString;
-                else
-                    text += characterString;
-            }
+                foreach (ArraySegment<byte> characterString in _characterStrings)
+                    mS.Write(characterString);
 
-            return text;
+                return Encoding.UTF8.GetString(mS.ToArray());
+            }
+        }
+
+        public IReadOnlyList<string> GetCharacterStrings()
+        {
+            List<string> characterStrings = new List<string>(_characterStrings.Count);
+
+            foreach (ArraySegment<byte> characterString in _characterStrings)
+                characterStrings.Add(Encoding.UTF8.GetString(characterString));
+
+            return characterStrings;
         }
 
         public override bool Equals(object obj)
@@ -205,14 +218,24 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return true;
 
             if (obj is DnsTXTRecordData other)
-                return _characterStrings.ListEquals(other._characterStrings);
+            {
+                return _characterStrings.ListEquals(other._characterStrings, delegate (ArraySegment<byte> a1, ArraySegment<byte> a2)
+                {
+                    return a1.ListEquals(a2);
+                });
+            }
 
             return false;
         }
 
         public override int GetHashCode()
         {
-            return _characterStrings.GetArrayHashCode();
+            int hashCode = 0;
+
+            foreach (ArraySegment<byte> characterString in _characterStrings)
+                hashCode ^= characterString.GetArrayHashCode();
+
+            return hashCode;
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
@@ -223,8 +246,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             jsonWriter.WriteStartArray("CharacterStrings");
 
-            foreach (string characterString in _characterStrings)
-                jsonWriter.WriteStringValue(characterString);
+            foreach (ArraySegment<byte> characterString in _characterStrings)
+                jsonWriter.WriteStringValue(Encoding.UTF8.GetString(characterString));
 
             jsonWriter.WriteEndArray();
 
@@ -235,21 +258,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region properties
 
-        public IReadOnlyList<string> CharacterStrings
+        public IReadOnlyList<ArraySegment<byte>> CharacterStrings
         { get { return _characterStrings; } }
 
         public override int UncompressedLength
-        {
-            get
-            {
-                int length = 0;
-
-                foreach (string characterString in _characterStrings)
-                    length += 1 + characterString.Length;
-
-                return length;
-            }
-        }
+        { get { return _rData.Length; } }
 
         #endregion
     }
