@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -46,10 +46,30 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsNAPTRRecordData(ushort order, ushort preference, string flags, string services, string regexp, string replacement)
         {
+            foreach (char c in flags)
+            {
+                if ((c >= 97) && (c <= 122)) //[a-z]
+                    continue;
+
+                if ((c >= 65) && (c <= 90)) //[A-Z]
+                    continue;
+
+                if ((c >= 48) && (c <= 57)) //[0-9]
+                    continue;
+
+                throw new ArgumentException("Invalid NAPTR record: invalid flag was found [" + c + "]", nameof(flags));
+            }
+
             if (DnsClient.IsDomainNameUnicode(replacement))
                 replacement = DnsClient.ConvertDomainNameToAscii(replacement);
 
             DnsClient.IsDomainNameValid(replacement, true);
+
+            if ((regexp.Length == 0) && (replacement.Length == 0))
+                throw new ArgumentException("Invalid NAPTR record: both regexp or replacement field cannot be empty.");
+
+            if ((regexp.Length > 0) && (replacement.Length > 0))
+                throw new ArgumentException("Invalid NAPTR record: specify either regexp or replacement, not both.");
 
             _order = order;
             _preference = preference;
