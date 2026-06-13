@@ -58,7 +58,7 @@ namespace TechnitiumLibrary.Net.Dns
                 _udpPayloadSize = 512;
 
             if (_options is null)
-                _options = Array.Empty<EDnsOption>();
+                _options = [];
         }
 
         #endregion
@@ -69,19 +69,24 @@ namespace TechnitiumLibrary.Net.Dns
         {
             DnsResourceRecord opt = null;
 
-            for (int i = additional.Count - 1; i > -1; i--)
+            for (int i = 0; i < additional.Count; i++)
             {
                 DnsResourceRecord record = additional[i];
 
                 if (record.Type == DnsResourceRecordType.OPT)
                 {
+                    if (opt is not null)
+                        throw new DnsClientException("Duplicate OPT record was found.");
+
                     opt = record;
-                    break;
                 }
             }
 
             if (opt is null)
                 return null;
+
+            if (opt.Name.Length != 0)
+                throw new DnsClientException("OPT record was found with a non root domain name.");
 
             return new DnsDatagramEdns((ushort)opt.Class, (DnsResponseCode)(((opt.OriginalTtlValue & 0xff000000u) >> 20) | ((uint)RCODE & 0xfu)), (byte)((opt.OriginalTtlValue >> 16) & 0xffu), (EDnsHeaderFlags)(opt.OriginalTtlValue & 0xffffu), (opt.RDATA as DnsOPTRecordData).Options);
         }
