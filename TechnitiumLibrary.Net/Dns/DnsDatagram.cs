@@ -142,23 +142,23 @@ namespace TechnitiumLibrary.Net.Dns
             _additional = additional;
 
             if (_question is null)
-                _question = Array.Empty<DnsQuestionRecord>();
+                _question = [];
 
             if (_answer is null)
-                _answer = Array.Empty<DnsResourceRecord>();
+                _answer = [];
 
             if (_authority is null)
-                _authority = Array.Empty<DnsResourceRecord>();
+                _authority = [];
 
             if (_additional is null)
             {
                 if (udpPayloadSize < 512)
                 {
-                    _additional = Array.Empty<DnsResourceRecord>();
+                    _additional = [];
                 }
                 else
                 {
-                    _additional = new DnsResourceRecord[] { DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags, options) };
+                    _additional = [DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags, options)];
                     _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, ednsFlags, options);
                 }
             }
@@ -166,7 +166,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (udpPayloadSize >= 512)
                 {
-                    _additional = new DnsResourceRecord[] { DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags, options) };
+                    _additional = [DnsDatagramEdns.GetOPTFor(udpPayloadSize, RCODE, 0, ednsFlags, options)];
                     _edns = new DnsDatagramEdns(udpPayloadSize, RCODE, 0, ednsFlags, options);
                 }
             }
@@ -240,7 +240,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (QDCOUNT == 0)
                 {
-                    datagram._question = Array.Empty<DnsQuestionRecord>();
+                    datagram._question = [];
                 }
                 else
                 {
@@ -254,7 +254,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (ANCOUNT == 0)
                 {
-                    datagram._answer = Array.Empty<DnsResourceRecord>();
+                    datagram._answer = [];
                 }
                 else
                 {
@@ -268,7 +268,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (NSCOUNT == 0)
                 {
-                    datagram._authority = Array.Empty<DnsResourceRecord>();
+                    datagram._authority = [];
                 }
                 else
                 {
@@ -282,33 +282,42 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (ARCOUNT == 0)
                 {
-                    datagram._additional = Array.Empty<DnsResourceRecord>();
+                    datagram._additional = [];
                 }
                 else
                 {
                     DnsResourceRecord[] additional = new DnsResourceRecord[ARCOUNT];
 
                     for (int i = 0; i < additional.Length; i++)
-                        additional[i] = new DnsResourceRecord(s);
+                    {
+                        DnsResourceRecord additionalRecord = new DnsResourceRecord(s);
+
+                        if ((additionalRecord.Type == DnsResourceRecordType.TSIG) && (i < additional.Length - 1))
+                            datagram._parsingException = new DnsClientException("Misplaced or duplicate TSIG record was found.");
+
+                        additional[i] = additionalRecord;
+                    }
 
                     datagram._additional = additional;
                 }
+
+                datagram._edns = DnsDatagramEdns.ReadOPTFrom(datagram._additional, datagram._RCODE);
             }
             catch (Exception ex)
             {
                 datagram._parsingException = ex;
 
                 if (datagram._question is null)
-                    datagram._question = Array.Empty<DnsQuestionRecord>();
+                    datagram._question = [];
 
                 if (datagram._answer is null)
-                    datagram._answer = Array.Empty<DnsResourceRecord>();
+                    datagram._answer = [];
 
                 if (datagram._authority is null)
-                    datagram._authority = Array.Empty<DnsResourceRecord>();
+                    datagram._authority = [];
 
                 if (datagram._additional is null)
-                    datagram._additional = Array.Empty<DnsResourceRecord>();
+                    datagram._additional = [];
             }
 
             datagram._size = Convert.ToInt32(s.Position);
@@ -328,8 +337,6 @@ namespace TechnitiumLibrary.Net.Dns
 
                 datagram._parsedDatagramUnsigned = buffer;
             }
-
-            datagram._edns = DnsDatagramEdns.ReadOPTFrom(datagram._additional, datagram._RCODE);
 
             return datagram;
         }
@@ -715,7 +722,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (_additional.Count == 1)
             {
-                newAdditional = Array.Empty<DnsResourceRecord>();
+                newAdditional = [];
             }
             else
             {
@@ -1068,9 +1075,9 @@ namespace TechnitiumLibrary.Net.Dns
                     IReadOnlyList<DnsResourceRecord> additional = null;
 
                     if (_edns is not null)
-                        additional = new DnsResourceRecord[] { DnsDatagramEdns.GetOPTFor(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, _edns.Options) };
+                        additional = [DnsDatagramEdns.GetOPTFor(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, _edns.Options)];
 
-                    DnsDatagram truncted = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, true, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), additional);
+                    DnsDatagram truncted = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, true, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, [], [], additional);
                     await truncted.WriteToTcpAsync(s, sharedBuffer, cancellationToken);
                     break;
                 }
@@ -1434,7 +1441,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (_additional.Count == 1)
             {
-                additional = Array.Empty<DnsResourceRecord>();
+                additional = [];
             }
             else
             {
@@ -1697,7 +1704,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (_additional.Count == 1)
             {
-                additional = Array.Empty<DnsResourceRecord>();
+                additional = [];
             }
             else
             {
@@ -1808,7 +1815,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     if (_additional.Count == 1)
                     {
-                        currentAdditional = Array.Empty<DnsResourceRecord>();
+                        currentAdditional = [];
                     }
                     else
                     {
