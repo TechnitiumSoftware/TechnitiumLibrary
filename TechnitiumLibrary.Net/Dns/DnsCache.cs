@@ -95,7 +95,7 @@ namespace TechnitiumLibrary.Net.Dns
                     return new DnsCacheEntry(1);
                 });
 
-                entry.SetRecords(resourceRecord.Type, resourceRecords);
+                entry.SetRecords(resourceRecords);
             }
             else
             {
@@ -124,7 +124,7 @@ namespace TechnitiumLibrary.Net.Dns
                     });
 
                     foreach (KeyValuePair<DnsResourceRecordType, List<DnsResourceRecord>> cacheTypeEntry in cacheEntry.Value)
-                        entry.SetRecords(cacheTypeEntry.Key, cacheTypeEntry.Value);
+                        entry.SetRecords(cacheTypeEntry.Value);
                 }
             }
         }
@@ -184,7 +184,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (_cache.TryGetValue(domain, out DnsCacheEntry entry))
                 {
-                    IReadOnlyList<DnsResourceRecord> records = entry.QueryRecords(DnsResourceRecordType.NS, true);
+                    IReadOnlyList<DnsResourceRecord> records = entry.QueryRecords(DnsResourceRecordType.PARENT_NS, true);
                     if ((records.Count > 0) && (records[0].Type == DnsResourceRecordType.NS))
                     {
                         if (dnssecOk)
@@ -260,7 +260,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if (!_cache.TryGetValue(cnameDomain.ToLowerInvariant(), out DnsCacheEntry entry))
                     break;
 
-                IReadOnlyList<DnsResourceRecord> records = entry.QueryRecords(question.Type == DnsResourceRecordType.NS ? DnsResourceRecordType.CHILD_NS : question.Type, true);
+                IReadOnlyList<DnsResourceRecord> records = entry.QueryRecords(question.Type, true);
                 if (records.Count < 1)
                     break;
 
@@ -1250,8 +1250,8 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 //get answer and authority section with no dnssec records
-                _noDnssecAnswer = FilterDnssecRecords(_answer);
-                _noDnssecAuthority = FilterDnssecRecords(_authority);
+                _noDnssecAnswer = FilterDnssecAnswerRecords(_answer);
+                _noDnssecAuthority = FilterDnssecAuthorityRecords(_authority);
 
                 //remove OPT additional
                 if ((_additional.Count == 1) && (_additional[0].Type == DnsResourceRecordType.OPT))
@@ -1298,8 +1298,8 @@ namespace TechnitiumLibrary.Net.Dns
                 _ednsOptions = ednsOptions;
 
                 //get answer and authority section with no dnssec records
-                _noDnssecAnswer = FilterDnssecRecords(_answer);
-                _noDnssecAuthority = FilterDnssecRecords(_authority);
+                _noDnssecAnswer = FilterDnssecAnswerRecords(_answer);
+                _noDnssecAuthority = FilterDnssecAuthorityRecords(_authority);
             }
 
             #endregion
@@ -1338,30 +1338,42 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            #endregion
-
-            #region protected
-
-            protected override void ReadRecordData(Stream s)
-            {
-                throw new InvalidOperationException();
-            }
-
-            protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
-            {
-                throw new InvalidOperationException();
-            }
-
-            #endregion
-
-            #region private
-
-            private static IReadOnlyList<DnsResourceRecord> FilterDnssecRecords(IReadOnlyList<DnsResourceRecord> records)
+            public static IReadOnlyList<DnsResourceRecord> FilterDnssecAnswerRecords(IReadOnlyList<DnsResourceRecord> records)
             {
                 foreach (DnsResourceRecord record1 in records)
                 {
                     switch (record1.Type)
                     {
+                        case DnsResourceRecordType.RRSIG:
+                            List<DnsResourceRecord> noDnssecRecords = new List<DnsResourceRecord>();
+
+                            foreach (DnsResourceRecord record2 in records)
+                            {
+                                switch (record2.Type)
+                                {
+                                    case DnsResourceRecordType.RRSIG:
+                                        break;
+
+                                    default:
+                                        noDnssecRecords.Add(record2);
+                                        break;
+                                }
+                            }
+
+                            return noDnssecRecords;
+                    }
+                }
+
+                return records;
+            }
+
+            public static IReadOnlyList<DnsResourceRecord> FilterDnssecAuthorityRecords(IReadOnlyList<DnsResourceRecord> records)
+            {
+                foreach (DnsResourceRecord record1 in records)
+                {
+                    switch (record1.Type)
+                    {
+                        case DnsResourceRecordType.DS:
                         case DnsResourceRecordType.RRSIG:
                         case DnsResourceRecordType.NSEC:
                         case DnsResourceRecordType.NSEC3:
@@ -1371,6 +1383,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 switch (record2.Type)
                                 {
+                                    case DnsResourceRecordType.DS:
                                     case DnsResourceRecordType.RRSIG:
                                     case DnsResourceRecordType.NSEC:
                                     case DnsResourceRecordType.NSEC3:
@@ -1388,6 +1401,24 @@ namespace TechnitiumLibrary.Net.Dns
 
                 return records;
             }
+
+            #endregion
+
+            #region protected
+
+            protected override void ReadRecordData(Stream s)
+            {
+                throw new InvalidOperationException();
+            }
+
+            protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+            {
+                throw new InvalidOperationException();
+            }
+
+            #endregion
+
+            #region private
 
             private static DnsResourceRecord[] ReadCacheRecordsFrom(BinaryReader bR, Action<DnsResourceRecord> readTagInfo)
             {
@@ -1732,20 +1763,20 @@ namespace TechnitiumLibrary.Net.Dns
 
             #region private
 
-            private static IReadOnlyList<DnsResourceRecord> ValidateRRSet(DnsResourceRecordType type, IReadOnlyList<DnsResourceRecord> records, bool skipSpecialCacheRecord)
+            private static IReadOnlyList<DnsResourceRecord> ValidateRRSet(IReadOnlyList<DnsResourceRecord> records, bool skipSpecialCacheRecord)
             {
                 foreach (DnsResourceRecord record in records)
                 {
                     if (record.IsStale)
-                        return Array.Empty<DnsResourceRecord>(); //RR Set is stale
+                        return []; //RR Set is stale
 
                     if (skipSpecialCacheRecord && (record.RDATA is DnsSpecialCacheRecordData))
-                        return Array.Empty<DnsResourceRecord>(); //RR Set is special cache record
+                        return []; //RR Set is special cache record
                 }
 
                 if (records.Count > 1)
                 {
-                    switch (type)
+                    switch (records[0].Type)
                     {
                         case DnsResourceRecordType.A:
                         case DnsResourceRecordType.AAAA:
@@ -1762,12 +1793,15 @@ namespace TechnitiumLibrary.Net.Dns
 
             #region public
 
-            public void SetRecords(DnsResourceRecordType type, IReadOnlyList<DnsResourceRecord> records)
+            public void SetRecords(IReadOnlyList<DnsResourceRecord> records)
             {
                 if (records.Count == 0)
                     return;
 
-                if (records[0].RDATA is DnsSpecialCacheRecordData splRecord)
+                DnsResourceRecord firstRecord = records[0];
+                DnsResourceRecordType type = firstRecord.Type;
+
+                if (firstRecord.RDATA is DnsSpecialCacheRecordData splRecord)
                 {
                     if (splRecord.IsFailureOrBadCache)
                     {
@@ -1781,8 +1815,21 @@ namespace TechnitiumLibrary.Net.Dns
                             splRecord.CopyExtendedDnsErrorsFrom(existingSplRecord);
                         }
                     }
+
+                    if (type == DnsResourceRecordType.NS)
+                    {
+                        //remove expired CHILD_NS entry only when parent side NS record being cached is a special cache record
+                        if (_entries.TryGetValue(DnsResourceRecordType.CHILD_NS, out IReadOnlyList<DnsResourceRecord> existingChildNSRecords))
+                        {
+                            if ((existingChildNSRecords.Count > 0) && (existingChildNSRecords[0].RDATA is DnsNSRecordData) && existingChildNSRecords[0].IsStale)
+                            {
+                                //delete CHILD_NS entry only when it contains expired records and not special cache records
+                                _entries.TryRemove(DnsResourceRecordType.CHILD_NS, out _);
+                            }
+                        }
+                    }
                 }
-                else if (records[0].Type == DnsResourceRecordType.CHILD_NS)
+                else if (type == DnsResourceRecordType.CHILD_NS)
                 {
                     //convert back RRSet to correct type
                     DnsResourceRecord[] newRecords = new DnsResourceRecord[records.Count];
@@ -1811,7 +1858,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             //since some zones have CNAME at apex!
                             if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
-                                return ValidateRRSet(type, existingRecords, skipSpecialCacheRecord);
+                                return ValidateRRSet(existingRecords, skipSpecialCacheRecord);
                         }
                         break;
 
@@ -1820,11 +1867,11 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             //since some zones have CNAME at apex!
                             if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
-                                return ValidateRRSet(type, existingRecords, skipSpecialCacheRecord);
+                                return ValidateRRSet(existingRecords, skipSpecialCacheRecord);
 
                             if (_entries.TryGetValue(DnsResourceRecordType.CNAME, out IReadOnlyList<DnsResourceRecord> existingCNAMERecords))
                             {
-                                IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(type, existingCNAMERecords, skipSpecialCacheRecord);
+                                IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(existingCNAMERecords, skipSpecialCacheRecord);
                                 if (rrset.Count > 0)
                                 {
                                     if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecordData))
@@ -1839,10 +1886,14 @@ namespace TechnitiumLibrary.Net.Dns
 
                         foreach (KeyValuePair<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> entry in _entries)
                         {
-                            if (entry.Key == DnsResourceRecordType.DS)
-                                continue;
+                            switch (entry.Key)
+                            {
+                                case DnsResourceRecordType.DS:
+                                case DnsResourceRecordType.NS: //parent side NS
+                                    continue;
+                            }
 
-                            anyRecords.AddRange(ValidateRRSet(type, entry.Value, true));
+                            anyRecords.AddRange(ValidateRRSet(entry.Value, true));
                         }
 
                         return anyRecords;
@@ -1851,7 +1902,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             if (_entries.TryGetValue(DnsResourceRecordType.CNAME, out IReadOnlyList<DnsResourceRecord> existingCNAMERecords))
                             {
-                                IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(type, existingCNAMERecords, skipSpecialCacheRecord);
+                                IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(existingCNAMERecords, skipSpecialCacheRecord);
                                 if (rrset.Count > 0)
                                 {
                                     if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecordData))
@@ -1859,13 +1910,34 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
                             }
 
+                            switch (type)
+                            {
+                                case DnsResourceRecordType.NS: //normal NS query
+                                    type = DnsResourceRecordType.CHILD_NS; //answer with child NS
+                                    break;
+
+                                case DnsResourceRecordType.PARENT_NS: //explicit parent side NS query
+                                    type = DnsResourceRecordType.NS; //answer with parent NS
+                                    break;
+                            }
+
                             if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
-                                return ValidateRRSet(type, existingRecords, skipSpecialCacheRecord);
+                                return ValidateRRSet(existingRecords, skipSpecialCacheRecord);
+
+                            if (type == DnsResourceRecordType.CHILD_NS)
+                            {
+                                //child NS does not exist so check for parent side NS if that too does not exist
+                                if (_entries.TryGetValue(DnsResourceRecordType.NS, out IReadOnlyList<DnsResourceRecord> existingParentNSRecords))
+                                {
+                                    if ((existingParentNSRecords.Count > 0) && (existingParentNSRecords[0].RDATA is DnsSpecialCacheRecordData))
+                                        return ValidateRRSet(existingParentNSRecords, skipSpecialCacheRecord); //parent side NS record does not exist so use this to answer for child NS queries
+                                }
+                            }
                         }
                         break;
                 }
 
-                return Array.Empty<DnsResourceRecord>();
+                return [];
             }
 
             public void RemoveExpiredRecords()
