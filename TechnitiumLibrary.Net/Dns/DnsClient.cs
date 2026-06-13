@@ -571,7 +571,7 @@ namespace TechnitiumLibrary.Net.Dns
                 //query cache
                 {
                     //query cache without CD flag to not get response from "bad cache" and DO flag, if validation is enabled, to get DNSSEC records for correctly reading DS from response
-                    DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, udpPayloadSize, dnssecValidation ? EDnsHeaderFlags.DNSSEC_OK : EDnsHeaderFlags.None, resolverStack.Count == 0 ? eDnsClientSubnetOption : null);
+                    DnsDatagram cacheRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [question], null, null, null, udpPayloadSize, dnssecValidation ? EDnsHeaderFlags.DNSSEC_OK : EDnsHeaderFlags.None, resolverStack.Count == 0 ? eDnsClientSubnetOption : null);
                     DnsDatagram cacheResponse = await cache.QueryAsync(cacheRequest, findClosestNameServers: true);
                     if (cacheResponse is not null)
                     {
@@ -747,7 +747,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     currentDomain = currentDomain.Substring(i + 1);
 
                                                     //find name servers with glue; cannot find DS with this query
-                                                    DnsDatagram cachedNsResponse = await cache.QueryAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { new DnsQuestionRecord(currentDomain, DnsResourceRecordType.NS, DnsClass.IN) }), findClosestNameServers: true);
+                                                    DnsDatagram cachedNsResponse = await cache.QueryAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [new DnsQuestionRecord(currentDomain, DnsResourceRecordType.PARENT_NS, DnsClass.IN)]), findClosestNameServers: true);
                                                     if (cachedNsResponse is null)
                                                         continue;
 
@@ -925,6 +925,8 @@ namespace TechnitiumLibrary.Net.Dns
 
                     for (; nameServerIndex < referralLimit; nameServerIndex++) //try next server loop
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         int currentNameServerIndex = nameServerIndex;
 
                         //attempt to find name servers that are resolved for concurrent querying
@@ -1035,9 +1037,12 @@ namespace TechnitiumLibrary.Net.Dns
 
                             if (foundNsLoop)
                             {
-                                //mark all remaining name servers as misconfigured
+                                //mark all remaining name servers that ends with the same zone cut as misconfigured
                                 for (int i = nameServerIndex; i < nameServers.Count; i++)
-                                    nameServers[i].Metadata.MarkMisconfigured();
+                                {
+                                    if (nameServers[i].Host.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase))
+                                        nameServers[i].Metadata.MarkMisconfigured();
+                                }
 
                                 //stop resolution for this stack
                                 break;
@@ -3850,66 +3855,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static DnsDatagram SanitizeResponseAnswerForQName(DnsDatagram response)
         {
-            bool fixAnswer = false;
-
-            foreach (DnsQuestionRecord question in response.Question)
-            {
-                switch (question.Type)
-                {
-                    case DnsResourceRecordType.AXFR:
-                    case DnsResourceRecordType.IXFR:
-                        continue;
-                }
-
-                string qName = question.Name;
-
-                foreach (DnsResourceRecord answer in response.Answer)
-                {
-                    if (qName.Equals(answer.Name, StringComparison.OrdinalIgnoreCase))
-                    {
-                        switch (answer.Type)
-                        {
-                            case DnsResourceRecordType.CNAME:
-                                qName = (answer.RDATA as DnsCNAMERecordData).Domain;
-                                continue;
-
-                            case DnsResourceRecordType.RRSIG:
-                                continue;
-
-                            default:
-                                if ((question.Type == answer.Type) || (question.Type == DnsResourceRecordType.ANY))
-                                    continue;
-
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        switch (answer.Type)
-                        {
-                            case DnsResourceRecordType.RRSIG:
-                                continue;
-
-                            case DnsResourceRecordType.DNAME:
-                                if (qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
-                                    continue; //found DNAME, continue next
-
-                                break;
-                        }
-                    }
-
-                    fixAnswer = true;
-                    break;
-                }
-
-                if (fixAnswer)
-                    break;
-            }
-
-            if (!fixAnswer)
+            if (response.Answer.Count == 0)
                 return response;
 
-            //fix answer
+            //keep only relevant answer records and indirectly sort the records by qname order
             List<DnsResourceRecord> newAnswers = new List<DnsResourceRecord>(response.Answer.Count);
 
             foreach (DnsQuestionRecord question in response.Question)
@@ -3947,6 +3896,17 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             //found DNAME
                             newAnswers.Add(answer);
+
+                            //include RRSIG for DNAME
+                            foreach (DnsResourceRecord rrsigRecord in response.Answer)
+                            {
+                                if (rrsigRecord.RDATA is DnsRRSIGRecordData rrsig && (rrsig.TypeCovered == DnsResourceRecordType.DNAME) && rrsigRecord.Name.Equals(answer.Name, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    //found RRSIG for DNAME
+                                    newAnswers.Add(rrsigRecord);
+                                    break;
+                                }
+                            }
                         }
                     }
 
@@ -3960,96 +3920,100 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static DnsDatagram SanitizeResponseAnswerForZoneCut(DnsDatagram response, string zoneCut)
         {
-            if (response.Question.Count < 1)
+            if (zoneCut.Length == 0)
+                return response; //zone cut is root, do nothing
+
+            if (response.Answer.Count == 0)
                 return response;
 
-            string qName = response.Question[0].Name;
-            string zoneCutEnd = zoneCut.Length > 0 ? "." + zoneCut : zoneCut;
+            //keep answers records only in the zone cut
+            bool answerNotInZoneCut = false;
+            string zoneCutEnd = "." + zoneCut;
 
-            for (int i = 0; i < response.Answer.Count; i++)
+            foreach (DnsResourceRecord answer in response.Answer)
             {
-                DnsResourceRecord answer = response.Answer[i];
+                if (!answer.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !answer.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                {
+                    answerNotInZoneCut = true;
+                    break;
+                }
+            }
 
-                if ((answer.Type == DnsResourceRecordType.DNAME) && qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
-                    continue; //found DNAME, continue next
+            if (!answerNotInZoneCut)
+                return response;
 
+            List<DnsResourceRecord> newAnswers = new List<DnsResourceRecord>(response.Answer.Count);
+
+            foreach (DnsResourceRecord answer in response.Answer)
+            {
                 if (answer.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || answer.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (answer.Name.Equals(qName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        switch (answer.Type)
-                        {
-                            case DnsResourceRecordType.CNAME:
-                                if (i < response.Answer.Count - 1)
-                                    qName = (answer.RDATA as DnsCNAMERecordData).Domain;
-
-                                break;
-                        }
-
-                        continue;
-                    }
-
+                    newAnswers.Add(answer);
+                }
+                else
+                {
                     switch (answer.Type)
                     {
-                        case DnsResourceRecordType.RRSIG:
-                            continue;
-
                         case DnsResourceRecordType.DNAME:
-                            if (qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
-                                continue; //found DNAME, continue next
+                            if (zoneCut.Equals(answer.Name, StringComparison.OrdinalIgnoreCase) || zoneCut.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                                newAnswers.Add(answer);
+
+                            break;
+
+                        case DnsResourceRecordType.RRSIG:
+                            if (answer.RDATA is DnsRRSIGRecordData rrsig && (rrsig.TypeCovered == DnsResourceRecordType.DNAME) && (zoneCut.Equals(answer.Name, StringComparison.OrdinalIgnoreCase) || zoneCut.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase)))
+                                newAnswers.Add(answer);
 
                             break;
                     }
                 }
-
-                //name mismatch or not in zone cut
-                //truncate answer upto previous RR
-
-                List<DnsResourceRecord> newAnswers = new List<DnsResourceRecord>(i);
-
-                for (int j = 0; j < i; j++)
-                    newAnswers.Add(response.Answer[j]);
-
-                return response.Clone(newAnswers);
             }
 
-            return response;
+            return response.Clone(newAnswers);
         }
 
         private static DnsDatagram SanitizeResponseAuthorityForZoneCut(DnsDatagram response, string zoneCut)
         {
             if (zoneCut.Length == 0)
-            {
-                //zone cut is root, do nothing
+                return response; //zone cut is root, do nothing
+
+            if (response.Authority.Count == 0)
                 return response;
-            }
 
             //remove SOA/NS records from authority section that are not in the zone cut
+            bool authorityNotInZoneCut = false;
+            string zoneCutEnd = "." + zoneCut;
 
-            if (response.Authority.Count > 0)
+            foreach (DnsResourceRecord authority in response.Authority)
             {
-                bool authorityNotInZoneCut = false;
-                string zoneCutEnd = "." + zoneCut;
-
-                foreach (DnsResourceRecord authority in response.Authority)
+                if ((authority.Type == DnsResourceRecordType.SOA) || (authority.Type == DnsResourceRecordType.NS))
                 {
-                    if ((authority.Type == DnsResourceRecordType.SOA) || (authority.Type == DnsResourceRecordType.NS))
+                    if (!authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (!authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
-                        {
-                            authorityNotInZoneCut = true;
-                            break;
-                        }
+                        authorityNotInZoneCut = true;
+                        break;
                     }
                 }
+            }
 
-                if (authorityNotInZoneCut)
+            if (!authorityNotInZoneCut)
+                return response;
+
+            List<DnsResourceRecord> newAuthority = new List<DnsResourceRecord>(response.Authority.Count);
+
+            foreach (DnsResourceRecord authority in response.Authority)
+            {
+                switch (authority.Type)
                 {
-                    List<DnsResourceRecord> newAuthority = new List<DnsResourceRecord>();
+                    case DnsResourceRecordType.SOA:
+                    case DnsResourceRecordType.NS:
+                        if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                            newAuthority.Add(authority);
 
-                    foreach (DnsResourceRecord authority in response.Authority)
-                    {
-                        switch (authority.Type)
+                        break;
+
+                    case DnsResourceRecordType.RRSIG:
+                        switch ((authority.RDATA as DnsRRSIGRecordData).TypeCovered)
                         {
                             case DnsResourceRecordType.SOA:
                             case DnsResourceRecordType.NS:
@@ -4058,85 +4022,63 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 break;
 
-                            case DnsResourceRecordType.RRSIG:
-                                switch ((authority.RDATA as DnsRRSIGRecordData).TypeCovered)
-                                {
-                                    case DnsResourceRecordType.SOA:
-                                    case DnsResourceRecordType.NS:
-                                        if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
-                                            newAuthority.Add(authority);
-
-                                        break;
-
-                                    default:
-                                        newAuthority.Add(authority);
-                                        break;
-                                }
-                                break;
-
                             default:
                                 newAuthority.Add(authority);
                                 break;
                         }
-                    }
+                        break;
 
-                    return response.Clone(null, newAuthority);
+                    default:
+                        newAuthority.Add(authority);
+                        break;
                 }
             }
 
-            return response;
+            return response.Clone(null, newAuthority);
         }
 
         private static DnsDatagram SanitizeResponseAdditionalForZoneCut(DnsDatagram response, string zoneCut)
         {
             if (zoneCut.Length == 0)
-            {
-                //zone cut is root, do nothing
+                return response; //zone cut is root, do nothing
+
+            if (response.Additional.Count == 0)
                 return response;
-            }
 
             //remove records from additional section that are not in the zone cut
+            bool additionalNotInZoneCut = false;
+            string zoneCutEnd = "." + zoneCut;
 
-            if (response.Additional.Count > 0)
+            foreach (DnsResourceRecord additional in response.Additional)
             {
-                bool additionalNotInZoneCut = false;
-                string zoneCutEnd = "." + zoneCut;
+                if (additional.Type == DnsResourceRecordType.OPT)
+                    continue;
 
-                foreach (DnsResourceRecord additional in response.Additional)
+                if (!additional.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !additional.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (additional.Type == DnsResourceRecordType.OPT)
-                        continue;
-
-                    if (!additional.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !additional.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
-                    {
-                        additionalNotInZoneCut = true;
-                        break;
-                    }
-                }
-
-                if (additionalNotInZoneCut)
-                {
-                    List<DnsResourceRecord> newAdditional = new List<DnsResourceRecord>();
-
-                    foreach (DnsResourceRecord additional in response.Additional)
-                    {
-                        if (additional.Type == DnsResourceRecordType.OPT)
-                        {
-                            newAdditional.Add(additional);
-                            continue;
-                        }
-
-                        if (!additional.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !additional.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
-                            continue;
-
-                        newAdditional.Add(additional);
-                    }
-
-                    return response.Clone(null, null, newAdditional);
+                    additionalNotInZoneCut = true;
+                    break;
                 }
             }
 
-            return response;
+            if (!additionalNotInZoneCut)
+                return response;
+
+            List<DnsResourceRecord> newAdditional = new List<DnsResourceRecord>(response.Additional.Count);
+
+            foreach (DnsResourceRecord additional in response.Additional)
+            {
+                if (additional.Type == DnsResourceRecordType.OPT)
+                {
+                    newAdditional.Add(additional);
+                    continue;
+                }
+
+                if (additional.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || additional.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                    newAdditional.Add(additional);
+            }
+
+            return response.Clone(null, null, newAdditional);
         }
 
         private static DnsDatagram SanitizeResponseAfterDnssecValidation(DnsDatagram response)
