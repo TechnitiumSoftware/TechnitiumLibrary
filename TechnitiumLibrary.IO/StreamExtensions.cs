@@ -227,5 +227,32 @@ namespace TechnitiumLibrary.IO
                 ArrayPool<byte>.Shared.Return(buffer);
             }
         }
+
+        public static async Task CopyToAsync(this Stream s, Stream destination, TimeSpan idleTimeout, CancellationToken cancellationToken = default)
+        {
+            const int BUFFER_SIZE = 64 * 1024;
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(BUFFER_SIZE);
+            try
+            {
+                int bytesRead;
+
+                while (true)
+                {
+                    bytesRead = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                    {
+                        return s.ReadAsync(buffer, 0, BUFFER_SIZE, cancellationToken1);
+                    }, Convert.ToInt32(idleTimeout.TotalMilliseconds), cancellationToken);
+
+                    if (bytesRead < 1)
+                        break; //end of stream
+
+                    await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+        }
     }
 }
