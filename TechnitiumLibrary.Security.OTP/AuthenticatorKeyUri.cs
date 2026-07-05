@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -92,9 +92,9 @@ namespace TechnitiumLibrary.Security.OTP
                 throw new ArgumentException($"Failed to generate OTP: the key URI scheme '{keyUri.Scheme}' is not supported.");
 
             string type = HttpUtility.UrlDecode(keyUri.Host.ToLowerInvariant());
-            string issuer = null;
+            string? issuer = null;
             string accountName;
-            string secret = null;
+            string? secret = null;
             string algorithm = "SHA1";
             int digits = 6;
             int period = 30;
@@ -148,6 +148,9 @@ namespace TechnitiumLibrary.Security.OTP
                         break;
                 }
             }
+
+            ArgumentNullException.ThrowIfNull(issuer, nameof(issuer));
+            ArgumentNullException.ThrowIfNull(secret, nameof(secret));
 
             return new AuthenticatorKeyUri(type, issuer, accountName, secret, algorithm, digits, period);
         }

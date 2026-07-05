@@ -55,7 +55,7 @@ namespace TechnitiumLibrary.Security.OTP
 
         private static string HOTP(byte[] k, long c, int digits = 6, string algorithm = "SHA1")
         {
-            HMAC hmac = null;
+            HMAC? hmac = null;
             try
             {
                 int outLength;
