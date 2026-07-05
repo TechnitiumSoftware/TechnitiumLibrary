@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -93,7 +93,7 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
                 return true;
 
             if (obj is DnssecPublicKey other)
-                return BinaryNumber.Equals(_rawPublicKey, other._rawPublicKey);
+                return _rawPublicKey.SequenceEqual(other._rawPublicKey);
 
             return false;
         }

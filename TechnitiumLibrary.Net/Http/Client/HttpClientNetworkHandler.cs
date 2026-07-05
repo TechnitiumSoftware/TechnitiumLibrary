@@ -377,7 +377,7 @@ namespace TechnitiumLibrary.Net.Http.Client
                                     X509ChainElement chainElement = chain.ChainElements[i];
                                     byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, chainElement.Certificate);
 
-                                    if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData))
+                                    if (certificateAssociatedData.SequenceEqual(tlsa.CertificateAssociationData))
                                         return; //TLSA is validating
                                 }
                             }
@@ -391,7 +391,7 @@ namespace TechnitiumLibrary.Net.Http.Client
                                 //PKIX is validating; validate TLSA
                                 byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, certificate);
 
-                                if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData))
+                                if (certificateAssociatedData.SequenceEqual(tlsa.CertificateAssociationData))
                                     return; //TLSA is validating
                             }
                         }
@@ -421,7 +421,7 @@ namespace TechnitiumLibrary.Net.Http.Client
 
                                 //validate TLSA
                                 byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, chainElement.Certificate);
-                                bool tlsaVerified = BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData);
+                                bool tlsaVerified = certificateAssociatedData.SequenceEqual(tlsa.CertificateAssociationData);
 
                                 //validate PKIX
                                 foreach (X509ChainStatus chainStatus in chainElement.ChainElementStatus)
@@ -505,7 +505,7 @@ namespace TechnitiumLibrary.Net.Http.Client
                             //PKIX is validating; validate TLSA
                             byte[] certificateAssociatedData = DnsTLSARecordData.GetCertificateAssociatedData(tlsa.Selector, tlsa.MatchingType, certificate);
 
-                            if (BinaryNumber.Equals(certificateAssociatedData, tlsa.CertificateAssociationData))
+                            if (certificateAssociatedData.SequenceEqual(tlsa.CertificateAssociationData))
                                 return; //TLSA is validating
                         }
                         break;

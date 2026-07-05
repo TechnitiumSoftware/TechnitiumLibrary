@@ -1396,7 +1396,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             byte[] computedMac = ComputeTsigRequestMac(key.KeyName, key.AlgorithmName, tsig.TimeSigned, tsig.Fudge, tsig.Error, tsig.OtherData, key.SharedSecret, tsig.MAC.Length);
-            if (!BinaryNumber.Equals(computedMac, tsig.MAC))
+            if (!computedMac.SequenceEqual(tsig.MAC))
             {
                 unsignedRequest = null;
 
@@ -1650,7 +1650,7 @@ namespace TechnitiumLibrary.Net.Dns
             DnsResourceRecord requestTsigRecord = signedRequest._additional[signedRequest._additional.Count - 1];
 
             byte[] computedMac = ComputeTsigResponseMac(requestTsigRecord, key.KeyName, key.AlgorithmName, tsig.TimeSigned, tsig.Fudge, tsig.Error, tsig.OtherData, key.SharedSecret, tsig.MAC.Length);
-            if (!BinaryNumber.Equals(computedMac, tsig.MAC))
+            if (!computedMac.SequenceEqual(tsig.MAC))
             {
                 unsignedResponse = null;
                 requestFailed = false;
@@ -1776,7 +1776,7 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     byte[] currentComputedMac = ComputeTsigNextResponseMac(priorTsig, dnsMessages, currentTsig.TimeSigned, currentTsig.Fudge, key.SharedSecret, currentTsig.MAC.Length);
-                    if (!BinaryNumber.Equals(currentComputedMac, currentTsig.MAC))
+                    if (!currentComputedMac.SequenceEqual(currentTsig.MAC))
                     {
                         unsignedResponse = null;
                         requestFailed = false;

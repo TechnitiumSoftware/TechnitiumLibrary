@@ -172,9 +172,9 @@ namespace TechnitiumLibrary.Net
                 return false;
             }
 
-            if (floorEntry.IpAddress.Equals(findEntry.IpAddress))
+            if (floorEntry.IpAddress.SequenceEqual(findEntry.IpAddress))
                 value = floorEntry.Value;
-            else if (ceilingEntry.IpAddress.Equals(findEntry.IpAddress))
+            else if (ceilingEntry.IpAddress.SequenceEqual(findEntry.IpAddress))
                 value = ceilingEntry.Value;
             else if (ReferenceEquals(floorEntry.Value, ceilingEntry.Value))
                 value = floorEntry.Value;
@@ -193,7 +193,7 @@ namespace TechnitiumLibrary.Net
         {
             #region variables
 
-            readonly BinaryNumber _ipAddress;
+            readonly byte[] _ipAddress;
             readonly T _value;
 
             #endregion
@@ -202,13 +202,51 @@ namespace TechnitiumLibrary.Net
 
             public IpEntry(IPAddress ipAddress, T value)
             {
-                _ipAddress = new BinaryNumber(ipAddress.GetAddressBytes());
+                _ipAddress = ipAddress.GetAddressBytes();
                 _value = value;
             }
 
             public IpEntry(IPAddress ipAddress)
             {
-                _ipAddress = new BinaryNumber(ipAddress.GetAddressBytes());
+                _ipAddress = ipAddress.GetAddressBytes();
+            }
+
+            #endregion
+
+            #region private
+
+            public static bool LessThan(byte[] b1, byte[] b2)
+            {
+                if (b1.Length != b2.Length)
+                    throw new ArgumentException("Operand value length not equal.");
+
+                for (int i = 0; i < b1.Length; i++)
+                {
+                    if (b1[i] < b2[i])
+                        return true;
+
+                    if (b1[i] > b2[i])
+                        return false;
+                }
+
+                return false;
+            }
+
+            public static bool GreaterThan(byte[] b1, byte[] b2)
+            {
+                if (b1.Length != b2.Length)
+                    throw new ArgumentException("Operand value length not equal.");
+
+                for (int i = 0; i < b1.Length; i++)
+                {
+                    if (b1[i] > b2[i])
+                        return true;
+
+                    if (b1[i] < b2[i])
+                        return false;
+                }
+
+                return false;
             }
 
             #endregion
@@ -217,9 +255,9 @@ namespace TechnitiumLibrary.Net
 
             public int CompareTo(IpEntry other)
             {
-                if (_ipAddress < other._ipAddress)
+                if (LessThan(_ipAddress, other._ipAddress))
                     return -1;
-                else if (_ipAddress > other._ipAddress)
+                else if (GreaterThan(_ipAddress, other._ipAddress))
                     return 1;
                 else
                     return 0;
@@ -248,7 +286,7 @@ namespace TechnitiumLibrary.Net
 
             #region properties
 
-            public BinaryNumber IpAddress
+            public byte[] IpAddress
             { get { return _ipAddress; } }
 
             public T Value

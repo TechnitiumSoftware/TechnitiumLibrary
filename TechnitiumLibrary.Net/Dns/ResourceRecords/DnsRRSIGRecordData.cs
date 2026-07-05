@@ -522,7 +522,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (!_signersName.Equals(other._signersName, StringComparison.OrdinalIgnoreCase))
                     return false;
 
-                if (!BinaryNumber.Equals(_signature, other._signature))
+                if (!_signature.SequenceEqual(other._signature))
                     return false;
 
                 return true;

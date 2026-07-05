@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -253,7 +253,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_matchingType != other._matchingType)
                     return false;
 
-                if (!BinaryNumber.Equals(_certificateAssociationData, other._certificateAssociationData))
+                if (!_certificateAssociationData.SequenceEqual(other._certificateAssociationData))
                     return false;
 
                 return true;

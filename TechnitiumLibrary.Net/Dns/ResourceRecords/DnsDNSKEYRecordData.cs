@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -232,7 +232,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             byte[] computedDigest = ComputeDigest(ownerName, ds.DigestType);
 
-            return BinaryNumber.Equals(computedDigest, ds.Digest);
+            return computedDigest.SequenceEqual(ds.Digest);
         }
 
         public DnsDSRecordData CreateDS(string ownerName, DnssecDigestType digestType)
@@ -261,7 +261,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_algorithm != other._algorithm)
                     return false;
 
-                if (!BinaryNumber.Equals(_publicKey.RawPublicKey, other._publicKey.RawPublicKey))
+                if (!_publicKey.RawPublicKey.SequenceEqual(other._publicKey.RawPublicKey))
                     return false;
 
                 return true;
