@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2020  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -64,7 +64,7 @@ namespace TechnitiumLibrary.IO
             int _readTimeout = Timeout.Infinite;
             int _writeTimeout = Timeout.Infinite;
 
-            PipeStream _otherPipe;
+            PipeStream? _otherPipe;
 
             #endregion
 
@@ -93,7 +93,7 @@ namespace TechnitiumLibrary.IO
                         Monitor.Pulse(_bufferLock);
                     }
 
-                    _otherPipe.Dispose();
+                    _otherPipe?.Dispose();
                 }
                 finally
                 {
@@ -189,7 +189,7 @@ namespace TechnitiumLibrary.IO
                 if (count < 1)
                     return 0;
 
-                return _otherPipe.ReadBuffer(buffer, offset, count, _readTimeout);
+                return _otherPipe!.ReadBuffer(buffer, offset, count, _readTimeout);
             }
 
             public override void Write(byte[] buffer, int offset, int count)
