@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,14 +31,14 @@ namespace TechnitiumLibrary
         readonly int _queueSize;
         readonly int _maximumConcurrencyLevel;
 
-        readonly Channel<(Func<object, Task>, object)> _channel;
-        readonly ChannelWriter<(Func<object, Task>, object)> _channelWriter;
+        readonly Channel<(Func<object?, Task>, object?)> _channel;
+        readonly ChannelWriter<(Func<object?, Task>, object?)> _channelWriter;
 
         #endregion
 
         #region constructors
 
-        public TaskPool(int queueSize = -1, int maximumConcurrencyLevel = -1, TaskScheduler taskScheduler = null)
+        public TaskPool(int queueSize = -1, int maximumConcurrencyLevel = -1, TaskScheduler? taskScheduler = null)
         {
             if (maximumConcurrencyLevel < 1)
                 maximumConcurrencyLevel = Environment.ProcessorCount;
@@ -51,24 +51,24 @@ namespace TechnitiumLibrary
 
             if (_queueSize < 1)
             {
-                _channel = Channel.CreateUnbounded<(Func<object, Task>, object)>();
+                _channel = Channel.CreateUnbounded<(Func<object?, Task>, object?)>();
             }
             else
             {
                 BoundedChannelOptions options = new BoundedChannelOptions(_queueSize);
                 options.FullMode = BoundedChannelFullMode.DropWrite;
 
-                _channel = Channel.CreateBounded<(Func<object, Task>, object)>(options);
+                _channel = Channel.CreateBounded<(Func<object?, Task>, object?)>(options);
             }
 
             _channelWriter = _channel.Writer;
-            ChannelReader<(Func<object, Task>, object)> channelReader = _channel.Reader;
+            ChannelReader<(Func<object?, Task>, object?)> channelReader = _channel.Reader;
 
             for (int i = 0; i < _maximumConcurrencyLevel; i++)
             {
                 Task.Factory.StartNew(async delegate ()
                 {
-                    await foreach ((Func<object, Task> task, object state) in channelReader.ReadAllAsync())
+                    await foreach ((Func<object?, Task> task, object? state) in channelReader.ReadAllAsync())
                         await task(state);
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, taskScheduler);
             }
@@ -95,12 +95,12 @@ namespace TechnitiumLibrary
 
         #region public
 
-        public bool TryQueueTask(Func<object, Task> task)
+        public bool TryQueueTask(Func<object?, Task> task)
         {
             return TryQueueTask(task, null);
         }
 
-        public bool TryQueueTask(Func<object, Task> task, object state)
+        public bool TryQueueTask(Func<object?, Task> task, object? state)
         {
             return _channelWriter.TryWrite((task, state));
         }

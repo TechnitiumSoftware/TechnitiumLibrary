@@ -59,7 +59,7 @@ namespace TechnitiumLibrary
             return newArray;
         }
 
-        public static bool ListEquals<T>(this IReadOnlyList<T> value1, IReadOnlyList<T> value2, Func<T, T, bool> equals = null)
+        public static bool ListEquals<T>(this IReadOnlyList<T> value1, IReadOnlyList<T> value2, Func<T, T, bool>? equals = null)
         {
             if (ReferenceEquals(value1, value2))
                 return true;
@@ -74,7 +74,8 @@ namespace TechnitiumLibrary
             {
                 for (int i = 0; i < value1.Count; i++)
                 {
-                    if (!value1[i].Equals(value2[i]))
+                    T? v1 = value1[i];
+                    if ((v1 is null) || !v1.Equals(value2[i]))
                         return false;
                 }
             }
@@ -118,7 +119,7 @@ namespace TechnitiumLibrary
             int hashCode = 0x7B58D9E4;
 
             foreach (T t in value)
-                hashCode ^= t.GetHashCode();
+                hashCode ^= t?.GetHashCode() ?? 0;
 
             return hashCode;
         }

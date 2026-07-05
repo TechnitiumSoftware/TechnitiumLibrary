@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -43,10 +43,14 @@ namespace TechnitiumLibrary
 
             foreach (T value in values)
             {
+                string? v = value?.ToString();
+                if (v is null)
+                    continue;
+
                 if (strValue.Length == 0)
-                    strValue = value.ToString();
+                    strValue = v;
                 else
-                    strValue += separator + " " + value.ToString();
+                    strValue += separator + " " + v;
             }
 
             return strValue;
