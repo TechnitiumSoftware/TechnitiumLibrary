@@ -1192,6 +1192,20 @@ namespace TechnitiumLibrary.Net.Dns
             int iNS = 0;
             int iAR = 0;
 
+            ushort udpPayloadSize;
+            EDnsHeaderFlags ednsFlags;
+
+            if (_edns is not null)
+            {
+                udpPayloadSize = _edns.UdpPayloadSize;
+                ednsFlags = _edns.Flags;
+            }
+            else
+            {
+                udpPayloadSize = EDNS_DEFAULT_UDP_PAYLOAD_SIZE;
+                ednsFlags = EDnsHeaderFlags.None;
+            }
+
             do
             {
                 int datagramSize = 12; //init with header size
@@ -1238,6 +1252,8 @@ namespace TechnitiumLibrary.Net.Dns
                     authority = list;
                 }
 
+                bool optIncluded = false;
+
                 if ((iAR < _additional.Count) && (datagramSize < MAX_XFR_RESPONSE_SIZE))
                 {
                     List<DnsResourceRecord> list = new List<DnsResourceRecord>();
@@ -1248,12 +1264,15 @@ namespace TechnitiumLibrary.Net.Dns
 
                         datagramSize += record.UncompressedLength;
                         list.Add(record);
+
+                        if (record.Type == DnsResourceRecordType.OPT)
+                            optIncluded = true;
                     }
 
                     additional = list;
                 }
 
-                DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, question, answer, authority, additional);
+                DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, question, answer, authority, additional, optIncluded ? ushort.MinValue : udpPayloadSize, ednsFlags);
 
                 if (first is null)
                 {
@@ -1294,19 +1313,38 @@ namespace TechnitiumLibrary.Net.Dns
             DnsDatagram current = this;
             int size = 0;
 
+            ushort udpPayloadSize = 0;
+            EDnsHeaderFlags ednsFlags = EDnsHeaderFlags.None;
+            List<EDnsOption> options = new List<EDnsOption>();
+
             do
             {
                 size += current._size;
 
                 answer.AddRange(current._answer);
                 authority.AddRange(current._authority);
-                additional.AddRange(current._additional);
+
+                foreach (DnsResourceRecord record in current._additional)
+                {
+                    if (record.Type == DnsResourceRecordType.OPT)
+                    {
+                        DnsDatagramEdns edns = DnsDatagramEdns.ReadOPTFrom(record, _RCODE);
+
+                        udpPayloadSize = edns.UdpPayloadSize;
+                        ednsFlags = edns.Flags;
+                        options.AddRange(edns.Options);
+
+                        continue;
+                    }
+
+                    additional.Add(record);
+                }
 
                 current = current._nextDatagram;
             }
             while (current is not null);
 
-            DnsDatagram joinedDatagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, authority, additional);
+            DnsDatagram joinedDatagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, authority, additional, udpPayloadSize, ednsFlags, options);
             joinedDatagram._size = size;
             joinedDatagram.SetMetadata(_metadata.NameServer, _metadata.RoundTripTime);
             joinedDatagram.Tag = Tag;
