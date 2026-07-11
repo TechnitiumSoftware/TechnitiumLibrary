@@ -67,7 +67,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static DnsDatagramEdns ReadOPTFrom(IReadOnlyList<DnsResourceRecord> additional, DnsResponseCode RCODE)
         {
-            DnsResourceRecord opt = null;
+            DnsResourceRecord optRecord = null;
 
             for (int i = 0; i < additional.Count; i++)
             {
@@ -75,20 +75,25 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (record.Type == DnsResourceRecordType.OPT)
                 {
-                    if (opt is not null)
-                        throw new DnsClientException("Duplicate OPT record was found.");
+                    if (record.Name.Length != 0)
+                        continue; //ignore OPT with non-root domain name
 
-                    opt = record;
+                    if (optRecord is not null)
+                        return null; //duplicate OPT record detected; consider this dns datagram has no OPT record
+
+                    optRecord = record;
                 }
             }
 
-            if (opt is null)
+            if (optRecord is null)
                 return null;
 
-            if (opt.Name.Length != 0)
-                throw new DnsClientException("OPT record was found with a non root domain name.");
+            return ReadOPTFrom(optRecord, RCODE);
+        }
 
-            return new DnsDatagramEdns((ushort)opt.Class, (DnsResponseCode)(((opt.OriginalTtlValue & 0xff000000u) >> 20) | ((uint)RCODE & 0xfu)), (byte)((opt.OriginalTtlValue >> 16) & 0xffu), (EDnsHeaderFlags)(opt.OriginalTtlValue & 0xffffu), (opt.RDATA as DnsOPTRecordData).Options);
+        public static DnsDatagramEdns ReadOPTFrom(DnsResourceRecord optRecord, DnsResponseCode RCODE)
+        {
+            return new DnsDatagramEdns((ushort)optRecord.Class, (DnsResponseCode)(((optRecord.OriginalTtlValue & 0xff000000u) >> 20) | ((uint)RCODE & 0xfu)), (byte)((optRecord.OriginalTtlValue >> 16) & 0xffu), (EDnsHeaderFlags)(optRecord.OriginalTtlValue & 0xffffu), (optRecord.RDATA as DnsOPTRecordData).Options);
         }
 
         public static DnsResourceRecord GetOPTFor(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption> options)
