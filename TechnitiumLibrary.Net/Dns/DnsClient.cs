@@ -1147,8 +1147,8 @@ namespace TechnitiumLibrary.Net.Dns
                                 rawResponses?.Add(response);
 
                                 //sanitize response
-                                response = SanitizeResponseAnswerForQName(response);
-                                response = SanitizeResponseAnswerForZoneCut(response, currentZoneCut); //sanitize answer section
+                                response = SanitizeResponseAnswerForZoneCut(response, currentZoneCut); //sanitize answer section for zone cut before qname check since zone cut process can leave stray CNAME which can cause cname loop issue
+                                response = SanitizeResponseAnswerForQName(response); //sanitize answer section for qname only after zone cut check
                                 response = SanitizeResponseAuthorityForZoneCut(response, currentZoneCut); //sanitize authority section
                                 response = SanitizeResponseAdditionalForZoneCut(response, currentZoneCut); //sanitize additional section
 
@@ -4972,12 +4972,10 @@ namespace TechnitiumLibrary.Net.Dns
 
             DnsDatagram response = await InternalResolveAsync(request, cancellationToken: cancellationToken);
 
-            //sanitize response
-            response = SanitizeResponseAnswerForQName(response);
-
             if (_conditionalForwardingZoneCut is not null)
             {
-                response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
+                response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut; sanitize answer section for zone cut before qname check since zone cut process can leave stray CNAME which can cause cname loop issue
+                response = SanitizeResponseAnswerForQName(response); //sanitize answer section for qname only after zone cut check
 
                 //check if answer contains CNAME under the zone cut
                 foreach (DnsResourceRecord answer in response.Answer)
@@ -4991,6 +4989,11 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 response = SanitizeResponseAdditionalForZoneCut(response, _conditionalForwardingZoneCut); //keep additional section within zone cut
+            }
+            else
+            {
+                //sanitize response
+                response = SanitizeResponseAnswerForQName(response);
             }
 
             //dnssec validation is disabled
@@ -5023,12 +5026,10 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     return await InternalResolveAsync(request, async delegate (DnsDatagram response, CancellationToken cancellationToken1)
                     {
-                        //sanitize response
-                        response = SanitizeResponseAnswerForQName(response);
-
                         if (_conditionalForwardingZoneCut is not null)
                         {
-                            response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut
+                            response = SanitizeResponseAnswerForZoneCut(response, _conditionalForwardingZoneCut); //keep answers that match qname and within given zone cut; sanitize answer section for zone cut before qname check since zone cut process can leave stray CNAME which can cause cname loop issue
+                            response = SanitizeResponseAnswerForQName(response); //sanitize answer section for qname only after zone cut check
 
                             //check if answer contains CNAME under the zone cut
                             foreach (DnsResourceRecord answer in response.Answer)
@@ -5042,6 +5043,11 @@ namespace TechnitiumLibrary.Net.Dns
                             }
 
                             response = SanitizeResponseAdditionalForZoneCut(response, _conditionalForwardingZoneCut); //keep additional section within zone cut
+                        }
+                        else
+                        {
+                            //sanitize response
+                            response = SanitizeResponseAnswerForQName(response);
                         }
 
                         //dnssec validate response
