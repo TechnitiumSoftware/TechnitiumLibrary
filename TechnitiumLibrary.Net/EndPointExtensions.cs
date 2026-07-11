@@ -46,6 +46,12 @@ namespace TechnitiumLibrary.Net
                 case 3:
                     return new DomainEndPoint(bR.BaseStream.ReadShortString(), bR.ReadUInt16());
 
+                case 4:
+                    return new InterfaceEndPoint(new IPAddress(bR.BaseStream.ReadExactly(4)), bR.ReadUInt16(), bR.BaseStream.ReadShortString());
+
+                case 5:
+                    return new InterfaceEndPoint(new IPAddress(bR.BaseStream.ReadExactly(16)), bR.ReadUInt16(), bR.BaseStream.ReadShortString());
+
                 default:
                     throw new NotSupportedException("Address Family not supported.");
             }
@@ -56,21 +62,71 @@ namespace TechnitiumLibrary.Net
             switch (ep.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    bW.Write((byte)1);
-                    bW.Write((ep as IPEndPoint).Address.GetAddressBytes());
-                    bW.Write(Convert.ToUInt16((ep as IPEndPoint).Port));
+                    {
+                        if (ep is InterfaceEndPoint intEP)
+                        {
+                            bW.Write((byte)4);
+                            bW.Write(intEP.Address.GetAddressBytes());
+                            bW.Write(Convert.ToUInt16(intEP.Port));
+                            bW.BaseStream.WriteShortString(intEP.InterfaceName ?? "");
+                        }
+                        else if (ep is IPEndPoint ipEP)
+                        {
+                            bW.Write((byte)1);
+                            bW.Write(ipEP.Address.GetAddressBytes());
+                            bW.Write(Convert.ToUInt16(ipEP.Port));
+                        }
+                        else
+                        {
+                            throw new NotSupportedException("Type not supported");
+                        }
+                    }
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    bW.Write((byte)2);
-                    bW.Write((ep as IPEndPoint).Address.GetAddressBytes());
-                    bW.Write(Convert.ToUInt16((ep as IPEndPoint).Port));
+                    {
+                        if (ep is InterfaceEndPoint intEP)
+                        {
+                            bW.Write((byte)5);
+                            bW.Write(intEP.Address.GetAddressBytes());
+                            bW.Write(Convert.ToUInt16(intEP.Port));
+
+                            if (intEP.InterfaceName is null)
+                            {
+                                if (intEP.Address.ScopeId != 0)
+                                    bW.BaseStream.WriteShortString(intEP.Address.ScopeId.ToString());
+                                else
+                                    bW.BaseStream.WriteShortString("");
+                            }
+                            else
+                            {
+                                bW.BaseStream.WriteShortString(intEP.InterfaceName);
+                            }
+                        }
+                        else if (ep is IPEndPoint ipEP)
+                        {
+                            bW.Write((byte)2);
+                            bW.Write(ipEP.Address.GetAddressBytes());
+                            bW.Write(Convert.ToUInt16(ipEP.Port));
+                        }
+                        else
+                        {
+                            throw new NotSupportedException("Type not supported");
+                        }
+                    }
                     break;
 
                 case AddressFamily.Unspecified: //domain end point
-                    bW.Write((byte)3);
-                    bW.BaseStream.WriteShortString((ep as DomainEndPoint).Address);
-                    bW.Write(Convert.ToUInt16((ep as DomainEndPoint).Port));
+                    if (ep is DomainEndPoint dEP)
+                    {
+                        bW.Write((byte)3);
+                        bW.BaseStream.WriteShortString(dEP.Address);
+                        bW.Write(Convert.ToUInt16(dEP.Port));
+                    }
+                    else
+                    {
+                        throw new NotSupportedException("Type not supported");
+                    }
                     break;
 
                 default:
