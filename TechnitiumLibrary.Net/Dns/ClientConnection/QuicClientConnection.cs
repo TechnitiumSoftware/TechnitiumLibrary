@@ -202,7 +202,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     }
                 }
 
-                _quicConnection = await QuicConnection.ConnectAsync(connectionOptions, cancellationToken);
+                _quicConnection = await TaskExtensions.TimeoutAsync(async delegate (CancellationToken cancellationToken1)
+                {
+                    return await QuicConnection.ConnectAsync(connectionOptions, cancellationToken1);
+                }, 30000, cancellationToken);
+
                 return _quicConnection;
             }
             finally
