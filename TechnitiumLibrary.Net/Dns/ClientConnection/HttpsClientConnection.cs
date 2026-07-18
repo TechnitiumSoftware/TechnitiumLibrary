@@ -149,7 +149,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     break;
             }
 
-            await socket.ConnectAsync(remoteEP, cancellationToken);
+            await TaskExtensions.TimeoutAsync(async delegate (CancellationToken cancellationToken1)
+            {
+                await socket.ConnectAsync(remoteEP, cancellationToken1);
+            }, 30000, cancellationToken);
 
             socket.NoDelay = true;
 
@@ -182,7 +185,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 remoteEP = EndPointExtensions.GetEndPoint(context.DnsEndPoint.Host, context.DnsEndPoint.Port);
             }
 
-            Socket socket = await _proxy.ConnectAsync(remoteEP, cancellationToken);
+            Socket socket = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+            {
+                return _proxy.ConnectAsync(remoteEP, cancellationToken1);
+            }, 30000, cancellationToken);
 
             return new NetworkStream(socket, true);
         }
