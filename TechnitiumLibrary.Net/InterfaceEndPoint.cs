@@ -142,11 +142,9 @@ namespace TechnitiumLibrary.Net
                 {
                     return false;
                 }
-
-                return base.Equals(comparand);
             }
 
-            return false;
+            return base.Equals(comparand);
         }
 
         public override int GetHashCode()
