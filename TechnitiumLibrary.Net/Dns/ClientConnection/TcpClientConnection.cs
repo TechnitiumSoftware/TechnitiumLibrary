@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -179,11 +179,17 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         break;
                 }
 
-                await socket.ConnectAsync(_server.IPEndPoint, cancellationToken);
+                await TaskExtensions.TimeoutAsync(async delegate (CancellationToken cancellationToken1)
+                {
+                    await socket.ConnectAsync(_server.IPEndPoint, cancellationToken1);
+                }, 30000, cancellationToken);
             }
             else
             {
-                socket = await _proxy.ConnectAsync(_server.EndPoint, cancellationToken);
+                socket = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
+                {
+                    return _proxy.ConnectAsync(_server.EndPoint, cancellationToken1);
+                }, 30000, cancellationToken);
             }
 
             socket.NoDelay = true;
