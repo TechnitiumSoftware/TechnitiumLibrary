@@ -60,7 +60,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         string _nextHashedOwnerName;
         bool _isInsecureDelegation;
         bool _isAncestorDelegation;
-        bool _isAncestorDNAME;
 
         byte[] _rData;
 
@@ -119,7 +118,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region private
 
-        internal static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string wildcardNextCloserName, string wildcardZoneName)
+        internal static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string wildcardNextCloserName, string wildcardZoneName, DnsClient.ResolverContext context)
         {
             //find proof for closest encloser
             string closestEncloser;
@@ -144,9 +143,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 foundClosestEncloserProof = false;
             }
 
-            int maxHashes = DnsClient.NSEC3_MAX_HASHES_PER_SUSPENSION;
-            int maxSuspensions = DnsClient.NSEC3_MAX_SUSPENSIONS_PER_RESPONSE;
-
             while (!foundClosestEncloserProof)
             {
                 string hashedClosestEncloser = null;
@@ -164,21 +160,22 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     if (hashedClosestEncloser is null)
                     {
-                        hashedClosestEncloser = nsec3.ComputeHashedOwnerName(closestEncloser);
-                        maxHashes--;
-
-                        if (maxHashes < 1)
+                        if (context.MaxNsec3Hashes < 1)
                         {
-                            maxSuspensions--;
+                            if (context.MaxNsec3Suspensions <= 1)
+                                return DnssecProofOfNonExistence.TooManyNsec3HashOperations;
 
-                            if (maxSuspensions < 1)
-                                return DnssecProofOfNonExistence.NoProof;
+                            context.DecrementMaxNsec3Suspensions();
 
                             //suspend current task by yielding
                             await Task.Yield();
 
-                            maxHashes = DnsClient.NSEC3_MAX_HASHES_PER_SUSPENSION;
+                            context.ResetMaxNsec3Hashes();
                         }
+
+                        context.DecrementMaxNsec3Hashes();
+
+                        hashedClosestEncloser = nsec3.ComputeHashedOwnerName(closestEncloser);
                     }
 
                     string hashedClosestEncloserDomain = hashedClosestEncloser + (nsec3ZoneName.Length > 0 ? "." + nsec3ZoneName : "");
@@ -236,9 +233,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (nsec3._flags.HasFlag(DnssecNSEC3Flags.OptOut))
                         return DnssecProofOfNonExistence.OptOut;
 
-                    if (nsec3._isAncestorDNAME)
-                        return DnssecProofOfNonExistence.NoProof; //An NSEC or NSEC3 RR with the DNAME bit set MUST NOT be used to assume the nonexistence of any subdomain of that NSEC/NSEC3 RR's (original) owner name.
-
                     if (wildcardAnswerValidation)
                         return DnssecProofOfNonExistence.NxDomain; //since wildcard was already validated; the domain does not exists
 
@@ -289,9 +283,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         //response failed to prove that the domain does not exists since a wildcard MAY exists
                         return DnssecProofOfNonExistence.NoProof;
                     }
-
-                    if (nsec3._isAncestorDNAME)
-                        return DnssecProofOfNonExistence.NoProof; //An NSEC or NSEC3 RR with the DNAME bit set MUST NOT be used to assume the nonexistence of any subdomain of that NSEC/NSEC3 RR's (original) owner name.
 
                     //no opt-out so wildcard domain does not exists
                     //proved that the actual domain does not exists since a wildcard does not exists
@@ -410,7 +401,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             bool foundDS = false;
             bool foundSOA = false;
             bool foundNS = false;
-            bool foundDNAME = false;
 
             foreach (DnsResourceRecordType type in _types)
             {
@@ -427,16 +417,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     case DnsResourceRecordType.NS:
                         foundNS = true;
                         break;
-
-                    case DnsResourceRecordType.DNAME:
-                        foundDNAME = true;
-                        break;
                 }
             }
 
             _isInsecureDelegation = !foundDS && !foundSOA && foundNS;
             _isAncestorDelegation = foundNS && !foundSOA;
-            _isAncestorDNAME = foundDNAME;
         }
 
         #endregion
