@@ -481,7 +481,7 @@ namespace TechnitiumLibrary.Net.Dns
                     domain = domain.Slice(i + 1);
                 }
 
-                if (!Encoding.ASCII.TryGetBytes(label, labelBytes, out labelBytesLength))
+                if (!Encoding.Latin1.TryGetBytes(label, labelBytes, out labelBytesLength))
                     throw new DnsClientException("Invalid domain name: label cannot exceed 63 bytes.");
 
                 s.WriteByte((byte)labelBytesLength);
@@ -536,7 +536,7 @@ namespace TechnitiumLibrary.Net.Dns
                 Span<byte> label = buffer.Slice(0, labelLength);
                 s.ReadExactly(label);
 
-                if (!Encoding.ASCII.TryGetChars(label, domain.Slice(domainPosition), out _))
+                if (!Encoding.Latin1.TryGetChars(label, domain.Slice(domainPosition), out _))
                     throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
 
                 domainPosition += labelLength;
@@ -564,6 +564,29 @@ namespace TechnitiumLibrary.Net.Dns
                 domainPosition--;
 
             return new string(domain.Slice(0, domainPosition));
+        }
+
+        //RFC 4034 section 6.2 canonical form requires lowercasing ASCII A-Z only; every other byte (including
+        //the Latin-1 supplement range 0xC0-0xDE) must pass through unchanged. string.ToLowerInvariant() does
+        //full Unicode case folding and would corrupt those bytes, so domain names use this instead wherever
+        //the result feeds into a signed hash or a canonical-order comparison.
+        internal static string ToLowerInvariantAscii(string domain)
+        {
+            char[] buffer = null;
+
+            for (int i = 0; i < domain.Length; i++)
+            {
+                char c = domain[i];
+                if ((c >= 'A') && (c <= 'Z'))
+                {
+                    if (buffer is null)
+                        buffer = domain.ToCharArray();
+
+                    buffer[i] = (char)(c + 0x20);
+                }
+            }
+
+            return buffer is null ? domain : new string(buffer);
         }
 
         public static int GetSerializeDomainNameLength(string domain)

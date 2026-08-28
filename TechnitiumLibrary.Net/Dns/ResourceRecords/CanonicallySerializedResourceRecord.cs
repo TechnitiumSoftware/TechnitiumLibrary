@@ -56,7 +56,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             //serialize owner name | type | class | Original TTL | RDATA length
             buffer.SetLength(0);
-            DnsDatagram.SerializeDomainName(name.ToLowerInvariant(), buffer);
+            DnsDatagram.SerializeDomainName(DnsDatagram.ToLowerInvariantAscii(name), buffer);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)type, buffer);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)@class, buffer);
             DnsDatagram.WriteUInt32NetworkOrder(originalTtl, buffer);

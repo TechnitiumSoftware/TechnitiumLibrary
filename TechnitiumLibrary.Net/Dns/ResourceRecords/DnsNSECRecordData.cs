@@ -107,8 +107,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static int CanonicalComparison(string domain1, string domain2)
         {
-            string[] labels1 = domain1.ToLowerInvariant().Split('.');
-            string[] labels2 = domain2.ToLowerInvariant().Split('.');
+            string[] labels1 = DnsDatagram.ToLowerInvariantAscii(domain1).Split('.');
+            string[] labels2 = DnsDatagram.ToLowerInvariantAscii(domain2).Split('.');
 
             int minLength = labels1.Length;
 
@@ -117,7 +117,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             for (int i = 0; i < minLength; i++)
             {
-                int value = CanonicalComparison(Encoding.ASCII.GetBytes(labels1[labels1.Length - 1 - i]), Encoding.ASCII.GetBytes(labels2[labels2.Length - 1 - i]));
+                int value = CanonicalComparison(Encoding.Latin1.GetBytes(labels1[labels1.Length - 1 - i]), Encoding.Latin1.GetBytes(labels2[labels2.Length - 1 - i]));
                 if (value != 0)
                     return value;
             }
