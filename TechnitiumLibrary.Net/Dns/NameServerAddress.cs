@@ -525,7 +525,7 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         DnsNSRecordData nsRecord = (DnsNSRecordData)authorityRecord.RDATA;
 
-                        if (IPAddress.TryParse(nsRecord.NameServer, out _) || !DnsClient.IsDomainNameValid(nsRecord.NameServer))
+                        if (IPAddress.TryParse(nsRecord.NameServer, out _) || !DnsClient.IsDomainNameValid(nsRecord.NameServer) || (nsRecord.NameServer.Length == 0))
                             continue; //skip misconfigured NS record
 
                         IPEndPoint endPoint = null;
