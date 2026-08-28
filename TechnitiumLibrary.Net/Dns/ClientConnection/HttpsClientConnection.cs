@@ -131,6 +131,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         if (ipv4SourceEP.Item2 is not null)
                             socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, ipv4SourceEP.Item2);
 
+                        //Inform the kernel to not reserve an ephemeral port when using bind(2) with a port number of 0.  The port will later be automatically chosen at connect(2) time, in a way that allows sharing a source port as long as the 4-tuple is unique.
+                        if (OperatingSystem.IsLinux())
+                            socket.SetRawSocketOption(IPPROTO_IP, IP_BIND_ADDRESS_NO_PORT, [1, 0, 0, 0]);
+
                         socket.Bind(ipv4SourceEP.Item1);
                     }
 
@@ -142,6 +146,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     {
                         if (ipv6SourceEP.Item2 is not null)
                             socket.SetRawSocketOption(SOL_SOCKET, SO_BINDTODEVICE, ipv6SourceEP.Item2);
+
+                        //Inform the kernel to not reserve an ephemeral port when using bind(2) with a port number of 0.  The port will later be automatically chosen at connect(2) time, in a way that allows sharing a source port as long as the 4-tuple is unique.
+                        if (OperatingSystem.IsLinux())
+                            socket.SetRawSocketOption(IPPROTO_IP, IP_BIND_ADDRESS_NO_PORT, [1, 0, 0, 0]);
 
                         socket.Bind(ipv6SourceEP.Item1);
                     }

@@ -39,6 +39,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         protected const int SOL_SOCKET = 1;
         protected const int SO_BINDTODEVICE = 25;
 
+        protected const int IPPROTO_IP = 0;
+        protected const int IP_BIND_ADDRESS_NO_PORT = 24;
+
         readonly static Timer _maintenanceTimer;
         const int MAINTENANCE_TIMER_INITIAL_INTERVAL = CONNECTION_EXPIRY;
         const int MAINTENANCE_TIMER_PERIODIC_INTERVAL = CONNECTION_EXPIRY;
