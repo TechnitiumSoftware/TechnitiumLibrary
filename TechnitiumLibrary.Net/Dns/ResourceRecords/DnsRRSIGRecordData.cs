@@ -376,7 +376,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, ref int maxCryptoFailures, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
+        public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, DnsClient.ResolverContext context, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
         {
             uint utc = Convert.ToUInt32((DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds % uint.MaxValue);
 
@@ -395,6 +395,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 extendedDnsErrorCode = EDnsExtendedDnsErrorCode.SignatureNotYetValid;
                 return false;
             }
+
+            if (context.MaxHashOperations < 1)
+            {
+                extendedDnsErrorCode = EDnsExtendedDnsErrorCode.TooManyCryptoValidations;
+                return false;
+            }
+
+            context.DecrementMaxHashOperations();
 
             if (!TryGetRRSetHash(this, records, out byte[] hash, out extendedDnsErrorCode))
                 return false;
@@ -441,19 +449,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (dnsKey.Flags.HasFlag(DnsDnsKeyFlag.Revoke) && (_typeCovered != DnsResourceRecordType.DNSKEY))
                         continue; //rfc5011: the resolver MUST consider this key permanently invalid for all purposes except for validating the revocation.
 
+                    if (context.MaxCryptoFailures < 1)
+                    {
+                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.TooManyCryptoValidations;
+                        return false; //too many crypto failures
+                    }
+
                     if (dnsKey.PublicKey.IsSignatureValid(hash, _signature, hashAlgorithm))
                     {
                         extendedDnsErrorCode = EDnsExtendedDnsErrorCode.Other; //no error
                         return true;
                     }
 
-                    maxCryptoFailures--;
-
-                    if (maxCryptoFailures < 1)
-                    {
-                        extendedDnsErrorCode = EDnsExtendedDnsErrorCode.DnssecBogus;
-                        return false; //too many crypto failures
-                    }
+                    context.DecrementMaxCryptoFailures();
 
                     isBogus = true;
                 }
