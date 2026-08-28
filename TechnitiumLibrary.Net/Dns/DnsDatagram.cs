@@ -566,12 +566,13 @@ namespace TechnitiumLibrary.Net.Dns
             return new string(domain.Slice(0, domainPosition));
         }
 
-        //RFC 4034 section 6.2 canonical form requires lowercasing ASCII A-Z only; every other byte (including
-        //the Latin-1 supplement range 0xC0-0xDE) must pass through unchanged. string.ToLowerInvariant() does
-        //full Unicode case folding and would corrupt those bytes, so domain names use this instead wherever
-        //the result feeds into a signed hash or a canonical-order comparison.
         internal static string ToLowerInvariantAscii(string domain)
         {
+            //RFC 4034 section 6.2 canonical form requires lowercasing ASCII A-Z only; every other byte (including
+            //the Latin-1 supplement range 0xC0-0xDE) must pass through unchanged. string.ToLowerInvariant() does
+            //full Unicode case folding and would corrupt those bytes, so domain names use this instead wherever
+            //the result feeds into a signed hash or a canonical-order comparison.
+
             char[] buffer = null;
 
             for (int i = 0; i < domain.Length; i++)
