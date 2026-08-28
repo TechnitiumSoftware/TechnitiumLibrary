@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -35,7 +35,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         RecordSetExists = 3,
         OptOut = 4,
         InsecureDelegation = 5,
-        UnsupportedNSEC3IterationsValue = 6
+        UnsupportedNSEC3IterationsValue = 6,
+        TooManyNsec3HashOperations = 7
     }
 
     //Authenticated Denial of Existence in the DNS 
@@ -53,7 +54,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         bool _isInsecureDelegation;
         bool _isAncestorDelegation;
-        bool _isAncestorDNAME;
 
         byte[] _rData;
 
@@ -189,9 +189,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (nsec._nextDomainName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase))
                         return DnssecProofOfNonExistence.NoData; //domain is empty non-terminal (ENT) so proves NO DATA
 
-                    if (nsec._isAncestorDNAME)
-                        return DnssecProofOfNonExistence.NoProof; //An NSEC or NSEC3 RR with the DNAME bit set MUST NOT be used to assume the nonexistence of any subdomain of that NSEC/NSEC3 RR's (original) owner name.
-
                     if (wildcardAnswerValidation)
                         return DnssecProofOfNonExistence.NxDomain; //since wildcard was already validated; the domain does not exists
 
@@ -231,9 +228,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     if (nsec._nextDomainName.EndsWith("." + wildcardDomain, StringComparison.OrdinalIgnoreCase))
                         return DnssecProofOfNonExistence.NoData; //wildcard domain is empty non-terminal (ENT) so proves NO DATA
-
-                    if (nsec._isAncestorDNAME)
-                        return DnssecProofOfNonExistence.NoProof; //An NSEC or NSEC3 RR with the DNAME bit set MUST NOT be used to assume the nonexistence of any subdomain of that NSEC/NSEC3 RR's (original) owner name.
 
                     //proved that the actual domain does not exists since a wildcard does not exists
                     return DnssecProofOfNonExistence.NxDomain;
@@ -402,7 +396,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             bool foundDS = false;
             bool foundSOA = false;
             bool foundNS = false;
-            bool foundDNAME = false;
 
             foreach (DnsResourceRecordType type in _types)
             {
@@ -419,16 +412,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     case DnsResourceRecordType.NS:
                         foundNS = true;
                         break;
-
-                    case DnsResourceRecordType.DNAME:
-                        foundDNAME = true;
-                        break;
                 }
             }
 
             _isInsecureDelegation = !foundDS && !foundSOA && foundNS;
             _isAncestorDelegation = foundNS && !foundSOA;
-            _isAncestorDNAME = foundDNAME;
         }
 
         #endregion
