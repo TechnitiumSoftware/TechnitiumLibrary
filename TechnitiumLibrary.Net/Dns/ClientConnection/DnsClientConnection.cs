@@ -60,6 +60,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsClientConnection>> _existingHttpsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, HttpsClientConnection>>();
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, QuicClientConnection>> _existingQuicConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, QuicClientConnection>>();
 
+        static readonly ReaderWriterLockSlim _tcpConnectionsLock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
+        static readonly ReaderWriterLockSlim _tlsConnectionsLock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
+        static readonly ReaderWriterLockSlim _httpsConnectionsLock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
+        static readonly ReaderWriterLockSlim _quicConnectionsLock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
+
         #endregion
 
         #region constructor
@@ -77,18 +82,45 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     {
                         foreach (KeyValuePair<NetProxy, TcpClientConnection> connection in existingTcpConnection.Value)
                         {
-                            if (connection.Value.LastQueried < expiryTime)
+                            TcpClientConnection removedConnection = null;
+
+                            _tcpConnectionsLock.EnterWriteLock();
+                            try
                             {
-                                if (existingTcpConnection.Value.TryRemove(connection.Key, out TcpClientConnection removedConnection))
+                                if (connection.Value.CanEvictPooledConnection() && (connection.Value.LastQueried < expiryTime))
                                 {
-                                    removedConnection.Pooled = false;
-                                    removedConnection.Dispose();
+                                    if (!existingTcpConnection.Value.TryRemove(connection.Key, out removedConnection) || !ReferenceEquals(removedConnection, connection.Value) || !removedConnection.TryBeginPooledEviction())
+                                        throw new InvalidOperationException("Failed to reserve the exact pooled TCP connection for eviction.");
+                                }
+                            }
+                            finally
+                            {
+                                _tcpConnectionsLock.ExitWriteLock();
+                            }
+
+                            if (removedConnection is not null)
+                            {
+                                try
+                                {
+                                    await removedConnection.DisposePooledAsync(delegate { removedConnection.Pooled = false; });
+                                }
+                                catch (Exception ex)
+                                {
+                                    ReportPoolMaintenanceError(ex);
                                 }
                             }
                         }
 
-                        if (existingTcpConnection.Value.IsEmpty)
-                            _existingTcpConnections.TryRemove(existingTcpConnection.Key, out _);
+                        _tcpConnectionsLock.EnterWriteLock();
+                        try
+                        {
+                            if (existingTcpConnection.Value.IsEmpty && _existingTcpConnections.TryGetValue(existingTcpConnection.Key, out ConcurrentDictionary<NetProxy, TcpClientConnection> currentTcpConnections) && ReferenceEquals(currentTcpConnections, existingTcpConnection.Value))
+                                _existingTcpConnections.TryRemove(existingTcpConnection.Key, out _);
+                        }
+                        finally
+                        {
+                            _tcpConnectionsLock.ExitWriteLock();
+                        }
                     }
 
                     //cleanup unused tls connections
@@ -96,18 +128,45 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     {
                         foreach (KeyValuePair<NetProxy, TlsClientConnection> connection in existingTlsConnection.Value)
                         {
-                            if (connection.Value.LastQueried < expiryTime)
+                            TlsClientConnection removedConnection = null;
+
+                            _tlsConnectionsLock.EnterWriteLock();
+                            try
                             {
-                                if (existingTlsConnection.Value.TryRemove(connection.Key, out TlsClientConnection removedConnection))
+                                if (connection.Value.CanEvictPooledConnection() && (connection.Value.LastQueried < expiryTime))
                                 {
-                                    removedConnection.Pooled = false;
-                                    removedConnection.Dispose();
+                                    if (!existingTlsConnection.Value.TryRemove(connection.Key, out removedConnection) || !ReferenceEquals(removedConnection, connection.Value) || !removedConnection.TryBeginPooledEviction())
+                                        throw new InvalidOperationException("Failed to reserve the exact pooled TLS connection for eviction.");
+                                }
+                            }
+                            finally
+                            {
+                                _tlsConnectionsLock.ExitWriteLock();
+                            }
+
+                            if (removedConnection is not null)
+                            {
+                                try
+                                {
+                                    await removedConnection.DisposePooledAsync(delegate { removedConnection.Pooled = false; });
+                                }
+                                catch (Exception ex)
+                                {
+                                    ReportPoolMaintenanceError(ex);
                                 }
                             }
                         }
 
-                        if (existingTlsConnection.Value.IsEmpty)
-                            _existingTlsConnections.TryRemove(existingTlsConnection.Key, out _);
+                        _tlsConnectionsLock.EnterWriteLock();
+                        try
+                        {
+                            if (existingTlsConnection.Value.IsEmpty && _existingTlsConnections.TryGetValue(existingTlsConnection.Key, out ConcurrentDictionary<NetProxy, TlsClientConnection> currentTlsConnections) && ReferenceEquals(currentTlsConnections, existingTlsConnection.Value))
+                                _existingTlsConnections.TryRemove(existingTlsConnection.Key, out _);
+                        }
+                        finally
+                        {
+                            _tlsConnectionsLock.ExitWriteLock();
+                        }
                     }
 
                     //cleanup unused https connections
@@ -115,18 +174,45 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     {
                         foreach (KeyValuePair<NetProxy, HttpsClientConnection> connection in existingHttpsConnection.Value)
                         {
-                            if (connection.Value.LastQueried < expiryTime)
+                            HttpsClientConnection removedConnection = null;
+
+                            _httpsConnectionsLock.EnterWriteLock();
+                            try
                             {
-                                if (existingHttpsConnection.Value.TryRemove(connection.Key, out HttpsClientConnection removedConnection))
+                                if (connection.Value.CanEvictPooledConnection() && (connection.Value.LastQueried < expiryTime))
                                 {
-                                    removedConnection.Pooled = false;
-                                    removedConnection.Dispose();
+                                    if (!existingHttpsConnection.Value.TryRemove(connection.Key, out removedConnection) || !ReferenceEquals(removedConnection, connection.Value) || !removedConnection.TryBeginPooledEviction())
+                                        throw new InvalidOperationException("Failed to reserve the exact pooled HTTPS connection for eviction.");
+                                }
+                            }
+                            finally
+                            {
+                                _httpsConnectionsLock.ExitWriteLock();
+                            }
+
+                            if (removedConnection is not null)
+                            {
+                                try
+                                {
+                                    await removedConnection.DisposePooledAsync(delegate { removedConnection.Pooled = false; });
+                                }
+                                catch (Exception ex)
+                                {
+                                    ReportPoolMaintenanceError(ex);
                                 }
                             }
                         }
 
-                        if (existingHttpsConnection.Value.IsEmpty)
-                            _existingHttpsConnections.TryRemove(existingHttpsConnection.Key, out _);
+                        _httpsConnectionsLock.EnterWriteLock();
+                        try
+                        {
+                            if (existingHttpsConnection.Value.IsEmpty && _existingHttpsConnections.TryGetValue(existingHttpsConnection.Key, out ConcurrentDictionary<NetProxy, HttpsClientConnection> currentHttpsConnections) && ReferenceEquals(currentHttpsConnections, existingHttpsConnection.Value))
+                                _existingHttpsConnections.TryRemove(existingHttpsConnection.Key, out _);
+                        }
+                        finally
+                        {
+                            _httpsConnectionsLock.ExitWriteLock();
+                        }
                     }
 
                     //cleanup unused quic connections
@@ -134,22 +220,51 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     {
                         foreach (KeyValuePair<NetProxy, QuicClientConnection> connection in existingQuicConnection.Value)
                         {
-                            if (connection.Value.LastQueried < expiryTime)
+                            QuicClientConnection removedConnection = null;
+
+                            _quicConnectionsLock.EnterWriteLock();
+                            try
                             {
-                                if (existingQuicConnection.Value.TryRemove(connection.Key, out QuicClientConnection removedConnection))
+                                if (connection.Value.CanEvictPooledConnection() && (connection.Value.LastQueried < expiryTime))
                                 {
-                                    removedConnection.Pooled = false;
-                                    await removedConnection.DisposeAsync();
+                                    if (!existingQuicConnection.Value.TryRemove(connection.Key, out removedConnection) || !ReferenceEquals(removedConnection, connection.Value) || !removedConnection.TryBeginPooledEviction())
+                                        throw new InvalidOperationException("Failed to reserve the exact pooled QUIC connection for eviction.");
+                                }
+                            }
+                            finally
+                            {
+                                _quicConnectionsLock.ExitWriteLock();
+                            }
+
+                            if (removedConnection is not null)
+                            {
+                                try
+                                {
+                                    await removedConnection.DisposePooledAsync(delegate { removedConnection.Pooled = false; });
+                                }
+                                catch (Exception ex)
+                                {
+                                    ReportPoolMaintenanceError(ex);
                                 }
                             }
                         }
 
-                        if (existingQuicConnection.Value.IsEmpty)
-                            _existingQuicConnections.TryRemove(existingQuicConnection.Key, out _);
+                        _quicConnectionsLock.EnterWriteLock();
+                        try
+                        {
+                            if (existingQuicConnection.Value.IsEmpty && _existingQuicConnections.TryGetValue(existingQuicConnection.Key, out ConcurrentDictionary<NetProxy, QuicClientConnection> currentQuicConnections) && ReferenceEquals(currentQuicConnections, existingQuicConnection.Value))
+                                _existingQuicConnections.TryRemove(existingQuicConnection.Key, out _);
+                        }
+                        finally
+                        {
+                            _quicConnectionsLock.ExitWriteLock();
+                        }
                     }
                 }
-                catch
-                { }
+                catch (Exception ex)
+                {
+                    ReportPoolMaintenanceError(ex);
+                }
             });
 
             _maintenanceTimer.Change(MAINTENANCE_TIMER_INITIAL_INTERVAL, MAINTENANCE_TIMER_PERIODIC_INTERVAL);
@@ -165,7 +280,21 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region IDisposable
 
-        bool _disposed;
+        enum DisposeOperation
+        {
+            ReleasePooledLease,
+            OwnPhysicalDispose,
+            JoinPhysicalDispose
+        }
+
+        readonly object _disposeLock = new object();
+
+        int _pooledLeaseCount;
+        bool _isPooledConnection;
+        bool _poolEvictionStarted;
+        bool _physicalDisposeStarted;
+        TaskCompletionSource _physicalDisposeCompleted;
+        Task _physicalDisposeTask;
 
         protected virtual void Dispose(bool disposing)
         { }
@@ -175,27 +304,210 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             return ValueTask.CompletedTask;
         }
 
+        private bool TryAcquirePooledLease()
+        {
+            if (Volatile.Read(ref _poolEvictionStarted) || (Volatile.Read(ref _physicalDisposeTask) is not null))
+                return false;
+
+            _isPooledConnection = true;
+
+            int leaseCount = Interlocked.Increment(ref _pooledLeaseCount);
+            if (leaseCount <= 0)
+            {
+                Interlocked.Decrement(ref _pooledLeaseCount);
+                throw new InvalidOperationException("The pooled DNS connection lease count overflowed.");
+            }
+
+            return true;
+        }
+
+        private bool CanEvictPooledConnection()
+        {
+            return Volatile.Read(ref _isPooledConnection) && (Volatile.Read(ref _pooledLeaseCount) == 0) && !Volatile.Read(ref _poolEvictionStarted) && (Volatile.Read(ref _physicalDisposeTask) is null);
+        }
+
+        private bool TryBeginPooledEviction()
+        {
+            lock (_disposeLock)
+            {
+                if (!_isPooledConnection || (_pooledLeaseCount != 0) || _poolEvictionStarted || (_physicalDisposeTask is not null))
+                    return false;
+
+                _poolEvictionStarted = true;
+                _physicalDisposeCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _physicalDisposeTask = _physicalDisposeCompleted.Task;
+                return true;
+            }
+        }
+
+        private DisposeOperation BeginDispose(out Task physicalDisposeTask, out TaskCompletionSource physicalDisposeCompleted)
+        {
+            if (Volatile.Read(ref _isPooledConnection) && !Volatile.Read(ref _poolEvictionStarted))
+            {
+                int leaseCount = Interlocked.Decrement(ref _pooledLeaseCount);
+                if (leaseCount < 0)
+                {
+                    Interlocked.Increment(ref _pooledLeaseCount);
+                    throw new InvalidOperationException("The pooled DNS connection lease count is already zero.");
+                }
+
+                physicalDisposeTask = null;
+                physicalDisposeCompleted = null;
+                return DisposeOperation.ReleasePooledLease;
+            }
+
+            lock (_disposeLock)
+            {
+                if (_physicalDisposeTask is not null)
+                {
+                    physicalDisposeTask = _physicalDisposeTask;
+                    physicalDisposeCompleted = null;
+                    return DisposeOperation.JoinPhysicalDispose;
+                }
+
+                _physicalDisposeStarted = true;
+                _physicalDisposeCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _physicalDisposeTask = _physicalDisposeCompleted.Task;
+
+                physicalDisposeTask = null;
+                physicalDisposeCompleted = _physicalDisposeCompleted;
+                return DisposeOperation.OwnPhysicalDispose;
+            }
+        }
+
+        private ValueTask DisposePooledAsync(Action releaseFromPool)
+        {
+            Task physicalDisposeTask;
+            TaskCompletionSource physicalDisposeCompleted;
+
+            lock (_disposeLock)
+            {
+                if (!_poolEvictionStarted || (_physicalDisposeTask is null) || (_physicalDisposeCompleted is null))
+                    throw new InvalidOperationException("The pooled DNS connection was not reserved for eviction.");
+
+                physicalDisposeTask = _physicalDisposeTask;
+
+                if (_physicalDisposeStarted)
+                    return new ValueTask(physicalDisposeTask);
+
+                _physicalDisposeStarted = true;
+                physicalDisposeCompleted = _physicalDisposeCompleted;
+            }
+
+            _ = Task.Run(delegate { return CompletePooledDisposeAsync(releaseFromPool, physicalDisposeCompleted); });
+            return new ValueTask(physicalDisposeTask);
+        }
+
+        private async Task CompletePooledDisposeAsync(Action releaseFromPool, TaskCompletionSource physicalDisposeCompleted)
+        {
+            Exception disposeException = null;
+
+            try
+            {
+                releaseFromPool();
+                await DisposeAsyncCore().ConfigureAwait(false);
+                Dispose(false);
+                GC.SuppressFinalize(this);
+            }
+            catch (Exception ex)
+            {
+                disposeException = ex;
+            }
+            finally
+            {
+                CompletePhysicalDispose(physicalDisposeCompleted, disposeException);
+            }
+        }
+
+        private async Task CompleteDirectDisposeAsync(TaskCompletionSource physicalDisposeCompleted)
+        {
+            Exception disposeException = null;
+
+            try
+            {
+                await DisposeAsyncCore().ConfigureAwait(false);
+                Dispose(false);
+                GC.SuppressFinalize(this);
+            }
+            catch (Exception ex)
+            {
+                disposeException = ex;
+            }
+            finally
+            {
+                CompletePhysicalDispose(physicalDisposeCompleted, disposeException);
+            }
+        }
+
+        private static void CompletePhysicalDispose(TaskCompletionSource physicalDisposeCompleted, Exception disposeException)
+        {
+            if (disposeException is null)
+            {
+                physicalDisposeCompleted.TrySetResult();
+            }
+            else
+            {
+                physicalDisposeCompleted.TrySetException(disposeException);
+                _ = physicalDisposeCompleted.Task.Exception;
+            }
+        }
+
+        private static void ReportPoolMaintenanceError(Exception exception)
+        {
+            try
+            {
+                Console.Error.WriteLine("DNS connection pool maintenance failed: " + exception);
+            }
+            catch
+            { }
+        }
+
         public void Dispose()
         {
-            if (_disposed)
+            DisposeOperation operation = BeginDispose(out Task physicalDisposeTask, out TaskCompletionSource physicalDisposeCompleted);
+
+            if (operation == DisposeOperation.ReleasePooledLease)
                 return;
 
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            if (operation == DisposeOperation.JoinPhysicalDispose)
+            {
+                physicalDisposeTask.GetAwaiter().GetResult();
+                return;
+            }
 
-            _disposed = true;
+            Exception disposeException = null;
+
+            try
+            {
+                Dispose(true);
+                GC.SuppressFinalize(this);
+            }
+            catch (Exception ex)
+            {
+                disposeException = ex;
+                throw;
+            }
+            finally
+            {
+                CompletePhysicalDispose(physicalDisposeCompleted, disposeException);
+            }
         }
 
         public async ValueTask DisposeAsync()
         {
-            if (_disposed)
+            DisposeOperation operation = BeginDispose(out Task physicalDisposeTask, out TaskCompletionSource physicalDisposeCompleted);
+
+            if (operation == DisposeOperation.ReleasePooledLease)
                 return;
 
-            await DisposeAsyncCore();
-            Dispose(false);
-            GC.SuppressFinalize(this);
+            if (operation == DisposeOperation.JoinPhysicalDispose)
+            {
+                await physicalDisposeTask.ConfigureAwait(false);
+                return;
+            }
 
-            _disposed = true;
+            _ = Task.Run(delegate { return CompleteDirectDisposeAsync(physicalDisposeCompleted); });
+            await physicalDisposeCompleted.Task.ConfigureAwait(false);
         }
 
         #endregion
@@ -211,82 +523,202 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 case DnsTransportProtocol.Tcp:
                     {
-                        ConcurrentDictionary<NetProxy, TcpClientConnection> existingTcpConnection = _existingTcpConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        NetProxy proxyKey = proxy ?? NetProxy.NONE;
+
+                        _tcpConnectionsLock.EnterReadLock();
+                        try
                         {
-                            return new ConcurrentDictionary<NetProxy, TcpClientConnection>();
-                        });
+                            if (_existingTcpConnections.TryGetValue(server, out ConcurrentDictionary<NetProxy, TcpClientConnection> existingTcpConnection) && existingTcpConnection.TryGetValue(proxyKey, out TcpClientConnection connection))
+                            {
+                                if (!connection.TryAcquirePooledLease())
+                                    throw new InvalidOperationException("Failed to acquire the canonical pooled TCP connection.");
 
-                        NetProxy proxyKey = proxy;
-
-                        if (proxyKey is null)
-                            proxyKey = NetProxy.NONE;
-
-                        return existingTcpConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
+                                return connection;
+                            }
+                        }
+                        finally
                         {
-                            TcpClientConnection connection = new TcpClientConnection(server, proxy);
-                            connection.Pooled = true;
+                            _tcpConnectionsLock.ExitReadLock();
+                        }
+
+                        _tcpConnectionsLock.EnterWriteLock();
+                        try
+                        {
+                            if (!_existingTcpConnections.TryGetValue(server, out ConcurrentDictionary<NetProxy, TcpClientConnection> existingTcpConnection))
+                            {
+                                existingTcpConnection = new ConcurrentDictionary<NetProxy, TcpClientConnection>();
+                                if (!_existingTcpConnections.TryAdd(server, existingTcpConnection))
+                                    throw new InvalidOperationException("Failed to add the canonical TCP connection pool.");
+                            }
+
+                            if (!existingTcpConnection.TryGetValue(proxyKey, out TcpClientConnection connection))
+                            {
+                                connection = new TcpClientConnection(server, proxy);
+                                connection.Pooled = true;
+
+                                if (!existingTcpConnection.TryAdd(proxyKey, connection))
+                                    throw new InvalidOperationException("Failed to add the canonical pooled TCP connection.");
+                            }
+
+                            if (!connection.TryAcquirePooledLease())
+                                throw new InvalidOperationException("Failed to acquire the canonical pooled TCP connection.");
+
                             return connection;
-                        });
+                        }
+                        finally
+                        {
+                            _tcpConnectionsLock.ExitWriteLock();
+                        }
                     }
 
                 case DnsTransportProtocol.Tls:
                     {
-                        ConcurrentDictionary<NetProxy, TlsClientConnection> existingTlsConnection = _existingTlsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        NetProxy proxyKey = proxy ?? NetProxy.NONE;
+
+                        _tlsConnectionsLock.EnterReadLock();
+                        try
                         {
-                            return new ConcurrentDictionary<NetProxy, TlsClientConnection>();
-                        });
+                            if (_existingTlsConnections.TryGetValue(server, out ConcurrentDictionary<NetProxy, TlsClientConnection> existingTlsConnection) && existingTlsConnection.TryGetValue(proxyKey, out TlsClientConnection connection))
+                            {
+                                if (!connection.TryAcquirePooledLease())
+                                    throw new InvalidOperationException("Failed to acquire the canonical pooled TLS connection.");
 
-                        NetProxy proxyKey = proxy;
-
-                        if (proxyKey is null)
-                            proxyKey = NetProxy.NONE;
-
-                        return existingTlsConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
+                                return connection;
+                            }
+                        }
+                        finally
                         {
-                            TlsClientConnection connection = new TlsClientConnection(server, proxy);
-                            connection.Pooled = true;
+                            _tlsConnectionsLock.ExitReadLock();
+                        }
+
+                        _tlsConnectionsLock.EnterWriteLock();
+                        try
+                        {
+                            if (!_existingTlsConnections.TryGetValue(server, out ConcurrentDictionary<NetProxy, TlsClientConnection> existingTlsConnection))
+                            {
+                                existingTlsConnection = new ConcurrentDictionary<NetProxy, TlsClientConnection>();
+                                if (!_existingTlsConnections.TryAdd(server, existingTlsConnection))
+                                    throw new InvalidOperationException("Failed to add the canonical TLS connection pool.");
+                            }
+
+                            if (!existingTlsConnection.TryGetValue(proxyKey, out TlsClientConnection connection))
+                            {
+                                connection = new TlsClientConnection(server, proxy);
+                                connection.Pooled = true;
+
+                                if (!existingTlsConnection.TryAdd(proxyKey, connection))
+                                    throw new InvalidOperationException("Failed to add the canonical pooled TLS connection.");
+                            }
+
+                            if (!connection.TryAcquirePooledLease())
+                                throw new InvalidOperationException("Failed to acquire the canonical pooled TLS connection.");
+
                             return connection;
-                        });
+                        }
+                        finally
+                        {
+                            _tlsConnectionsLock.ExitWriteLock();
+                        }
                     }
 
                 case DnsTransportProtocol.Https:
                     {
-                        ConcurrentDictionary<NetProxy, HttpsClientConnection> existingHttpsConnection = _existingHttpsConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        NetProxy proxyKey = proxy ?? NetProxy.NONE;
+
+                        _httpsConnectionsLock.EnterReadLock();
+                        try
                         {
-                            return new ConcurrentDictionary<NetProxy, HttpsClientConnection>();
-                        });
+                            if (_existingHttpsConnections.TryGetValue(server, out ConcurrentDictionary<NetProxy, HttpsClientConnection> existingHttpsConnection) && existingHttpsConnection.TryGetValue(proxyKey, out HttpsClientConnection connection))
+                            {
+                                if (!connection.TryAcquirePooledLease())
+                                    throw new InvalidOperationException("Failed to acquire the canonical pooled HTTPS connection.");
 
-                        NetProxy proxyKey = proxy;
-
-                        if (proxyKey is null)
-                            proxyKey = NetProxy.NONE;
-
-                        return existingHttpsConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
+                                return connection;
+                            }
+                        }
+                        finally
                         {
-                            HttpsClientConnection connection = new HttpsClientConnection(server, proxy);
-                            connection.Pooled = true;
+                            _httpsConnectionsLock.ExitReadLock();
+                        }
+
+                        _httpsConnectionsLock.EnterWriteLock();
+                        try
+                        {
+                            if (!_existingHttpsConnections.TryGetValue(server, out ConcurrentDictionary<NetProxy, HttpsClientConnection> existingHttpsConnection))
+                            {
+                                existingHttpsConnection = new ConcurrentDictionary<NetProxy, HttpsClientConnection>();
+                                if (!_existingHttpsConnections.TryAdd(server, existingHttpsConnection))
+                                    throw new InvalidOperationException("Failed to add the canonical HTTPS connection pool.");
+                            }
+
+                            if (!existingHttpsConnection.TryGetValue(proxyKey, out HttpsClientConnection connection))
+                            {
+                                connection = new HttpsClientConnection(server, proxy);
+                                connection.Pooled = true;
+
+                                if (!existingHttpsConnection.TryAdd(proxyKey, connection))
+                                    throw new InvalidOperationException("Failed to add the canonical pooled HTTPS connection.");
+                            }
+
+                            if (!connection.TryAcquirePooledLease())
+                                throw new InvalidOperationException("Failed to acquire the canonical pooled HTTPS connection.");
+
                             return connection;
-                        });
+                        }
+                        finally
+                        {
+                            _httpsConnectionsLock.ExitWriteLock();
+                        }
                     }
 
                 case DnsTransportProtocol.Quic:
                     {
-                        ConcurrentDictionary<NetProxy, QuicClientConnection> existingQuicConnection = _existingQuicConnections.GetOrAdd(server, delegate (NameServerAddress nameServer)
+                        NetProxy proxyKey = proxy ?? NetProxy.NONE;
+
+                        _quicConnectionsLock.EnterReadLock();
+                        try
                         {
-                            return new ConcurrentDictionary<NetProxy, QuicClientConnection>();
-                        });
+                            if (_existingQuicConnections.TryGetValue(server, out ConcurrentDictionary<NetProxy, QuicClientConnection> existingQuicConnection) && existingQuicConnection.TryGetValue(proxyKey, out QuicClientConnection connection))
+                            {
+                                if (!connection.TryAcquirePooledLease())
+                                    throw new InvalidOperationException("Failed to acquire the canonical pooled QUIC connection.");
 
-                        NetProxy proxyKey = proxy;
-
-                        if (proxyKey is null)
-                            proxyKey = NetProxy.NONE;
-
-                        return existingQuicConnection.GetOrAdd(proxyKey, delegate (NetProxy netProxyKey)
+                                return connection;
+                            }
+                        }
+                        finally
                         {
-                            QuicClientConnection connection = new QuicClientConnection(server, proxy);
-                            connection.Pooled = true;
+                            _quicConnectionsLock.ExitReadLock();
+                        }
+
+                        _quicConnectionsLock.EnterWriteLock();
+                        try
+                        {
+                            if (!_existingQuicConnections.TryGetValue(server, out ConcurrentDictionary<NetProxy, QuicClientConnection> existingQuicConnection))
+                            {
+                                existingQuicConnection = new ConcurrentDictionary<NetProxy, QuicClientConnection>();
+                                if (!_existingQuicConnections.TryAdd(server, existingQuicConnection))
+                                    throw new InvalidOperationException("Failed to add the canonical QUIC connection pool.");
+                            }
+
+                            if (!existingQuicConnection.TryGetValue(proxyKey, out QuicClientConnection connection))
+                            {
+                                connection = new QuicClientConnection(server, proxy);
+                                connection.Pooled = true;
+
+                                if (!existingQuicConnection.TryAdd(proxyKey, connection))
+                                    throw new InvalidOperationException("Failed to add the canonical pooled QUIC connection.");
+                            }
+
+                            if (!connection.TryAcquirePooledLease())
+                                throw new InvalidOperationException("Failed to acquire the canonical pooled QUIC connection.");
+
                             return connection;
-                        });
+                        }
+                        finally
+                        {
+                            _quicConnectionsLock.ExitWriteLock();
+                        }
                     }
 
                 default:
