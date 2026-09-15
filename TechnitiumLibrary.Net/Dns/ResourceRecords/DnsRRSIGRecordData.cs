@@ -25,6 +25,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TechnitiumLibrary.IO;
+using TechnitiumLibrary.Net.Dns.Dnssec;
 using TechnitiumLibrary.Net.Dns.EDnsOptions;
 
 namespace TechnitiumLibrary.Net.Dns.ResourceRecords
@@ -203,7 +204,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     case DnssecAlgorithm.ED25519:
                     case DnssecAlgorithm.ED448:
-                        hash = mS.ToArray(); //EdDSA uses raw data directly without hashing
+                    case DnssecAlgorithm.MLDSA44:
+                        hash = mS.ToArray(); //EdDSA and pure ML-DSA use the raw DNSSEC signing input.
                         break;
 
                     default:
@@ -242,7 +244,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnssecAlgorithm.ED25519:
                 case DnssecAlgorithm.ED448:
-                    return default; //EdDSA uses raw data directly without hashing
+                case DnssecAlgorithm.MLDSA44:
+                    return default; //These algorithms use the raw DNSSEC signing input.
 
                 default:
                     throw new NotSupportedException("DNSSEC algorithm is not supported: " + algorithm.ToString());
@@ -301,7 +304,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _keyTag = DnsDatagram.ReadUInt16NetworkOrder(s);
             _signersName = DnsDatagram.DeserializeDomainName(s);
 
-            _signature = s.ReadExactly(_rdLength - (int)(s.Position - startPosition));
+            int signatureLength = _rdLength - (int)(s.Position - startPosition);
+            _signature = s.ReadExactly(signatureLength);
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
