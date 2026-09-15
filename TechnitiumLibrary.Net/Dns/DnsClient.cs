@@ -2751,8 +2751,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static async Task DnssecValidateResponseAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, CancellationToken cancellationToken = default)
         {
+            Dictionary<string, bool> mldsaRequirements = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
             //find current DNSKEY
-            IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords = await GetDnsKeyForAsync(lastDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken);
+            IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords = await GetDnsKeyForAsync(lastDSRecords, dnsClient, cache, udpPayloadSize, mldsaRequirements, cancellationToken);
 
             string lastDSOwnerName = lastDSRecords[0].Name;
             DnsClass @class = response.Question[0].Class;
@@ -2777,19 +2779,19 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     //signer's name is a subdomain for last DS record owner name
                     //find signer's DNSKEYs
-                    dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, response, cancellationToken);
+                    dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, response, mldsaRequirements, cancellationToken);
                 }
                 else
                 {
                     //signer's name is not related to last DS record
                     //get root's DNSKEYs
-                    IReadOnlyList<DnsResourceRecord> rootDnsKeyRecords = await GetDnsKeyForAsync(ROOT_TRUST_ANCHORS, dnsClient, cache, udpPayloadSize, cancellationToken);
+                    IReadOnlyList<DnsResourceRecord> rootDnsKeyRecords = await GetDnsKeyForAsync(ROOT_TRUST_ANCHORS, dnsClient, cache, udpPayloadSize, mldsaRequirements, cancellationToken);
 
                     //find signer's DNSKEYs
                     if (signersName.Length == 0)
                         dnsKeyRecords = rootDnsKeyRecords;
                     else
-                        dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, rootDnsKeyRecords, dnsClient, cache, udpPayloadSize, response, cancellationToken);
+                        dnsKeyRecords = await FindDnsKeyForAsync(signersName, @class, rootDnsKeyRecords, dnsClient, cache, udpPayloadSize, response, mldsaRequirements, cancellationToken);
                 }
 
                 if (dnsKeyRecords is null)
@@ -2808,7 +2810,7 @@ namespace TechnitiumLibrary.Net.Dns
             try
             {
                 //verify signature for all records in response
-                await DnssecValidateSignatureAsync(response, allDnsKeyRecords, unsignedZones);
+                await DnssecValidateSignatureAsync(response, allDnsKeyRecords, unsignedZones, mldsaRequirements);
 
                 //validate proofs for response
                 switch (response.RCODE)
@@ -2971,7 +2973,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        private static async Task DnssecValidateSignatureAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones)
+        private static async Task DnssecValidateSignatureAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones, Dictionary<string, bool> mldsaRequirements)
         {
             //check if any DNSKEY with a supported algorithm is available
             if (!DnsDNSKEYRecordData.IsAnyDnssecAlgorithmSupported(dnsKeyRecords))
@@ -3000,23 +3002,112 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (response.Answer.Count > 0)
             {
-                await DnssecValidateSignatureAsync(response, response.Answer, dnsKeyRecords, unsignedZones, parameters, false, false);
+                await DnssecValidateSignatureAsync(response, response.Answer, dnsKeyRecords, unsignedZones, mldsaRequirements, parameters, false, false);
 
                 if (response.Question[0].Type == DnsResourceRecordType.DNSKEY)
                     dnsKeyRecords = response.Answer; //use all DNSKEYs for validating authority & additional sections
             }
 
             if (response.Authority.Count > 0)
-                await DnssecValidateSignatureAsync(response, response.Authority, dnsKeyRecords, unsignedZones, parameters, true, false);
+                await DnssecValidateSignatureAsync(response, response.Authority, dnsKeyRecords, unsignedZones, mldsaRequirements, parameters, true, false);
 
             if (response.Additional.Count > 1) //OPT record always exists
-                await DnssecValidateSignatureAsync(response, response.Additional, dnsKeyRecords, unsignedZones, parameters, false, true);
+                await DnssecValidateSignatureAsync(response, response.Additional, dnsKeyRecords, unsignedZones, mldsaRequirements, parameters, false, true);
 
             //update all record status
             response.SetDnssecStatusForAllRecords(DnssecStatus.Indeterminate);
         }
 
-        private static async Task DnssecValidateSignatureAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones, DnssecValidateSignatureParameters parameters, bool isAuthoritySection, bool isAdditionalSection)
+        private static bool IsMldsaRequired(string ownerName, Dictionary<string, bool> mldsaRequirements)
+        {
+            string domain = ownerName;
+
+            while (domain is not null)
+            {
+                if (mldsaRequirements.TryGetValue(domain, out bool required))
+                    return required;
+
+                domain = DnsCache.GetParentZone(domain, true);
+            }
+
+            return false;
+        }
+
+        //Revalidate a cached DNSKEY RRset against the current authenticated
+        //ML-DSA DS before using it for the downgrade-resistant path.
+        private static bool IsCachedMldsaDnsKeyPathValid(DnsDatagram response, IReadOnlyList<DnsResourceRecord> dsRecords)
+        {
+            string ownerName = dsRecords[0].Name;
+            DnsClass @class = dsRecords[0].Class;
+            List<DnsResourceRecord> dnsKeyRecords = new List<DnsResourceRecord>();
+            List<DnsResourceRecord> dsMatchedDnsKeyRecords = new List<DnsResourceRecord>();
+
+            foreach (DnsResourceRecord record in response.Answer)
+            {
+                if ((record.Type != DnsResourceRecordType.DNSKEY) ||
+                    !record.Name.Equals(ownerName, StringComparison.OrdinalIgnoreCase) ||
+                    (record.Class != @class))
+                {
+                    continue;
+                }
+
+                dnsKeyRecords.Add(record);
+
+                DnsDNSKEYRecordData dnsKey = record.RDATA as DnsDNSKEYRecordData;
+                if ((dnsKey.Algorithm != DnssecAlgorithm.MLDSA44) || dnsKey.Flags.HasFlag(DnsDnsKeyFlag.Revoke))
+                    continue;
+
+                foreach (DnsResourceRecord dsRecord in dsRecords)
+                {
+                    if ((dsRecord.Type != DnsResourceRecordType.DS) ||
+                        !dsRecord.Name.Equals(ownerName, StringComparison.OrdinalIgnoreCase) ||
+                        (dsRecord.Class != @class))
+                    {
+                        continue;
+                    }
+
+                    DnsDSRecordData ds = dsRecord.RDATA as DnsDSRecordData;
+                    if ((ds.Algorithm == DnssecAlgorithm.MLDSA44) &&
+                        (ds.KeyTag == dnsKey.ComputedKeyTag) &&
+                        DnsDSRecordData.IsDigestTypeSupported(ds.DigestType) &&
+                        dnsKey.IsDnsKeyValid(ownerName, ds))
+                    {
+                        dsMatchedDnsKeyRecords.Add(record);
+                        break;
+                    }
+                }
+            }
+
+            if (dsMatchedDnsKeyRecords.Count == 0)
+                return false;
+
+            int maxCryptoFailures = KEY_TRAP_MAX_CRYPTO_FAILURES;
+
+            foreach (DnsResourceRecord record in response.Answer)
+            {
+                if ((record.Type != DnsResourceRecordType.RRSIG) ||
+                    !record.Name.Equals(ownerName, StringComparison.OrdinalIgnoreCase) ||
+                    (record.Class != @class))
+                {
+                    continue;
+                }
+
+                DnsRRSIGRecordData rrsig = record.RDATA as DnsRRSIGRecordData;
+                if ((rrsig.TypeCovered != DnsResourceRecordType.DNSKEY) ||
+                    (rrsig.Algorithm != DnssecAlgorithm.MLDSA44) ||
+                    !rrsig.SignersName.Equals(ownerName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (rrsig.IsSignatureValid(dnsKeyRecords, dsMatchedDnsKeyRecords, ref maxCryptoFailures, out _))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static async Task DnssecValidateSignatureAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones, Dictionary<string, bool> mldsaRequirements, DnssecValidateSignatureParameters parameters, bool isAuthoritySection, bool isAdditionalSection)
         {
             Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> groupedRecords = DnsResourceRecord.GroupRecords(records, true);
 
@@ -3073,6 +3164,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     bool foundValidSignature = false;
                     EDnsExtendedDnsErrorCode lastExtendedDnsErrorCode = EDnsExtendedDnsErrorCode.RRSIGsMissing;
+                    bool requireMldsa = IsMldsaRequired(ownerName, mldsaRequirements);
 
                     //find RRSIG for current RRSET
                     foreach (DnsResourceRecord rrsigRecord in records)
@@ -3091,6 +3183,10 @@ namespace TechnitiumLibrary.Net.Dns
 
                             //The RRSIG RR's Type Covered field MUST equal the RRset's type.
                             if (rrsig.TypeCovered != rrsetType)
+                                continue;
+
+                            //An authenticated ML-DSA DS signal requires an ML-DSA signature path.
+                            if (requireMldsa && (rrsig.Algorithm != DnssecAlgorithm.MLDSA44))
                                 continue;
 
                             //validate records
@@ -3250,7 +3346,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> FindDnsKeyForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse, CancellationToken cancellationToken)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> FindDnsKeyForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse, Dictionary<string, bool> mldsaRequirements, CancellationToken cancellationToken)
         {
             string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
 
@@ -3271,7 +3367,7 @@ namespace TechnitiumLibrary.Net.Dns
                     continue; //continue till current DNSKEY domain name
 
                 //find DS
-                IReadOnlyList<DnsResourceRecord> nextDSRecords = await GetDSForAsync(nextDomain, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, originalResponse, cancellationToken);
+                IReadOnlyList<DnsResourceRecord> nextDSRecords = await GetDSForAsync(nextDomain, @class, currentDnsKeyRecords, dnsClient, cache, udpPayloadSize, originalResponse, mldsaRequirements, cancellationToken);
 
                 if (nextDSRecords is null)
                 {
@@ -3281,7 +3377,7 @@ namespace TechnitiumLibrary.Net.Dns
                 else if (nextDSRecords.Count > 0)
                 {
                     //get next DNSKEY
-                    currentDnsKeyRecords = await GetDnsKeyForAsync(nextDSRecords, dnsClient, cache, udpPayloadSize, cancellationToken);
+                    currentDnsKeyRecords = await GetDnsKeyForAsync(nextDSRecords, dnsClient, cache, udpPayloadSize, mldsaRequirements, cancellationToken);
                 }
                 else
                 {
@@ -3292,18 +3388,37 @@ namespace TechnitiumLibrary.Net.Dns
             return currentDnsKeyRecords;
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDnsKeyForAsync(IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, CancellationToken cancellationToken)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDnsKeyForAsync(IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, Dictionary<string, bool> mldsaRequirements, CancellationToken cancellationToken)
         {
             DnsResourceRecord lastDSRecord = lastDSRecords[0];
             DnsQuestionRecord dnsKeyQuestion = new DnsQuestionRecord(lastDSRecord.Name, DnsResourceRecordType.DNSKEY, lastDSRecord.Class);
+            bool requireMldsa = false;
 
-            //query cache without CD & DO flags
-            DnsDatagram cacheDnsKeyRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [dnsKeyQuestion], null, null, null, udpPayloadSize, EDnsHeaderFlags.None);
+            foreach (DnsResourceRecord dsRecord in lastDSRecords)
+            {
+                if (dsRecord.Type != DnsResourceRecordType.DS)
+                    continue;
+
+                DnsDSRecordData ds = dsRecord.RDATA as DnsDSRecordData;
+
+                //RFC 6840 Section 5.2 requires DS records with unsupported digest
+                //algorithms to be disregarded.
+                if ((ds.Algorithm == DnssecAlgorithm.MLDSA44) && DnsDSRecordData.IsDigestTypeSupported(ds.DigestType))
+                {
+                    requireMldsa = true;
+                    break;
+                }
+            }
+
+            mldsaRequirements[dnsKeyQuestion.Name] = requireMldsa;
+
+            //query cache without CD; request DNSSEC records when ML-DSA is required
+            DnsDatagram cacheDnsKeyRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [dnsKeyQuestion], null, null, null, udpPayloadSize, requireMldsa ? EDnsHeaderFlags.DNSSEC_OK : EDnsHeaderFlags.None);
             DnsDatagram cacheDnsKeyResponse = await QueryCacheAsync(cache, cacheDnsKeyRequest);
             if (cacheDnsKeyResponse is not null)
             {
-                //cache response is trusted due to no CD & DO flags in request
-                if (cacheDnsKeyResponse.Answer.Count > 0)
+                //cache response is trusted due to no CD flag; enforce any ML-DSA requirement before reuse
+                if ((cacheDnsKeyResponse.Answer.Count > 0) && (!requireMldsa || IsCachedMldsaDnsKeyPathValid(cacheDnsKeyResponse, lastDSRecords)))
                     return cacheDnsKeyResponse.Answer; //found in cache
 
                 //bad cache response; continue to resolve DNSKEY
@@ -3413,7 +3528,7 @@ namespace TechnitiumLibrary.Net.Dns
                 //validate signature for DNSKEY response
                 try
                 {
-                    await DnssecValidateSignatureAsync(dnsKeyResponse, sepDnsKeyRecords, null);
+                    await DnssecValidateSignatureAsync(dnsKeyResponse, sepDnsKeyRecords, null, mldsaRequirements);
                 }
                 catch (DnsClientResponseDnssecValidationException ex)
                 {
@@ -3429,7 +3544,7 @@ namespace TechnitiumLibrary.Net.Dns
             return dnsKeyResponse.Answer;
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDSForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse, CancellationToken cancellationToken)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDSForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse, Dictionary<string, bool> mldsaRequirements, CancellationToken cancellationToken)
         {
             string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
 
@@ -3466,7 +3581,7 @@ namespace TechnitiumLibrary.Net.Dns
                 _ = await dnsClient.InternalResolveAsync(dsRequest, async delegate (DnsDatagram dsResponse, CancellationToken cancellationToken1)
                 {
                     //validate signature for DS response
-                    await DnssecValidateSignatureAsync(dsResponse, currentDnsKeyRecords, null);
+                    await DnssecValidateSignatureAsync(dsResponse, currentDnsKeyRecords, null, mldsaRequirements);
 
                     Tuple<bool, IReadOnlyList<DnsResourceRecord>> tupleDsRecords = await TryGetDSFromResponseAsync(dsResponse, ownerName);
                     if (tupleDsRecords.Item1)
