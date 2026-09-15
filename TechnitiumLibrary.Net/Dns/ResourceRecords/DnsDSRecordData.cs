@@ -134,6 +134,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnssecAlgorithm.ECDSAP384SHA384:
                 case DnssecAlgorithm.ED25519:
                 case DnssecAlgorithm.ED448:
+                case DnssecAlgorithm.MLDSA44:
                     return true;
 
                 default:

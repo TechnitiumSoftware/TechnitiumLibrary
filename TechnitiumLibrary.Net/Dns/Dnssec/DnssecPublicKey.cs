@@ -65,6 +65,9 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
                 case DnssecAlgorithm.ED448:
                     return new DnssecEddsaPublicKey(rawPublicKey, algorithm);
 
+                case DnssecAlgorithm.MLDSA44:
+                    return new DnssecMldsaPublicKey(rawPublicKey);
+
                 default:
                     return new DnssecPublicKey(rawPublicKey);
             }
@@ -112,7 +115,7 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
 
         #region properties
 
-        public byte[] RawPublicKey
+        public virtual byte[] RawPublicKey
         { get { return _rawPublicKey; } }
 
         public virtual bool IsAlgorithmSupported

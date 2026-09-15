@@ -51,6 +51,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         ECDSAP384SHA384 = 14,
         ED25519 = 15,
         ED448 = 16,
+        MLDSA44 = 18,
         PRIVATEDNS = 253,
         PRIVATEOID = 254
     }
