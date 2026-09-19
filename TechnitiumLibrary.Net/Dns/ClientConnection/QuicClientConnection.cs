@@ -76,7 +76,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
     {
         #region variables
 
-        QuicConnection _quicConnection;
+        volatile QuicConnection _quicConnection;
         UdpTunnelProxy _udpTunnelProxy;
 
         bool _pooled;
@@ -103,10 +103,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             if (disposing && !_pooled)
             {
-                if (_quicConnection is not null)
+                QuicConnection quicConnection = _quicConnection;
+                if (quicConnection is not null)
                 {
-                    _quicConnection.CloseAsync(0).Sync();
-                    _quicConnection.DisposeAsync().Sync();
+                    quicConnection.CloseAsync(0).Sync();
+                    quicConnection.DisposeAsync().Sync();
                 }
 
                 _udpTunnelProxy?.Dispose();
@@ -119,10 +120,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             if (!_pooled)
             {
-                if (_quicConnection is not null)
+                QuicConnection quicConnection = _quicConnection;
+                if (quicConnection is not null)
                 {
-                    await _quicConnection.CloseAsync(0);
-                    await _quicConnection.DisposeAsync();
+                    await quicConnection.CloseAsync(0);
+                    await quicConnection.DisposeAsync();
                 }
 
                 _udpTunnelProxy?.Dispose();
@@ -137,16 +139,20 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         private async Task<QuicConnection> GetConnectionAsync(int timeout, CancellationToken cancellationToken)
         {
-            if (_quicConnection is not null)
-                return _quicConnection;
+            {
+                QuicConnection quicConnection = _quicConnection;
+                if (quicConnection is not null)
+                    return quicConnection;
+            }
 
             if (!await _connectionSemaphore.WaitAsync(timeout, cancellationToken))
                 return null; //timed out
 
             try
             {
-                if (_quicConnection is not null)
-                    return _quicConnection;
+                QuicConnection quicConnection = _quicConnection;
+                if (quicConnection is not null)
+                    return quicConnection;
 
                 IPEndPoint remoteEP;
 
@@ -202,12 +208,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     }
                 }
 
-                _quicConnection = await TaskExtensions.TimeoutAsync(async delegate (CancellationToken cancellationToken1)
+                quicConnection = await TaskExtensions.TimeoutAsync(async delegate (CancellationToken cancellationToken1)
                 {
                     return await QuicConnection.ConnectAsync(connectionOptions, cancellationToken1);
                 }, 30000, cancellationToken);
 
-                return _quicConnection;
+                _quicConnection = quicConnection;
+
+                return quicConnection;
             }
             finally
             {
@@ -287,6 +295,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             stopwatch.Start();
 
+            bool resetRetryDone = false;
             int retry = 0;
             while (retry < retries) //retry loop
             {
@@ -341,13 +350,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     //ensure existing connection is disposed to allow reconnection later
                     await quicConnection.DisposeAsync();
-                    _quicConnection = null;
-                    _udpTunnelProxy?.Dispose();
+                    if (ReferenceEquals(Interlocked.CompareExchange(ref _quicConnection, null, quicConnection), quicConnection))
+                        _udpTunnelProxy?.Dispose();
 
-                    if (retry == 1)
+                    if ((retry == 1) && !resetRetryDone)
                     {
                         //quic connection was disposed on first attempt; retry to reconnect
                         retry = 0;
+                        resetRetryDone = true;
                         continue;
                     }
 
@@ -357,17 +367,28 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     //close existing connection to allow reconnection later
                     await quicConnection.DisposeAsync();
-                    _quicConnection = null;
-                    _udpTunnelProxy?.Dispose();
+                    if (ReferenceEquals(Interlocked.CompareExchange(ref _quicConnection, null, quicConnection), quicConnection))
+                        _udpTunnelProxy?.Dispose();
 
-                    if (((ex.QuicError == QuicError.ConnectionIdle) || (ex.QuicError == QuicError.ConnectionAborted)) && (retry == 1))
+                    switch (ex.QuicError)
                     {
-                        //connection idle/aborted on first attempt; retry to reconnect
-                        retry = 0;
-                        continue;
-                    }
+                        case QuicError.ConnectionIdle:
+                            if ((retry == 1) && !resetRetryDone)
+                            {
+                                //connection idle on first attempt; retry to reconnect
+                                retry = 0;
+                                resetRetryDone = true;
+                                continue;
+                            }
 
-                    throw;
+                            throw;
+
+                        default:
+                            if (retry < retries)
+                                continue; //do retry
+
+                            throw;
+                    }
                 }
 
                 stopwatch.Stop();
