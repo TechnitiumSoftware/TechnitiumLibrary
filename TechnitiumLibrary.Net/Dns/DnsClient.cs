@@ -3967,7 +3967,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     qName = nextQName;
                 }
-                while (qName is not null);
+                while ((qName is not null) && (newAnswers.Count < response.Answer.Count));
             }
 
             return response.Clone(newAnswers);
@@ -4662,7 +4662,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                                     //check for quad9 blocking signal
                                                     if (request.RecursionDesired && !response.RecursionAvailable && !response.AuthoritativeAnswer)
-                                                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Blocked, response.Question[0].Name.ToLowerInvariant() + " was blocked by " + ((response.Metadata is null) || (response.Metadata.NameServer is null) ? "upstream server" : response.Metadata.NameServer.ToString()));
+                                                        response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.BlockedByUpstreamDnsServer, response.Question[0].Name.ToLowerInvariant() + " was blocked by " + ((response.Metadata is null) || (response.Metadata.NameServer is null) ? "upstream server" : response.Metadata.NameServer.ToString()));
 
                                                     return response;
 
