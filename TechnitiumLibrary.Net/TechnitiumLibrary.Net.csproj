@@ -18,7 +18,7 @@
 		<RepositoryType></RepositoryType>
 		<Description></Description>
 		<PackageId>TechnitiumLibrary.Net</PackageId>
-		<Version>14.3</Version>
+		<Version>14.4</Version>
 		<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 	</PropertyGroup>
 
@@ -37,7 +37,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+		<PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
 	</ItemGroup>
 
 	<ItemGroup>

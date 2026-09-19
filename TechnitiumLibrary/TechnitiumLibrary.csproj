@@ -18,7 +18,7 @@
 		<RepositoryType></RepositoryType>
 		<Description></Description>
 		<PackageId>TechnitiumLibrary</PackageId>
-		<Version>7.1</Version>
+		<Version>7.1.1</Version>
 		<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
