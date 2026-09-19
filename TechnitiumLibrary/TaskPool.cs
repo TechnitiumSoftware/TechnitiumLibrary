@@ -50,23 +50,16 @@ namespace TechnitiumLibrary
             _maximumConcurrencyLevel = maximumConcurrencyLevel;
 
             if (_queueSize < 1)
-            {
                 _channel = Channel.CreateUnbounded<(Func<object?, Task>, object?)>();
-            }
             else
-            {
-                BoundedChannelOptions options = new BoundedChannelOptions(_queueSize);
-                options.FullMode = BoundedChannelFullMode.DropWrite;
-
-                _channel = Channel.CreateBounded<(Func<object?, Task>, object?)>(options);
-            }
+                _channel = Channel.CreateBounded<(Func<object?, Task>, object?)>(_queueSize);
 
             _channelWriter = _channel.Writer;
             ChannelReader<(Func<object?, Task>, object?)> channelReader = _channel.Reader;
 
             for (int i = 0; i < _maximumConcurrencyLevel; i++)
             {
-                Task.Factory.StartNew(async delegate ()
+                _ = Task.Factory.StartNew(async delegate ()
                 {
                     await foreach ((Func<object?, Task> task, object? state) in channelReader.ReadAllAsync())
                         await task(state);
