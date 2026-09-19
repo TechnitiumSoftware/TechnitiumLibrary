@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -179,6 +179,37 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         /// Synthesized.
         /// </summary>
         Synthesized = 29,
+
+        /// <summary>
+        /// RFC 9824
+        /// This EDE code is generally applicable to any RR type that ought not appear in DNS queries.
+        /// </summary>
+        InvalidQueryType = 30,
+
+        /// <summary>
+        /// draft-muks-dns-ede-rate-limited
+        /// </summary>
+        RateLimited = 31,
+
+        /// <summary>
+        /// draft-muks-dns-ede-rate-limited
+        /// </summary>
+        OverQuota = 32,
+
+        /// <summary>
+        /// draft-farrokhi-dnsop-ede-nta
+        /// </summary>
+        NegativeTrustAnchor = 33,
+
+        /// <summary>
+        /// draft-ietf-deleg
+        /// </summary>
+        NewDelegationOnly = 34,
+
+        /// <summary>
+        /// draft-ietf-dnsop-structured-dns-error
+        /// </summary>
+        BlockedByUpstreamDnsServer = 35,
 
         /// <summary>
         /// Private Use: indicates too many crypto validations for the response with respect to KeyTrap mitigation.
