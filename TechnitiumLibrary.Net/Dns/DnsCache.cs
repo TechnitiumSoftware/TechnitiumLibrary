@@ -591,6 +591,8 @@ namespace TechnitiumLibrary.Net.Dns
                 //cache as negative record
                 foreach (DnsQuestionRecord question in response.Question)
                 {
+                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.BlockedByUpstreamDnsServer, question.Name.ToLowerInvariant() + " was blocked by " + ((response.Metadata is null) || (response.Metadata.NameServer is null) ? "upstream server" : response.Metadata.NameServer.ToString()));
+
                     DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, ttl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.BlockedCache, response));
                     record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
@@ -1862,25 +1864,6 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                         break;
 
-                    case DnsResourceRecordType.SOA:
-                    case DnsResourceRecordType.DNSKEY:
-                        {
-                            //since some zones have CNAME at apex!
-                            if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
-                                return ValidateRRSet(existingRecords, skipSpecialCacheRecord);
-
-                            if (_entries.TryGetValue(DnsResourceRecordType.CNAME, out IReadOnlyList<DnsResourceRecord> existingCNAMERecords))
-                            {
-                                IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(existingCNAMERecords, skipSpecialCacheRecord);
-                                if (rrset.Count > 0)
-                                {
-                                    if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecordData))
-                                        return rrset;
-                                }
-                            }
-                        }
-                        break;
-
                     case DnsResourceRecordType.ANY:
                         List<DnsResourceRecord> anyRecords = new List<DnsResourceRecord>();
 
@@ -1900,16 +1883,6 @@ namespace TechnitiumLibrary.Net.Dns
 
                     default:
                         {
-                            if (_entries.TryGetValue(DnsResourceRecordType.CNAME, out IReadOnlyList<DnsResourceRecord> existingCNAMERecords))
-                            {
-                                IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(existingCNAMERecords, skipSpecialCacheRecord);
-                                if (rrset.Count > 0)
-                                {
-                                    if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecordData))
-                                        return rrset;
-                                }
-                            }
-
                             switch (type)
                             {
                                 case DnsResourceRecordType.NS: //normal NS query
@@ -1931,6 +1904,16 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     if ((existingParentNSRecords.Count > 0) && (existingParentNSRecords[0].RDATA is DnsSpecialCacheRecordData))
                                         return ValidateRRSet(existingParentNSRecords, skipSpecialCacheRecord); //parent side NS record does not exist so use this to answer for child NS queries
+                                }
+                            }
+
+                            if (_entries.TryGetValue(DnsResourceRecordType.CNAME, out IReadOnlyList<DnsResourceRecord> existingCNAMERecords))
+                            {
+                                IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(existingCNAMERecords, skipSpecialCacheRecord);
+                                if (rrset.Count > 0)
+                                {
+                                    if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecordData))
+                                        return rrset;
                                 }
                             }
                         }
