@@ -245,8 +245,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     //ensure current tcp stream is same and not replaced by reconnection attempt
                     if (ReferenceEquals(tcpStream, _tcpStream))
                     {
-                        _tcpStream.Dispose();
-                        _tcpStream = null;
+                        tcpStream.Dispose();
+                        Interlocked.CompareExchange(ref _tcpStream, null, tcpStream);
 
                         foreach (KeyValuePair<ushort, Transaction> transaction in _transactions)
                             transaction.Value.SetException(ex);
