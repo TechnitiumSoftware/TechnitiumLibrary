@@ -299,7 +299,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             stopwatch.Start();
 
-            bool quicHostUnreachableRetryDone = false;
+            bool resetRetryDone = false;
             int retry = 0;
             while (retry < retries) //retry loop
             {
@@ -340,11 +340,11 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                             switch (ex1.SocketErrorCode)
                             {
                                 case SocketError.HostUnreachable:
-                                    if (!quicHostUnreachableRetryDone)
+                                    if (!resetRetryDone)
                                     {
                                         //host unreachable on first attempt; retry to reconnect
                                         retry = 0;
-                                        quicHostUnreachableRetryDone = true;
+                                        resetRetryDone = true;
                                     }
                                     else
                                     {
@@ -360,12 +360,18 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                             switch (ex2.QuicError)
                             {
                                 case QuicError.ConnectionIdle:
-                                    //close existing connection to allow reconnection later
-                                    _udpTunnelProxy.Dispose();
+                                    if (!resetRetryDone)
+                                    {
+                                        //close existing connection to allow reconnection later
+                                        _udpTunnelProxy.Dispose();
 
-                                    //connection idle on first attempt; retry to reconnect
-                                    retry = 0;
-                                    continue;
+                                        //connection idle on first attempt; retry to reconnect
+                                        retry = 0;
+                                        resetRetryDone = true;
+                                        continue;
+                                    }
+
+                                    break;
                             }
                         }
                     }
