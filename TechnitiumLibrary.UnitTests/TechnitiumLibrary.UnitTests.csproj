@@ -1,0 +1,15 @@
+﻿<Project Sdk="MSTest.Sdk/4.0.1">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseVSTest>true</UseVSTest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TechnitiumLibrary.IO\TechnitiumLibrary.IO.csproj" />
+  </ItemGroup>
+
+</Project>
