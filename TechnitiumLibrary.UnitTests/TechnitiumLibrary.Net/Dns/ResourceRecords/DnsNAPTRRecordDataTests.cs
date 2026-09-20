@@ -1,0 +1,205 @@
+﻿/*
+Technitium Library
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
+using System.IO;
+using System.Linq;
+using TechnitiumLibrary.Net.Dns;
+using TechnitiumLibrary.Net.Dns.ResourceRecords;
+
+namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.Net.Dns.ResourceRecords
+{
+    [TestClass]
+    public class DnsNAPTRRecordDataTests
+    {
+        private static byte[] SerializeRecord(DnsResourceRecord record)
+        {
+            using MemoryStream ms = new();
+            record.WriteTo(ms);
+            return ms.ToArray();
+        }
+
+        [TestMethod]
+        public void Constructor_ValidInput_Succeeds()
+        {
+            DnsNAPTRRecordData rdata = new DnsNAPTRRecordData(
+                order: 100,
+                preference: 10,
+                flags: "U",
+                services: "SIP+D2U",
+                regexp: "!^.*$!sip:info@example.com!",
+                replacement: "Example.COM");
+
+            DnsResourceRecord rr = new DnsResourceRecord(
+                "example.com",
+                DnsResourceRecordType.NAPTR,
+                DnsClass.IN,
+                60,
+                rdata);
+
+            Assert.AreEqual("U", rdata.Flags);
+            Assert.AreEqual("Example.COM", rdata.Replacement);
+            Assert.IsNotNull(rr);
+        }
+
+        [TestMethod]
+        public void Constructor_CharacterStringTooLong_Throws()
+        {
+            string longValue = new string('a', 256);
+
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+                new DnsNAPTRRecordData(
+                    0, 0,
+                    longValue,
+                    "",
+                    "",
+                    ""));
+        }
+
+        [TestMethod]
+        public void Constructor_NonAsciiCharacter_Throws()
+        {
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                new DnsNAPTRRecordData(
+                    0, 0,
+                    "Ü",
+                    "",
+                    "",
+                    ""));
+        }
+
+        [TestMethod]
+        public void WriteTo_PreservesOriginalCaseOnWire()
+        {
+            DnsNAPTRRecordData rdata = new DnsNAPTRRecordData(
+                1, 1, "U", "SIP+D2U", "", "Example.COM");
+
+            DnsResourceRecord rr = new DnsResourceRecord(
+                "Example.COM",
+                DnsResourceRecordType.NAPTR,
+                DnsClass.IN,
+                60,
+                rdata);
+
+            byte[] bytes = SerializeRecord(rr);
+
+            // Ensure uppercase bytes are present
+            Assert.IsTrue(bytes.Contains((byte)'E'));
+            Assert.IsTrue(bytes.Contains((byte)'C'));
+        }
+
+        [TestMethod]
+        public void RoundTrip_StreamConstructor_PreservesEquality()
+        {
+            DnsNAPTRRecordData originalRdata = new DnsNAPTRRecordData(
+                50,
+                20,
+                "U",
+                "SIP+D2T",
+                "!^.*$!sip:test@example.net!",
+                "example.net"); // replacement MAY be absolute
+
+            DnsResourceRecord original = new DnsResourceRecord(
+                "example.net",   // owner MUST be relative
+                DnsResourceRecordType.NAPTR,
+                DnsClass.IN,
+                120,
+                originalRdata);
+
+            byte[] wire = SerializeRecord(original);
+
+            using MemoryStream ms = new(wire);
+            DnsResourceRecord parsed = new DnsResourceRecord(ms);
+
+            Assert.AreEqual(original, parsed);
+        }
+
+        [TestMethod]
+        public void Equals_IsCaseInsensitivePerDnsRules()
+        {
+            DnsNAPTRRecordData a = new DnsNAPTRRecordData(
+                10, 10,
+                "U",
+                "SIP+D2U",
+                "",
+                "example.org");
+
+            DnsNAPTRRecordData b = new DnsNAPTRRecordData(
+                10, 10,
+                "u",
+                "sip+d2u",
+                "",
+                "EXAMPLE.ORG");
+
+            Assert.AreEqual(a, b);
+        }
+
+        [TestMethod]
+        public void UncompressedLength_MatchesWireRdataLength()
+        {
+            DnsNAPTRRecordData rdata = new DnsNAPTRRecordData(
+                1, 1,
+                "U",
+                "SIP+D2U",
+                "",
+                "example.org");
+
+            DnsResourceRecord rr = new DnsResourceRecord(
+                "example.org",
+                DnsResourceRecordType.NAPTR,
+                DnsClass.IN,
+                60,
+                rdata);
+
+            byte[] wire = SerializeRecord(rr);
+
+            // Strip NAME + TYPE + CLASS + TTL + RDLENGTH (minimum DNS RR header)
+            int rdataOffset = wire.Length - rdata.UncompressedLength;
+
+            Assert.AreEqual(
+                rdata.UncompressedLength,
+                wire.Length - rdataOffset);
+        }
+
+        [TestMethod]
+        public void ToString_ProducesZoneFileCompatibleOutput()
+        {
+            DnsNAPTRRecordData rdata = new DnsNAPTRRecordData(
+                100, 10,
+                "U",
+                "SIP+D2U",
+                "!^.*$!sip:info@example.com!",
+                "example.com");
+
+            DnsResourceRecord rr = new DnsResourceRecord(
+                "example.com",
+                DnsResourceRecordType.NAPTR,
+                DnsClass.IN,
+                60,
+                rdata);
+
+            string text = rr.ToString();
+
+            Assert.Contains("NAPTR", text);
+            Assert.Contains("SIP+D2U", text);
+            Assert.Contains("example.com", text);
+        }
+    }
+}
