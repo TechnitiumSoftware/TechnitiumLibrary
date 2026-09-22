@@ -199,6 +199,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _type = (DnsResourceRecordType)DnsDatagram.ReadUInt16NetworkOrder(s);
             _class = (DnsClass)DnsDatagram.ReadUInt16NetworkOrder(s);
             _ttl = DnsDatagram.ReadUInt32NetworkOrder(s);
+
+            // RFC 8945 Section 4.2 requires TSIG records to use CLASS ANY and TTL 0.
+            // Reject malformed TSIG records before parsing their RDATA.
+            if ((_type == DnsResourceRecordType.TSIG) && ((_class != DnsClass.ANY) || (_ttl != 0)))
+                throw new DnsClientException("Invalid TSIG record: CLASS must be ANY and TTL must be 0.");
+
             _rData = ReadRecordDataFrom(s, _type);
         }
 

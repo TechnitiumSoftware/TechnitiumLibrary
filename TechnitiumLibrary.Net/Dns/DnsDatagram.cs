@@ -261,7 +261,13 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsResourceRecord[] answer = new DnsResourceRecord[ANCOUNT];
 
                     for (int i = 0; i < answer.Length; i++)
+                    {
                         answer[i] = new DnsResourceRecord(s);
+
+                        // RFC 8945 Section 5.2 permits TSIG only as the last record in the Additional section.
+                        if (answer[i].Type == DnsResourceRecordType.TSIG)
+                            datagram._parsingException = new DnsClientException("Misplaced or duplicate TSIG record was found.");
+                    }
 
                     datagram._answer = answer;
                 }
@@ -275,7 +281,12 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsResourceRecord[] authority = new DnsResourceRecord[NSCOUNT];
 
                     for (int i = 0; i < authority.Length; i++)
+                    {
                         authority[i] = new DnsResourceRecord(s);
+
+                        if (authority[i].Type == DnsResourceRecordType.TSIG)
+                            datagram._parsingException = new DnsClientException("Misplaced or duplicate TSIG record was found.");
+                    }
 
                     datagram._authority = authority;
                 }

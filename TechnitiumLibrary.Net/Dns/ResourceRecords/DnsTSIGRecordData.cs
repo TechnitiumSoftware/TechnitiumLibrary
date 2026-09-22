@@ -93,7 +93,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
+            long algorithmNameOffset = s.Position;
             _algorithmName = DnsDatagram.DeserializeDomainName(s);
+
+            // RFC 8945 Section 4.2 requires the TSIG Algorithm Name to be uncompressed.
+            if ((s.Position - algorithmNameOffset) != DnsDatagram.GetSerializeDomainNameLength(_algorithmName))
+                throw new DnsClientException("Invalid TSIG record: Algorithm Name must not be compressed.");
+
             _timeSigned = DnsDatagram.ReadUInt48NetworkOrder(s);
             _fudge = DnsDatagram.ReadUInt16NetworkOrder(s);
 
