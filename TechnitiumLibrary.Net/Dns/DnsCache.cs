@@ -39,6 +39,8 @@ namespace TechnitiumLibrary.Net.Dns
         readonly static DnsCacheEntry ROOT_CACHE_ENTRY = DnsCacheEntry.GetRootCacheEntry();
 
         const uint FAILURE_RECORD_TTL = 60u;
+        const uint FAILURE_RECORD_TTL_MIN = 1u;
+        const uint FAILURE_RECORD_TTL_MAX = 300u;
         const uint NEGATIVE_RECORD_TTL = 300u;
         const uint MINIMUM_RECORD_TTL = 10u;
         const uint MAXIMUM_RECORD_TTL = 3600u;
@@ -69,7 +71,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         protected DnsCache(uint failureRecordTtl, uint negativeRecordTtl, uint minimumRecordTtl, uint maximumRecordTtl, uint serveStaleTtl, uint serveStaleAnswerTtl)
         {
-            _failureRecordTtl = failureRecordTtl;
+            FailureRecordTtl = failureRecordTtl;
             _negativeRecordTtl = negativeRecordTtl;
             _minimumRecordTtl = minimumRecordTtl;
             _maximumRecordTtl = maximumRecordTtl;
@@ -567,7 +569,7 @@ namespace TechnitiumLibrary.Net.Dns
                 foreach (DnsQuestionRecord question in response.Question)
                 {
                     DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _failureRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.BadCache, response));
-                    record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
+                    record.SetExpiry(FAILURE_RECORD_TTL_MIN, FAILURE_RECORD_TTL_MAX, _serveStaleTtl, _serveStaleAnswerTtl);
 
                     InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                 }
@@ -615,7 +617,7 @@ namespace TechnitiumLibrary.Net.Dns
                     foreach (DnsQuestionRecord question in response.Question)
                     {
                         DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _failureRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.FailureCache, response));
-                        record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
+                        record.SetExpiry(FAILURE_RECORD_TTL_MIN, FAILURE_RECORD_TTL_MAX, _serveStaleTtl, _serveStaleAnswerTtl);
 
                         InternalCacheRecords(new DnsResourceRecord[] { record }, eDnsClientSubnet, response.Metadata);
                     }
@@ -1125,7 +1127,7 @@ namespace TechnitiumLibrary.Net.Dns
         public uint FailureRecordTtl
         {
             get { return _failureRecordTtl; }
-            set { _failureRecordTtl = value; }
+            set { _failureRecordTtl = Math.Clamp(value, FAILURE_RECORD_TTL_MIN, FAILURE_RECORD_TTL_MAX); }
         }
 
         public uint NegativeRecordTtl
