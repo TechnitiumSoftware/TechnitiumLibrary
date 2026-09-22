@@ -1505,11 +1505,9 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             //Check time values
-            DateTime startTime = DateTime.UnixEpoch.AddSeconds(tsig.TimeSigned - tsig.Fudge);
-            DateTime endTime = DateTime.UnixEpoch.AddSeconds(tsig.TimeSigned + tsig.Fudge);
             DateTime utcNow = DateTime.UtcNow;
 
-            if ((utcNow < startTime) || (utcNow > endTime))
+            if (!IsTsigTimeValid(tsig.TimeSigned, tsig.Fudge, utcNow))
             {
                 unsignedRequest = null;
 
@@ -1528,6 +1526,18 @@ namespace TechnitiumLibrary.Net.Dns
                 //signed error response
                 errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.NotAuth, _question);
                 errorResponse = errorResponse.SignResponse(this, keys, DnsTsigError.BADTRUNC);
+
+                return false;
+            }
+
+            // RFC 8945 Section 4.2 requires the Error field to be zero in TSIG requests.
+            // Check it after TSIG validation so malformed authenticated requests receive a signed FORMERR.
+            if (tsig.Error != DnsTsigError.NoError)
+            {
+                unsignedRequest = null;
+
+                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.FormatError, _question);
+                errorResponse = errorResponse.SignResponse(this, keys);
 
                 return false;
             }
@@ -1771,10 +1781,8 @@ namespace TechnitiumLibrary.Net.Dns
 
             //Check time values
             DateTime utcNow = DateTime.UtcNow;
-            DateTime startTime = DateTime.UnixEpoch.AddSeconds(tsig.TimeSigned - tsig.Fudge);
-            DateTime endTime = DateTime.UnixEpoch.AddSeconds(tsig.TimeSigned + tsig.Fudge);
 
-            if ((utcNow < startTime) || (utcNow > endTime))
+            if (!IsTsigTimeValid(tsig.TimeSigned, tsig.Fudge, utcNow))
             {
                 unsignedResponse = null;
                 requestFailed = false;
@@ -1883,10 +1891,7 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     //Check time values
-                    DateTime currentStartTime = DateTime.UnixEpoch.AddSeconds(currentTsig.TimeSigned - currentTsig.Fudge);
-                    DateTime currentEndTime = DateTime.UnixEpoch.AddSeconds(currentTsig.TimeSigned + currentTsig.Fudge);
-
-                    if ((utcNow < currentStartTime) || (utcNow > currentEndTime))
+                    if (!IsTsigTimeValid(currentTsig.TimeSigned, currentTsig.Fudge, utcNow))
                     {
                         unsignedResponse = null;
                         requestFailed = false;
@@ -1970,6 +1975,12 @@ namespace TechnitiumLibrary.Net.Dns
         #endregion
 
         #region private
+
+        private static bool IsTsigTimeValid(ulong timeSigned, ushort fudge, DateTime utcNow)
+        {
+            // RFC 8945 Sections 5.2.3 and 5.4.3 require current time to be within Time Signed +/- Fudge.
+            return Math.Abs((utcNow - DateTime.UnixEpoch).TotalSeconds - timeSigned) <= fudge;
+        }
 
         private byte[] ComputeTsigRequestMac(string keyName, string algorithmName, ulong timeSigned, ushort fudge, DnsTsigError error, byte[] otherData, string sharedSecret, int truncationLength)
         {
