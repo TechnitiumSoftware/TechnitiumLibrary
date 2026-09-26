@@ -79,13 +79,11 @@ namespace TechnitiumLibrary.Net.Dns
         const int KEY_TRAP_MAX_KEY_TAG_COLLISIONS = 4; //HashTrap mitigation by limiting key collisions
         const int KEY_TRAP_MAX_CRYPTO_FAILURES = 4; //mitigation by limiting cryptographic failures per resolution
         const int KEY_TRAP_MAX_RRSET_VALIDATIONS_PER_SUSPENSION = 8; //task will suspend after max RRSET validations
-        const int KEY_TRAP_MAX_SUSPENSIONS = 16; //task will stop RRSET validation after max suspensions for the resolution
+        const int KEY_TRAP_MAX_RRSET_VALIDATION_SUSPENSIONS = 16; //task will stop RRSET validation after max suspensions for the resolution
 
         //CVE-2023-50868 NSEC3 closest encloser proof DoS mitigation
         const int NSEC3_MAX_HASHES_PER_SUSPENSION = 8; //task will suspend after max NSEC3 compute hash calls
         const int NSEC3_MAX_SUSPENSIONS = 16; //task will stop NSEC3 proof validation after max suspensions for the resolution
-
-        const int RE_TRAP_MAX_HASH_OPERATIONS = 32; //max number of hash operations done for RRSET validation for the resolution
 
         const int NS_RESOLUTION_TIMEOUT = 60000;
 
@@ -382,7 +380,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (context is null)
                 context = new ResolverContext();
             else if (!context.CanProceedWithResolution())
-                throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': resolver limits reached.");
+                throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ").");
 
             if ((udpPayloadSize < 512) && (dnssecValidation || (eDnsClientSubnet is not null)))
                 throw new ArgumentOutOfRangeException(nameof(udpPayloadSize), "EDNS cannot be disabled by setting UDP payload size to less than 512 when DNSSEC validation or EDNS Client Subnet is enabled.");
@@ -567,7 +565,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (extendedDnsErrors.Count > 0)
                         failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
-                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Recursion stack limit reached for " + question.ToString());
+                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (MaxStackCount) for " + question.ToString());
 
                     if (eDnsClientSubnet is not null)
                         failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
@@ -680,14 +678,16 @@ namespace TechnitiumLibrary.Net.Dns
                                             else
                                             {
                                                 //NO DATA - domain does not resolve 
+                                                DnsQuestionRecord lastQuestion = cacheResponse.Question[0];
                                                 PopStack();
 
-                                                switch (cacheResponse.Question[0].Type)
+                                                switch (lastQuestion.Type)
                                                 {
                                                     case DnsResourceRecordType.A:
                                                     case DnsResourceRecordType.AAAA:
                                                         //didnt find IP for current name server; try next name server
                                                         nameServerIndex++; //increment to skip current name server
+                                                        extendedDnsErrors.Add(new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Failed to resolve name server " + lastQuestion.Name.ToLowerInvariant() + " at delegation " + zoneCut + "."));
                                                         break;
 
                                                     case DnsResourceRecordType.DS:
@@ -827,19 +827,21 @@ namespace TechnitiumLibrary.Net.Dns
                                         else
                                         {
                                             //domain does not resolve
+                                            DnsQuestionRecord lastQuestion = cacheResponse.Question[0];
                                             PopStack();
 
-                                            switch (cacheResponse.Question[0].Type)
+                                            switch (lastQuestion.Type)
                                             {
                                                 case DnsResourceRecordType.A:
                                                 case DnsResourceRecordType.AAAA:
                                                     //current name server domain does not resolve
                                                     nameServerIndex++; //increment to skip current name server
+                                                    extendedDnsErrors.Add(new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Failed to resolve name server " + lastQuestion.Name.ToLowerInvariant() + " at delegation " + zoneCut + "."));
                                                     break;
 
                                                 case DnsResourceRecordType.DS:
                                                     //DS does not resolve so cannot proceed
-                                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name.ToLowerInvariant(), cacheResponse);
+                                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find DS records for owner name: " + lastQuestion.Name.ToLowerInvariant(), cacheResponse);
                                             }
 
                                             //proceed to resolver loop
@@ -857,14 +859,16 @@ namespace TechnitiumLibrary.Net.Dns
                                     else
                                     {
                                         //domain does not exists
+                                        DnsQuestionRecord lastQuestion = cacheResponse.Question[0];
                                         PopStack();
 
-                                        switch (cacheResponse.Question[0].Type)
+                                        switch (lastQuestion.Type)
                                         {
                                             case DnsResourceRecordType.A:
                                             case DnsResourceRecordType.AAAA:
                                                 //current name server domain does not exists
                                                 nameServerIndex++; //increment to skip current name server
+                                                extendedDnsErrors.Add(new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Failed to resolve name server " + lastQuestion.Name.ToLowerInvariant() + " at delegation " + zoneCut + "."));
                                                 break;
 
                                             case DnsResourceRecordType.DS:
@@ -889,19 +893,21 @@ namespace TechnitiumLibrary.Net.Dns
                                     else
                                     {
                                         //domain does not resolve
+                                        DnsQuestionRecord lastQuestion = cacheResponse.Question[0];
                                         PopStack();
 
-                                        switch (cacheResponse.Question[0].Type)
+                                        switch (lastQuestion.Type)
                                         {
                                             case DnsResourceRecordType.A:
                                             case DnsResourceRecordType.AAAA:
                                                 //current name server domain does not resolve; try next name server
                                                 nameServerIndex++; //increment to skip current name server
+                                                extendedDnsErrors.Add(new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Failed to resolve name server " + lastQuestion.Name.ToLowerInvariant() + " at delegation " + zoneCut + "."));
                                                 break;
 
                                             case DnsResourceRecordType.DS:
                                                 //DS does not resolve so cannot proceed
-                                                throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find DS records for owner name: " + cacheResponse.Question[0].Name.ToLowerInvariant(), cacheResponse);
+                                                throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to unable to find DS records for owner name: " + lastQuestion.Name.ToLowerInvariant(), cacheResponse);
                                         }
 
                                         //proceed to resolver loop
@@ -1509,14 +1515,16 @@ namespace TechnitiumLibrary.Net.Dns
                                             else
                                             {
                                                 //NO DATA - domain does not resolve 
+                                                DnsQuestionRecord lastQuestion = request.Question[0];
                                                 PopStack();
 
-                                                switch (request.Question[0].Type)
+                                                switch (lastQuestion.Type)
                                                 {
                                                     case DnsResourceRecordType.A:
                                                     case DnsResourceRecordType.AAAA:
                                                         //didnt find IP for current name server; try next name server
                                                         nameServerIndex++; //increment to skip current name server
+                                                        extendedDnsErrors.Add(new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Failed to resolve name server " + lastQuestion.Name.ToLowerInvariant() + " at delegation " + zoneCut + "."));
                                                         break;
 
                                                     case DnsResourceRecordType.DS:
@@ -1580,8 +1588,10 @@ namespace TechnitiumLibrary.Net.Dns
                                                 {
                                                     //unable to resolve current name server domain due to hop limit
                                                     //pop and try next name server
+                                                    DnsQuestionRecord lastQuestion = question;
                                                     PopStack();
                                                     nameServerIndex++; //increment to skip current name server
+                                                    extendedDnsErrors.Add(new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Failed to resolve name server " + lastQuestion.Name.ToLowerInvariant() + " at delegation " + zoneCut + "."));
 
                                                     goto resolverLoop;
                                                 }
@@ -1728,14 +1738,16 @@ namespace TechnitiumLibrary.Net.Dns
                                     else
                                     {
                                         //domain does not exists
+                                        DnsQuestionRecord lastQuestion = request.Question[0];
                                         PopStack();
 
-                                        switch (request.Question[0].Type)
+                                        switch (lastQuestion.Type)
                                         {
                                             case DnsResourceRecordType.A:
                                             case DnsResourceRecordType.AAAA:
                                                 //current name server domain does not exists
                                                 nameServerIndex++; //increment to skip current name server
+                                                extendedDnsErrors.Add(new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Failed to resolve name server " + lastQuestion.Name.ToLowerInvariant() + " at delegation " + zoneCut + "."));
                                                 break;
 
                                             case DnsResourceRecordType.DS:
@@ -1808,6 +1820,9 @@ namespace TechnitiumLibrary.Net.Dns
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
+                            if (!context.CanProceedWithResolution())
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
+
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No valid response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
 
                             if (eDnsClientSubnet is not null)
@@ -1830,6 +1845,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 failureResponse.AddDnsClientExtendedErrorsFrom(ex.Response);
 
+                                if (!context.CanProceedWithResolution())
+                                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
+
                                 if (eDnsClientSubnet is not null)
                                     failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
 
@@ -1846,6 +1864,9 @@ namespace TechnitiumLibrary.Net.Dns
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
+                            if (!context.CanProceedWithResolution())
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
+
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No valid response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
 
                             if (eDnsClientSubnet is not null)
@@ -1860,6 +1881,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
+
+                            if (!context.CanProceedWithResolution())
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
 
                             if (ex2.SocketErrorCode == SocketError.TimedOut)
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString() + " at delegation " + zoneCut + ".");
@@ -1878,6 +1902,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
+
+                            if (!context.CanProceedWithResolution())
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
 
                             if (ex3.InnerException is SocketException ex3a)
                             {
@@ -1904,11 +1931,10 @@ namespace TechnitiumLibrary.Net.Dns
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
-                            if (lastException is not null)
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Resolver exception for " + question.ToString() + ": " + lastException.Message);
-
                             if (!context.CanProceedWithResolution())
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Resolver limits reached for " + question.ToString());
+                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
+
+                            failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Resolver exception for " + question.ToString() + ": " + lastException.Message);
 
                             if (eDnsClientSubnet is not null)
                                 failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
@@ -1917,7 +1943,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
 
                         if (!context.CanProceedWithResolution())
-                            throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': resolver limits reached for name servers [" + nameServers.Join() + "] at delegation " + zoneCut + ".", lastException);
+                            throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for name servers [" + nameServers.Join() + "] at delegation " + zoneCut + ".", lastException);
 
                         throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': no valid response from name servers [" + nameServers.Join() + "] at delegation " + zoneCut + ".", lastException);
                     }
@@ -1932,6 +1958,7 @@ namespace TechnitiumLibrary.Net.Dns
                             case DnsResourceRecordType.AAAA:
                                 //current name server domain does not resolve; try next name server
                                 nameServerIndex++; //increment to skip current name server
+                                extendedDnsErrors.Add(new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Failed to resolve name server " + lastQuestion.Name.ToLowerInvariant() + " at delegation " + zoneCut + "."));
                                 break;
 
                             case DnsResourceRecordType.DS:
@@ -3123,13 +3150,13 @@ namespace TechnitiumLibrary.Net.Dns
                             //KeyTrap mitigation
                             if (context.MaxCryptoValidations < 1)
                             {
-                                if (context.MaxSuspensions <= 1)
+                                if (context.MaxCryptoSuspensions <= 1)
                                 {
                                     lastExtendedDnsErrorCode = EDnsExtendedDnsErrorCode.TooManyCryptoValidations;
                                     break;
                                 }
 
-                                context.DecrementMaxSuspensions();
+                                context.DecrementMaxCryptoSuspensions();
 
                                 //suspend current task by yielding
                                 await Task.Yield();
@@ -4482,7 +4509,7 @@ namespace TechnitiumLibrary.Net.Dns
                     cancellationToken.ThrowIfCancellationRequested();
 
                     if ((context is not null) && !context.CanProceedWithResolution())
-                        throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": resolver limits reached.");
+                        throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ").");
 
                     NameServerAddress server = GetNextServer();
                     if (server is null)
@@ -4555,7 +4582,7 @@ namespace TechnitiumLibrary.Net.Dns
                             cancellationToken.ThrowIfCancellationRequested();
 
                             if ((context is not null) && !context.CanProceedWithResolution())
-                                throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": resolver limits reached.");
+                                throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ").");
 
                             retryRequest = false;
 
@@ -5552,12 +5579,10 @@ namespace TechnitiumLibrary.Net.Dns
 
             int _maxCryptoFailures = KEY_TRAP_MAX_CRYPTO_FAILURES;
             int _maxCryptoValidations = KEY_TRAP_MAX_RRSET_VALIDATIONS_PER_SUSPENSION;
-            int _maxSuspensions = KEY_TRAP_MAX_SUSPENSIONS;
+            int _maxCryptoSuspensions = KEY_TRAP_MAX_RRSET_VALIDATION_SUSPENSIONS;
 
             int _maxNsec3Hashes = NSEC3_MAX_HASHES_PER_SUSPENSION;
             int _maxNsec3Suspensions = NSEC3_MAX_SUSPENSIONS;
-
-            int _maxHashOperations = RE_TRAP_MAX_HASH_OPERATIONS;
 
             #endregion
 
@@ -5578,9 +5603,9 @@ namespace TechnitiumLibrary.Net.Dns
                 _maxCryptoValidations--;
             }
 
-            public void DecrementMaxSuspensions()
+            public void DecrementMaxCryptoSuspensions()
             {
-                _maxSuspensions--;
+                _maxCryptoSuspensions--;
             }
 
             public void DecrementMaxNsec3Hashes()
@@ -5591,11 +5616,6 @@ namespace TechnitiumLibrary.Net.Dns
             public void DecrementMaxNsec3Suspensions()
             {
                 _maxNsec3Suspensions--;
-            }
-
-            public void DecrementMaxHashOperations()
-            {
-                _maxHashOperations--;
             }
 
             public void ResetMaxCryptoValidations()
@@ -5616,16 +5636,30 @@ namespace TechnitiumLibrary.Net.Dns
                 if (_maxCryptoFailures < 1)
                     return false;
 
-                if (_maxSuspensions <= 1)
+                if (_maxCryptoSuspensions <= 1)
                     return false;
 
                 if (_maxNsec3Suspensions <= 1)
                     return false;
 
-                if (_maxHashOperations < 1)
-                    return false;
-
                 return true;
+            }
+
+            public string GetCannotProceedWithResolutionReason()
+            {
+                if (_maxOutboundRequests < 1)
+                    return "MaxOutboundRequests";
+
+                if (_maxCryptoFailures < 1)
+                    return "MaxCryptoFailures";
+
+                if (_maxCryptoSuspensions <= 1)
+                    return "MaxCryptoSuspensions";
+
+                if (_maxNsec3Suspensions <= 1)
+                    return "MaxNsec3Suspensions";
+
+                return "Unknown";
             }
 
             #endregion
@@ -5641,17 +5675,14 @@ namespace TechnitiumLibrary.Net.Dns
             public int MaxCryptoValidations
             { get { return _maxCryptoValidations; } }
 
-            public int MaxSuspensions
-            { get { return _maxSuspensions; } }
+            public int MaxCryptoSuspensions
+            { get { return _maxCryptoSuspensions; } }
 
             public int MaxNsec3Hashes
             { get { return _maxNsec3Hashes; } }
 
             public int MaxNsec3Suspensions
             { get { return _maxNsec3Suspensions; } }
-
-            public int MaxHashOperations
-            { get { return _maxHashOperations; } }
 
             #endregion
         }

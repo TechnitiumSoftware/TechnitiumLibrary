@@ -396,14 +396,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return false;
             }
 
-            if (context.MaxHashOperations < 1)
-            {
-                extendedDnsErrorCode = EDnsExtendedDnsErrorCode.TooManyCryptoValidations;
-                return false;
-            }
-
-            context.DecrementMaxHashOperations();
-
             if (!TryGetRRSetHash(this, records, out byte[] hash, out extendedDnsErrorCode))
                 return false;
 
