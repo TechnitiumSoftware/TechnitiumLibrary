@@ -215,6 +215,11 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         /// Private Use: indicates too many crypto validations for the response with respect to KeyTrap mitigation.
         /// </summary>
         TooManyCryptoValidations = 49152,
+
+        /// <summary>
+        /// Private Use: indicates that the recursive resolver has reached one of the allocated limits and thus has stopped the resolution process for the current request.
+        /// </summary>
+        ResolverLimitReached = 49153,
     }
 
     public class EDnsExtendedDnsErrorOptionData : EDnsOptionData
