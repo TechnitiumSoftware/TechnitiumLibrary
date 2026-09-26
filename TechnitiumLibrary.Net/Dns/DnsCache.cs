@@ -1102,15 +1102,19 @@ namespace TechnitiumLibrary.Net.Dns
                 InternalCacheRecords(cachableRecords, eDnsClientSubnet, response.Metadata);
         }
 
-        public virtual void RemoveExpiredRecords()
+        public virtual int RemoveExpiredRecords()
         {
+            int removedEntries = 0;
+
             foreach (KeyValuePair<string, DnsCacheEntry> entry in _cache)
             {
-                entry.Value.RemoveExpiredRecords();
+                removedEntries += entry.Value.RemoveExpiredRecords();
 
                 if (entry.Value.IsEmpty)
                     _cache.TryRemove(entry.Key, out _); //remove empty entry
             }
+
+            return removedEntries;
         }
 
         public virtual void Flush()
@@ -1923,13 +1927,20 @@ namespace TechnitiumLibrary.Net.Dns
                 return [];
             }
 
-            public void RemoveExpiredRecords()
+            public int RemoveExpiredRecords()
             {
+                int removedEntries = 0;
+
                 foreach (KeyValuePair<DnsResourceRecordType, IReadOnlyList<DnsResourceRecord>> entry in _entries)
                 {
                     if (DnsResourceRecord.IsRRSetStale(entry.Value))
-                        _entries.TryRemove(entry.Key, out _); //RR Set is expired; remove entry
+                    {
+                        if (_entries.TryRemove(entry.Key, out _)) //RR Set is expired; remove entry
+                            removedEntries++;
+                    }
                 }
+
+                return removedEntries;
             }
 
             #endregion
