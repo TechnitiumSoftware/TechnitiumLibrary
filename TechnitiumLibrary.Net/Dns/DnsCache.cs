@@ -935,7 +935,12 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     foreach (DnsQuestionRecord question in response.Question)
                                     {
-                                        DnsResourceRecord record = new DnsResourceRecord(cnameDomain, question.Type, question.Class, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response));
+                                        //synthesize cname response to cache
+                                        DnsQuestionRecord cnameQuestion = new DnsQuestionRecord(cnameDomain, question.Type, question.Class);
+                                        DnsDatagram cnameResponse = response.Clone(question: [cnameQuestion]);
+                                        cnameResponse = DnsClient.SanitizeResponseAnswerForQName(cnameResponse); //sanitize to keep only the cname question chain
+
+                                        DnsResourceRecord record = new DnsResourceRecord(cnameQuestion.Name, cnameQuestion.Type, cnameQuestion.Class, Math.Min((firstAuthority.RDATA as DnsSOARecordData).Minimum, firstAuthority.OriginalTtlValue), new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, cnameResponse));
                                         record.SetExpiry(_minimumRecordTtl, _maximumRecordTtl, _serveStaleTtl, _serveStaleAnswerTtl);
 
                                         InternalCacheRecords([record], eDnsClientSubnet, response.Metadata);
