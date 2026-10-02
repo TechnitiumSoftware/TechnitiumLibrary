@@ -667,8 +667,8 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 foreach (EDnsOption option in datagram._edns.Options)
                 {
-                    if (option.Code == EDnsOptionCode.EXTENDED_DNS_ERROR)
-                        AddDnsClientExtendedError(option.Data as EDnsExtendedDnsErrorOptionData);
+                    if ((option.Code == EDnsOptionCode.EXTENDED_DNS_ERROR) && (option.Data is EDnsExtendedDnsErrorOptionData ede))
+                        AddDnsClientExtendedError(ede);
                 }
             }
 
@@ -689,8 +689,11 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
+        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null, IReadOnlyList<DnsQuestionRecord> question = null)
         {
+            if (question is null)
+                question = _question;
+
             if (answer is null)
                 answer = _answer;
 
@@ -700,7 +703,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (additional is null)
                 additional = _additional;
 
-            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, authority, additional);
+            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, question, answer, authority, additional);
 
             datagram._metadata = _metadata;
 
@@ -930,7 +933,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 foreach (EDnsExtendedDnsErrorOptionData ede in _dnsClientExtendedErrors)
                 {
-                    if (ede.InfoCode == EDnsExtendedDnsErrorCode.Blocked)
+                    if ((ede is not null) && (ede.InfoCode == EDnsExtendedDnsErrorCode.Blocked))
                         return true;
                 }
             }
@@ -1042,6 +1045,12 @@ namespace TechnitiumLibrary.Net.Dns
         {
             DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
             return (firstAuthority is not null) && (firstAuthority.Type == DnsResourceRecordType.SOA);
+        }
+
+        public bool IsFirstAuthoritySOAOrFWD()
+        {
+            DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
+            return (firstAuthority is not null) && ((firstAuthority.Type == DnsResourceRecordType.SOA) || (firstAuthority.Type == DnsResourceRecordType.FWD));
         }
 
         public bool IsFirstAuthoritySOAOrFWDOrAPP()
@@ -1260,7 +1269,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
             else
             {
-                udpPayloadSize = EDNS_DEFAULT_UDP_PAYLOAD_SIZE;
+                udpPayloadSize = ushort.MinValue;
                 ednsFlags = EDnsHeaderFlags.None;
             }
 
