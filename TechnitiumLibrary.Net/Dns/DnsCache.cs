@@ -1865,8 +1865,9 @@ namespace TechnitiumLibrary.Net.Dns
                             //since some zones have CNAME at apex!
                             if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
                                 return ValidateRRSet(existingRecords, skipSpecialCacheRecord);
+
+                            return [];
                         }
-                        break;
 
                     case DnsResourceRecordType.ANY:
                         List<DnsResourceRecord> anyRecords = new List<DnsResourceRecord>();
@@ -1898,33 +1899,40 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
                             }
 
-                            if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
-                                return ValidateRRSet(existingRecords, skipSpecialCacheRecord);
+                            IReadOnlyList<DnsResourceRecord> records = [];
 
-                            if (type == DnsResourceRecordType.CHILD_NS)
+                            if (_entries.TryGetValue(type, out IReadOnlyList<DnsResourceRecord> existingRecords))
+                            {
+                                IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(existingRecords, skipSpecialCacheRecord);
+                                if (rrset.Count > 0)
+                                {
+                                    if (rrset[0].RDATA is DnsSpecialCacheRecordData splRecord && (splRecord.Type == DnsSpecialCacheRecordType.FailureCache))
+                                        records = rrset; //hold failure rrset so that CNAME can be checked before answering since any resolution failure gets stored as a Failure Cache entry
+                                    else
+                                        return rrset;
+                                }
+                            }
+
+                            if (!skipSpecialCacheRecord && (type == DnsResourceRecordType.CHILD_NS))
                             {
                                 //child NS does not exist so check for parent side NS if that too does not exist
                                 if (_entries.TryGetValue(DnsResourceRecordType.NS, out IReadOnlyList<DnsResourceRecord> existingParentNSRecords))
                                 {
                                     if ((existingParentNSRecords.Count > 0) && (existingParentNSRecords[0].RDATA is DnsSpecialCacheRecordData))
-                                        return ValidateRRSet(existingParentNSRecords, skipSpecialCacheRecord); //parent side NS record does not exist so use this to answer for child NS queries
+                                        return ValidateRRSet(existingParentNSRecords, false); //parent side NS record does not exist so use this to answer for child NS queries
                                 }
                             }
 
-                            if (_entries.TryGetValue(DnsResourceRecordType.CNAME, out IReadOnlyList<DnsResourceRecord> existingCNAMERecords))
+                            if ((type != DnsResourceRecordType.CNAME) && _entries.TryGetValue(DnsResourceRecordType.CNAME, out IReadOnlyList<DnsResourceRecord> existingCNAMERecords))
                             {
                                 IReadOnlyList<DnsResourceRecord> rrset = ValidateRRSet(existingCNAMERecords, skipSpecialCacheRecord);
                                 if (rrset.Count > 0)
-                                {
-                                    if ((type == DnsResourceRecordType.CNAME) || (rrset[0].RDATA is DnsCNAMERecordData))
-                                        return rrset;
-                                }
+                                    return rrset;
                             }
-                        }
-                        break;
-                }
 
-                return [];
+                            return records;
+                        }
+                }
             }
 
             public int RemoveExpiredRecords()
