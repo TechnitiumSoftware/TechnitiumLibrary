@@ -37,12 +37,16 @@ namespace TechnitiumLibrary
             return array;
         }
 
-        public static string Join<T>(this IEnumerable<T> values, char separator = ',')
+        public static string Join<T>(this IEnumerable<T> values, char separator = ',', int maxCount = -1)
         {
             string strValue = "";
+            int i = 0;
 
             foreach (T value in values)
             {
+                if ((maxCount > -1) && (i++ == maxCount))
+                    break;
+
                 string? v = value?.ToString();
                 if (v is null)
                     continue;
