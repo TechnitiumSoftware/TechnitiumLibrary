@@ -67,6 +67,8 @@ namespace TechnitiumLibrary.Net.Dns
         static IReadOnlyList<DnsResourceRecord> ROOT_TRUST_ANCHORS;
 
         readonly static IdnMapping _idnMapping = new IdnMapping() { AllowUnassigned = true };
+        readonly static Comparer<NameServerAddress> _compareNameServersToPreferIPv4Comparer = Comparer<NameServerAddress>.Create(CompareNameServersToPreferIPv4);
+        readonly static Comparer<NameServerAddress> _compareNameServersToPreferIPv6Comparer = Comparer<NameServerAddress>.Create(CompareNameServersToPreferIPv6);
 
         const int MAX_DELEGATION_HOPS = 16; //max NS referrals to follow
         internal const int MAX_CNAME_HOPS = 16; //max CNAMEs to follow
@@ -404,6 +406,25 @@ namespace TechnitiumLibrary.Net.Dns
             if (asyncNsResolution)
                 asyncNsResolutionTasks = new HashSet<string>();
 
+            void QueueForAsyncNsResolution(List<NameServerAddress> nextNameServers)
+            {
+                int maxNsResolutions = Math.Min(nextNameServers.Count, MAX_ASYNC_NS_RESOLUTIONS_PER_REFERRAL);
+
+                foreach (NameServerAddress nextNameServer in nextNameServers)
+                {
+                    if (nextNameServer.IPEndPoint is null)
+                    {
+                        if (asyncNsResolutionTasks.Add(nextNameServer.DomainEndPoint.Address.ToLowerInvariant()))
+                        {
+                            maxNsResolutions--;
+
+                            if (maxNsResolutions < 1)
+                                break;
+                        }
+                    }
+                }
+            }
+
             void TriggerNsResolution()
             {
                 if (!asyncNsResolution || (asyncNsResolutionTasks.Count == 0))
@@ -437,13 +458,14 @@ namespace TechnitiumLibrary.Net.Dns
             IReadOnlyList<DnsResourceRecord> lastDSRecords = dnssecValidation ? ROOT_TRUST_ANCHORS : null;
             IList<NameServerAddress> nameServers = null;
             int nameServerIndex = 0;
+            int referralLimit = 0;
             int hopCount = 0;
             DnsDatagram lastResponse = null;
             Exception lastException = null;
 
             void PushStack(string nextQName, DnsResourceRecordType nextQType)
             {
-                resolverStack.Push(new ResolverData(question, zoneCut, dnssecValidationState, lastDSRecords, nameServers, nameServerIndex, hopCount, lastResponse, lastException));
+                resolverStack.Push(new ResolverData(question, zoneCut, dnssecValidationState, lastDSRecords, nameServers, nameServerIndex, referralLimit, hopCount, lastResponse, lastException));
 
                 question = new DnsQuestionRecord(nextQName, nextQType, question.Class);
 
@@ -455,6 +477,7 @@ namespace TechnitiumLibrary.Net.Dns
                 lastDSRecords = dnssecValidation ? ROOT_TRUST_ANCHORS : null;
                 nameServers = null;
                 nameServerIndex = 0;
+                referralLimit = 0;
                 hopCount = 0;
                 lastResponse = null;
                 lastException = null;
@@ -470,6 +493,7 @@ namespace TechnitiumLibrary.Net.Dns
                 lastDSRecords = data.LastDSRecords;
                 nameServers = data.NameServers;
                 nameServerIndex = data.NameServerIndex;
+                referralLimit = data.ReferralLimit;
                 hopCount = data.HopCount;
                 lastResponse = data.LastResponse;
 
@@ -608,11 +632,17 @@ namespace TechnitiumLibrary.Net.Dns
                                                         PopStack();
                                                         nameServers[nameServerIndex] = nameServers[nameServerIndex].Clone((answer.RDATA as DnsAAAARecordData).Address);
 
-                                                        for (int j = i + 1, k = 1; j < cacheResponse.Answer.Count; j++)
+                                                        //check for additional addresses and add name server entry at the end of the list to allow retrying with existing name servers in the ordered list
+                                                        for (int j = i + 1; j < cacheResponse.Answer.Count; j++)
                                                         {
                                                             answer = cacheResponse.Answer[j];
                                                             if (answer.Type == DnsResourceRecordType.AAAA)
-                                                                nameServers.Insert(nameServerIndex + k++, nameServers[nameServerIndex].Clone((answer.RDATA as DnsAAAARecordData).Address));
+                                                            {
+                                                                nameServers.Add(nameServers[nameServerIndex].Clone((answer.RDATA as DnsAAAARecordData).Address));
+
+                                                                if (referralLimit < MAX_NS_TO_QUERY_PER_REFERRAL)
+                                                                    referralLimit++; //increase to allow querying since within max referral limit
+                                                            }
                                                         }
 
                                                         break;
@@ -622,11 +652,17 @@ namespace TechnitiumLibrary.Net.Dns
                                                         PopStack();
                                                         nameServers[nameServerIndex] = nameServers[nameServerIndex].Clone((answer.RDATA as DnsARecordData).Address);
 
-                                                        for (int j = i + 1, k = 1; j < cacheResponse.Answer.Count; j++)
+                                                        //check for additional addresses and add name server entry at the end of the list to allow retrying with existing name servers in the ordered list
+                                                        for (int j = i + 1; j < cacheResponse.Answer.Count; j++)
                                                         {
                                                             answer = cacheResponse.Answer[j];
                                                             if (answer.Type == DnsResourceRecordType.A)
-                                                                nameServers.Insert(nameServerIndex + k++, nameServers[nameServerIndex].Clone((answer.RDATA as DnsARecordData).Address));
+                                                            {
+                                                                nameServers.Add(nameServers[nameServerIndex].Clone((answer.RDATA as DnsARecordData).Address));
+
+                                                                if (referralLimit < MAX_NS_TO_QUERY_PER_REFERRAL)
+                                                                    referralLimit++; //increase to allow querying since within max referral limit
+                                                            }
                                                         }
 
                                                         break;
@@ -813,7 +849,12 @@ namespace TechnitiumLibrary.Net.Dns
                                                 lastDSRecords = nextDSRecords;
                                                 nameServers = GetOrderedNameServersToPreferPerformance(nextNameServers, prioritizeOnesWithIPAddress, ipv6Mode);
                                                 nameServerIndex = 0;
+                                                referralLimit = Math.Min(nameServers.Count, MAX_NS_TO_QUERY_PER_REFERRAL);
                                                 lastResponse = null;
+
+                                                //add to async NS resolution task list to improve future resolution performance and to ensure all NS records are resolved for ML selection algo to work on all of them
+                                                if (asyncNsResolution)
+                                                    QueueForAsyncNsResolution(nextNameServers);
                                             }
                                         }
                                     }
@@ -923,6 +964,7 @@ namespace TechnitiumLibrary.Net.Dns
                     zoneCut = "";
                     nameServers = await GetRootServersUsingRootHintsAsync(cache, proxy, ipv6Mode, udpPayloadSize, dnssecValidation, retries, timeout, concurrency, cancellationToken);
                     nameServerIndex = 0;
+                    referralLimit = Math.Min(nameServers.Count, MAX_NS_TO_QUERY_PER_REFERRAL);
                     lastResponse = null;
                 }
 
@@ -936,8 +978,6 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     //query name servers one by one upto referral limit
-                    int referralLimit = Math.Min(nameServers.Count, MAX_NS_TO_QUERY_PER_REFERRAL);
-
                     for (; nameServerIndex < referralLimit; nameServerIndex++) //try next server loop
                     {
                         cancellationToken.ThrowIfCancellationRequested();
@@ -984,60 +1024,6 @@ namespace TechnitiumLibrary.Net.Dns
 
                             dnsClient = new DnsClient(resolvedNameServers);
                             dnsClient._concurrency = concurrency;
-
-                            if (ipv6Mode != IPv6Mode.Disabled)
-                            {
-                                //name server with only ipv4 glue requires adding another name server entry to attempt query for ipv6 support
-                                //find name server with no glue or no ipv6 glue and add additional name server entry to allow attempt over ipv6
-                                int nsCount = nameServers.Count;
-
-                                for (int i = 0; i < nsCount; i++)
-                                {
-                                    NameServerAddress nameServerWithIpv4Glue = nameServers[i];
-
-                                    if ((nameServerWithIpv4Glue.IPEndPoint is null) || (nameServerWithIpv4Glue.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
-                                        continue; //has no glue or ipv6 glue
-
-                                    bool foundNoOrIpv6Glue = false;
-
-                                    foreach (NameServerAddress nameServer in nameServers)
-                                    {
-                                        if (nameServerWithIpv4Glue.DomainEndPoint.Address.Equals(nameServer.DomainEndPoint.Address, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            if ((nameServer.IPEndPoint is null) || (nameServer.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
-                                            {
-                                                foundNoOrIpv6Glue = true;
-                                                break;
-                                            }
-                                        }
-                                    }
-
-                                    if (!foundNoOrIpv6Glue)
-                                    {
-                                        //add cloned name server address to allow future IPv6 address resolution if needed
-                                        NameServerAddress nameServerForIpv6 = nameServerWithIpv4Glue.Clone((IPEndPoint)null);
-
-                                        switch (ipv6Mode)
-                                        {
-                                            case IPv6Mode.Enabled:
-                                                nameServers.Insert(i + 1, nameServerForIpv6);
-                                                i++; //to skip inserted item
-                                                nsCount++; //to prevent skipping existing items in list
-                                                break;
-
-                                            case IPv6Mode.Preferred:
-                                                nameServers.Add(nameServerForIpv6);
-                                                break;
-
-                                            default:
-                                                throw new InvalidOperationException();
-                                        }
-
-                                        if ((referralLimit < nameServers.Count) && (referralLimit < MAX_NS_TO_QUERY_PER_REFERRAL))
-                                            referralLimit++; //to allow using the added name server
-                                    }
-                                }
-                            }
                         }
                         else
                         {
@@ -1114,22 +1100,41 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     if (!wasIPv4Attempted)
                                     {
-                                        switch (ipv6Mode)
+                                        bool hasIPv4Entry = false;
+
+                                        for (int i = nameServerIndex + 1; i < nameServers.Count; i++)
                                         {
-                                            case IPv6Mode.Enabled:
-                                                nameServers.Insert(nameServerIndex + 1, currentNameServer); //insert to allow immediate IPv4 address resolution attempt if needed
-                                                break;
+                                            NameServerAddress nextNameServer = nameServers[i];
 
-                                            case IPv6Mode.Preferred:
-                                                nameServers.Add(currentNameServer); //add to allow future IPv4 address resolution if needed
+                                            if (nextNameServer.DomainEndPoint.Address.Equals(currentNameServer.DomainEndPoint.Address, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                hasIPv4Entry = true;
                                                 break;
-
-                                            default:
-                                                throw new InvalidOperationException();
+                                            }
                                         }
 
-                                        if ((referralLimit < nameServers.Count) && (referralLimit < MAX_NS_TO_QUERY_PER_REFERRAL))
+                                        if (!hasIPv4Entry)
+                                        {
+                                            switch (ipv6Mode)
+                                            {
+                                                case IPv6Mode.Enabled:
+                                                    nameServers.Insert(nameServerIndex + 1, currentNameServer); //insert to allow immediate IPv4 address resolution attempt if needed
+                                                    break;
+
+                                                case IPv6Mode.Preferred:
+                                                    if (nameServers.Count > MAX_NS_TO_QUERY_PER_REFERRAL + nameServerIndex)
+                                                        nameServers.Insert(MAX_NS_TO_QUERY_PER_REFERRAL + nameServerIndex, currentNameServer); //insert to allow future IPv4 address resolution attempt if needed
+                                                    else
+                                                        nameServers.Add(currentNameServer); //add to allow future IPv4 address resolution attempt if needed
+
+                                                    break;
+
+                                                default:
+                                                    throw new InvalidOperationException();
+                                            }
+
                                             referralLimit++; //to allow using the added name server
+                                        }
                                     }
 
                                     PushStack(currentNameServer.DomainEndPoint.Address, DnsResourceRecordType.AAAA);
@@ -1407,11 +1412,17 @@ namespace TechnitiumLibrary.Net.Dns
                                                         PopStack();
                                                         nameServers[nameServerIndex] = nameServers[nameServerIndex].Clone((answer.RDATA as DnsAAAARecordData).Address);
 
-                                                        for (int j = i + 1, k = 1; j < response.Answer.Count; j++)
+                                                        //check for additional addresses and add name server entry at the end of the list to allow retrying with existing name servers in the ordered list
+                                                        for (int j = i + 1; j < response.Answer.Count; j++)
                                                         {
                                                             answer = response.Answer[j];
                                                             if (answer.Type == DnsResourceRecordType.AAAA)
-                                                                nameServers.Insert(nameServerIndex + k++, nameServers[nameServerIndex].Clone((answer.RDATA as DnsAAAARecordData).Address));
+                                                            {
+                                                                nameServers.Add(nameServers[nameServerIndex].Clone((answer.RDATA as DnsAAAARecordData).Address));
+
+                                                                if (referralLimit < MAX_NS_TO_QUERY_PER_REFERRAL)
+                                                                    referralLimit++; //increase to allow querying since within max referral limit
+                                                            }
                                                         }
 
                                                         goto resolverLoop;
@@ -1420,11 +1431,17 @@ namespace TechnitiumLibrary.Net.Dns
                                                         PopStack();
                                                         nameServers[nameServerIndex] = nameServers[nameServerIndex].Clone((answer.RDATA as DnsARecordData).Address);
 
-                                                        for (int j = i + 1, k = 1; j < response.Answer.Count; j++)
+                                                        //check for additional addresses and add name server entry at the end of the list to allow retrying with existing name servers in the ordered list
+                                                        for (int j = i + 1; j < response.Answer.Count; j++)
                                                         {
                                                             answer = response.Answer[j];
                                                             if (answer.Type == DnsResourceRecordType.A)
-                                                                nameServers.Insert(nameServerIndex + k++, nameServers[nameServerIndex].Clone((answer.RDATA as DnsARecordData).Address));
+                                                            {
+                                                                nameServers.Add(nameServers[nameServerIndex].Clone((answer.RDATA as DnsARecordData).Address));
+
+                                                                if (referralLimit < MAX_NS_TO_QUERY_PER_REFERRAL)
+                                                                    referralLimit++; //increase to allow querying since within max referral limit
+                                                            }
                                                         }
 
                                                         goto resolverLoop;
@@ -1643,28 +1660,13 @@ namespace TechnitiumLibrary.Net.Dns
                                                 lastDSRecords = nextDSRecords;
                                                 nameServers = GetOrderedNameServersToPreferPerformance(nextNameServers, prioritizeOnesWithIPAddress, ipv6Mode);
                                                 nameServerIndex = 0;
+                                                referralLimit = Math.Min(nameServers.Count, MAX_NS_TO_QUERY_PER_REFERRAL);
                                                 hopCount++;
                                                 lastResponse = null; //reset last response for current zone cut
 
-                                                //add to async NS resolution task list
+                                                //add to async NS resolution task list to improve future resolution performance and to ensure all NS records are resolved for ML selection algo to work on all of them
                                                 if (asyncNsResolution)
-                                                {
-                                                    int maxNsResolutions = Math.Min(nextNameServers.Count, MAX_ASYNC_NS_RESOLUTIONS_PER_REFERRAL);
-
-                                                    foreach (NameServerAddress nextNameServer in nextNameServers)
-                                                    {
-                                                        if (nextNameServer.IPEndPoint is null)
-                                                        {
-                                                            if (asyncNsResolutionTasks.Add(nextNameServer.DomainEndPoint.Address.ToLowerInvariant()))
-                                                            {
-                                                                maxNsResolutions--;
-
-                                                                if (maxNsResolutions < 1)
-                                                                    break;
-                                                            }
-                                                        }
-                                                    }
-                                                }
+                                                    QueueForAsyncNsResolution(nextNameServers);
 
                                                 goto resolverLoop;
                                             }
@@ -1942,10 +1944,12 @@ namespace TechnitiumLibrary.Net.Dns
                             cache.CacheResponse(failureResponse);
                         }
 
-                        if (!context.CanProceedWithResolution())
-                            throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for name servers [" + nameServers.Join() + "] at delegation " + zoneCut + ".", lastException);
+                        HashSet<NameServerAddress> uniqueNameServers = [.. nameServers];
 
-                        throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': no valid response from name servers [" + nameServers.Join() + "] at delegation " + zoneCut + ".", lastException);
+                        if (!context.CanProceedWithResolution())
+                            throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for name servers [" + uniqueNameServers.Join(maxCount: referralLimit) + "] at delegation " + zoneCut + ".", lastException);
+
+                        throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': no valid response from name servers [" + uniqueNameServers.Join(maxCount: referralLimit) + "] at delegation " + zoneCut + ".", lastException);
                     }
                     else
                     {
@@ -2692,12 +2696,45 @@ namespace TechnitiumLibrary.Net.Dns
             return 0;
         }
 
+        private static int CompareNameServersToPreferIPv4(NameServerAddress x, NameServerAddress y)
+        {
+            if ((x.IPEndPoint is null) || (y.IPEndPoint is null))
+                return 0;
+
+            if ((x.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6) && (y.IPEndPoint.AddressFamily == AddressFamily.InterNetwork))
+                return 1;
+
+            if ((x.IPEndPoint.AddressFamily == AddressFamily.InterNetwork) && (y.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6))
+                return -1;
+
+            return 0;
+        }
+
         private static int CompareNameServersToPreferPerformance(NameServerAddress x, NameServerAddress y)
         {
             double v1 = x.Metadata.GetNetRTT();
             double v2 = y.Metadata.GetNetRTT();
 
             return v1.CompareTo(v2);
+        }
+
+        public static void SortNameServersToPreferIPv6(List<NameServerAddress> nameServers)
+        {
+            //sort name servers to prefer IPv6
+            nameServers.Sort(CompareNameServersToPreferIPv6);
+
+            int referralLimit = Math.Min(nameServers.Count, MAX_NS_TO_QUERY_PER_REFERRAL);
+            if (nameServers.Count > referralLimit)
+            {
+                //ensure the second half of the referral limit is IPv4 name servers
+                int referralLimitForIpv6 = Convert.ToInt32(Math.Ceiling(referralLimit / 2.0));
+
+                //sort name servers above ipv6 referral limit to prefer IPv4
+                nameServers.Sort(referralLimitForIpv6, nameServers.Count - referralLimitForIpv6, _compareNameServersToPreferIPv4Comparer);
+
+                //sort name servers above referral limit to again prefer ipv6
+                nameServers.Sort(referralLimit, nameServers.Count - referralLimit, _compareNameServersToPreferIPv6Comparer);
+            }
         }
 
         private static List<NameServerAddress> GetOrderedNameServersToPreferPerformance(IReadOnlyCollection<NameServerAddress> nameServers, bool prioritizeOnesWithIPAddress, IPv6Mode ipv6Mode)
@@ -2717,7 +2754,7 @@ namespace TechnitiumLibrary.Net.Dns
                 nameServersList.Sort(CompareNameServersToPreferOnesWithIPAddress); //sort name servers to prioritize ones with IP address
 
             if (ipv6Mode == IPv6Mode.Preferred)
-                nameServersList.Sort(CompareNameServersToPreferIPv6); //sort name servers to prefer IPv6
+                SortNameServersToPreferIPv6(nameServersList);
 
             return nameServersList;
         }
@@ -2792,6 +2829,9 @@ namespace TechnitiumLibrary.Net.Dns
 
             List<NameServerAddress> rootServers = NameServerAddress.GetNameServersFromResponse(response, ipv6Mode, true);
             rootServers.Shuffle();
+
+            if (ipv6Mode == IPv6Mode.Preferred)
+                SortNameServersToPreferIPv6(rootServers);
 
             return rootServers;
         }
@@ -3931,7 +3971,7 @@ namespace TechnitiumLibrary.Net.Dns
             return false;
         }
 
-        private static DnsDatagram SanitizeResponseAnswerForQName(DnsDatagram response)
+        internal static DnsDatagram SanitizeResponseAnswerForQName(DnsDatagram response)
         {
             if (response.Answer.Count == 0)
                 return response;
@@ -5553,11 +5593,12 @@ namespace TechnitiumLibrary.Net.Dns
             public readonly IReadOnlyList<DnsResourceRecord> LastDSRecords;
             public readonly IList<NameServerAddress> NameServers;
             public readonly int NameServerIndex;
+            public readonly int ReferralLimit;
             public readonly int HopCount;
             public readonly DnsDatagram LastResponse;
             public readonly Exception LastException;
 
-            public ResolverData(DnsQuestionRecord question, string zoneCut, bool dnssecValidationState, IReadOnlyList<DnsResourceRecord> lastDSRecords, IList<NameServerAddress> nameServers, int nameServerIndex, int hopCount, DnsDatagram lastResponse, Exception lastException)
+            public ResolverData(DnsQuestionRecord question, string zoneCut, bool dnssecValidationState, IReadOnlyList<DnsResourceRecord> lastDSRecords, IList<NameServerAddress> nameServers, int nameServerIndex, int referralLimit, int hopCount, DnsDatagram lastResponse, Exception lastException)
             {
                 Question = question;
                 ZoneCut = zoneCut;
@@ -5565,6 +5606,7 @@ namespace TechnitiumLibrary.Net.Dns
                 LastDSRecords = lastDSRecords;
                 NameServers = nameServers;
                 NameServerIndex = nameServerIndex;
+                ReferralLimit = referralLimit;
                 HopCount = hopCount;
                 LastResponse = lastResponse;
                 LastException = lastException;
