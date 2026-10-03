@@ -484,7 +484,7 @@ namespace TechnitiumLibrary.Net.Dns
             return nameServerAddress;
         }
 
-        public static List<NameServerAddress> GetNameServersFromResponse(DnsDatagram response, IPv6Mode ipv6Mode, bool filterLoopbackAddresses)
+        internal static List<NameServerAddress> GetNameServersFromResponse(DnsDatagram response, IPv6Mode ipv6Mode, bool filterLoopbackAddresses)
         {
             if (response.Question.Count != 1)
                 return [];
@@ -528,7 +528,8 @@ namespace TechnitiumLibrary.Net.Dns
                         if (IPAddress.TryParse(nsRecord.NameServer, out _) || !DnsClient.IsDomainNameValid(nsRecord.NameServer) || (nsRecord.NameServer.Length == 0))
                             continue; //skip misconfigured NS record
 
-                        IPEndPoint endPoint = null;
+                        bool ipv4GlueFound = false;
+                        bool ipv6GlueFound = false;
 
                         //find ip address of authoritative name server from additional records
                         foreach (DnsResourceRecord rr in response.Additional)
@@ -538,31 +539,43 @@ namespace TechnitiumLibrary.Net.Dns
                                 switch (rr.Type)
                                 {
                                     case DnsResourceRecordType.A:
-                                        endPoint = new IPEndPoint(((DnsARecordData)rr.RDATA).Address, 53);
-
-                                        if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
-                                            continue;
-
-                                        nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint) { _metadata = nsRecord.Metadata });
-                                        break;
-
-                                    case DnsResourceRecordType.AAAA:
-                                        if (ipv6Mode != IPv6Mode.Disabled)
                                         {
-                                            endPoint = new IPEndPoint(((DnsAAAARecordData)rr.RDATA).Address, 53);
+                                            IPEndPoint endPoint = new IPEndPoint(((DnsARecordData)rr.RDATA).Address, 53);
 
                                             if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
                                                 continue;
 
                                             nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint) { _metadata = nsRecord.Metadata });
+                                            ipv4GlueFound = true;
+                                        }
+                                        break;
+
+                                    case DnsResourceRecordType.AAAA:
+                                        if (ipv6Mode != IPv6Mode.Disabled)
+                                        {
+                                            IPEndPoint endPoint = new IPEndPoint(((DnsAAAARecordData)rr.RDATA).Address, 53);
+
+                                            if (filterLoopbackAddresses && IPAddress.IsLoopback(endPoint.Address))
+                                                continue;
+
+                                            nameServers.Add(new NameServerAddress(nsRecord.NameServer, endPoint) { _metadata = nsRecord.Metadata });
+                                            ipv6GlueFound = true;
                                         }
                                         break;
                                 }
                             }
                         }
 
-                        if (endPoint is null)
-                            nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NameServer, 53)) { _metadata = nsRecord.Metadata });
+                        if (ipv6Mode == IPv6Mode.Disabled)
+                        {
+                            if (!ipv4GlueFound)
+                                nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NameServer, 53)) { _metadata = nsRecord.Metadata });
+                        }
+                        else
+                        {
+                            if (!ipv4GlueFound || !ipv6GlueFound)
+                                nameServers.Add(new NameServerAddress(new DomainEndPoint(nsRecord.NameServer, 53)) { _metadata = nsRecord.Metadata });
+                        }
                     }
                 }
             }
