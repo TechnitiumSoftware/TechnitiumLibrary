@@ -4037,7 +4037,7 @@ namespace TechnitiumLibrary.Net.Dns
                 while ((qName is not null) && (newAnswers.Count < response.Answer.Count));
             }
 
-            return response.Clone(newAnswers);
+            return response.CloneInternal(answer: newAnswers);
         }
 
         private static DnsDatagram SanitizeResponseAnswerForZoneCut(DnsDatagram response, string zoneCut)
@@ -4072,7 +4072,7 @@ namespace TechnitiumLibrary.Net.Dns
                     newAnswers.Add(answer);
             }
 
-            return response.Clone(newAnswers);
+            return response.CloneInternal(answer: newAnswers);
         }
 
         private static DnsDatagram SanitizeResponseAuthorityForZoneCut(DnsDatagram response, string zoneCut)
@@ -4110,7 +4110,7 @@ namespace TechnitiumLibrary.Net.Dns
                     newAuthority.Add(authority);
             }
 
-            return response.Clone(null, newAuthority);
+            return response.CloneInternal(authority: newAuthority);
         }
 
         private static DnsDatagram SanitizeResponseAdditionalForZoneCut(DnsDatagram response, string zoneCut)
@@ -4154,7 +4154,7 @@ namespace TechnitiumLibrary.Net.Dns
                     newAdditional.Add(additional);
             }
 
-            return response.Clone(null, null, newAdditional);
+            return response.CloneInternal(additional: newAdditional);
         }
 
         private static DnsDatagram SanitizeResponseAfterDnssecValidation(DnsDatagram response)
@@ -4209,7 +4209,7 @@ namespace TechnitiumLibrary.Net.Dns
             if ((newAnswer is null) && (newAuthority is null))
                 return response;
 
-            return response.Clone(newAnswer, newAuthority);
+            return response.CloneInternal(answer: newAnswer, authority: newAuthority);
         }
 
         private static DnsDatagram GetMinimalResponseWithoutNSAndGlue(DnsDatagram response)
@@ -4350,7 +4350,7 @@ namespace TechnitiumLibrary.Net.Dns
                     additional = newAdditional;
                 }
 
-                return response.Clone(null, authority, additional);
+                return response.CloneInternal(authority: authority, additional: additional);
             }
 
             return response;

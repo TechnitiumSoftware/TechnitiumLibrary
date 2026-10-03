@@ -634,6 +634,48 @@ namespace TechnitiumLibrary.Net.Dns
             return datagram;
         }
 
+        internal DnsDatagram CloneInternal(IReadOnlyList<DnsQuestionRecord> question = null, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
+        {
+            if (question is null)
+                question = _question;
+
+            if (answer is null)
+                answer = _answer;
+
+            if (authority is null)
+                authority = _authority;
+
+            if (additional is null)
+                additional = _additional;
+
+            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, question, answer, authority, additional);
+
+            datagram._metadata = _metadata;
+
+            if (additional is null)
+                datagram._edns = _edns;
+            else if (additional.Count == 0)
+                datagram._edns = null;
+            else
+                datagram._edns = DnsDatagramEdns.ReadOPTFrom(additional, _RCODE);
+
+            datagram._dnsClientExtendedErrors = _dnsClientExtendedErrors;
+            datagram._shadowHideECSOption = _shadowHideECSOption;
+            datagram._shadowECSOption = _shadowECSOption;
+
+            datagram._size = _size;
+            datagram._parsedDatagramUnsigned = _parsedDatagramUnsigned;
+
+            datagram._Z = _Z;
+
+            datagram._parsingException = _parsingException;
+            datagram._nextDatagram = _nextDatagram;
+
+            datagram.Tag = Tag;
+
+            return datagram;
+        }
+
         internal void AddDnsClientExtendedError(EDnsExtendedDnsErrorCode errorCode, string extraText = null)
         {
             AddDnsClientExtendedError(new EDnsExtendedDnsErrorOptionData(errorCode, extraText));
@@ -689,51 +731,14 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null, IReadOnlyList<DnsQuestionRecord> question = null)
+        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
         {
-            if (question is null)
-                question = _question;
-
-            if (answer is null)
-                answer = _answer;
-
-            if (authority is null)
-                authority = _authority;
-
-            if (additional is null)
-                additional = _additional;
-
-            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, question, answer, authority, additional);
-
-            datagram._metadata = _metadata;
-
-            if (additional is null)
-                datagram._edns = _edns;
-            else if (additional.Count == 0)
-                datagram._edns = null;
-            else
-                datagram._edns = DnsDatagramEdns.ReadOPTFrom(additional, _RCODE);
-
-            datagram._dnsClientExtendedErrors = _dnsClientExtendedErrors;
-            datagram._shadowHideECSOption = _shadowHideECSOption;
-            datagram._shadowECSOption = _shadowECSOption;
-
-            datagram._size = _size;
-            datagram._parsedDatagramUnsigned = _parsedDatagramUnsigned;
-
-            datagram._Z = _Z;
-
-            datagram._parsingException = _parsingException;
-            datagram._nextDatagram = _nextDatagram;
-
-            datagram.Tag = Tag;
-
-            return datagram;
+            return CloneInternal(answer: answer, authority: authority, additional: additional);
         }
 
         public DnsDatagram CloneWithMetadata(NameServerAddress server, double rtt = 0.0)
         {
-            DnsDatagram datagram = Clone();
+            DnsDatagram datagram = CloneInternal();
 
             datagram._metadata = new DnsDatagramMetadata(server, _size, rtt);
 
@@ -771,7 +776,7 @@ namespace TechnitiumLibrary.Net.Dns
                 newAdditional = newAdditionalList;
             }
 
-            return Clone(null, null, newAdditional);
+            return CloneInternal(additional: newAdditional);
         }
 
         public DnsDatagram CloneWithoutEDns()
@@ -800,7 +805,7 @@ namespace TechnitiumLibrary.Net.Dns
                 newAdditional = newAdditionalList;
             }
 
-            return Clone(null, null, newAdditional);
+            return CloneInternal(additional: newAdditional);
         }
 
         public DnsDatagram CloneWithoutEDnsClientSubnet()
@@ -837,7 +842,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             newAdditional.Add(DnsDatagramEdns.GetOPTFor(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, options));
 
-            return Clone(null, null, newAdditional);
+            return CloneInternal(additional: newAdditional);
         }
 
         public DnsDatagram CloneWithoutGlueRecords()
@@ -858,12 +863,12 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            return Clone(null, null, newAdditional);
+            return CloneInternal(additional: newAdditional);
         }
 
         public DnsDatagram CloneAndAddDnsClientExtendedErrorsFrom(DnsDatagram datagram)
         {
-            DnsDatagram finalDatagram = Clone();
+            DnsDatagram finalDatagram = CloneInternal();
 
             finalDatagram.AddDnsClientExtendedErrorsFrom(datagram);
 
