@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -257,7 +257,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 //serialize request
                 int sendBufferSize;
 
-                if (request.EDNS is null)
+                if ((request.EDNS is null) || (request.EDNS.UdpPayloadSize < 512))
                     sendBufferSize = 512;
                 else if (request.EDNS.UdpPayloadSize > DnsDatagram.EDNS_MAX_UDP_PAYLOAD_SIZE)
                     sendBufferSize = DnsDatagram.EDNS_MAX_UDP_PAYLOAD_SIZE;
