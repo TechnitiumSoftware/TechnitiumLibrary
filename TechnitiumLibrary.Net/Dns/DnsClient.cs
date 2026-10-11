@@ -379,13 +379,12 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static async Task<DnsDatagram> RecursiveResolveAsync(DnsQuestionRecord question, IDnsCache cache = null, NetProxy proxy = null, IPv6Mode ipv6Mode = IPv6Mode.Disabled, ushort udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE, bool randomizeName = false, bool qnameMinimization = false, bool dnssecValidation = false, NetworkAddress eDnsClientSubnet = null, int retries = 2, int timeout = 2000, int concurrency = 2, int maxStackCount = 16, bool minimalResponse = false, bool asyncNsResolution = false, List<DnsDatagram> rawResponses = null, ResolverContext context = null, CancellationToken cancellationToken = default)
         {
-            if (context is null)
-                context = new ResolverContext();
-            else if (!context.CanProceedWithResolution())
-                throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ").");
-
             if ((udpPayloadSize < 512) && (dnssecValidation || (eDnsClientSubnet is not null)))
                 throw new ArgumentOutOfRangeException(nameof(udpPayloadSize), "EDNS cannot be disabled by setting UDP payload size to less than 512 when DNSSEC validation or EDNS Client Subnet is enabled.");
+
+            if (context is null)
+                context = new ResolverContext();
+
 
             EDnsOption[] eDnsClientSubnetOption = EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(eDnsClientSubnet);
 
@@ -584,19 +583,19 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     //cache this as failure
-                    DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+                    DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, [question]);
 
                     if (extendedDnsErrors.Count > 0)
                         failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
 
-                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (MaxStackCount) for " + question.ToString());
+                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (MaxStackCount) for " + question.ToString() + " at delegation " + zoneCut + ".");
 
                     if (eDnsClientSubnet is not null)
                         failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
 
                     cache.CacheResponse(failureResponse);
 
-                    throw new DnsClientException("DnsClient recursive resolution exceeded the maximum stack count for domain: " + question.Name.ToLowerInvariant());
+                    throw new DnsClientResolverLimitReachedException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': Resolver limit reached (MaxStackCount) at delegation " + zoneCut + ".", lastException);
                 }
 
                 //query cache
@@ -982,9 +981,6 @@ namespace TechnitiumLibrary.Net.Dns
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        if (!context.CanProceedWithResolution())
-                            break;
-
                         int currentNameServerIndex = nameServerIndex;
 
                         //attempt to find name servers that are resolved for concurrent querying
@@ -1322,6 +1318,11 @@ namespace TechnitiumLibrary.Net.Dns
                             //continue for loop to next name server since current name server may be misconfigured
                             lastException = ex;
                             continue; //try next name server
+                        }
+                        catch (DnsClientResolverLimitReachedException ex)
+                        {
+                            lastException = ex;
+                            break; //resolver limit reached
                         }
                         catch (Exception ex)
                         {
@@ -1797,6 +1798,29 @@ namespace TechnitiumLibrary.Net.Dns
                         }
                     }
 
+                    if (context.MaxOutboundRequests < 1)
+                    {
+                        while (resolverStack.Count > 0)
+                        {
+                            PopStack();
+                        }
+
+                        //cache as failure
+                        DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, [question]);
+
+                        if (extendedDnsErrors.Count > 0)
+                            failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
+
+                        failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (MaxOutboundRequests) for " + question.ToString() + " at delegation " + zoneCut + ".");
+
+                        if (eDnsClientSubnet is not null)
+                            failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
+
+                        cache.CacheResponse(failureResponse);
+
+                        throw new DnsClientResolverLimitReachedException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': Resolver limit reached (MaxOutboundRequests) at delegation " + zoneCut + ".", lastException);
+                    }
+
                     //no successfull response was received from any of the name servers
                     if (resolverStack.Count == 0)
                     {
@@ -1817,13 +1841,10 @@ namespace TechnitiumLibrary.Net.Dns
                         if (lastException is null)
                         {
                             //cache as failure
-                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, [question]);
 
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
-
-                            if (!context.CanProceedWithResolution())
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
 
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No valid response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
 
@@ -1847,9 +1868,6 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 failureResponse.AddDnsClientExtendedErrorsFrom(ex.Response);
 
-                                if (!context.CanProceedWithResolution())
-                                    failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
-
                                 if (eDnsClientSubnet is not null)
                                     failureResponse.SetShadowEDnsClientSubnetOption(new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, eDnsClientSubnet.PrefixLength, eDnsClientSubnet.Address));
 
@@ -1861,13 +1879,10 @@ namespace TechnitiumLibrary.Net.Dns
                         else if (lastException is DnsClientNoResponseException)
                         {
                             //cache as failure
-                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, [question]);
 
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
-
-                            if (!context.CanProceedWithResolution())
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
 
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "No valid response from name servers for " + question.ToString() + " at delegation " + zoneCut + ".");
 
@@ -1879,13 +1894,10 @@ namespace TechnitiumLibrary.Net.Dns
                         else if (lastException is SocketException ex2)
                         {
                             //cache as failure
-                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, [question]);
 
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
-
-                            if (!context.CanProceedWithResolution())
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
 
                             if (ex2.SocketErrorCode == SocketError.TimedOut)
                                 failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NoReachableAuthority, "Request timed out for " + question.ToString() + " at delegation " + zoneCut + ".");
@@ -1900,13 +1912,10 @@ namespace TechnitiumLibrary.Net.Dns
                         else if (lastException is IOException ex3)
                         {
                             //cache as failure
-                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, [question]);
 
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
-
-                            if (!context.CanProceedWithResolution())
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
 
                             if (ex3.InnerException is SocketException ex3a)
                             {
@@ -1928,13 +1937,10 @@ namespace TechnitiumLibrary.Net.Dns
                         else
                         {
                             //cache as failure
-                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, new DnsQuestionRecord[] { question });
+                            DnsDatagram failureResponse = new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, false, false, false, false, DnsResponseCode.ServerFailure, [question]);
 
                             if (extendedDnsErrors.Count > 0)
                                 failureResponse.AddDnsClientExtendedErrors(extendedDnsErrors);
-
-                            if (!context.CanProceedWithResolution())
-                                failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.ResolverLimitReached, "Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for " + question.ToString());
 
                             failureResponse.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.Other, "Resolver exception for " + question.ToString() + ": " + lastException.Message);
 
@@ -1945,9 +1951,6 @@ namespace TechnitiumLibrary.Net.Dns
                         }
 
                         HashSet<NameServerAddress> uniqueNameServers = [.. nameServers];
-
-                        if (!context.CanProceedWithResolution())
-                            throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ") for name servers [" + uniqueNameServers.Join(maxCount: referralLimit) + "] at delegation " + zoneCut + ".", lastException);
 
                         throw new DnsClientNoResponseException("DnsClient failed to recursively resolve the request '" + question.ToString() + "': no valid response from name servers [" + uniqueNameServers.Join(maxCount: referralLimit) + "] at delegation " + zoneCut + ".", lastException);
                     }
@@ -2836,7 +2839,7 @@ namespace TechnitiumLibrary.Net.Dns
             return rootServers;
         }
 
-        private static async Task DnssecValidateResponseAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, ResolverContext context, CancellationToken cancellationToken = default)
+        private static async Task DnssecValidateResponseAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, ResolverContext context = null, CancellationToken cancellationToken = default)
         {
             //find current DNSKEY
             IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords = await GetDnsKeyForAsync(lastDSRecords, dnsClient, cache, udpPayloadSize, context, cancellationToken);
@@ -2925,12 +2928,12 @@ namespace TechnitiumLibrary.Net.Dns
                                             break;
 
                                         case DnssecProofOfNonExistence.TooManyNsec3HashOperations:
-                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.TooManyCryptoValidations, "Attack detected! Too many NSEC3 hash operations for " + rrsigRecord.Name.ToLowerInvariant() + " " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString());
-                                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to too many NSEC3 hash operations for owner name: " + rrsigRecord.Name.ToLowerInvariant() + "/" + typeCovered.ToString(), response);
+                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.TooManyCryptoValidations, "Attack detected! Too many NSEC3 hash operations for " + rrsigRecord.Name.ToLowerInvariant() + ". " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString());
+                                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to too many NSEC3 hash operations for owner name: " + rrsigRecord.Name.ToLowerInvariant() + ". " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString(), response);
 
                                         default:
-                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (Wildcard) for " + rrsigRecord.Name.ToLowerInvariant() + " " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString());
-                                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + rrsigRecord.Name.ToLowerInvariant() + "/" + typeCovered.ToString(), response);
+                                            response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (Wildcard) for " + rrsigRecord.Name.ToLowerInvariant() + ". " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString());
+                                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (Wildcard) for owner name: " + rrsigRecord.Name.ToLowerInvariant() + ". " + typeCovered.ToString() + " " + rrsigRecord.Class.ToString(), response);
                                     }
                                 }
                             }
@@ -2971,11 +2974,11 @@ namespace TechnitiumLibrary.Net.Dns
 
                                             case DnssecProofOfNonExistence.TooManyNsec3HashOperations:
                                                 response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.TooManyCryptoValidations, "Attack detected! Too many NSEC3 hash operations for " + qname + ". " + question.Type.ToString() + " " + question.Class.ToString());
-                                                throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to too many NSEC3 hash operations for owner name: " + qname + "/" + question.Type.ToString(), response);
+                                                throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to too many NSEC3 hash operations for owner name: " + qname + ". " + question.Type.ToString() + " " + question.Class.ToString(), response);
 
                                             default:
                                                 response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (No Data) for " + qname + ". " + question.Type.ToString() + " " + question.Class.ToString());
-                                                throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + qname + "/" + question.Type.ToString(), response);
+                                                throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + qname + ". " + question.Type.ToString() + " " + question.Class.ToString(), response);
                                         }
                                     }
                                     break;
@@ -3007,7 +3010,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     if (response.Answer.Count == 0)
                                     {
                                         response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (No Data) for " + question.ToString());
-                                        throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name.ToLowerInvariant() + "/" + question.Type.ToString(), response);
+                                        throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.ToString(), response);
                                     }
 
                                     break;
@@ -3022,7 +3025,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 break;
 
                             response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (No Data) for " + question.ToString());
-                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.Name.ToLowerInvariant() + "/" + question.Type.ToString(), response);
+                            throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (No Data) for owner name: " + question.ToString(), response);
                         }
 
                         break;
@@ -3052,12 +3055,12 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
 
                                 case DnssecProofOfNonExistence.TooManyNsec3HashOperations:
-                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.TooManyCryptoValidations, "Attack detected! Too many NSEC3 hash operations for " + qname);
-                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to too many NSEC3 hash operations for owner name: " + qname, response);
+                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.TooManyCryptoValidations, "Attack detected! Too many NSEC3 hash operations for " + qname + ". " + question.Type.ToString() + " " + question.Class.ToString());
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to too many NSEC3 hash operations for owner name: " + qname + ". " + question.Type.ToString() + " " + question.Class.ToString(), response);
 
                                 default:
-                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (NX Domain) for " + qname);
-                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (NX Domain) for owner name: " + qname, response);
+                                    response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.NSECMissing, "Attack detected! Missing non-existence proof (NX Domain) for " + qname + ". " + question.Type.ToString() + " " + question.Class.ToString());
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed as the response was unable to prove non-existence (NX Domain) for owner name: " + qname + ". " + question.Type.ToString() + " " + question.Class.ToString(), response);
                             }
                         }
                         break;
@@ -3070,7 +3073,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        private static async Task DnssecValidateSignatureAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones, ResolverContext context)
+        private static async Task DnssecValidateSignatureAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones, ResolverContext context = null)
         {
             //check if any DNSKEY with a supported algorithm is available
             if (!DnsDNSKEYRecordData.IsAnyDnssecAlgorithmSupported(dnsKeyRecords))
@@ -3098,23 +3101,23 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (response.Answer.Count > 0)
             {
-                await DnssecValidateSignatureAsync(response, response.Answer, dnsKeyRecords, unsignedZones, context, false, false);
+                await DnssecValidateSignatureAsync(response, response.Answer, dnsKeyRecords, unsignedZones, false, false, context);
 
                 if (response.Question[0].Type == DnsResourceRecordType.DNSKEY)
                     dnsKeyRecords = response.Answer; //use all DNSKEYs for validating authority & additional sections
             }
 
             if (response.Authority.Count > 0)
-                await DnssecValidateSignatureAsync(response, response.Authority, dnsKeyRecords, unsignedZones, context, true, false);
+                await DnssecValidateSignatureAsync(response, response.Authority, dnsKeyRecords, unsignedZones, true, false, context);
 
             if (response.Additional.Count > 1) //OPT record always exists
-                await DnssecValidateSignatureAsync(response, response.Additional, dnsKeyRecords, unsignedZones, context, false, true);
+                await DnssecValidateSignatureAsync(response, response.Additional, dnsKeyRecords, unsignedZones, false, true, context);
 
             //update all record status
             response.SetDnssecStatusForAllRecords(DnssecStatus.Indeterminate);
         }
 
-        private static async Task DnssecValidateSignatureAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones, ResolverContext context, bool isAuthoritySection, bool isAdditionalSection)
+        private static async Task DnssecValidateSignatureAsync(DnsDatagram response, IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, IReadOnlyList<string> unsignedZones, bool isAuthoritySection, bool isAdditionalSection, ResolverContext context = null)
         {
             Dictionary<string, Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>> groupedRecords = DnsResourceRecord.GroupRecords(records, true);
 
@@ -3165,12 +3168,6 @@ namespace TechnitiumLibrary.Net.Dns
                     //find RRSIG for current RRSET
                     foreach (DnsResourceRecord rrsigRecord in records)
                     {
-                        if (!context.CanProceedWithResolution())
-                        {
-                            lastExtendedDnsErrorCode = EDnsExtendedDnsErrorCode.TooManyCryptoValidations;
-                            break;
-                        }
-
                         if (rrsigRecord.Type != DnsResourceRecordType.RRSIG)
                             continue;
 
@@ -3188,26 +3185,29 @@ namespace TechnitiumLibrary.Net.Dns
                                 continue;
 
                             //KeyTrap mitigation
-                            if (context.MaxCryptoValidations < 1)
+                            if (context is not null)
                             {
-                                if (context.MaxCryptoSuspensions <= 1)
+                                if (context.MaxCryptoValidations < 1)
                                 {
-                                    lastExtendedDnsErrorCode = EDnsExtendedDnsErrorCode.TooManyCryptoValidations;
-                                    break;
+                                    if (context.MaxCryptoSuspensions <= 1)
+                                    {
+                                        lastExtendedDnsErrorCode = EDnsExtendedDnsErrorCode.TooManyCryptoValidations;
+                                        break; //resolver limit reached
+                                    }
+
+                                    context.DecrementMaxCryptoSuspensions();
+
+                                    //suspend current task by yielding
+                                    await Task.Yield();
+
+                                    context.ResetMaxCryptoValidations();
                                 }
 
-                                context.DecrementMaxCryptoSuspensions();
-
-                                //suspend current task by yielding
-                                await Task.Yield();
-
-                                context.ResetMaxCryptoValidations();
+                                context.DecrementMaxCryptoValidations();
                             }
 
-                            context.DecrementMaxCryptoValidations();
-
                             //validate records
-                            if (rrsig.IsSignatureValid(rrset.Value, dnsKeyRecords, context, out EDnsExtendedDnsErrorCode extendedDnsErrorCode))
+                            if (rrsig.IsSignatureValid(rrset.Value, dnsKeyRecords, out EDnsExtendedDnsErrorCode extendedDnsErrorCode, context))
                             {
                                 foundValidSignature = true;
 
@@ -3239,7 +3239,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 }
 
                                 if (extendedDnsErrorCode == EDnsExtendedDnsErrorCode.TooManyCryptoValidations)
-                                    break;
+                                    break; //resolver limit reached
                             }
                         }
                     }
@@ -3269,7 +3269,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, "Attack detected! " + ownerName.ToLowerInvariant() + " " + rrsetType + " " + rrsetClass.ToString());
 
                                 if (!isAdditionalSection)
-                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to invalid signature [" + lastExtendedDnsErrorCode.ToString() + "] for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to invalid signature [" + lastExtendedDnsErrorCode.ToString() + "] for owner name: " + ownerName.ToLowerInvariant() + ". " + rrsetType + " " + rrsetClass, response);
 
                                 break;
 
@@ -3281,7 +3281,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 response.AddDnsClientExtendedError(EDnsExtendedDnsErrorCode.RRSIGsMissing, "Attack detected! Missing RRSIG with a supported algorithm for " + ownerName.ToLowerInvariant() + " " + rrsetType + " " + rrsetClass.ToString());
 
                                 if (!isAdditionalSection)
-                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due missing RRSIG with a supported algorithm for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due missing RRSIG with a supported algorithm for owner name: " + ownerName.ToLowerInvariant() + ". " + rrsetType + " " + rrsetClass, response);
 
                                 break;
 
@@ -3329,9 +3329,9 @@ namespace TechnitiumLibrary.Net.Dns
                                     foreach (DnsResourceRecord record in rrset.Value)
                                         record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                    response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, "Attack detected! " + ownerName.ToLowerInvariant() + "/" + rrsetType);
+                                    response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, "Attack detected! " + ownerName.ToLowerInvariant() + ". " + rrsetType + " " + rrsetClass);
 
-                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to missing RRSIG for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to missing RRSIG for owner name: " + ownerName.ToLowerInvariant() + ". " + rrsetType + " " + rrsetClass, response);
                                 }
 
                                 break;
@@ -3340,10 +3340,10 @@ namespace TechnitiumLibrary.Net.Dns
                                 foreach (DnsResourceRecord record in rrset.Value)
                                     record.SetDnssecStatus(DnssecStatus.Bogus);
 
-                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, "Attack detected! " + ownerName.ToLowerInvariant() + "/" + rrsetType);
+                                response.AddDnsClientExtendedError(lastExtendedDnsErrorCode, "Attack detected! " + ownerName.ToLowerInvariant() + ". " + rrsetType + " " + rrsetClass);
 
                                 if (!isAdditionalSection)
-                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to reason: " + lastExtendedDnsErrorCode.ToString() + ", for owner name: " + ownerName.ToLowerInvariant() + "/" + rrsetType, response);
+                                    throw new DnsClientResponseDnssecValidationException("Attack detected! DNSSEC validation failed due to reason: " + lastExtendedDnsErrorCode.ToString() + ", for owner name: " + ownerName.ToLowerInvariant() + ". " + rrsetType + " " + rrsetClass, response);
 
                                 break;
                         }
@@ -3352,7 +3352,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> FindDnsKeyForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse, ResolverContext context, CancellationToken cancellationToken)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> FindDnsKeyForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse, ResolverContext context = null, CancellationToken cancellationToken = default)
         {
             string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
 
@@ -3394,7 +3394,7 @@ namespace TechnitiumLibrary.Net.Dns
             return currentDnsKeyRecords;
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDnsKeyForAsync(IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, ResolverContext context, CancellationToken cancellationToken)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDnsKeyForAsync(IReadOnlyList<DnsResourceRecord> lastDSRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, ResolverContext context = null, CancellationToken cancellationToken = default)
         {
             DnsResourceRecord lastDSRecord = lastDSRecords[0];
             DnsQuestionRecord dnsKeyQuestion = new DnsQuestionRecord(lastDSRecord.Name, DnsResourceRecordType.DNSKEY, lastDSRecord.Class);
@@ -3547,7 +3547,7 @@ namespace TechnitiumLibrary.Net.Dns
             return dnsKeyResponse.Answer;
         }
 
-        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDSForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse, ResolverContext context, CancellationToken cancellationToken)
+        private static async Task<IReadOnlyList<DnsResourceRecord>> GetDSForAsync(string ownerName, DnsClass @class, IReadOnlyList<DnsResourceRecord> currentDnsKeyRecords, DnsClient dnsClient, IDnsCache cache, ushort udpPayloadSize, DnsDatagram originalResponse, ResolverContext context = null, CancellationToken cancellationToken = default)
         {
             string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
 
@@ -3635,7 +3635,7 @@ namespace TechnitiumLibrary.Net.Dns
             return dsRecords;
         }
 
-        private static async Task<Tuple<bool, IReadOnlyList<DnsResourceRecord>>> TryGetDSFromResponseAsync(DnsDatagram response, string ownerName, ResolverContext context)
+        private static async Task<Tuple<bool, IReadOnlyList<DnsResourceRecord>>> TryGetDSFromResponseAsync(DnsDatagram response, string ownerName, ResolverContext context = null)
         {
             IReadOnlyList<DnsResourceRecord> dsRecords;
 
@@ -3817,7 +3817,7 @@ namespace TechnitiumLibrary.Net.Dns
             return dsRecords;
         }
 
-        private static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(DnsDatagram response, string domain, DnsResourceRecordType type, ResolverContext context, bool wildcardAnswerValidation = false, string wildcardNextCloserName = null, string wildcardZoneName = null)
+        private static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(DnsDatagram response, string domain, DnsResourceRecordType type, ResolverContext context = null, bool wildcardAnswerValidation = false, string wildcardNextCloserName = null, string wildcardZoneName = null)
         {
             //authority section may contain both NSEC and NSEC3 records corresponding to different CNAME records in answer section
             bool hasNSEC = false;
@@ -4548,9 +4548,6 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    if ((context is not null) && !context.CanProceedWithResolution())
-                        throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ").");
-
                     NameServerAddress server = GetNextServer();
                     if (server is null)
                     {
@@ -4621,8 +4618,8 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             cancellationToken.ThrowIfCancellationRequested();
 
-                            if ((context is not null) && !context.CanProceedWithResolution())
-                                throw new DnsClientNoResponseException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": Resolver limit reached (" + context.GetCannotProceedWithResolutionReason() + ").");
+                            if ((context is not null) && (context.MaxOutboundRequests < 1))
+                                throw new DnsClientResolverLimitReachedException("DnsClient failed to resolve the request" + (asyncRequest.Question.Count > 0 ? " '" + asyncRequest.Question[0].ToString() + "'" : "") + ": Resolver limit reached (MaxOutboundRequests).");
 
                             retryRequest = false;
 
@@ -5103,7 +5100,6 @@ namespace TechnitiumLibrary.Net.Dns
             if (_advancedForwardingClientSubnet)
                 request.SetShadowEDnsClientSubnetOption(_eDnsClientSubnet, true);
 
-            ResolverContext context = new ResolverContext();
             bool dnssecRRSigMissingRetry = false; //retry mechanism for RRSIG missing case
 
             while (true)
@@ -5139,7 +5135,7 @@ namespace TechnitiumLibrary.Net.Dns
                         //dnssec validate response
                         try
                         {
-                            await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(response), this, cache, _udpPayloadSize, context, cancellationToken1);
+                            await DnssecValidateResponseAsync(response, GetTrustAnchorsFor(response), this, cache, _udpPayloadSize, null, cancellationToken1);
                         }
                         catch (DnsClientResponseDnssecValidationException ex)
                         {
@@ -5628,80 +5624,46 @@ namespace TechnitiumLibrary.Net.Dns
 
             #endregion
 
-            #region public
+            #region internal
 
-            public void DecrementMaxOutboundRequests()
+            internal void DecrementMaxOutboundRequests()
             {
                 _maxOutboundRequests--;
             }
 
-            public void DecrementMaxCryptoFailures()
+            internal void DecrementMaxCryptoFailures()
             {
                 _maxCryptoFailures--;
             }
 
-            public void DecrementMaxCryptoValidations()
+            internal void DecrementMaxCryptoValidations()
             {
                 _maxCryptoValidations--;
             }
 
-            public void DecrementMaxCryptoSuspensions()
+            internal void DecrementMaxCryptoSuspensions()
             {
                 _maxCryptoSuspensions--;
             }
 
-            public void DecrementMaxNsec3Hashes()
+            internal void DecrementMaxNsec3Hashes()
             {
                 _maxNsec3Hashes--;
             }
 
-            public void DecrementMaxNsec3Suspensions()
+            internal void DecrementMaxNsec3Suspensions()
             {
                 _maxNsec3Suspensions--;
             }
 
-            public void ResetMaxCryptoValidations()
+            internal void ResetMaxCryptoValidations()
             {
                 _maxCryptoValidations = KEY_TRAP_MAX_RRSET_VALIDATIONS_PER_SUSPENSION;
             }
 
-            public void ResetMaxNsec3Hashes()
+            internal void ResetMaxNsec3Hashes()
             {
                 _maxNsec3Hashes = NSEC3_MAX_HASHES_PER_SUSPENSION;
-            }
-
-            public bool CanProceedWithResolution()
-            {
-                if (_maxOutboundRequests < 1)
-                    return false;
-
-                if (_maxCryptoFailures < 1)
-                    return false;
-
-                if (_maxCryptoSuspensions <= 1)
-                    return false;
-
-                if (_maxNsec3Suspensions <= 1)
-                    return false;
-
-                return true;
-            }
-
-            public string GetCannotProceedWithResolutionReason()
-            {
-                if (_maxOutboundRequests < 1)
-                    return "MaxOutboundRequests";
-
-                if (_maxCryptoFailures < 1)
-                    return "MaxCryptoFailures";
-
-                if (_maxCryptoSuspensions <= 1)
-                    return "MaxCryptoSuspensions";
-
-                if (_maxNsec3Suspensions <= 1)
-                    return "MaxNsec3Suspensions";
-
-                return "Unknown";
             }
 
             #endregion
