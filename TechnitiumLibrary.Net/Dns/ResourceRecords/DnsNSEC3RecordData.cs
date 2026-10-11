@@ -118,7 +118,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region private
 
-        internal static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string wildcardNextCloserName, string wildcardZoneName, DnsClient.ResolverContext context)
+        internal static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string wildcardNextCloserName, string wildcardZoneName, DnsClient.ResolverContext context = null)
         {
             //find proof for closest encloser
             string closestEncloser;
@@ -160,20 +160,23 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     if (hashedClosestEncloser is null)
                     {
-                        if (context.MaxNsec3Hashes < 1)
+                        if (context is not null)
                         {
-                            if (context.MaxNsec3Suspensions <= 1)
-                                return DnssecProofOfNonExistence.TooManyNsec3HashOperations;
+                            if (context.MaxNsec3Hashes < 1)
+                            {
+                                if (context.MaxNsec3Suspensions <= 1)
+                                    return DnssecProofOfNonExistence.TooManyNsec3HashOperations;
 
-                            context.DecrementMaxNsec3Suspensions();
+                                context.DecrementMaxNsec3Suspensions();
 
-                            //suspend current task by yielding
-                            await Task.Yield();
+                                //suspend current task by yielding
+                                await Task.Yield();
 
-                            context.ResetMaxNsec3Hashes();
+                                context.ResetMaxNsec3Hashes();
+                            }
+
+                            context.DecrementMaxNsec3Hashes();
                         }
-
-                        context.DecrementMaxNsec3Hashes();
 
                         hashedClosestEncloser = nsec3.ComputeHashedOwnerName(closestEncloser);
                     }
