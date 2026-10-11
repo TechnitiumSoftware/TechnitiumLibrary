@@ -4110,6 +4110,19 @@ namespace TechnitiumLibrary.Net.Dns
                     newAuthority.Add(authority);
             }
 
+            if (response.RCODE == DnsResponseCode.NxDomain)
+            {
+                DnsResourceRecord firstAuthority = response.FindFirstAuthorityRecord();
+                if ((firstAuthority is not null) && (firstAuthority.Type == DnsResourceRecordType.SOA))
+                {
+                    if (!firstAuthority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !firstAuthority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                    {
+                        //SOA not in zone cut so RCODE must be reset to NoError to avoid DNSSEC validation issues
+                        return response.CloneInternal(rcode: DnsResponseCode.NoError, authority: newAuthority);
+                    }
+                }
+            }
+
             return response.CloneInternal(authority: newAuthority);
         }
 
