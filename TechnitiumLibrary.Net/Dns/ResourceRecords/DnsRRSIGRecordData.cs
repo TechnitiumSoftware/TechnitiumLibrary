@@ -376,7 +376,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, DnsClient.ResolverContext context, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
+        public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, out EDnsExtendedDnsErrorCode extendedDnsErrorCode, DnsClient.ResolverContext context = null)
         {
             //inception must be less than expiration
             if (DnsSOARecordData.IsZoneUpdateAvailable(_signatureExpiration, _signatureInception))
@@ -449,7 +449,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (dnsKey.Flags.HasFlag(DnsDnsKeyFlag.Revoke) && (_typeCovered != DnsResourceRecordType.DNSKEY))
                         continue; //rfc5011: the resolver MUST consider this key permanently invalid for all purposes except for validating the revocation.
 
-                    if (context.MaxCryptoFailures < 1)
+                    if ((context is not null) && context.MaxCryptoFailures < 1)
                     {
                         extendedDnsErrorCode = EDnsExtendedDnsErrorCode.TooManyCryptoValidations;
                         return false; //too many crypto failures
@@ -461,7 +461,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         return true;
                     }
 
-                    context.DecrementMaxCryptoFailures();
+                    if (context is not null)
+                        context.DecrementMaxCryptoFailures();
 
                     isBogus = true;
                 }
