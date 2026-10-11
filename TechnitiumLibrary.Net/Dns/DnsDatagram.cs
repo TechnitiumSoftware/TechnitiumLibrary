@@ -634,8 +634,11 @@ namespace TechnitiumLibrary.Net.Dns
             return datagram;
         }
 
-        internal DnsDatagram CloneInternal(IReadOnlyList<DnsQuestionRecord> question = null, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
+        internal DnsDatagram CloneInternal(DnsResponseCode? rcode = null, IReadOnlyList<DnsQuestionRecord> question = null, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
         {
+            if (rcode is null)
+                rcode = _RCODE;
+
             if (question is null)
                 question = _question;
 
@@ -648,7 +651,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (additional is null)
                 additional = _additional;
 
-            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, question, answer, authority, additional);
+            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, rcode.Value, question, answer, authority, additional);
 
             datagram._metadata = _metadata;
 
@@ -657,7 +660,7 @@ namespace TechnitiumLibrary.Net.Dns
             else if (additional.Count == 0)
                 datagram._edns = null;
             else
-                datagram._edns = DnsDatagramEdns.ReadOPTFrom(additional, _RCODE);
+                datagram._edns = DnsDatagramEdns.ReadOPTFrom(additional, rcode.Value);
 
             datagram._dnsClientExtendedErrors = _dnsClientExtendedErrors;
             datagram._shadowHideECSOption = _shadowHideECSOption;
