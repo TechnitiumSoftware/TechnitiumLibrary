@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -91,12 +91,26 @@ namespace TechnitiumLibrary.Net
         {
             EndPoint epAny = GetEndPointAnyFor(remoteEP.AddressFamily);
 
+            async Task<int> ReceiveFromAsync(CancellationToken cancellationToken)
+            {
+                while (true)
+                {
+                    SocketReceiveFromResult result = await socket.ReceiveFromAsync(response, SocketFlags.None, epAny, cancellationToken);
+
+                    if (remoteEP.Equals(result.RemoteEndPoint) && ((isResponseValid is null) || isResponseValid(result.ReceivedBytes)))
+                        return result.ReceivedBytes; //got valid response
+                }
+            }
+
+            using CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            await using CancellationTokenRegistration ctr = cancellationToken.Register(cancellationTokenSource.Cancel);
+
+            Task<int> recvTask = null;
+
             int timeoutValue = timeout;
             int retry = 0;
             while (retry < retries) //retry loop
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
                 if (expBackoffTimeout)
                     timeoutValue = timeout * (2 ^ retry);
 
@@ -105,38 +119,20 @@ namespace TechnitiumLibrary.Net
                 //send request
                 await socket.SendToAsync(request, SocketFlags.None, remoteEP, cancellationToken);
 
-                while (true)
+                //receive with timeout
+                if (recvTask is null)
+                    recvTask = ReceiveFromAsync(cancellationTokenSource.Token);
+
+                if ((await Task.WhenAny(recvTask, Task.Delay(timeoutValue, cancellationTokenSource.Token)) == recvTask) || (recvTask.Status == TaskStatus.RanToCompletion))
                 {
-                    //receive with timeout
-                    Task<SocketReceiveFromResult> recvTask;
-
-                    using (CancellationTokenSource cancellationTokenSource = new CancellationTokenSource())
-                    {
-                        await using (CancellationTokenRegistration ctr = cancellationToken.Register(cancellationTokenSource.Cancel))
-                        {
-                            CancellationToken currentCancellationToken = cancellationTokenSource.Token;
-
-                            recvTask = socket.ReceiveFromAsync(response, SocketFlags.None, epAny, currentCancellationToken).AsTask();
-
-                            if ((await Task.WhenAny(recvTask, Task.Delay(timeoutValue, currentCancellationToken)) != recvTask) && (recvTask.Status != TaskStatus.RanToCompletion))
-                            {
-                                cancellationTokenSource.Cancel(); //to stop recv task
-                                break; //recv timed out
-                            }
-
-                            cancellationTokenSource.Cancel(); //to stop delay task
-                        }
-                    }
-
-                    SocketReceiveFromResult result = await recvTask;
-
-                    if (remoteEP.Equals(result.RemoteEndPoint) && ((isResponseValid is null) || isResponseValid(result.ReceivedBytes)))
-                    {
-                        //got response
-                        return result.ReceivedBytes;
-                    }
+                    cancellationTokenSource.Cancel(); //to stop delay task
+                    return await recvTask;
                 }
+
+                //recv timed out
             }
+
+            cancellationTokenSource.Cancel(); //to stop recv task
 
             throw new SocketException((int)SocketError.TimedOut);
         }
