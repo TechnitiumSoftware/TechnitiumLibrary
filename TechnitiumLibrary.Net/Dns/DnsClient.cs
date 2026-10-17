@@ -4659,30 +4659,21 @@ namespace TechnitiumLibrary.Net.Dns
                                         context.DecrementMaxOutboundRequests();
 
                                     DnsDatagram response = await connection.QueryAsync(asyncRequest, _timeout, _retries, cancellationToken);
-                                    if (response.Truncation)
+                                    if (response.Truncation && (server.Protocol == DnsTransportProtocol.Udp)) //check TC only for UDP transports
                                     {
-                                        if (server.Protocol == DnsTransportProtocol.Udp)
+                                        server = server.Clone(DnsTransportProtocol.Tcp);
+
+                                        if (_randomizeName)
                                         {
-                                            server = server.Clone(DnsTransportProtocol.Tcp);
-
-                                            if (_randomizeName)
-                                            {
-                                                foreach (DnsQuestionRecord question in asyncRequest.Question)
-                                                    question.NormalizeName();
-                                            }
-
-                                            if (response.Metadata is not null)
-                                                server.Metadata.UpdateSuccess(response.Metadata.RoundTripTime);
-
-                                            retryRequest = true;
-                                            protocolWasSwitched = true;
+                                            foreach (DnsQuestionRecord question in asyncRequest.Question)
+                                                question.NormalizeName();
                                         }
-                                        else
-                                        {
-                                            //unexpected truncated response for the transport protocol
-                                            server.Metadata.UpdateFailure(_timeout * _retries);
-                                            lastException = new DnsClientResponseValidationException("Invalid response was received: truncated response over " + server.Protocol.ToString().ToUpperInvariant() + " transport.");
-                                        }
+
+                                        if (response.Metadata is not null)
+                                            server.Metadata.UpdateSuccess(response.Metadata.RoundTripTime);
+
+                                        retryRequest = true;
+                                        protocolWasSwitched = true;
                                     }
                                     else
                                     {
