@@ -1509,7 +1509,8 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             byte[] computedMac = ComputeTsigRequestMac(key.KeyName, key.AlgorithmName, tsig.TimeSigned, tsig.Fudge, tsig.Error, tsig.OtherData, key.SharedSecret, tsig.MAC.Length);
-            if (!computedMac.SequenceEqual(tsig.MAC))
+            // Use fixed-time comparison to avoid timing-dependent MAC verification.
+            if (!CryptographicOperations.FixedTimeEquals(computedMac, tsig.MAC))
             {
                 unsignedRequest = null;
 
@@ -1761,7 +1762,8 @@ namespace TechnitiumLibrary.Net.Dns
             DnsResourceRecord requestTsigRecord = signedRequest._additional[signedRequest._additional.Count - 1];
 
             byte[] computedMac = ComputeTsigResponseMac(requestTsigRecord, key.KeyName, key.AlgorithmName, tsig.TimeSigned, tsig.Fudge, tsig.Error, tsig.OtherData, key.SharedSecret, tsig.MAC.Length);
-            if (!computedMac.SequenceEqual(tsig.MAC))
+            // Use fixed-time comparison to avoid timing-dependent MAC verification.
+            if (!CryptographicOperations.FixedTimeEquals(computedMac, tsig.MAC))
             {
                 unsignedResponse = null;
                 requestFailed = false;
@@ -1885,7 +1887,8 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     byte[] currentComputedMac = ComputeTsigNextResponseMac(priorTsig, dnsMessages, currentTsig.TimeSigned, currentTsig.Fudge, key.SharedSecret, currentTsig.MAC.Length);
-                    if (!currentComputedMac.SequenceEqual(currentTsig.MAC))
+                    // Use fixed-time comparison to avoid timing-dependent MAC verification.
+                    if (!CryptographicOperations.FixedTimeEquals(currentComputedMac, currentTsig.MAC))
                     {
                         unsignedResponse = null;
                         requestFailed = false;
