@@ -1229,6 +1229,8 @@ namespace TechnitiumLibrary.Net.Dns
                                             if (authorityRecord.Name.Contains('.')) //avoid marking root and TLD name servers
                                                 response.Metadata?.NameServer?.Metadata.MarkMisconfigured();
 
+                                            extendedDnsErrors.Add(new EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode.NoReachableAuthority, ((response.Metadata is null) || (response.Metadata.NameServer is null) ? "name server" : response.Metadata.NameServer.ToString()) + " returned lame delegation for " + question.ToString() + " at delegation " + zoneCut + "."));
+
                                             throw new DnsClientResponseNotPreferredException(response);
                                         }
                                     }
@@ -1331,7 +1333,7 @@ namespace TechnitiumLibrary.Net.Dns
                         }
 
                         //add any previous extended dns errors for caching
-                        if ((response.RCODE != DnsResponseCode.NoError) && (extendedDnsErrors.Count > 0))
+                        if (((response.RCODE != DnsResponseCode.NoError) || (response.Answer.Count == 0)) && (extendedDnsErrors.Count > 0))
                             response.AddDnsClientExtendedErrors(extendedDnsErrors);
 
                         //cache response
