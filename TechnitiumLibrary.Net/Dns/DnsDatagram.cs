@@ -753,17 +753,22 @@ namespace TechnitiumLibrary.Net.Dns
             if (_edns is null)
                 throw new InvalidOperationException();
 
-            DnsResourceRecord newOptRecord = DnsDatagramEdns.GetOPTFor(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, options);
+            return CloneWithEDnsOptions(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, options);
+        }
+
+        public DnsDatagram CloneWithEDnsOptions(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption> options)
+        {
+            DnsResourceRecord newOptRecord = DnsDatagramEdns.GetOPTFor(udpPayloadSize, extendedRCODE, version, flags, options);
 
             IReadOnlyList<DnsResourceRecord> newAdditional;
 
-            if (_additional.Count == 1)
+            if ((_additional.Count == 1) && (_additional[0].Type == DnsResourceRecordType.OPT))
             {
                 newAdditional = [newOptRecord];
             }
             else
             {
-                List<DnsResourceRecord> newAdditionalList = new List<DnsResourceRecord>(_additional.Count - 1)
+                List<DnsResourceRecord> newAdditionalList = new List<DnsResourceRecord>(_additional.Count + 1)
                 {
                     newOptRecord
                 };
@@ -1509,7 +1514,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             byte[] computedMac = ComputeTsigRequestMac(key.KeyName, key.AlgorithmName, tsig.TimeSigned, tsig.Fudge, tsig.Error, tsig.OtherData, key.SharedSecret, tsig.MAC.Length);
-            
+
             // Use fixed-time comparison to avoid timing-dependent MAC verification.
             if (!CryptographicOperations.FixedTimeEquals(computedMac, tsig.MAC))
             {
@@ -1763,7 +1768,7 @@ namespace TechnitiumLibrary.Net.Dns
             DnsResourceRecord requestTsigRecord = signedRequest._additional[signedRequest._additional.Count - 1];
 
             byte[] computedMac = ComputeTsigResponseMac(requestTsigRecord, key.KeyName, key.AlgorithmName, tsig.TimeSigned, tsig.Fudge, tsig.Error, tsig.OtherData, key.SharedSecret, tsig.MAC.Length);
-            
+
             // Use fixed-time comparison to avoid timing-dependent MAC verification.
             if (!CryptographicOperations.FixedTimeEquals(computedMac, tsig.MAC))
             {
@@ -1889,7 +1894,7 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     byte[] currentComputedMac = ComputeTsigNextResponseMac(priorTsig, dnsMessages, currentTsig.TimeSigned, currentTsig.Fudge, key.SharedSecret, currentTsig.MAC.Length);
-                    
+
                     // Use fixed-time comparison to avoid timing-dependent MAC verification.
                     if (!CryptographicOperations.FixedTimeEquals(currentComputedMac, currentTsig.MAC))
                     {
