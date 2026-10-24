@@ -1547,18 +1547,6 @@ namespace TechnitiumLibrary.Net.Dns
                 return false;
             }
 
-            // RFC 8945 Section 4.2 requires the Error field to be zero in TSIG requests.
-            // Check it after TSIG validation so malformed authenticated requests receive a signed FORMERR.
-            if (tsig.Error != DnsTsigError.NoError)
-            {
-                unsignedRequest = null;
-
-                errorResponse = new DnsDatagram(_ID, true, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, DnsResponseCode.FormatError, _question);
-                errorResponse = errorResponse.SignResponse(this, keys);
-
-                return false;
-            }
-
             //return
             IReadOnlyList<DnsResourceRecord> additional;
 
