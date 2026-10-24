@@ -1,0 +1,55 @@
+name: SBOM generation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sbom:
+    runs-on: windows-latest
+
+    env:
+      Solution_Name: TechnitiumLibrary.sln
+      BUILD_OUTPUT: buildOutput
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Build binaries
+      run: >
+        msbuild ${{ env.Solution_Name }}
+        /t:Rebuild
+        /p:Configuration=Release
+        /p:OutputPath=${{ env.BUILD_OUTPUT }}\
+
+    - name: Download SBOM tool
+      run: |
+        curl -Lo $env:RUNNER_TEMP\sbom-tool.exe https://github.com/microsoft/sbom-tool/releases/latest/download/sbom-tool-win-x64.exe
+
+    - name: Generate SBOM
+      run: >
+        $env:RUNNER_TEMP\sbom-tool.exe generate
+        -b .\${{ env.BUILD_OUTPUT }}
+        -bc .
+        -pn TechnitiumLibrary
+        -pv ${{ github.ref_name }}
+        -ps TechnitiumSoftware
+        -nsb https://sbom.TechnitiumSoftware.com
+        -V Verbose
+
+    - name: Upload build artifacts + SBOM
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom-${{ github.ref_name }}
+        path: |
+          ${{ env.BUILD_OUTPUT }}
