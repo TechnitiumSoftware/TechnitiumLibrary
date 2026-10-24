@@ -1,0 +1,388 @@
+﻿/*
+Technitium Library
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using TechnitiumLibrary.ByteTree;
+
+namespace TechnitiumLibrary.UnitTests.TechnitiumLibrary.ByteTree
+{
+    [TestClass]
+    public sealed class ByteTreeTests
+    {
+        private static byte[] Key(params byte[] b) => b;
+
+        // ---------------------------
+        // ADD + GET
+        // ---------------------------
+        [TestMethod]
+        public void Add_ShouldInsertValue_WhenKeyDoesNotExist()
+        {
+            // GIVEN
+            ByteTree<string> tree = new ByteTree<string>();
+
+            // WHEN
+            tree.Add(Key(1, 2, 3), "value");
+
+            // THEN
+            Assert.AreEqual("value", tree[Key(1, 2, 3)]);
+        }
+
+        [TestMethod]
+        public void Add_ShouldThrow_WhenKeyExists()
+        {
+            // GIVEN
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(4), "first");
+
+            // WHEN – THEN
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                tree.Add(Key(4), "duplicate"));
+        }
+
+        [TestMethod]
+        public void Add_ShouldThrow_WhenKeyNull()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.Add(null, "x"));
+        }
+
+        // ---------------------------
+        // TryAdd
+        // ---------------------------
+        [TestMethod]
+        public void TryAdd_ShouldReturnTrue_WhenKeyAdded()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            bool result = tree.TryAdd(Key(1), "v");
+            Assert.IsTrue(result);
+        }
+
+        [TestMethod]
+        public void TryAdd_ShouldReturnFalse_WhenKeyExists()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(5), "initial");
+
+            bool result = tree.TryAdd(Key(5), "other");
+
+            Assert.IsFalse(result);
+            Assert.AreEqual("initial", tree[Key(5)]);
+        }
+
+        [TestMethod]
+        public void TryAdd_ShouldThrow_WhenKeyNull()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.TryAdd(null, "x"));
+        }
+
+        // ---------------------------
+        // GET operations
+        // ---------------------------
+        [TestMethod]
+        public void TryGet_ShouldReturnTrue_WhenKeyExists()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(1, 2), "data");
+
+            bool found = tree.TryGet(Key(1, 2), out string? value);
+
+            Assert.IsTrue(found);
+            Assert.AreEqual("data", value);
+        }
+
+        [TestMethod]
+        public void TryGet_ShouldReturnFalse_WhenMissing()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+
+            bool result = tree.TryGet(Key("\t"u8.ToArray()), out string? value);
+
+            Assert.IsFalse(result);
+            Assert.IsNull(value);
+        }
+
+        [TestMethod]
+        public void TryGet_ShouldThrow_WhenNull()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.TryGet(null, out _));
+        }
+
+        // ---------------------------
+        // ContainsKey
+        // ---------------------------
+        [TestMethod]
+        public void ContainsKey_ShouldReturnTrue_WhenKeyPresent()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(3, 3), "v");
+
+            Assert.IsTrue(tree.ContainsKey(Key(3, 3)));
+        }
+
+        [TestMethod]
+        public void ContainsKey_ShouldReturnFalse_WhenKeyMissing()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.IsFalse(tree.ContainsKey(Key(3, 100)));
+        }
+
+        [TestMethod]
+        public void ContainsKey_ShouldThrow_WhenNull()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.ContainsKey(null));
+        }
+
+        // ---------------------------
+        // Remove
+        // ---------------------------
+        [TestMethod]
+        public void TryRemove_ShouldReturnTrue_WhenKeyExists()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key("\n"u8.ToArray()), "v");
+
+            bool result = tree.TryRemove(Key("\n"u8.ToArray()), out string? removed);
+
+            Assert.IsTrue(result);
+            Assert.AreEqual("v", removed);
+            Assert.IsFalse(tree.ContainsKey(Key("\n"u8.ToArray())));
+        }
+
+        [TestMethod]
+        public void TryRemove_ShouldReturnFalse_WhenMissing()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            bool result = tree.TryRemove(Key(11), out string? removed);
+
+            Assert.IsFalse(result);
+            Assert.IsNull(removed);
+        }
+
+        [TestMethod]
+        public void TryRemove_ShouldThrow_WhenNull()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.TryRemove(null, out _));
+        }
+
+        // ---------------------------
+        // TryUpdate
+        // ---------------------------
+        [TestMethod]
+        public void TryUpdate_ShouldReplaceValue_WhenComparisonMatches()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(5), "old");
+
+            bool updated = tree.TryUpdate(Key(5), "new", "old");
+
+            Assert.IsTrue(updated);
+            Assert.AreEqual("new", tree[Key(5)]);
+        }
+
+        [TestMethod]
+        public void TryUpdate_ShouldReturnFalse_WhenComparisonDoesNotMatch()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(7), "original");
+
+            bool updated = tree.TryUpdate(Key(7), "attempt", "different");
+
+            Assert.IsFalse(updated);
+            Assert.AreEqual("original", tree[Key(7)]);
+        }
+
+        [TestMethod]
+        public void TryUpdate_ShouldThrow_WhenNullKey()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.TryUpdate(null, "x", "y"));
+        }
+
+        [TestMethod]
+        public void TryUpdate_ShouldReturnFalse_WhenKeyMissing()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.IsFalse(tree.TryUpdate(Key(9), "x", "y"));
+        }
+
+
+        // ---------------------------
+        // GetOrAdd
+        // ---------------------------
+
+        [TestMethod]
+        public void GetOrAdd_ShouldReturnExistingValue_WhenKeyExists()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(2, 2), "existing");
+            string val = tree.GetOrAdd(Key(2, 2), "new");
+            Assert.AreEqual("existing", val);
+        }
+
+        [TestMethod]
+        public void GetOrAdd_ShouldInsertAndReturnNewValue_WhenKeyMissing()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            string val = tree.GetOrAdd(Key(3, 3), "added");
+            Assert.AreEqual("added", val);
+            Assert.AreEqual("added", tree[Key(3, 3)]);
+        }
+
+        [TestMethod]
+        public void GetOrAdd_ShouldThrow_WhenNullKey()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.GetOrAdd(null, "x"));
+        }
+
+        // ---------------------------
+        // AddOrUpdate
+        // ---------------------------
+        [TestMethod]
+        public void AddOrUpdate_ShouldInsert_WhenMissing()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+
+            string val = tree.AddOrUpdate(
+                Key(1, 1),
+                _ => "create",
+                (_, old) => old + "update");
+
+            Assert.AreEqual("create", val);
+        }
+
+        [TestMethod]
+        public void AddOrUpdate_ShouldModify_WhenExists()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(1, 2), "first");
+
+            string updated = tree.AddOrUpdate(
+                Key(1, 2),
+                _ => "ignored",
+                (_, old) => old + "_changed");
+
+            Assert.AreEqual("first_changed", updated);
+        }
+
+        [TestMethod]
+        public void AddOrUpdate_ShouldThrow_WhenNullKey()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree.AddOrUpdate(
+                null!,
+                _ => "x",
+                (_, __) => "y"));
+        }
+
+        // ---------------------------
+        // Indexer get/set
+        // ---------------------------
+        [TestMethod]
+        public void Indexer_Get_ShouldReturnExactValue()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key("c"u8.ToArray()), "stored");
+
+            Assert.AreEqual("stored", tree[Key("c"u8.ToArray())]);
+        }
+
+        [TestMethod]
+        public void Indexer_Set_ShouldOverwriteFormerValue()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree[Key(5, 5)] = "initial";
+
+            tree[Key(5, 5)] = "updated";
+
+            Assert.AreEqual("updated", tree[Key(5, 5)]);
+        }
+
+        [TestMethod]
+        public void Indexer_Get_ShouldThrow_WhenMissingKey()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<KeyNotFoundException>(() =>
+                _ = tree[Key(8, 8)]);
+        }
+
+        [TestMethod]
+        public void Indexer_ShouldThrow_WhenNullKey()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            Assert.ThrowsExactly<ArgumentNullException>(() => tree[null] = "x");
+        }
+
+        // ---------------------------
+        // Enumeration
+        // ---------------------------
+        [TestMethod]
+        public void Enumerator_ShouldYieldExistingValues()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(1), "x");
+            tree.Add(Key(2), "y");
+            tree.Add(Key(3), "z");
+
+            List<string> values = tree.ToList();
+
+            Assert.HasCount(3, values);
+            CollectionAssert.AreEquivalent(new[] { "x", "y", "z" }, values);
+        }
+
+        [TestMethod]
+        public void ReverseEnumerable_ShouldYieldInReverseOrder()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(0), "a");
+            tree.Add(Key(1), "b");
+            tree.Add(Key(255), "c");
+
+            List<string> result = tree.GetReverseEnumerable().ToList();
+
+            Assert.HasCount(3, result);
+            Assert.AreEqual("c", result[0]); // last sorted key
+            Assert.AreEqual("b", result[1]);
+            Assert.AreEqual("a", result[2]);
+        }
+
+        // ---------------------------
+        // Clear
+        // ---------------------------
+        [TestMethod]
+        public void Clear_ShouldEraseAllData()
+        {
+            ByteTree<string> tree = new ByteTree<string>();
+            tree.Add(Key(1), "x");
+            tree.Add(Key(2), "y");
+
+            tree.Clear();
+
+            Assert.IsTrue(tree.IsEmpty);
+            Assert.IsFalse(tree.ContainsKey(Key(1)));
+        }
+    }
+}
