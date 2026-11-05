@@ -123,20 +123,23 @@ namespace TechnitiumLibrary.Net.Http
                     httpResponse._headers.Add(parts[0], parts[1]);
                 }
 
-                string strContentLength = httpResponse._headers[HttpRequestHeader.ContentLength];
-                if (!string.IsNullOrEmpty(strContentLength))
-                {
-                    httpResponse._outputStream = new HttpContentStream(stream, buffer, offset, length, int.Parse(strContentLength));
-                    return httpResponse;
-                }
-
                 string strTransferEncoding = httpResponse._headers[HttpRequestHeader.TransferEncoding];
                 if (!string.IsNullOrEmpty(strTransferEncoding))
                 {
-                    if (!strTransferEncoding.Equals("chunked", StringComparison.OrdinalIgnoreCase))
+                    if (!strTransferEncoding.Trim().Equals("chunked", StringComparison.OrdinalIgnoreCase))
                         throw new HttpRequestException("Transfer encoding is not supported: " + strTransferEncoding);
 
                     httpResponse._outputStream = new HttpChunkedStream(new HttpContentStream(stream, buffer, offset, length));
+                    return httpResponse;
+                }
+
+                string strContentLength = httpResponse._headers[HttpRequestHeader.ContentLength];
+                if (!string.IsNullOrEmpty(strContentLength))
+                {
+                    if (!int.TryParse(strContentLength, out int contentLength) || (contentLength < 0))
+                        throw new HttpRequestException("Content-Length is invalid: " + strContentLength);
+
+                    httpResponse._outputStream = new HttpContentStream(stream, buffer, offset, length, contentLength);
                     return httpResponse;
                 }
             }

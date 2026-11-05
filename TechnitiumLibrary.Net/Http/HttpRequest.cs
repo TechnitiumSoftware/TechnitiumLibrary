@@ -160,25 +160,26 @@ namespace TechnitiumLibrary.Net.Http
                     httpRequest._headers.Add(parts[0], parts[1]);
                 }
 
+                string strTransferEncoding = httpRequest._headers[HttpRequestHeader.TransferEncoding];
+                if (!string.IsNullOrEmpty(strTransferEncoding))
+                {
+                    if (!strTransferEncoding.Trim().Equals("chunked", StringComparison.OrdinalIgnoreCase))
+                        throw new HttpRequestException("Transfer encoding is not supported: " + strTransferEncoding);
+
+                    httpRequest._inputStream = new HttpChunkedStream(new HttpContentStream(stream, buffer, offset, length), maxContentLength);
+                    return httpRequest;
+                }
+
                 string strContentLength = httpRequest._headers[HttpRequestHeader.ContentLength];
                 if (!string.IsNullOrEmpty(strContentLength))
                 {
-                    int contentLength = int.Parse(strContentLength);
+                    if (!int.TryParse(strContentLength, out int contentLength) || (contentLength < 0))
+                        throw new HttpRequestException("Content-Length is invalid: " + strContentLength);
 
                     if ((maxContentLength > -1) && (contentLength > maxContentLength))
                         throw new HttpRequestException("Response content length is greater than max content length: " + contentLength);
 
                     httpRequest._inputStream = new HttpContentStream(stream, buffer, offset, length, contentLength);
-                    return httpRequest;
-                }
-
-                string strTransferEncoding = httpRequest._headers[HttpRequestHeader.TransferEncoding];
-                if (!string.IsNullOrEmpty(strTransferEncoding))
-                {
-                    if (!strTransferEncoding.Equals("chunked", StringComparison.OrdinalIgnoreCase))
-                        throw new HttpRequestException("Transfer encoding is not supported: " + strTransferEncoding);
-
-                    httpRequest._inputStream = new HttpChunkedStream(new HttpContentStream(stream, buffer, offset, length), maxContentLength);
                     return httpRequest;
                 }
             }

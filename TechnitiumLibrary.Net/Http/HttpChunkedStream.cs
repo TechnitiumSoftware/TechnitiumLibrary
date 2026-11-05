@@ -93,44 +93,20 @@ namespace TechnitiumLibrary.Net.Http
 
         public override int Read(byte[] buffer, int offset, int count)
         {
+            if (count < 1)
+                return 0;
+
             while (true)
             {
                 //read from buffer
-                int bytesRead = _buffer.Read(buffer, 0, count);
+                int bytesRead = _buffer.Read(buffer, offset, count);
                 if (bytesRead > 0)
                     return bytesRead;
 
                 if ((_maxContentLength > -1) && (_baseStream.TotalBytesRead > _maxContentLength))
                     throw new HttpRequestException("Response content size is greater than max content length: " + _baseStream.TotalBytesRead);
 
-                //fill buffer
-                byte[] byteBuffer = new byte[1];
-                byte[] strHexLength = new byte[8];
-                bool breakWhile = false;
-                int strHexPosition = 0;
-
-                while (!breakWhile)
-                {
-                    bytesRead = _baseStream.Read(byteBuffer, 0, 1);
-                    if (bytesRead < 1)
-                        throw new EndOfStreamException();
-
-                    switch (byteBuffer[0])
-                    {
-                        case 13: //CR
-                            break;
-
-                        case 10: //LF
-                            breakWhile = true;
-                            break;
-
-                        default:
-                            strHexLength[strHexPosition++] = byteBuffer[0];
-                            break;
-                    }
-                }
-
-                int chunkLength = int.Parse(Encoding.ASCII.GetString(strHexLength, 0, strHexPosition), NumberStyles.HexNumber);
+                int chunkLength = ReadChunkLength();
 
                 _buffer.SetLength(0);
 
@@ -149,43 +125,19 @@ namespace TechnitiumLibrary.Net.Http
 
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
+            if (count < 1)
+                return 0;
+
             while (true)
             {
-                int bytesRead = _buffer.Read(buffer, 0, count);
+                int bytesRead = _buffer.Read(buffer, offset, count);
                 if (bytesRead > 0)
                     return bytesRead;
 
                 if ((_maxContentLength > -1) && (_baseStream.TotalBytesRead > _maxContentLength))
                     throw new HttpRequestException("Response content size is greater than max content length: " + _baseStream.TotalBytesRead);
 
-                //fill buffer
-                byte[] byteBuffer = new byte[1];
-                byte[] strHexLength = new byte[8];
-                bool breakWhile = false;
-                int strHexPosition = 0;
-
-                while (!breakWhile)
-                {
-                    bytesRead = await _baseStream.ReadAsync(byteBuffer, 0, 1, cancellationToken);
-                    if (bytesRead < 1)
-                        throw new EndOfStreamException();
-
-                    switch (byteBuffer[0])
-                    {
-                        case 13: //CR
-                            break;
-
-                        case 10: //LF
-                            breakWhile = true;
-                            break;
-
-                        default:
-                            strHexLength[strHexPosition++] = byteBuffer[0];
-                            break;
-                    }
-                }
-
-                int chunkLength = int.Parse(Encoding.ASCII.GetString(strHexLength, 0, strHexPosition), NumberStyles.HexNumber);
+                int chunkLength = await ReadChunkLengthAsync(cancellationToken);
 
                 _buffer.SetLength(0);
 
@@ -200,6 +152,99 @@ namespace TechnitiumLibrary.Net.Http
                 if (chunkLength == 0)
                     return 0;
             }
+        }
+
+        int ReadChunkLength()
+        {
+            byte[] one = new byte[1];
+            return ParseChunkLength(delegate ()
+            {
+                if (_baseStream.Read(one, 0, 1) < 1)
+                    throw new EndOfStreamException();
+
+                return one[0];
+            });
+        }
+
+        async Task<int> ReadChunkLengthAsync(CancellationToken cancellationToken)
+        {
+            byte[] hex = new byte[16];
+            int hexLength = 0;
+            bool extension = false;
+            byte[] one = new byte[1];
+
+            while (true)
+            {
+                if (await _baseStream.ReadAsync(one, 0, 1, cancellationToken) < 1)
+                    throw new EndOfStreamException();
+
+                if (AcceptChunkSizeByte(one[0], hex, ref hexLength, ref extension))
+                    break;
+            }
+
+            return FinishChunkLength(hex, hexLength);
+        }
+
+        int ParseChunkLength(Func<byte> readByte)
+        {
+            byte[] hex = new byte[16];
+            int hexLength = 0;
+            bool extension = false;
+
+            while (true)
+            {
+                if (AcceptChunkSizeByte(readByte(), hex, ref hexLength, ref extension))
+                    break;
+            }
+
+            return FinishChunkLength(hex, hexLength);
+        }
+
+        static bool AcceptChunkSizeByte(byte value, byte[] hex, ref int hexLength, ref bool extension)
+        {
+            switch (value)
+            {
+                case 10: //LF
+                    return true;
+
+                case 13: //CR
+                    return false;
+
+                case (byte)';':
+                case (byte)' ':
+                case (byte)'\t':
+                    extension = true;
+                    return false;
+
+                default:
+                    if (extension)
+                        return false;
+
+                    if (hexLength == hex.Length)
+                        throw new HttpRequestException("Chunk size is too long.");
+
+                    if (!IsHex(value))
+                        throw new HttpRequestException("Chunk size is not hexadecimal.");
+
+                    hex[hexLength++] = value;
+                    return false;
+            }
+        }
+
+        static int FinishChunkLength(byte[] hex, int hexLength)
+        {
+            if (hexLength == 0)
+                throw new HttpRequestException("Chunk size is missing.");
+
+            if (!long.TryParse(Encoding.ASCII.GetString(hex, 0, hexLength), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out long chunkLength) || (chunkLength < 0) || (chunkLength > int.MaxValue))
+                throw new HttpRequestException("Chunk size is invalid.");
+
+            return (int)chunkLength;
+        }
+
+        static bool IsHex(byte value)
+        {
+            return ((value >= (byte)'0') && (value <= (byte)'9')) || ((value >= (byte)'a') && (value <= (byte)'f')) || ((value >= (byte)'A') && (value <= (byte)'F'));
         }
 
         #endregion
