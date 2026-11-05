@@ -113,8 +113,16 @@ namespace TechnitiumLibrary.Net
                 return false;
             }
 
-            if (!int.TryParse(portString, out int port))
-                port = 0;
+            int port = 0;
+
+            if (portString != null)
+            {
+                if (!int.TryParse(portString, out port) || (port < 0) || (port > 65535))
+                {
+                    intEP = null;
+                    return false;
+                }
+            }
 
             intEP = new InterfaceEndPoint(ipAddress, port, interfaceString);
             return true;
@@ -149,7 +157,7 @@ namespace TechnitiumLibrary.Net
 
         public override int GetHashCode()
         {
-            return base.GetHashCode() ^ HashCode.Combine(_interfaceName);
+            return base.GetHashCode();
         }
 
         public override string ToString()
@@ -182,13 +190,21 @@ namespace TechnitiumLibrary.Net
                 if (string.IsNullOrEmpty(value))
                 {
                     _interfaceName = null;
+
+                    if (Address.AddressFamily == AddressFamily.InterNetworkV6)
+                        Address.ScopeId = 0;
+                }
+                else if ((Address.AddressFamily == AddressFamily.InterNetworkV6) && int.TryParse(value, out int scopeId))
+                {
+                    _interfaceName = null;
+                    Address.ScopeId = scopeId;
                 }
                 else
                 {
-                    if ((Address.AddressFamily == AddressFamily.InterNetworkV6) && int.TryParse(value, out int scopeId))
-                        Address.ScopeId = scopeId;
-                    else
-                        _interfaceName = value;
+                    _interfaceName = value;
+
+                    if (Address.AddressFamily == AddressFamily.InterNetworkV6)
+                        Address.ScopeId = 0;
                 }
             }
         }
