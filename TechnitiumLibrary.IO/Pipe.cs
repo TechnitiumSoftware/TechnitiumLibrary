@@ -194,24 +194,34 @@ namespace TechnitiumLibrary.IO
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                if (count > 0)
+                if (count < 1)
+                    return;
+
+                lock (_bufferLock)
                 {
-                    lock (_bufferLock)
+                    int written = 0;
+
+                    while (written < count)
                     {
                         if (_disposed)
                             throw new ObjectDisposedException("DataStream");
 
-                        while (_length + count > _buffer.Length)
+                        int space = _buffer.Length - _length;
+                        if (space < 1)
                         {
                             if (!Monitor.Wait(_bufferLock, _writeTimeout))
                                 throw new IOException("Write timed out.");
 
-                            if (_disposed)
-                                throw new ObjectDisposedException("DataStream");
+                            continue;
                         }
 
-                        Buffer.BlockCopy(buffer, offset, _buffer, _length, count);
-                        _length += count;
+                        int chunk = count - written;
+                        if (chunk > space)
+                            chunk = space;
+
+                        Buffer.BlockCopy(buffer, offset + written, _buffer, _length, chunk);
+                        _length += chunk;
+                        written += chunk;
 
                         Monitor.Pulse(_bufferLock);
                     }
