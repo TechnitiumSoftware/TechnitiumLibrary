@@ -54,17 +54,30 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _cpu = Encoding.ASCII.GetString(s.ReadExactly(s.ReadByteValue()));
-            _os = Encoding.ASCII.GetString(s.ReadExactly(s.ReadByteValue()));
+            _cpu = Encoding.Latin1.GetString(s.ReadExactly(s.ReadByteValue()));
+            _os = Encoding.Latin1.GetString(s.ReadExactly(s.ReadByteValue()));
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            s.WriteByte(Convert.ToByte(_cpu.Length));
-            s.Write(Encoding.ASCII.GetBytes(_cpu));
+            WriteCharacterString(s, _cpu);
+            WriteCharacterString(s, _os);
+        }
 
-            s.WriteByte(Convert.ToByte(_os.Length));
-            s.Write(Encoding.ASCII.GetBytes(_os));
+        static void WriteCharacterString(Stream s, string value)
+        {
+            if (value.Length > 255)
+                throw new DnsClientException("HINFO record character-string length cannot exceed 255 bytes.");
+
+            s.WriteByte((byte)value.Length);
+
+            foreach (char c in value)
+            {
+                if (c > 0xFF)
+                    throw new DnsClientException("HINFO record character-string contains a character that is not an octet.");
+
+                s.WriteByte((byte)c);
+            }
         }
 
         #endregion

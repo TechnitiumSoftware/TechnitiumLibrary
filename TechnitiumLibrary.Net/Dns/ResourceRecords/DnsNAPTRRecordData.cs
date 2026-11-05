@@ -96,11 +96,27 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 DnsDatagram.WriteUInt16NetworkOrder(_order, mS);
                 DnsDatagram.WriteUInt16NetworkOrder(_preference, mS);
                 mS.WriteShortString(_flags, Encoding.ASCII);
-                mS.WriteShortString(_services, Encoding.ASCII);
-                mS.WriteShortString(_regexp, Encoding.ASCII);
+                WriteCharacterString(mS, _services);
+                WriteCharacterString(mS, _regexp);
                 DnsDatagram.SerializeDomainName(_replacement, mS);
 
                 _rData = mS.ToArray();
+            }
+        }
+
+        static void WriteCharacterString(Stream s, string value)
+        {
+            if (value.Length > 255)
+                throw new DnsClientException("NAPTR record character-string length cannot exceed 255 bytes.");
+
+            s.WriteByte((byte)value.Length);
+
+            foreach (char c in value)
+            {
+                if (c > 0xFF)
+                    throw new DnsClientException("NAPTR record character-string contains a character that is not an octet.");
+
+                s.WriteByte((byte)c);
             }
         }
 
@@ -117,8 +133,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 _order = DnsDatagram.ReadUInt16NetworkOrder(mS);
                 _preference = DnsDatagram.ReadUInt16NetworkOrder(mS);
                 _flags = mS.ReadShortString(Encoding.ASCII);
-                _services = mS.ReadShortString(Encoding.ASCII);
-                _regexp = mS.ReadShortString(Encoding.ASCII);
+                _services = mS.ReadShortString(Encoding.Latin1);
+                _regexp = mS.ReadShortString(Encoding.Latin1);
                 _replacement = DnsDatagram.DeserializeDomainName(mS);
             }
         }

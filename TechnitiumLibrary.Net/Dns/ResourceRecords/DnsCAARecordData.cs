@@ -73,7 +73,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 throw new InvalidDataException("CAA tag length must be at least 1.");
 
             _tag = Encoding.ASCII.GetString(s.ReadExactly(tagLength)).ToLowerInvariant();
-            _value = Encoding.ASCII.GetString(s.ReadExactly(_rdLength - tagLength - 2));
+            _value = Encoding.Latin1.GetString(s.ReadExactly(_rdLength - tagLength - 2));
         }
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
@@ -81,7 +81,23 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             s.WriteByte(_flags);
             s.WriteByte(Convert.ToByte(_tag.Length));
             s.Write(Encoding.ASCII.GetBytes(_tag));
-            s.Write(Encoding.ASCII.GetBytes(_value));
+            s.Write(GetCharacterStringOctets(_value));
+        }
+
+        static byte[] GetCharacterStringOctets(string value)
+        {
+            byte[] bytes = new byte[value.Length];
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (c > 0xFF)
+                    throw new DnsClientException("CAA record value contains a character that is not an octet.");
+
+                bytes[i] = (byte)c;
+            }
+
+            return bytes;
         }
 
         #endregion
