@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
             int offset = 0;
             int bytesRemaining = base64data.Length;
-            int count = 65;
+            int count = 64;
 
             while (bytesRemaining > 0)
             {
@@ -123,7 +123,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
             int offset = 0;
             int bytesRemaining = base64data.Length;
-            int count = 65;
+            int count = 64;
 
             while (bytesRemaining > 0)
             {
