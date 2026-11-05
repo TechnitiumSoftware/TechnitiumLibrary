@@ -83,17 +83,32 @@ namespace TechnitiumLibrary.IO
             {
                 try
                 {
+                    PipeStream? other = null;
+
                     lock (_bufferLock)
                     {
                         if (_disposed)
                             return;
 
                         _disposed = true;
-
-                        Monitor.Pulse(_bufferLock);
+                        Monitor.PulseAll(_bufferLock);
+                        other = _otherPipe;
+                        _otherPipe = null;
                     }
 
-                    _otherPipe?.Dispose();
+                    if (other != null)
+                    {
+                        lock (other._bufferLock)
+                        {
+                            other._otherPipe = null;
+
+                            if (!other._disposed)
+                            {
+                                other._disposed = true;
+                                Monitor.PulseAll(other._bufferLock);
+                            }
+                        }
+                    }
                 }
                 finally
                 {
