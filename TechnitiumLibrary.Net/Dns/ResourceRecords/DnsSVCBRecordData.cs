@@ -941,6 +941,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 if ((alpnId is null) || (alpnId.Length < 1) || (alpnId.Length > 255))
                     throw new ArgumentException("SVCB alpn id must be 1 to 255 octets.");
+
+                foreach (char c in alpnId)
+                {
+                    if (c > 0xFF)
+                        throw new ArgumentException("SVCB alpn id must be 1 to 255 octets.");
+                }
             }
 
             _alpnIds = alpnIds;
@@ -978,7 +984,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (alpnLength == 0)
                     throw new DnsClientException("SVCB alpn id must contain at least one octet.");
 
-                alpnIds.Add(Encoding.ASCII.GetString(s.ReadExactly(alpnLength)));
+                alpnIds.Add(Encoding.Latin1.GetString(s.ReadExactly(alpnLength)));
 
                 bytesRead += alpnLength + 1;
             }
@@ -991,7 +997,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             foreach (string alpnId in _alpnIds)
             {
                 s.WriteByte(Convert.ToByte(alpnId.Length));
-                s.Write(Encoding.ASCII.GetBytes(alpnId));
+                s.Write(Encoding.Latin1.GetBytes(alpnId));
             }
         }
 
