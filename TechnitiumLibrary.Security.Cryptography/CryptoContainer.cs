@@ -178,16 +178,49 @@ namespace TechnitiumLibrary.Security.Cryptography
                         byte[] computedHMAC = _hmac.ComputeHash(s);
                         s.Position = startPosition;
 
-                        //verify hmac
-                        for (int i = 0; i < HMAC.Length; i++)
-                        {
-                            if (HMAC[i] != computedHMAC[i])
-                                throw new CryptoException("Invalid password or data tampered.");
-                        }
+                        if (!HmacEquals(HMAC, computedHMAC))
+                            throw new CryptoException("Invalid password or data tampered.");
 
                         //decrypt data
                         _containerKey = new SymmetricCryptoKey(cryptoAlgo, key, IV);
                         ReadPlainTextFrom(_containerKey.GetCryptoStreamReader(s));
+                    }
+                    break;
+
+                case 3: //PBKDF2-HMAC-SHA256, MAC covers the header and ciphertext, fresh IV per write
+                    {
+                        if (password == null)
+                            throw new InvalidCryptoContainerException("Password required.");
+
+                        SymmetricEncryptionAlgorithm cryptoAlgo = (SymmetricEncryptionAlgorithm)s.ReadByte();
+                        int keySizeBytes = s.ReadByte();
+
+                        byte[] IV = new byte[s.ReadByte()];
+                        s.ReadExactly(IV, 0, IV.Length);
+
+                        byte[] salt = new byte[s.ReadByte()];
+                        s.ReadExactly(salt, 0, salt.Length);
+
+                        byte[] HMAC = new byte[s.ReadByte()];
+                        s.ReadExactly(HMAC, 0, HMAC.Length);
+
+                        byte[] cipherText;
+                        using (MemoryStream cipherBuffer = new MemoryStream())
+                        {
+                            s.CopyTo(cipherBuffer);
+                            cipherText = cipherBuffer.ToArray();
+                        }
+
+                        _kdf = PBKDF2.CreateHMACSHA256(password, salt, PBKDF2_ITERATION_COUNT);
+                        byte[] key = _kdf.GetBytes(keySizeBytes);
+                        _hmac = new HMACSHA256(key);
+
+                        byte[] computedHMAC = ComputeContainerHmac(cryptoAlgo, keySizeBytes, IV, salt, cipherText);
+                        if (!HmacEquals(HMAC, computedHMAC))
+                            throw new CryptoException("Invalid password or data tampered.");
+
+                        _containerKey = new SymmetricCryptoKey(cryptoAlgo, key, IV);
+                        ReadPlainTextFrom(_containerKey.GetCryptoStreamReader(new MemoryStream(cipherText, false)));
                     }
                     break;
 
@@ -202,6 +235,31 @@ namespace TechnitiumLibrary.Security.Cryptography
         protected abstract void ReadPlainTextFrom(Stream s);
 
         protected abstract void WritePlainTextTo(Stream s);
+
+        static bool HmacEquals(byte[] stored, byte[] computed)
+        {
+            if ((stored.Length != computed.Length) || (computed.Length == 0))
+                return false;
+
+            return CryptographicOperations.FixedTimeEquals(stored, computed);
+        }
+
+        byte[] ComputeContainerHmac(SymmetricEncryptionAlgorithm cryptoAlgo, int keySizeBytes, byte[] iv, byte[] salt, byte[] cipherText)
+        {
+            using (MemoryStream macData = new MemoryStream(5 + iv.Length + salt.Length + cipherText.Length))
+            {
+                macData.WriteByte((byte)cryptoAlgo);
+                macData.WriteByte(Convert.ToByte(keySizeBytes));
+                macData.WriteByte(Convert.ToByte(iv.Length));
+                macData.Write(iv, 0, iv.Length);
+                macData.WriteByte(Convert.ToByte(salt.Length));
+                macData.Write(salt, 0, salt.Length);
+                macData.Write(cipherText, 0, cipherText.Length);
+                macData.Position = 0;
+
+                return _hmac.ComputeHash(macData);
+            }
+        }
 
         #endregion
 
@@ -226,7 +284,11 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
             else
             {
-                s.WriteByte(2); //version uses PBKDF2-HMAC-SHA256
+                byte[] iv = new byte[_containerKey.IV.Length];
+                RandomNumberGenerator.Fill(iv);
+                _containerKey.IV = iv;
+
+                s.WriteByte(3); //version uses PBKDF2-HMAC-SHA256 and authenticates the header
                 s.WriteByte((byte)_containerKey.Algorithm); //CryptoAlgoName
                 s.WriteByte(Convert.ToByte(_containerKey.KeySize / 8)); //KeySizeBytes
                 s.WriteByte(Convert.ToByte(_containerKey.IV.Length)); //IV Size
@@ -247,13 +309,17 @@ namespace TechnitiumLibrary.Security.Cryptography
                 WritePlainTextTo(bS);
                 bS.Flush();
                 c.FlushFinalBlock();
+                long endPosition = s.Position;
 
-                //compute HMAC and write it into placeholder
+                byte[] cipherText = new byte[endPosition - cipherPosition];
                 s.Position = cipherPosition;
-                computedHMAC = _hmac.ComputeHash(s);
+                s.ReadExactly(cipherText, 0, cipherText.Length);
+
+                computedHMAC = ComputeContainerHmac(_containerKey.Algorithm, _containerKey.KeySize / 8, _containerKey.IV, _kdf.Salt, cipherText);
 
                 s.Position = hmacPosition;
                 s.Write(computedHMAC, 0, 32);
+                s.Position = endPosition;
             }
         }
 
