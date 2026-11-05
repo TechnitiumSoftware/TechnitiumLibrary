@@ -205,6 +205,10 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                 {
                     exPPP = ex;
                 }
+                catch (InternetGatewayDeviceException ex)
+                {
+                    exPPP = ex;
+                }
             }
 
             if (_controlUrlWanIP != null)
@@ -221,6 +225,9 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                         throw new InternetGatewayDeviceException("Server returned an error.", ex);
                 }
             }
+
+            if (exPPP != null)
+                throw exPPP;
 
             throw new InternetGatewayDeviceException("No control URL available to make UPnP SOAP request.");
         }
