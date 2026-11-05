@@ -130,7 +130,9 @@ namespace TechnitiumLibrary.Net.BitTorrent
                 Buffer.BlockCopy(_clientID.ClientKey, 0, request, 88, 4);
 
                 //num_want
-                Buffer.BlockCopy(BitConverter.GetBytes(_clientID.NumWant), 0, request, 92, 4);
+                byte[] numWant = BitConverter.GetBytes(_clientID.NumWant);
+                Array.Reverse(numWant);
+                Buffer.BlockCopy(numWant, 0, request, 92, 4);
 
                 //port 16bit
                 byte[] portBuffer = BitConverter.GetBytes(clientEP.Port);
