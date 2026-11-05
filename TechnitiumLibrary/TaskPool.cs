@@ -59,10 +59,20 @@ namespace TechnitiumLibrary
 
             for (int i = 0; i < _maximumConcurrencyLevel; i++)
             {
-                _ = Task.Factory.StartNew(async delegate ()
+                _ = Task.Factory.StartNew(delegate ()
                 {
-                    await foreach ((Func<object?, Task> task, object? state) in channelReader.ReadAllAsync())
-                        await task(state);
+                    while (channelReader.WaitToReadAsync().AsTask().GetAwaiter().GetResult())
+                    {
+                        while (channelReader.TryRead(out (Func<object?, Task> task, object? state) item))
+                        {
+                            try
+                            {
+                                item.task(item.state).GetAwaiter().GetResult();
+                            }
+                            catch
+                            { }
+                        }
+                    }
                 }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, taskScheduler);
             }
         }
