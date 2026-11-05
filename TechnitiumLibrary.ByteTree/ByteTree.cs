@@ -641,16 +641,22 @@ namespace TechnitiumLibrary.ByteTree
                     if (current._children is null)
                         break;
 
+                    Node? next = null;
+
                     for (int i = current._children.Length - 1; i > -1; i--)
                     {
-                        //find child node
                         Node child = Volatile.Read(ref current._children[i]);
                         if (child is not null)
                         {
-                            current = child;
+                            next = child;
                             break;
                         }
                     }
+
+                    if (next is null)
+                        break;
+
+                    current = next;
                 }
 
                 return lastNode;
