@@ -1446,6 +1446,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         protected override void ReadSvcParamValue(Stream s)
         {
             _dohPath = Encoding.UTF8.GetString(s.ReadExactly(_length));
+
+            if (!_dohPath.StartsWith('/'))
+                throw new DnsClientException("SVCB dohpath template must be relative and start with a '/'.");
+
+            if (!_dohPath.Contains("{?dns}"))
+                throw new DnsClientException("SVCB dohpath template must contain a 'dns' variable.");
         }
 
         protected override void WriteSvcParamValue(Stream s)
