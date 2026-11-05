@@ -1501,7 +1501,7 @@ namespace TechnitiumLibrary.Net.Dns
             ushort expectedMacSize = GetTsigMacSize(tsig.AlgorithmName);
 
             //Key Check
-            if ((expectedMacSize == ushort.MinValue) || (keys is null) || !keys.TryGetValue(tsigRecord.Name.ToLowerInvariant(), out TsigKey key) || !key.AlgorithmName.Equals(tsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
+            if ((expectedMacSize == ushort.MinValue) || (keys is null) || !keys.TryGetValue(ToLowerInvariantAscii(tsigRecord.Name), out TsigKey key) || !key.AlgorithmName.Equals(tsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
             {
                 unsignedRequest = null;
 
@@ -1632,7 +1632,7 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
             }
 
-            if ((keys is null) || !keys.TryGetValue(requestTsigRecord.Name.ToLowerInvariant(), out TsigKey key) || !key.AlgorithmName.Equals(requestTsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
+            if ((keys is null) || !keys.TryGetValue(ToLowerInvariantAscii(requestTsigRecord.Name), out TsigKey key) || !key.AlgorithmName.Equals(requestTsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Cannot sign this datagram: key not found or algorithm mismatch.");
 
             byte[] mac = ComputeTsigResponseMac(requestTsigRecord, key.KeyName, key.AlgorithmName, timeSigned, requestTsig.Fudge, error, otherData, key.SharedSecret, 0);
@@ -2035,10 +2035,10 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 //write TSIG Variables (request)
-                SerializeDomainName(keyName.ToLowerInvariant(), mS); //NAME
+                SerializeDomainName(ToLowerInvariantAscii(keyName), mS); //NAME
                 WriteUInt16NetworkOrder((ushort)DnsClass.ANY, mS); //CLASS
                 WriteUInt32NetworkOrder(0u, mS); //TTL
-                SerializeDomainName(algorithmName.ToLowerInvariant(), mS); //Algorithm Name
+                SerializeDomainName(ToLowerInvariantAscii(algorithmName), mS); //Algorithm Name
                 WriteUInt48NetworkOrder(timeSigned, mS); //Time Signed
                 WriteUInt16NetworkOrder(fudge, mS); //Fudge
                 WriteUInt16NetworkOrder((ushort)error, mS); //Error
@@ -2078,10 +2078,10 @@ namespace TechnitiumLibrary.Net.Dns
                 }
 
                 //write TSIG Variables (response)
-                SerializeDomainName(keyName.ToLowerInvariant(), mS); //NAME
+                SerializeDomainName(ToLowerInvariantAscii(keyName), mS); //NAME
                 WriteUInt16NetworkOrder((ushort)DnsClass.ANY, mS); //CLASS
                 WriteUInt32NetworkOrder(0u, mS); //TTL
-                SerializeDomainName(algorithmName.ToLowerInvariant(), mS); //Algorithm Name
+                SerializeDomainName(ToLowerInvariantAscii(algorithmName), mS); //Algorithm Name
                 WriteUInt48NetworkOrder(timeSigned, mS); //Time Signed
                 WriteUInt16NetworkOrder(fudge, mS); //Fudge
                 WriteUInt16NetworkOrder((ushort)error, mS); //Error
@@ -2133,7 +2133,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         private static ushort GetTsigMacSize(string algorithmName)
         {
-            switch (algorithmName.ToLowerInvariant())
+            switch (ToLowerInvariantAscii(algorithmName))
             {
                 case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5:
                     return 16;
@@ -2179,7 +2179,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             byte[] mac;
 
-            switch (algorithmName.ToLowerInvariant())
+            switch (ToLowerInvariantAscii(algorithmName))
             {
                 case DnsTSIGRecordData.ALGORITHM_NAME_HMAC_MD5:
                     using (HMAC hmac = new HMACMD5(key))
