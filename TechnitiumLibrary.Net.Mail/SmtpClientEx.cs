@@ -43,7 +43,7 @@ namespace TechnitiumLibrary.Net.Mail
         NetProxy _proxy;
         bool _smtpOverTls;
         string _host;
-        int _port;
+        int _port = 25;
         bool _ignoreCertificateErrors;
 
         TunnelProxy _tunnelProxy;
