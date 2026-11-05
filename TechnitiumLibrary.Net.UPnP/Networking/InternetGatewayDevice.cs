@@ -577,19 +577,14 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
 
                 if (portMap != null)
                 {
-                    if (portMap.InternalEP.Equals(internalEP))
-                    {
-                        //external port already mapped
+                    bool sameTarget = portMap.InternalEP.Equals(internalEP);
+                    if (sameTarget && portMap.Enabled && (leaseDuration == 0))
                         return true;
-                    }
-                    else
-                    {
-                        //external port not available
-                        if (force)
-                            DeletePortMapping(protocol, externalPort);
-                        else
-                            return false;
-                    }
+
+                    if (!sameTarget && !force)
+                        return false;
+
+                    DeletePortMapping(protocol, externalPort);
                 }
             }
             catch
