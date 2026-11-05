@@ -162,6 +162,9 @@ namespace TechnitiumLibrary.Net
             {
                 case AddressFamily.InterNetwork:
                     {
+                        if (_prefixLength == 0)
+                            return IPAddress.Broadcast;
+
                         uint addr = _address.ConvertIpToNumber();
                         uint hostMask = ~(0xFFFFFFFFu << (32 - _prefixLength));
                         uint broadcast = addr | hostMask;
