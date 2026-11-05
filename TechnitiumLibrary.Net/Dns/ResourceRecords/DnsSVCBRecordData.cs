@@ -90,10 +90,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 _targetName = DnsDatagram.DeserializeDomainName(mS);
 
                 Dictionary<DnsSvcParamKey, DnsSvcParamValue> svcParams = new Dictionary<DnsSvcParamKey, DnsSvcParamValue>();
+                ushort lastSvcParamKey = 0;
+                bool hasSvcParamKey = false;
 
                 while (mS.Position < mS.Length)
                 {
-                    DnsSvcParamKey svcParamKey = (DnsSvcParamKey)DnsDatagram.ReadUInt16NetworkOrder(mS);
+                    ushort svcParamKeyWire = DnsDatagram.ReadUInt16NetworkOrder(mS);
+                    if (hasSvcParamKey && (svcParamKeyWire <= lastSvcParamKey))
+                        throw new DnsClientException("SVCB parameter keys are not in strictly increasing order.");
+
+                    hasSvcParamKey = true;
+                    lastSvcParamKey = svcParamKeyWire;
+
+                    DnsSvcParamKey svcParamKey = (DnsSvcParamKey)svcParamKeyWire;
                     DnsSvcParamValue svcParamValue;
 
                     switch (svcParamKey)
@@ -134,10 +143,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                             break;
                     }
 
-                    _ = svcParams.TryAdd(svcParamKey, svcParamValue);
+                    svcParams.Add(svcParamKey, svcParamValue);
                 }
 
                 _svcParams = svcParams;
+                EnsureMandatoryKeysAreConsistent();
             }
         }
 
@@ -228,7 +238,39 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
             while (true);
 
-            return new DnsSVCBRecordData(svcPriority, targetName, svcParams) { _autoIpv4Hint = autoIpv4Hint, _autoIpv6Hint = autoIpv6Hint };
+            DnsSVCBRecordData svcb = new DnsSVCBRecordData(svcPriority, targetName, svcParams) { _autoIpv4Hint = autoIpv4Hint, _autoIpv6Hint = autoIpv6Hint };
+            svcb.EnsureMandatoryKeysAreConsistent();
+
+            return svcb;
+        }
+
+        void EnsureMandatoryKeysAreConsistent()
+        {
+            if (!_svcParams.TryGetValue(DnsSvcParamKey.Mandatory, out DnsSvcParamValue mandatoryValue))
+                return;
+
+            if (mandatoryValue is not DnsSvcMandatoryParamValue mandatory)
+                throw new DnsClientException("SVCB mandatory parameter has the wrong value type.");
+
+            HashSet<DnsSvcParamKey> mandatoryKeys = new HashSet<DnsSvcParamKey>();
+
+            foreach (DnsSvcParamKey key in mandatory.Keys)
+            {
+                if (key == DnsSvcParamKey.Mandatory)
+                    throw new DnsClientException("SVCB mandatory list must not include the mandatory key.");
+
+                if (!mandatoryKeys.Add(key))
+                    throw new DnsClientException("SVCB mandatory list contains a repeated key.");
+
+                if ((key == DnsSvcParamKey.IPv4Hint) && _autoIpv4Hint)
+                    continue;
+
+                if ((key == DnsSvcParamKey.IPv6Hint) && _autoIpv6Hint)
+                    continue;
+
+                if (!_svcParams.ContainsKey(key))
+                    throw new DnsClientException("SVCB mandatory key is missing from the record.");
+            }
         }
 
         internal override string ToZoneFileEntry(string originDomain = null)
@@ -610,11 +652,27 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadSvcParamValue(Stream s)
         {
+            if (_length == 0)
+                throw new DnsClientException("SVCB mandatory value must list at least one key.");
+
             int count = _length / 2;
             DnsSvcParamKey[] keys = new DnsSvcParamKey[count];
+            ushort lastKey = 0;
+            bool hasKey = false;
 
             for (int i = 0; i < count; i++)
-                keys[i] = (DnsSvcParamKey)DnsDatagram.ReadUInt16NetworkOrder(s);
+            {
+                ushort keyWire = DnsDatagram.ReadUInt16NetworkOrder(s);
+                if (keyWire == (ushort)DnsSvcParamKey.Mandatory)
+                    throw new DnsClientException("SVCB mandatory list must not include the mandatory key.");
+
+                if (hasKey && (keyWire <= lastKey))
+                    throw new DnsClientException("SVCB mandatory keys are not in strictly increasing order.");
+
+                hasKey = true;
+                lastKey = keyWire;
+                keys[i] = (DnsSvcParamKey)keyWire;
+            }
 
             _keys = keys;
         }
