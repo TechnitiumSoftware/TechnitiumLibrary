@@ -158,7 +158,12 @@ namespace TechnitiumLibrary.Security.Cryptography
 
             public byte[] TransformFinalBlock(byte[] inputBuffer, int inputOffset, int inputCount)
             {
-                return Array.Empty<byte>();
+                if (inputCount == 0)
+                    return Array.Empty<byte>();
+
+                byte[] output = new byte[inputCount];
+                TransformBlock(inputBuffer, inputOffset, inputCount, output, 0);
+                return output;
             }
 
             #endregion
@@ -172,10 +177,10 @@ namespace TechnitiumLibrary.Security.Cryptography
             { get { return true; } }
 
             public int InputBlockSize
-            { get { return 8; } }
+            { get { return 1; } }
 
             public int OutputBlockSize
-            { get { return 8; } }
+            { get { return 1; } }
 
             #endregion
         }
