@@ -1,0 +1,10 @@
+---
+description: Git commit messages do not credit Cursor
+alwaysApply: true
+---
+
+# Git commits
+
+Do not add a Cursor co-author line to a commit message. The message is only the change itself.
+
+Do not append `Co-authored-by: Cursor`. Do not pass `--trailer` for a Cursor co-author. Do not add `Made with [Cursor](https://cursor.com)` to a commit message or a pull request. The commit author is the user only.
