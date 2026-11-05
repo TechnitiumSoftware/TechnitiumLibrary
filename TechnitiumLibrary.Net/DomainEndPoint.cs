@@ -138,7 +138,7 @@ namespace TechnitiumLibrary.Net
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_address, _port);
+            return HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(_address), _port);
         }
 
         public override string ToString()
