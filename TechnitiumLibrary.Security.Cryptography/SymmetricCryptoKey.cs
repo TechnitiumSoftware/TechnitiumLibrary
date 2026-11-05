@@ -195,7 +195,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public void Encrypt(Stream clearText, Stream cipherText, int bufferSize = 4096)
         {
-            using (CryptoStream cW = new CryptoStream(cipherText, _symAlgo.CreateEncryptor(), CryptoStreamMode.Write))
+            using (CryptoStream cW = new CryptoStream(cipherText, _symAlgo.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true))
             {
                 clearText.CopyTo(cW, bufferSize);
                 cW.FlushFinalBlock();
