@@ -115,6 +115,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             if (_rData is null)
             {
+                EnsureSvcParamsAreConsistent();
+
                 List<KeyValuePair<DnsSvcParamKey, DnsSvcParamValue>> svcParams = new List<KeyValuePair<DnsSvcParamKey, DnsSvcParamValue>>(_svcParams);
 
                 svcParams.Sort(delegate (KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> x, KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> y)
@@ -467,6 +469,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override string ToZoneFileEntry(string originDomain = null)
         {
+            EnsureSvcParamsAreConsistent();
+
             string svcParams = string.Empty;
 
             foreach (KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> svcParam in _svcParams)
