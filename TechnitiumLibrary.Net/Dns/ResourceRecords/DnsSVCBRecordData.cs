@@ -1435,8 +1435,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (!dohPath.StartsWith('/'))
                 throw new ArgumentException("DoH path template must be relative and start with a '/'.");
 
-            if (!dohPath.Contains("{?dns}"))
-                throw new ArgumentException("DoH path template must contain a 'dns' variable.");
+            if (!ContainsOnlyDnsVariable(dohPath))
+                throw new ArgumentException("DoH path template must contain a variable named 'dns' and no other variables.");
 
             _dohPath = dohPath;
         }
@@ -1456,8 +1456,180 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (!_dohPath.StartsWith('/'))
                 throw new DnsClientException("SVCB dohpath template must be relative and start with a '/'.");
 
-            if (!_dohPath.Contains("{?dns}"))
-                throw new DnsClientException("SVCB dohpath template must contain a 'dns' variable.");
+            if (!ContainsOnlyDnsVariable(_dohPath))
+                throw new DnsClientException("SVCB dohpath template must contain a variable named 'dns' and no other variables.");
+        }
+
+        static bool ContainsOnlyDnsVariable(string template)
+        {
+            bool sawDns = false;
+
+            for (int i = 0; i < template.Length; i++)
+            {
+                if (template[i] != '{')
+                    continue;
+
+                int close = template.IndexOf('}', i + 1);
+                if (close < 0)
+                    return false;
+
+                if (!ExpressionUsesOnlyDns(template, i + 1, close, ref sawDns))
+                    return false;
+
+                i = close;
+            }
+
+            return sawDns;
+        }
+
+        static bool ExpressionUsesOnlyDns(string template, int start, int end, ref bool sawDns)
+        {
+            int i = start;
+
+            if ((i < end) && IsUriTemplateOperator(template[i]))
+                i++;
+
+            if (i >= end)
+                return false;
+
+            while (i < end)
+            {
+                if (!TryReadVariableName(template, ref i, end, out string name))
+                    return false;
+
+                if (!name.Equals("dns", StringComparison.Ordinal))
+                    return false;
+
+                sawDns = true;
+
+                if ((i < end) && (template[i] == ':'))
+                {
+                    i++;
+
+                    int digits = 0;
+                    while ((i < end) && (digits < 4) && (template[i] >= '0') && (template[i] <= '9'))
+                    {
+                        i++;
+                        digits++;
+                    }
+
+                    if (digits == 0)
+                        return false;
+                }
+                else if ((i < end) && (template[i] == '*'))
+                {
+                    i++;
+                }
+
+                if (i >= end)
+                    return true;
+
+                if (template[i] != ',')
+                    return false;
+
+                i++;
+
+                if (i >= end)
+                    return false;
+            }
+
+            return false;
+        }
+
+        static bool TryReadVariableName(string template, ref int i, int end, out string name)
+        {
+            StringBuilder value = new StringBuilder();
+
+            if (!TryReadVariableChar(template, ref i, end, value))
+            {
+                name = null;
+                return false;
+            }
+
+            while (i < end)
+            {
+                int saved = i;
+                int savedLength = value.Length;
+
+                if (template[i] == '.')
+                {
+                    i++;
+                    value.Append('.');
+
+                    if (!TryReadVariableChar(template, ref i, end, value))
+                    {
+                        i = saved;
+                        value.Length = savedLength;
+                        break;
+                    }
+
+                    continue;
+                }
+
+                if (!TryReadVariableChar(template, ref i, end, value))
+                    break;
+            }
+
+            name = value.ToString();
+            return true;
+        }
+
+        static bool TryReadVariableChar(string template, ref int i, int end, StringBuilder value)
+        {
+            if (i >= end)
+                return false;
+
+            char c = template[i];
+
+            if (((c >= 'A') && (c <= 'Z')) || ((c >= 'a') && (c <= 'z')) || ((c >= '0') && (c <= '9')) || (c == '_'))
+            {
+                value.Append(c);
+                i++;
+                return true;
+            }
+
+            if ((c == '%') && (i + 2 < end) && Uri.IsHexDigit(template[i + 1]) && Uri.IsHexDigit(template[i + 2]))
+            {
+                value.Append((char)((HexValue(template[i + 1]) << 4) | HexValue(template[i + 2])));
+                i += 3;
+                return true;
+            }
+
+            return false;
+        }
+
+        static int HexValue(char c)
+        {
+            if ((c >= '0') && (c <= '9'))
+                return c - '0';
+
+            if ((c >= 'A') && (c <= 'F'))
+                return c - 'A' + 10;
+
+            return c - 'a' + 10;
+        }
+
+        static bool IsUriTemplateOperator(char c)
+        {
+            switch (c)
+            {
+                case '+':
+                case '#':
+                case '.':
+                case '/':
+                case ';':
+                case '?':
+                case '&':
+                case '=':
+                case ',':
+                case '!':
+                case '@':
+                case '|':
+                    return true;
+
+                default:
+                    return false;
+            }
         }
 
         protected override void WriteSvcParamValue(Stream s)
