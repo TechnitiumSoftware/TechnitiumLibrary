@@ -161,19 +161,27 @@ namespace TechnitiumLibrary.Net
 
         public static async Task PipeToAsync(this Socket socket1, Socket socket2, int bufferSize = 64 * 1024)
         {
-            Task t1 = socket1.CopyToAsync(socket2, bufferSize).ContinueWith(delegate (Task prevTask)
+            async Task CopyAsync(Socket src, Socket dst)
             {
-                if ((prevTask.Status == TaskStatus.RanToCompletion) && socket2.Connected)
-                    socket2.Shutdown(SocketShutdown.Send);
-            });
+                try
+                {
+                    await src.CopyToAsync(dst, bufferSize);
+                }
+                finally
+                {
+                    if (dst.Connected)
+                    {
+                        try
+                        {
+                            dst.Shutdown(SocketShutdown.Send);
+                        }
+                        catch
+                        { }
+                    }
+                }
+            }
 
-            Task t2 = socket2.CopyToAsync(socket1, bufferSize).ContinueWith(delegate (Task prevTask)
-            {
-                if ((prevTask.Status == TaskStatus.RanToCompletion) && socket1.Connected)
-                    socket1.Shutdown(SocketShutdown.Send);
-            });
-
-            await Task.WhenAll(t1, t2);
+            await Task.WhenAll(CopyAsync(socket1, socket2), CopyAsync(socket2, socket1));
         }
 
         #endregion
