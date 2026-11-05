@@ -98,15 +98,27 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     break;
 
                 TMP += Convert.ToChar(preByte);
-                preByte = Convert.ToByte(s.ReadByte());
+
+                int next = s.ReadByte();
+                if (next < 0)
+                    throw new EndOfStreamException();
+
+                preByte = (byte)next;
             }
 
             byte[] buffer = new byte[Convert.ToInt32(TMP)];
+            int offset = 0;
 
-            if (s.Read(buffer, 0, buffer.Length) == buffer.Length)
-                return buffer;
+            while (offset < buffer.Length)
+            {
+                int bytesRead = s.Read(buffer, offset, buffer.Length - offset);
+                if (bytesRead < 1)
+                    throw new EndOfStreamException();
 
-            throw new Exception("Invalid bencoded string format.");
+                offset += bytesRead;
+            }
+
+            return buffer;
         }
 
         private static void EncodeList(List<Bencoding> list, Stream s)
