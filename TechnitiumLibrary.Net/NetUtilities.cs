@@ -321,15 +321,30 @@ namespace TechnitiumLibrary.Net
                                     else
                                     {
                                         byte[] addr = ip.Address.GetAddressBytes();
+                                        int prefixLength = ip.PrefixLength;
+                                        if (prefixLength < 0)
+                                            prefixLength = 0;
+                                        else if (prefixLength > 128)
+                                            prefixLength = 128;
+
+                                        int fullBytes = prefixLength / 8;
+                                        int remainingBits = prefixLength % 8;
                                         bool isInSameNetwork = true;
 
-                                        for (int i = 0; i < 8; i++)
+                                        for (int i = 0; i < fullBytes; i++)
                                         {
                                             if (addr[i] != destination[i])
                                             {
                                                 isInSameNetwork = false;
                                                 break;
                                             }
+                                        }
+
+                                        if (isInSameNetwork && (remainingBits > 0) && (fullBytes < addr.Length) && (fullBytes < destination.Length))
+                                        {
+                                            int mask = 0xFF << (8 - remainingBits);
+                                            if ((addr[fullBytes] & mask) != (destination[fullBytes] & mask))
+                                                isInSameNetwork = false;
                                         }
 
                                         if (isInSameNetwork)
