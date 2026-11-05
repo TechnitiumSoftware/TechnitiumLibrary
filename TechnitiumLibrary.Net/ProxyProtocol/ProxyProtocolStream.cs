@@ -162,7 +162,7 @@ namespace TechnitiumLibrary.Net.ProxyProtocol
 
                     case 2:
                         int addressLength = proxy._buffer[14] << 8 | proxy._buffer[15];
-                        if (proxy._length < addressLength)
+                        if (proxy._length < 16 + addressLength)
                             break;
 
                         proxy.ParseVersion2();
