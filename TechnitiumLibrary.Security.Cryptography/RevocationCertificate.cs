@@ -31,6 +31,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         static readonly DateTime _epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
+        byte _formatVersion;
         string _serialNumber;
         DateTime _revokedOnUTC;
         byte[] _signature;
@@ -42,10 +43,11 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public RevocationCertificate(Certificate certToRevoke, string hashAlgo, AsymmetricCryptoKey privateKey)
         {
+            _formatVersion = 2;
             _serialNumber = certToRevoke.SerialNumber;
-            _revokedOnUTC = DateTime.UtcNow;
-            _signature = privateKey.Sign(GetHash(hashAlgo, _serialNumber, _revokedOnUTC), hashAlgo);
+            _revokedOnUTC = _epoch.AddSeconds(ToUnixSeconds(DateTime.UtcNow));
             _hashAlgo = hashAlgo;
+            _signature = privateKey.Sign(GetHash(_formatVersion, hashAlgo, _serialNumber, _revokedOnUTC), hashAlgo);
         }
 
         public RevocationCertificate(Stream s)
@@ -92,11 +94,19 @@ namespace TechnitiumLibrary.Security.Cryptography
                     }
                 }
 
-                return revokeCert.IsValid(certToCheck);
+                if (!revokeCert.IsValid(certToCheck))
+                    throw new InvalidCertificateException("Revocation certificate signature is invalid.");
+
+                return true;
             }
         }
 
-        private static bool IsValid(Certificate certToCheck, DateTime revokedOnUTC, byte[] signature, string hashAlgo)
+        static ulong ToUnixSeconds(DateTime revokedOnUTC)
+        {
+            return Convert.ToUInt64((revokedOnUTC - _epoch).TotalSeconds);
+        }
+
+        private static bool IsValid(Certificate certToCheck, DateTime revokedOnUTC, byte[] signature, string hashAlgo, byte version)
         {
             Certificate signingCert;
 
@@ -105,10 +115,10 @@ namespace TechnitiumLibrary.Security.Cryptography
             else
                 signingCert = certToCheck.IssuerSignature.SigningCertificate;
 
-            return AsymmetricCryptoKey.Verify(GetHash(hashAlgo, certToCheck.SerialNumber, revokedOnUTC), signature, hashAlgo, signingCert);
+            return AsymmetricCryptoKey.Verify(GetHash(version, hashAlgo, certToCheck.SerialNumber, revokedOnUTC), signature, hashAlgo, signingCert);
         }
 
-        private static byte[] GetHash(string hashAlgorithm, string serialNumber, DateTime revokedOnUTC)
+        private static byte[] GetHash(byte version, string hashAlgorithm, string serialNumber, DateTime revokedOnUTC)
         {
             using (MemoryStream mS = new MemoryStream())
             {
@@ -118,10 +128,13 @@ namespace TechnitiumLibrary.Security.Cryptography
                 bW.Write(Convert.ToByte(serialNumber.Length));
                 bW.Write(Encoding.ASCII.GetBytes(serialNumber));
 
-                //revoked on
-                bW.Write(revokedOnUTC.ToBinary());
+                //revoked on. Version 2 stores whole Unix seconds, so the signature has to cover that value.
+                if (version == 1)
+                    bW.Write(revokedOnUTC.ToBinary());
+                else
+                    bW.Write(ToUnixSeconds(revokedOnUTC));
 
-                //reset
+                bW.Flush();
                 mS.Position = 0;
 
                 return System.Security.Cryptography.HashAlgorithm.Create(hashAlgorithm).ComputeHash(mS);
@@ -142,6 +155,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             switch (bR.ReadByte()) //version
             {
                 case 1:
+                    _formatVersion = 1;
                     _serialNumber = Encoding.ASCII.GetString(bR.ReadBytes(bR.ReadByte()));
                     _revokedOnUTC = DateTime.FromBinary(bR.ReadInt64());
                     _signature = bR.ReadBytes(bR.ReadUInt16());
@@ -149,6 +163,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                     break;
 
                 case 2:
+                    _formatVersion = 2;
                     _serialNumber = Encoding.ASCII.GetString(bR.ReadBytes(bR.ReadByte()));
                     _revokedOnUTC = _epoch.AddSeconds(bR.ReadUInt64());
                     _signature = bR.ReadBytes(bR.ReadUInt16());
@@ -169,7 +184,7 @@ namespace TechnitiumLibrary.Security.Cryptography
             if (certToCheck.SerialNumber != _serialNumber)
                 throw new CryptoException("Certificate serial number does not match with the revocation certificate.");
 
-            return IsValid(certToCheck, _revokedOnUTC, _signature, _hashAlgo);
+            return IsValid(certToCheck, _revokedOnUTC, _signature, _hashAlgo, _formatVersion);
         }
 
         public void WriteFoundServerResponseTo(Stream s)

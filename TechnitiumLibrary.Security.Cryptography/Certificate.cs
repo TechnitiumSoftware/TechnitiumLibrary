@@ -369,8 +369,10 @@ namespace TechnitiumLibrary.Security.Cryptography
                 {
                     throw;
                 }
-                catch
-                { }
+                catch (Exception ex)
+                {
+                    throw new InvalidCertificateException("Failed to verify the revocation list for certificate issued to '" + _issuedTo.Name + "'.", ex);
+                }
 
                 if (revoked)
                     throw new InvalidCertificateException("Certificate serial number '" + _serialNumber + "' issued to '" + _issuedTo.Name + "' has been revoked on " + revokeCert.RevokedOnUTC + " UTC by the certificate authority and hence is invalid.");
