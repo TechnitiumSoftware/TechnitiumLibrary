@@ -199,7 +199,7 @@ namespace TechnitiumLibrary.Net
                     IReadOnlyList<IPAddress> ipAddresses;
 
                     if (useRecursiveResolver)
-                        ipAddresses = await DnsClient.RecursiveResolveIPAsync(dep.Address, ipv6Mode: family == AddressFamily.InterNetworkV6 ? IPv6Mode.Enabled : IPv6Mode.Disabled, cancellationToken: cancellationToken);
+                        ipAddresses = await DnsClient.RecursiveResolveIPAsync(dep.Address, ipv6Mode: family == AddressFamily.InterNetwork ? IPv6Mode.Disabled : IPv6Mode.Enabled, cancellationToken: cancellationToken);
                     else
                         ipAddresses = await System.Net.Dns.GetHostAddressesAsync(dep.Address, cancellationToken);
 
