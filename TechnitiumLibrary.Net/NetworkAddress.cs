@@ -94,9 +94,10 @@ namespace TechnitiumLibrary.Net
                 return false;
             }
 
-            byte prefixLength = 255;
+            bool prefixSpecified = parts.Length > 1;
+            byte prefixLength = 0;
 
-            if ((parts.Length > 1) && !byte.TryParse(parts[1], out prefixLength))
+            if (prefixSpecified && !byte.TryParse(parts[1], out prefixLength))
             {
                 networkAddress = null;
                 return false;
@@ -105,10 +106,8 @@ namespace TechnitiumLibrary.Net
             switch (address.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    if (prefixLength == 255)
-                    {
+                    if (!prefixSpecified)
                         prefixLength = 32;
-                    }
                     else if (prefixLength > 32)
                     {
                         networkAddress = null;
@@ -118,10 +117,8 @@ namespace TechnitiumLibrary.Net
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    if (prefixLength == 255)
-                    {
+                    if (!prefixSpecified)
                         prefixLength = 128;
-                    }
                     else if (prefixLength > 128)
                     {
                         networkAddress = null;
