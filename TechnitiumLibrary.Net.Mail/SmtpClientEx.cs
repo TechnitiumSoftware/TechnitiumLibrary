@@ -25,6 +25,7 @@ using System.Net.Security;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns;
 using TechnitiumLibrary.Net.Proxy;
@@ -36,6 +37,7 @@ namespace TechnitiumLibrary.Net.Mail
         #region variables
 
         readonly static RemoteCertificateValidationCallback _existingServerCertificateValidationCallback;
+        readonly static AsyncLocal<SmtpClientEx> _sendingClient = new AsyncLocal<SmtpClientEx>();
         static bool _ignoreCertificateErrorsForProxy;
 
         readonly static FieldInfo _localHostName = typeof(SmtpClient).GetField("_clientDomain", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -104,7 +106,11 @@ namespace TechnitiumLibrary.Net.Mail
 
         private static bool ServerCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-            if (sender is SmtpClientEx smtpClient)
+            SmtpClientEx smtpClient = _sendingClient.Value;
+            if (smtpClient is null)
+                smtpClient = sender as SmtpClientEx;
+
+            if (smtpClient is not null)
             {
                 if (smtpClient._ignoreCertificateErrors)
                     return true;
@@ -180,6 +186,11 @@ namespace TechnitiumLibrary.Net.Mail
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
+            SmtpClientEx previous = _sendingClient.Value;
+            _sendingClient.Value = this;
+
+            try
+            {
             if (message.To.Count == 0)
                 throw new ArgumentException("Message does not contain receipent email address.");
 
@@ -251,6 +262,11 @@ namespace TechnitiumLibrary.Net.Mail
             else
             {
                 await base.SendMailAsync(message);
+            }
+            }
+            finally
+            {
+                _sendingClient.Value = previous;
             }
         }
 
