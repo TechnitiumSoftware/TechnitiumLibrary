@@ -75,7 +75,17 @@ namespace TechnitiumLibrary
                 for (int i = 0; i < value1.Count; i++)
                 {
                     T? v1 = value1[i];
-                    if ((v1 is null) || !v1.Equals(value2[i]))
+                    T? v2 = value2[i];
+
+                    if (v1 is null)
+                    {
+                        if (v2 is null)
+                            continue;
+
+                        return false;
+                    }
+
+                    if (!v1.Equals(v2))
                         return false;
                 }
             }
@@ -102,10 +112,19 @@ namespace TechnitiumLibrary
             if (value1.Count != value2.Count)
                 return false;
 
+            List<T> remaining = new List<T>(value2);
+
             foreach (T item in value1)
             {
-                if (!value2.Contains(item))
+                int index = remaining.FindIndex(delegate (T candidate)
+                {
+                    return EqualityComparer<T>.Default.Equals(candidate, item);
+                });
+
+                if (index < 0)
                     return false;
+
+                remaining.RemoveAt(index);
             }
 
             return true;
