@@ -282,16 +282,10 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
             switch (statusCode)
             {
                 case 401:
-                    throw new InternetGatewayDeviceException("UPnP device returned an error: (" + statusCode + ") Invalid Action.");
-
                 case 402:
-                    throw new InternetGatewayDeviceException("UPnP device returned an error: (" + statusCode + ") Invalid Args.");
-
                 case 404:
-                    throw new InternetGatewayDeviceException("UPnP device returned an error: (" + statusCode + ") Invalid Var.");
-
                 case 501:
-                    throw new InternetGatewayDeviceException("UPnP device returned an error: (" + statusCode + ") Action Failed.");
+                    throw new InternetGatewayDeviceException("UPnP device returned an HTTP error: (" + statusCode + ") " + response.StatusDescription);
 
                 case 500:
                     try
