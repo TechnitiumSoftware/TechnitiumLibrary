@@ -294,7 +294,12 @@ namespace TechnitiumLibrary.Net.Dns
             return ttl;
         }
 
-        internal async Task<string> PopItemAsync(bool newEntry = false)
+        internal Task<string> PopCharacterStringAsync()
+        {
+            return PopItemAsync(false, true);
+        }
+
+        internal async Task<string> PopItemAsync(bool newEntry = false, bool characterString = false)
         {
             if (newEntry)
             {
@@ -310,7 +315,7 @@ namespace TechnitiumLibrary.Net.Dns
                             break;
                         }
 
-                        string word = PopWord(ref _line);
+                        string word = PopWord(ref _line, out _);
                         if (word is null)
                         {
                             _line = await _tR.ReadLineAsync();
@@ -388,7 +393,7 @@ namespace TechnitiumLibrary.Net.Dns
                     continue;
                 }
 
-                string word = PopWord(ref _line);
+                string word = PopWord(ref _line, out bool quoted);
                 if (word is null)
                 {
                     if (!_multiLine)
@@ -397,6 +402,9 @@ namespace TechnitiumLibrary.Net.Dns
                     _line = null;
                     continue;
                 }
+
+                if (characterString && !quoted)
+                    word = UnescapeCharacterString(word);
 
                 return word;
             }
@@ -633,8 +641,9 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
-        private static string PopWord(ref string line)
+        private static string PopWord(ref string line, out bool quoted)
         {
+            quoted = false;
             line = line.TrimStart(_trimSeperator);
 
             if (line.Length == 0)
@@ -642,6 +651,8 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (line.StartsWith('\"'))
             {
+                quoted = true;
+
                 int i = 0;
 
                 do
@@ -662,7 +673,7 @@ namespace TechnitiumLibrary.Net.Dns
                 string word = line.Substring(1, i - 1);
                 line = line.Substring(i + 1);
 
-                return UnescapeQuoted(word);
+                return UnescapeCharacterString(word);
             }
             else
             {
@@ -684,7 +695,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        static string UnescapeQuoted(string value)
+        internal static string UnescapeCharacterString(string value)
         {
             StringBuilder result = new StringBuilder(value.Length);
 

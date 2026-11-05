@@ -153,7 +153,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             do
             {
-                string value = await zoneFile.PopItemAsync();
+                string value = await zoneFile.PopCharacterStringAsync();
                 if (value is null)
                     break;
 

@@ -77,8 +77,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (rdata is not null)
                 return new DnsHINFORecordData(rdata);
 
-            string cpu = await zoneFile.PopItemAsync();
-            string os = await zoneFile.PopItemAsync();
+            string cpu = await zoneFile.PopCharacterStringAsync();
+            string os = await zoneFile.PopCharacterStringAsync();
 
             return new DnsHINFORecordData(cpu, os);
         }

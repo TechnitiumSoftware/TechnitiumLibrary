@@ -96,7 +96,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             byte flags = byte.Parse(await zoneFile.PopItemAsync());
             string tag = await zoneFile.PopItemAsync();
-            string value = await zoneFile.PopItemAsync();
+            string value = await zoneFile.PopCharacterStringAsync();
 
             return new DnsCAARecordData(flags, tag, value);
         }

@@ -140,9 +140,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             ushort order = ushort.Parse(await zoneFile.PopItemAsync());
             ushort preference = ushort.Parse(await zoneFile.PopItemAsync());
-            string flags = DnsDatagram.DecodeCharacterString(await zoneFile.PopItemAsync());
-            string services = DnsDatagram.DecodeCharacterString(await zoneFile.PopItemAsync());
-            string regexp = DnsDatagram.DecodeCharacterString(await zoneFile.PopItemAsync());
+            string flags = await zoneFile.PopCharacterStringAsync();
+            string services = await zoneFile.PopCharacterStringAsync();
+            string regexp = await zoneFile.PopCharacterStringAsync();
             string replacement = await zoneFile.PopDomainAsync();
 
             return new DnsNAPTRRecordData(order, preference, flags, services, regexp, replacement);
