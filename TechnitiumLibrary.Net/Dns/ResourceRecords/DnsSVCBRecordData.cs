@@ -1576,6 +1576,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (!ContainsDnsVariable(dohPath))
                 throw new ArgumentException("DoH path template must contain a variable named 'dns'.");
 
+            if (!ExpandsToServicePath(dohPath))
+                throw new ArgumentException("DoH path template must expand to an HTTP path that includes the 'dns' value.");
+
             _dohPath = dohPath;
         }
 
@@ -1596,6 +1599,288 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             if (!ContainsDnsVariable(_dohPath))
                 throw new DnsClientException("SVCB dohpath template must contain a variable named 'dns'.");
+
+            if (!ExpandsToServicePath(_dohPath))
+                throw new DnsClientException("SVCB dohpath template must expand to an HTTP path that includes the 'dns' value.");
+        }
+
+        static bool ExpandsToServicePath(string template)
+        {
+            const string sample = "AAAA";
+            StringBuilder expanded = new StringBuilder();
+            bool includedDns = false;
+
+            for (int i = 0; i < template.Length; i++)
+            {
+                if (template[i] != '{')
+                {
+                    expanded.Append(template[i]);
+                    continue;
+                }
+
+                int close = template.IndexOf('}', i + 1);
+                if ((close < 0) || !TryExpandExpression(template, i + 1, close, sample, expanded, ref includedDns))
+                    return false;
+
+                i = close;
+            }
+
+            return includedDns && IsHttpPath(expanded.ToString());
+        }
+
+        static bool TryExpandExpression(string template, int start, int end, string sample, StringBuilder expanded, ref bool includedDns)
+        {
+            int i = start;
+            char op = '\0';
+
+            if ((i < end) && IsUriTemplateOperator(template[i]))
+            {
+                op = template[i];
+                i++;
+            }
+
+            switch (op)
+            {
+                case '#':
+                case '=':
+                case ',':
+                case '!':
+                case '@':
+                case '|':
+                    return false;
+            }
+
+            List<string> names = new List<string>();
+            List<string> values = new List<string>();
+
+            while (i < end)
+            {
+                if (!TryReadVariableName(template, ref i, end, out string name))
+                    return false;
+
+                string value = null;
+                if (name.Equals("dns", StringComparison.Ordinal))
+                    value = sample;
+
+                if ((i < end) && (template[i] == ':'))
+                {
+                    i++;
+
+                    int prefix = 0;
+                    int digits = 0;
+                    while ((i < end) && (digits < 4) && (template[i] >= '0') && (template[i] <= '9'))
+                    {
+                        prefix = (prefix * 10) + (template[i] - '0');
+                        i++;
+                        digits++;
+                    }
+
+                    if (digits == 0)
+                        return false;
+
+                    if ((value is not null) && (prefix < value.Length))
+                        value = value.Substring(0, prefix);
+                }
+                else if ((i < end) && (template[i] == '*'))
+                {
+                    i++;
+                }
+
+                names.Add(name);
+                values.Add(value);
+
+                if (i >= end)
+                    break;
+
+                if (template[i] != ',')
+                    return false;
+
+                i++;
+
+                if (i >= end)
+                    return false;
+            }
+
+            if (names.Count == 0)
+                return false;
+
+            switch (op)
+            {
+                case '.':
+                case '/':
+                    for (int n = 0; n < names.Count; n++)
+                    {
+                        if (values[n] is null)
+                            continue;
+
+                        expanded.Append(op);
+                        expanded.Append(values[n]);
+                        if ((names[n] == "dns") && (values[n].Length > 0))
+                            includedDns = true;
+                    }
+
+                    break;
+
+                case ';':
+                    for (int n = 0; n < names.Count; n++)
+                    {
+                        if (values[n] is null)
+                            continue;
+
+                        expanded.Append(';');
+                        expanded.Append(names[n]);
+                        if (values[n].Length > 0)
+                        {
+                            expanded.Append('=');
+                            expanded.Append(values[n]);
+                            if (names[n] == "dns")
+                                includedDns = true;
+                        }
+                    }
+
+                    break;
+
+                case '?':
+                case '&':
+                    bool first = true;
+                    for (int n = 0; n < names.Count; n++)
+                    {
+                        if (values[n] is null)
+                            continue;
+
+                        expanded.Append(first ? op : '&');
+                        first = false;
+                        expanded.Append(names[n]);
+                        if (values[n].Length > 0)
+                        {
+                            expanded.Append('=');
+                            expanded.Append(values[n]);
+                            if (names[n] == "dns")
+                                includedDns = true;
+                        }
+                    }
+
+                    break;
+
+                default:
+                    bool started = false;
+                    for (int n = 0; n < names.Count; n++)
+                    {
+                        if (values[n] is null)
+                            continue;
+
+                        if (started)
+                            expanded.Append(',');
+
+                        expanded.Append(values[n]);
+                        started = true;
+                        if ((names[n] == "dns") && (values[n].Length > 0))
+                            includedDns = true;
+                    }
+
+                    break;
+            }
+
+            return true;
+        }
+
+        static bool IsHttpPath(string value)
+        {
+            if ((value.Length == 0) || (value[0] != '/'))
+                return false;
+
+            int i = 1;
+            if ((i < value.Length) && (value[i] != '?'))
+            {
+                if (!ReadPathSegment(value, ref i, true))
+                    return false;
+
+                while ((i < value.Length) && (value[i] == '/'))
+                {
+                    i++;
+                    if (!ReadPathSegment(value, ref i, false))
+                        return false;
+                }
+            }
+
+            if ((i < value.Length) && (value[i] == '?'))
+            {
+                i++;
+                while (i < value.Length)
+                {
+                    if ((value[i] == '/') || (value[i] == '?'))
+                    {
+                        i++;
+                        continue;
+                    }
+
+                    if (!ReadPathChar(value, ref i))
+                        return false;
+                }
+            }
+
+            return i == value.Length;
+        }
+
+        static bool ReadPathSegment(string value, ref int i, bool requireOne)
+        {
+            int start = i;
+            while (ReadPathChar(value, ref i))
+            { }
+
+            return !requireOne || (i > start);
+        }
+
+        static bool ReadPathChar(string value, ref int i)
+        {
+            if (i >= value.Length)
+                return false;
+
+            char c = value[i];
+            if (IsPathChar(c))
+            {
+                i++;
+                return true;
+            }
+
+            if ((c == '%') && (i + 2 < value.Length) && Uri.IsHexDigit(value[i + 1]) && Uri.IsHexDigit(value[i + 2]))
+            {
+                i += 3;
+                return true;
+            }
+
+            return false;
+        }
+
+        static bool IsPathChar(char c)
+        {
+            if (((c >= 'A') && (c <= 'Z')) || ((c >= 'a') && (c <= 'z')) || ((c >= '0') && (c <= '9')))
+                return true;
+
+            switch (c)
+            {
+                case '-':
+                case '.':
+                case '_':
+                case '~':
+                case '!':
+                case '$':
+                case '&':
+                case '\'':
+                case '(':
+                case ')':
+                case '*':
+                case '+':
+                case ',':
+                case ';':
+                case '=':
+                case ':':
+                case '@':
+                    return true;
+
+                default:
+                    return false;
+            }
         }
 
         static bool ContainsDnsVariable(string template)
