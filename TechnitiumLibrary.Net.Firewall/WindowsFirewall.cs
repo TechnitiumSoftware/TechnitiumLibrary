@@ -135,6 +135,19 @@ namespace TechnitiumLibrary.Net.Firewall
             firewallPolicy.Rules.Add(firewallRule);
         }
 
+        static bool FirewallRuleMatches(INetFwRule rule, string name, string applicationPath)
+        {
+            bool hasName = !string.IsNullOrEmpty(name);
+            bool hasApplication = !string.IsNullOrEmpty(applicationPath);
+            bool nameMatches = hasName && (rule.Name != null) && rule.Name.Equals(name, StringComparison.OrdinalIgnoreCase);
+            bool applicationMatches = hasApplication && (rule.ApplicationName != null) && rule.ApplicationName.Equals(applicationPath, StringComparison.OrdinalIgnoreCase);
+
+            if (hasName && hasApplication)
+                return nameMatches && applicationMatches;
+
+            return nameMatches || applicationMatches;
+        }
+
         public static void RemoveRuleVista(string name, string applicationPath)
         {
             INetFwPolicy2 firewallPolicy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2")!)!;
@@ -143,7 +156,7 @@ namespace TechnitiumLibrary.Net.Firewall
 
             foreach (INetFwRule rule in firewallPolicy.Rules)
             {
-                if (((rule.Name != null) && rule.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) || ((rule.ApplicationName != null) && rule.ApplicationName.Equals(applicationPath, StringComparison.OrdinalIgnoreCase)))
+                if (FirewallRuleMatches(rule, name, applicationPath))
                     removeRules.Add(rule);
             }
 
@@ -159,7 +172,7 @@ namespace TechnitiumLibrary.Net.Firewall
 
             foreach (INetFwRule rule in firewallPolicy.Rules)
             {
-                if (((rule.Name != null) && rule.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) || ((rule.ApplicationName != null) && rule.ApplicationName.Equals(applicationPath, StringComparison.OrdinalIgnoreCase)))
+                if (FirewallRuleMatches(rule, name, applicationPath))
                 {
                     if ((protocol != Protocol.Unknown) && (rule.Protocol != (int)protocol))
                         continue;
