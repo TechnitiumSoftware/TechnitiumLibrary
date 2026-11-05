@@ -102,6 +102,9 @@ namespace TechnitiumLibrary.Security.OTP
 
         private static string TOTP(byte[] k, DateTime dateTime, int t0 = 0, int period = 30, int digits = 6, string algorithm = "SHA1")
         {
+            if (period <= 0)
+                throw new ArgumentOutOfRangeException(nameof(period), "TOTP period must be greater than zero.");
+
             long t = (long)Math.Floor(((dateTime - DateTime.UnixEpoch).TotalSeconds - t0) / period);
 
             return HOTP(k, t, digits, algorithm);
