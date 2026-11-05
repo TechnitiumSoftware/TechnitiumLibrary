@@ -662,7 +662,7 @@ namespace TechnitiumLibrary.Net.Dns
                 string word = line.Substring(1, i - 1);
                 line = line.Substring(i + 1);
 
-                return word.Replace("\\\"", "\"").Replace("\\\\", "\\");
+                return UnescapeQuoted(word);
             }
             else
             {
@@ -682,6 +682,42 @@ namespace TechnitiumLibrary.Net.Dns
 
                 return word;
             }
+        }
+
+        static string UnescapeQuoted(string value)
+        {
+            StringBuilder result = new StringBuilder(value.Length);
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                if (value[i] != '\\')
+                {
+                    result.Append(value[i]);
+                    continue;
+                }
+
+                if (i + 1 >= value.Length)
+                    throw new FormatException("Zone file escape is missing the escaped character.");
+
+                if ((value[i + 1] >= '0') && (value[i + 1] <= '9'))
+                {
+                    if ((i + 3 >= value.Length) || (value[i + 2] < '0') || (value[i + 2] > '9') || (value[i + 3] < '0') || (value[i + 3] > '9'))
+                        throw new FormatException("Zone file decimal escape must be three digits.");
+
+                    int octet = ((value[i + 1] - '0') * 100) + ((value[i + 2] - '0') * 10) + (value[i + 3] - '0');
+                    if (octet > 255)
+                        throw new FormatException("Zone file escape is outside the octet range: \\" + octet.ToString());
+
+                    result.Append((char)octet);
+                    i += 3;
+                    continue;
+                }
+
+                result.Append(value[i + 1]);
+                i++;
+            }
+
+            return result.ToString();
         }
 
         private async Task<DnsResourceRecordData> ParseRecordDataAsync(DnsResourceRecordType type)
