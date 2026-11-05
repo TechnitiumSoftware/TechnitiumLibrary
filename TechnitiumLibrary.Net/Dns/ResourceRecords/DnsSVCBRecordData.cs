@@ -179,6 +179,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 }
 
                 svcParamKey = Enum.Parse<DnsSvcParamKey>(keyToken.Replace('-', '_'), true);
+                svcParamValue = ZoneFile.DecodeCharacterStringToken(svcParamValue);
 
                 switch (svcParamKey)
                 {
@@ -290,6 +291,47 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             keyNumber = (ushort)value;
             return true;
+        }
+
+        internal static List<string> SplitValueList(string value)
+        {
+            List<string> items = new List<string>();
+            StringBuilder item = new StringBuilder();
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (c == '\\')
+                {
+                    if (i + 1 >= value.Length)
+                        throw new FormatException("SVCB value-list escape is incomplete.");
+
+                    char next = value[++i];
+                    if ((next != '\\') && (next != ','))
+                        throw new FormatException("SVCB value-list escape must be a comma or a backslash.");
+
+                    item.Append(next);
+                    continue;
+                }
+
+                if (c == ',')
+                {
+                    if (item.Length == 0)
+                        throw new FormatException("SVCB value list contains an empty item.");
+
+                    items.Add(item.ToString());
+                    item.Clear();
+                    continue;
+                }
+
+                item.Append(c);
+            }
+
+            if (item.Length == 0)
+                throw new FormatException("SVCB value list contains an empty item.");
+
+            items.Add(item.ToString());
+            return items;
         }
 
         void EnsureMandatoryKeysAreConsistent()
@@ -688,10 +730,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static DnsSvcMandatoryParamValue Parse(string svcParamValue)
         {
-            return new DnsSvcMandatoryParamValue(svcParamValue.Split(delegate (string value)
-            {
-                return DnsSVCBRecordData.ParseSvcParamKey(value);
-            }, ','));
+            List<string> parts = DnsSVCBRecordData.SplitValueList(svcParamValue);
+            DnsSvcParamKey[] keys = new DnsSvcParamKey[parts.Count];
+
+            for (int i = 0; i < parts.Count; i++)
+                keys[i] = DnsSVCBRecordData.ParseSvcParamKey(parts[i]);
+
+            return new DnsSvcMandatoryParamValue(keys);
         }
 
         #endregion
@@ -833,7 +878,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static DnsSvcAlpnParamValue Parse(string svcParamValue)
         {
-            return new DnsSvcAlpnParamValue(svcParamValue.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            return new DnsSvcAlpnParamValue(DnsSVCBRecordData.SplitValueList(svcParamValue));
         }
 
         #endregion
@@ -1066,7 +1111,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static DnsSvcIPv4HintParamValue Parse(string svcParamValue)
         {
-            return new DnsSvcIPv4HintParamValue(svcParamValue.Split(IPAddress.Parse, ','));
+            List<string> parts = DnsSVCBRecordData.SplitValueList(svcParamValue);
+            IPAddress[] addresses = new IPAddress[parts.Count];
+
+            for (int i = 0; i < parts.Count; i++)
+                addresses[i] = IPAddress.Parse(parts[i]);
+
+            return new DnsSvcIPv4HintParamValue(addresses);
         }
 
         #endregion
@@ -1190,7 +1241,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static DnsSvcIPv6HintParamValue Parse(string svcParamValue)
         {
-            return new DnsSvcIPv6HintParamValue(svcParamValue.Split(IPAddress.Parse, ','));
+            List<string> parts = DnsSVCBRecordData.SplitValueList(svcParamValue);
+            IPAddress[] addresses = new IPAddress[parts.Count];
+
+            for (int i = 0; i < parts.Count; i++)
+                addresses[i] = IPAddress.Parse(parts[i]);
+
+            return new DnsSvcIPv6HintParamValue(addresses);
         }
 
         #endregion
