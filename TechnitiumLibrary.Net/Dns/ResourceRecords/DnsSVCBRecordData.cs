@@ -861,7 +861,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void WriteSvcParamValue(Stream s)
         {
-            s.Write(Encoding.UTF8.GetBytes(_presentation));
+            foreach (char c in _presentation)
+            {
+                if (c > 0xFF)
+                    throw new DnsClientException("SVCB parameter value contains a character that is not an octet.");
+
+                s.WriteByte((byte)c);
+            }
         }
 
         #endregion
@@ -888,7 +894,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #region properties
 
         public override int UncompressedLength
-        { get { return Encoding.UTF8.GetByteCount(_presentation); } }
+        { get { return _presentation.Length; } }
 
         #endregion
     }
