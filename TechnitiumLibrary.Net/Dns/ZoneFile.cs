@@ -650,7 +650,11 @@ namespace TechnitiumLibrary.Net.Dns
                     if (i < 0)
                         throw new FormatException("Closing double quotes are missing.");
 
-                    if (line[i - 1] != '\\')
+                    int slashes = 0;
+                    for (int j = i - 1; (j > 0) && (line[j] == '\\'); j--)
+                        slashes++;
+
+                    if ((slashes % 2) == 0)
                         break;
                 }
                 while (true);
@@ -658,7 +662,7 @@ namespace TechnitiumLibrary.Net.Dns
                 string word = line.Substring(1, i - 1);
                 line = line.Substring(i + 1);
 
-                return word;
+                return word.Replace("\\\"", "\"").Replace("\\\\", "\\");
             }
             else
             {
