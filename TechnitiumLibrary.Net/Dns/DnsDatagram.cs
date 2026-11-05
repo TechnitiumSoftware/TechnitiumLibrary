@@ -1688,7 +1688,7 @@ namespace TechnitiumLibrary.Net.Dns
                         currentAdditional = list;
                     }
 
-                    DnsDatagram signedCurrent = new DnsDatagram(signedRequest._ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, current._question, current._answer, current._authority, currentAdditional);
+                    DnsDatagram signedCurrent = new DnsDatagram(signedRequest._ID, current._QR == 1, current._OPCODE, current._AA == 1, current._TC == 1, current._RD == 1, current._RA == 1, current._AD == 1, current._CD == 1, current._RCODE, current._question, current._answer, current._authority, currentAdditional);
 
                     current = current._nextDatagram;
                     priorTsig = currentTsig;
@@ -1929,17 +1929,17 @@ namespace TechnitiumLibrary.Net.Dns
 
                     IReadOnlyList<DnsResourceRecord> currentAdditional;
 
-                    if (_additional.Count == 1)
+                    if (current._additional.Count == 1)
                     {
                         currentAdditional = [];
                     }
                     else
                     {
-                        List<DnsResourceRecord> list = new List<DnsResourceRecord>(_additional.Count - 1);
+                        List<DnsResourceRecord> list = new List<DnsResourceRecord>(current._additional.Count - 1);
 
-                        for (int i = 0; i < _additional.Count - 1; i++)
+                        for (int i = 0; i < current._additional.Count - 1; i++)
                         {
-                            DnsResourceRecord record = _additional[i];
+                            DnsResourceRecord record = current._additional[i];
 
                             if (record.Type == DnsResourceRecordType.TSIG)
                             {
@@ -1958,7 +1958,7 @@ namespace TechnitiumLibrary.Net.Dns
                         currentAdditional = list;
                     }
 
-                    DnsDatagram unsignedCurrentResponse = new DnsDatagram(currentTsig.OriginalID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, current._question, current._answer, current._authority, currentAdditional);
+                    DnsDatagram unsignedCurrentResponse = new DnsDatagram(currentTsig.OriginalID, current._QR == 1, current._OPCODE, current._AA == 1, current._TC == 1, current._RD == 1, current._RA == 1, current._AD == 1, current._CD == 1, current._RCODE, current._question, current._answer, current._authority, currentAdditional);
 
                     unsignedPrior._nextDatagram = unsignedCurrentResponse;
                     unsignedPrior = unsignedCurrentResponse;
