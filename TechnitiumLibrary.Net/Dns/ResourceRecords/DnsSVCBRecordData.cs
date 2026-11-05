@@ -475,6 +475,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             foreach (KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> svcParam in _svcParams)
             {
+                if ((_svcPriority == 0) && (svcParam.Value is DnsSvcUnknownParamValue aliasRaw))
+                {
+                    svcParams += " key" + ((ushort)svcParam.Key).ToString() + "=" + FormatOpaqueSvcValue(aliasRaw.Value);
+                    continue;
+                }
+
                 if (svcParam.Value is DnsSvcIgnoredParamValue)
                 {
                     svcParams += " " + FormatSvcParamKey(svcParam.Key) + "=" + DnsDatagram.EncodeCharacterString(svcParam.Value.ToString());
