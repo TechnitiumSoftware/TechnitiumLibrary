@@ -160,6 +160,7 @@ namespace TechnitiumLibrary.Net.Proxy
             readonly IProxyServerAuthenticationManager _authenticationManager;
 
             Socket _remoteSocket;
+            int _originGeneration;
 
             #endregion
 
@@ -381,6 +382,8 @@ namespace TechnitiumLibrary.Net.Proxy
 
                             if (!ep.IsEquals(lastEP) || !_remoteSocket.Connected)
                             {
+                                int originGeneration = Interlocked.Increment(ref _originGeneration);
+
                                 if (_remoteSocket != null)
                                 {
                                     if (_remoteSocket.Connected)
@@ -408,6 +411,9 @@ namespace TechnitiumLibrary.Net.Proxy
                                 //copy remote socket to local socket
                                 _ = _remoteSocket.CopyToAsync(_localSocket).ContinueWith(delegate (Task prevTask)
                                 {
+                                    if (Volatile.Read(ref _originGeneration) != originGeneration)
+                                        return;
+
                                     try
                                     {
                                         if ((prevTask.Status == TaskStatus.RanToCompletion) && _localSocket.Connected)
