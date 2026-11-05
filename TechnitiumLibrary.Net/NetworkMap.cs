@@ -176,7 +176,7 @@ namespace TechnitiumLibrary.Net
                 value = floorEntry.Value;
             else if (ceilingEntry.IpAddress.SequenceEqual(findEntry.IpAddress))
                 value = ceilingEntry.Value;
-            else if (ReferenceEquals(floorEntry.Value, ceilingEntry.Value))
+            else if (EqualityComparer<T>.Default.Equals(floorEntry.Value, ceilingEntry.Value))
                 value = floorEntry.Value;
             else
             {
@@ -272,14 +272,16 @@ namespace TechnitiumLibrary.Net
                     return true;
 
                 if (obj is IpEntry other)
-                    return _ipAddress.Equals(other._ipAddress);
+                    return _ipAddress.AsSpan().SequenceEqual(other._ipAddress);
 
                 return false;
             }
 
             public override int GetHashCode()
             {
-                return HashCode.Combine(_ipAddress);
+                HashCode hash = new HashCode();
+                hash.AddBytes(_ipAddress);
+                return hash.ToHashCode();
             }
 
             #endregion
