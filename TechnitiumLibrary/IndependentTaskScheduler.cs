@@ -122,10 +122,6 @@ namespace TechnitiumLibrary
                 {
                     TryExecuteTask(task);
                 }
-                catch (ObjectDisposedException)
-                {
-                    TryExecuteTask(task);
-                }
             }
         }
 
