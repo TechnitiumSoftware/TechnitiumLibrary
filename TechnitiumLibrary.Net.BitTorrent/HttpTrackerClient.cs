@@ -44,7 +44,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             byte[] ipBuffer = new byte[4];
             byte[] portBuffer = new byte[2];
 
-            for (int i = 0; i < data.Length; i += 6)
+            for (int i = 0; i + 6 <= data.Length; i += 6)
             {
                 Buffer.BlockCopy(data, i, ipBuffer, 0, 4);
                 Buffer.BlockCopy(data, i + 4, portBuffer, 0, 2);
@@ -69,7 +69,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
             byte[] ipBuffer = new byte[16];
             byte[] portBuffer = new byte[2];
 
-            for (int i = 0; i < data.Length; i += 18)
+            for (int i = 0; i + 18 <= data.Length; i += 18)
             {
                 Buffer.BlockCopy(data, i, ipBuffer, 0, 16);
                 Buffer.BlockCopy(data, i + 16, portBuffer, 0, 2);
