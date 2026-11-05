@@ -79,6 +79,17 @@ namespace TechnitiumLibrary.Net.Mail
 
             if (disposing)
             {
+                try
+                {
+                    if ((_sW != null) && (_sock != null) && _sock.Connected)
+                    {
+                        _sW.WriteLine("QUIT");
+                        _sR?.ReadLine();
+                    }
+                }
+                catch
+                { }
+
                 if (_sW != null)
                     _sW.Dispose();
 
@@ -87,6 +98,8 @@ namespace TechnitiumLibrary.Net.Mail
 
                 if (_sock != null)
                     _sock.Dispose();
+
+                _sock = null;
             }
 
             _disposed = true;
@@ -130,7 +143,7 @@ namespace TechnitiumLibrary.Net.Mail
             else
                 stream = _sock.GetStream();
 
-            _sR = new StreamReader(stream, Encoding.ASCII, false, 1);
+            _sR = new StreamReader(stream, Encoding.Latin1, false, 1);
             _sW = new StreamWriter(stream, Encoding.ASCII, 1);
             _sW.AutoFlush = true;
 
@@ -178,6 +191,17 @@ namespace TechnitiumLibrary.Net.Mail
         {
             if (_sock != null)
             {
+                try
+                {
+                    if ((_sW != null) && _sock.Connected)
+                    {
+                        _sW.WriteLine("QUIT");
+                        _sR?.ReadLine();
+                    }
+                }
+                catch
+                { }
+
                 _sock.Close();
                 _sock = null;
             }
@@ -246,10 +270,15 @@ namespace TechnitiumLibrary.Net.Mail
                 while (true)
                 {
                     string tmp = _sR.ReadLine();
+                    if (tmp == null)
+                        throw new EndOfStreamException();
                     if (tmp == ".")
                         break;
 
-                    byte[] tmp2 = Encoding.ASCII.GetBytes(tmp);
+                    if (tmp.StartsWith('.'))
+                        tmp = tmp.Substring(1);
+
+                    byte[] tmp2 = Encoding.Latin1.GetBytes(tmp);
                     mS.Write(tmp2, 0, tmp2.Length);
                     mS.WriteByte(0x0d);
                     mS.WriteByte(0x0a);
@@ -273,10 +302,15 @@ namespace TechnitiumLibrary.Net.Mail
                 while (true)
                 {
                     string tmp = _sR.ReadLine();
+                    if (tmp == null)
+                        throw new EndOfStreamException();
                     if (tmp == ".")
                         break;
 
-                    byte[] tmp2 = Encoding.ASCII.GetBytes(tmp);
+                    if (tmp.StartsWith('.'))
+                        tmp = tmp.Substring(1);
+
+                    byte[] tmp2 = Encoding.Latin1.GetBytes(tmp);
                     mS.Write(tmp2, 0, tmp2.Length);
                     mS.WriteByte(0x0d);
                     mS.WriteByte(0x0a);
