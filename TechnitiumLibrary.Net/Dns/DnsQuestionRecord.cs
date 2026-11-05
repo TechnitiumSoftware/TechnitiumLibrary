@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
@@ -94,23 +93,25 @@ namespace TechnitiumLibrary.Net.Dns
             if (string.IsNullOrEmpty(name))
                 return name;
 
-            byte[] asciiName = Encoding.ASCII.GetBytes(name);
-            Span<byte> r = stackalloc byte[asciiName.Length];
+            Span<byte> r = stackalloc byte[name.Length];
 
             RandomNumberGenerator.Fill(r);
 
-            for (int i = 0; i < asciiName.Length; i++)
+            char[] randomizedName = name.ToCharArray();
+
+            for (int i = 0; i < randomizedName.Length; i++)
             {
-                if (((asciiName[i] >= 97) && (asciiName[i] <= 122)) || ((asciiName[i] >= 65) && (asciiName[i] <= 90)))
+                char c = randomizedName[i];
+                if (((c >= 'a') && (c <= 'z')) || ((c >= 'A') && (c <= 'Z')))
                 {
                     if ((r[i] & 0x1) > 0)
-                        asciiName[i] |= 0x20;
+                        randomizedName[i] = (char)(c | 0x20);
                     else
-                        asciiName[i] &= 0xDF;
+                        randomizedName[i] = (char)(c & 0xDF);
                 }
             }
 
-            return Encoding.ASCII.GetString(asciiName);
+            return new string(randomizedName);
         }
 
         private static string GetMinimizedName(string name, string zoneCut)
