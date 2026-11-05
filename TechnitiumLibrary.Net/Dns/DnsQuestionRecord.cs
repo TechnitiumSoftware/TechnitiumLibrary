@@ -146,9 +146,9 @@ namespace TechnitiumLibrary.Net.Dns
         internal void NormalizeName()
         {
             if (_minimizedName == null)
-                _name = _name.ToLowerInvariant();
+                _name = DnsDatagram.ToLowerInvariantAscii(_name);
             else
-                _minimizedName = _minimizedName.ToLowerInvariant();
+                _minimizedName = DnsDatagram.ToLowerInvariantAscii(_minimizedName);
         }
 
         internal DnsQuestionRecord Clone()

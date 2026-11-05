@@ -280,7 +280,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if (nsRecord.Name.Length != 0)
                     continue;
 
-                string name = (nsRecord.RDATA as DnsNSRecordData).NameServer.ToLowerInvariant();
+                string name = DnsDatagram.ToLowerInvariantAscii((nsRecord.RDATA as DnsNSRecordData).NameServer);
 
                 foreach (DnsResourceRecord record in rootZoneRecords)
                 {
@@ -413,7 +413,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     if (nextNameServer.IPEndPoint is null)
                     {
-                        if (asyncNsResolutionTasks.Add(nextNameServer.DomainEndPoint.Address.ToLowerInvariant()))
+                        if (asyncNsResolutionTasks.Add(DnsDatagram.ToLowerInvariantAscii(nextNameServer.DomainEndPoint.Address)))
                         {
                             maxNsResolutions--;
 
@@ -2951,13 +2951,13 @@ namespace TechnitiumLibrary.Net.Dns
                                 case DnsResourceRecordType.SOA:
                                     {
                                         //NO DATA
-                                        string qname = question.Name.ToLowerInvariant();
+                                        string qname = DnsDatagram.ToLowerInvariantAscii(question.Name);
 
                                         if (response.Answer.Count > 0)
                                         {
                                             DnsResourceRecord lastRR = response.GetLastAnswerRecord();
                                             if ((lastRR is not null) && (lastRR.Type == DnsResourceRecordType.CNAME))
-                                                qname = (lastRR.RDATA as DnsCNAMERecordData).Domain.ToLowerInvariant();
+                                                qname = DnsDatagram.ToLowerInvariantAscii((lastRR.RDATA as DnsCNAMERecordData).Domain);
                                         }
 
                                         if (IsDomainUnsigned(qname, unsignedZones))
@@ -3034,13 +3034,13 @@ namespace TechnitiumLibrary.Net.Dns
                     case DnsResponseCode.NxDomain:
                         {
                             DnsQuestionRecord question = response.Question[0];
-                            string qname = question.Name.ToLowerInvariant();
+                            string qname = DnsDatagram.ToLowerInvariantAscii(question.Name);
 
                             if (response.Answer.Count > 0)
                             {
                                 DnsResourceRecord lastRR = response.GetLastAnswerRecord();
                                 if ((lastRR is not null) && (lastRR.Type == DnsResourceRecordType.CNAME))
-                                    qname = (lastRR.RDATA as DnsCNAMERecordData).Domain.ToLowerInvariant();
+                                    qname = DnsDatagram.ToLowerInvariantAscii((lastRR.RDATA as DnsCNAMERecordData).Domain);
                             }
 
                             if (IsDomainUnsigned(qname, unsignedZones))
