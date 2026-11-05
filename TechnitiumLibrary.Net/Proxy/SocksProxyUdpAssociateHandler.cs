@@ -301,7 +301,7 @@ namespace TechnitiumLibrary.Net.Proxy
             while (retry < retries) //retry loop
             {
                 if (expBackoffTimeout)
-                    timeoutValue = timeout * (2 ^ retry);
+                    timeoutValue = timeout * (1 << retry);
 
                 retry++;
 
