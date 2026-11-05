@@ -33,6 +33,7 @@ namespace TechnitiumLibrary.Net.Proxy
         readonly Socket _controlSocket;
         readonly Socket _udpSocket;
         EndPoint _relayEP;
+        EndPoint _lastRemoteEndPoint;
 
         #endregion
 
@@ -275,6 +276,8 @@ namespace TechnitiumLibrary.Net.Proxy
             if (_relayEP == null)
                 _relayEP = result.RemoteEndPoint; //set new relay ep
 
+            _lastRemoteEndPoint = remoteEP;
+
             return new SocketReceiveFromResult() { ReceivedBytes = dataSize, RemoteEndPoint = remoteEP };
         }
 
@@ -335,6 +338,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public EndPoint ProxyUdpRelayEndPoint
         { get { return _relayEP; } }
+
+        public EndPoint LastRemoteEndPoint
+        { get { return _lastRemoteEndPoint; } }
 
         #endregion
     }

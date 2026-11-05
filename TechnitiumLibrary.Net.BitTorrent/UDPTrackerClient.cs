@@ -166,6 +166,14 @@ namespace TechnitiumLibrary.Net.BitTorrent
             return response;
         }
 
+        static bool AnnouncePeersAreIPv6(Socket udpSocket, SocksProxyUdpAssociateHandler proxyHandler)
+        {
+            if (proxyHandler != null)
+                return (proxyHandler.LastRemoteEndPoint is IPEndPoint trackerEndPoint) && (trackerEndPoint.AddressFamily == AddressFamily.InterNetworkV6);
+
+            return (udpSocket != null) && (udpSocket.AddressFamily == AddressFamily.InterNetworkV6);
+        }
+
         private static void ParsePeersIPv4(byte[] response, int responseLength, List<IPEndPoint> peers)
         {
             byte[] ipBuffer = new byte[4];
@@ -283,22 +291,10 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
                         _peers.Clear();
 
-                        if (_proxy == null)
-                        {
-                            if (udpSocket.AddressFamily == AddressFamily.InterNetworkV6)
-                                ParsePeersIPv6(announceResponse, announceResponse.Length, _peers);
-                            else
-                                ParsePeersIPv4(announceResponse, announceResponse.Length, _peers);
-                        }
+                        if (AnnouncePeersAreIPv6(udpSocket, proxyHandler))
+                            ParsePeersIPv6(announceResponse, announceResponse.Length, _peers);
                         else
-                        {
-                            int x = (announceResponse.Length - 26) % 6;
-
-                            if (x == 0)
-                                ParsePeersIPv4(announceResponse, announceResponse.Length, _peers);
-                            else
-                                ParsePeersIPv6(announceResponse, announceResponse.Length, _peers);
-                        }
+                            ParsePeersIPv4(announceResponse, announceResponse.Length, _peers);
 
                         return;
                     }
