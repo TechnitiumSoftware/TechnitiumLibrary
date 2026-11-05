@@ -72,7 +72,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             //(i1 < i2 and i2 - i1 > 2^(SERIAL_BITS - 1)) or
             //(i1 > i2 and i1 -i2 < 2^(SERIAL_BITS - 1))
 
-            return ((newSerial < currentSerial) && ((currentSerial - newSerial) > (uint.MaxValue >> 1))) || ((newSerial > currentSerial) && ((newSerial - currentSerial) < (uint.MaxValue >> 1)));
+            const uint halfRange = 1u << 31;
+
+            return ((newSerial < currentSerial) && ((currentSerial - newSerial) > halfRange)) || ((newSerial > currentSerial) && ((newSerial - currentSerial) < halfRange));
         }
 
         #endregion
