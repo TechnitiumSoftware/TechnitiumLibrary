@@ -320,7 +320,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public byte[] GetIntegerValue()
         {
-            if (((_value.Length & 0x1) > 0) && (_value[0] == 0))
+            if ((_value.Length > 1) && (_value[0] == 0))
             {
                 byte[] valInt = new byte[_value.Length - 1];
                 Buffer.BlockCopy(_value, 1, valInt, 0, valInt.Length);
