@@ -965,6 +965,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (alpnLength < 0)
                     throw new EndOfStreamException();
 
+                if (alpnLength == 0)
+                    throw new DnsClientException("SVCB alpn id must contain at least one octet.");
+
                 alpnIds.Add(Encoding.ASCII.GetString(s.ReadExactly(alpnLength)));
 
                 bytesRead += alpnLength + 1;
