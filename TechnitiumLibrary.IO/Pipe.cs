@@ -224,10 +224,24 @@ namespace TechnitiumLibrary.IO
                         int space = _buffer.Length - _length;
                         if (space < 1)
                         {
-                            if (!Monitor.Wait(_bufferLock, _writeTimeout))
-                                throw new IOException("Write timed out.");
+                            if (_position > 0)
+                            {
+                                int unread = _length - _position;
+                                if (unread > 0)
+                                    Buffer.BlockCopy(_buffer, _position, _buffer, 0, unread);
 
-                            continue;
+                                _position = 0;
+                                _length = unread;
+                                space = _buffer.Length - _length;
+                            }
+
+                            if (space < 1)
+                            {
+                                if (!Monitor.Wait(_bufferLock, _writeTimeout))
+                                    throw new IOException("Write timed out.");
+
+                                continue;
+                            }
                         }
 
                         int chunk = count - written;
@@ -276,10 +290,9 @@ namespace TechnitiumLibrary.IO
                     {
                         _position = 0;
                         _length = 0;
-
-                        Monitor.Pulse(_bufferLock);
                     }
 
+                    Monitor.Pulse(_bufferLock);
                     return count;
                 }
             }
