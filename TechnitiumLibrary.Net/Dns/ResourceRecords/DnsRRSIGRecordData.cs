@@ -139,13 +139,6 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     {
                         //name = "*." | the rightmost rrsig_label labels of the fqdn
                         name = GetWildcardDomain(records[0].Name, rrsigRecord._labels).ToLowerInvariant();
-
-                        if (rrsigRecord._typeCovered == DnsResourceRecordType.NSEC)
-                        {
-                            //wildcard NSEC can be abused by an attacker to serve NXDomain or NoData responses
-                            //fix NSEC record owner name to the original wildcard owner name
-                            records[0].FixNameForNSEC(name);
-                        }
                     }
                     else
                     {
@@ -457,6 +450,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     if (dnsKey.PublicKey.IsSignatureValid(hash, _signature, hashAlgorithm))
                     {
+                        //Rename only after this RRSIG verifies. Doing it while hashing would let a
+                        //later invalid RRSIG stick a wider wildcard owner onto an already-valid NSEC.
+                        if ((_typeCovered == DnsResourceRecordType.NSEC) && (records.Count > 0))
+                        {
+                            byte labelCount = GetLabelCount(records[0].Name);
+                            if (_labels < labelCount)
+                                records[0].FixNameForNSEC(GetWildcardDomain(records[0].Name, _labels).ToLowerInvariant());
+                        }
+
                         extendedDnsErrorCode = EDnsExtendedDnsErrorCode.Other; //no error
                         return true;
                     }
