@@ -436,6 +436,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         svcParams += " " + FormatSvcParamKey(svcParam.Key);
                         break;
 
+                    case DnsSvcParamKey.ALPN:
+                        svcParams += " " + FormatSvcParamKey(svcParam.Key) + "=" + DnsDatagram.EncodeCharacterString(svcParam.Value.ToString());
+                        break;
+
                     case DnsSvcParamKey.IPv4Hint:
                         if (_autoIpv4Hint)
                             continue;
@@ -1032,17 +1036,26 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            string value = null;
+            if (_alpnIds.Count == 0)
+                return null;
 
-            foreach (string alpnId in _alpnIds)
+            StringBuilder value = new StringBuilder();
+
+            for (int i = 0; i < _alpnIds.Count; i++)
             {
-                if (value is null)
-                    value = alpnId;
-                else
-                    value += "," + alpnId;
+                if (i > 0)
+                    value.Append(',');
+
+                foreach (char c in _alpnIds[i])
+                {
+                    if ((c == '\\') || (c == ','))
+                        value.Append('\\');
+
+                    value.Append(c);
+                }
             }
 
-            return value;
+            return value.ToString();
         }
 
         #endregion
