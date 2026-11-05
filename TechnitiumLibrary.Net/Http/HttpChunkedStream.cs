@@ -119,6 +119,7 @@ namespace TechnitiumLibrary.Net.Http
                 else
                 {
                     ReadTrailers();
+                    _baseStream.ReturnUnused();
                     return 0;
                 }
             }
@@ -151,6 +152,7 @@ namespace TechnitiumLibrary.Net.Http
                 else
                 {
                     await ReadTrailersAsync(cancellationToken);
+                    _baseStream.ReturnUnused();
                     return 0;
                 }
             }

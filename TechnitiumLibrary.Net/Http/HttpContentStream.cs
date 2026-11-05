@@ -80,6 +80,18 @@ namespace TechnitiumLibrary.Net.Http
             return 0;
         }
 
+        internal void ReturnUnused()
+        {
+            int count = _length - _offset;
+            if (count < 1)
+                return;
+
+            if (_baseStream is HttpBufferedStream bufferedStream)
+                bufferedStream.Unread(_buffer, _offset, count);
+
+            _offset = _length;
+        }
+
         #endregion
 
         #region stream support

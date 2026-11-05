@@ -62,6 +62,7 @@ namespace TechnitiumLibrary.Net.Http
         public static async Task<HttpRequest> ReadRequestAsync(Stream stream, int maxContentLength = -1, CancellationToken cancellationToken = default)
         {
             HttpRequest httpRequest = new HttpRequest();
+            HttpBufferedStream readStream = HttpBufferedStream.Get(stream);
 
             //parse http request headers
             using (MemoryStream headerBuffer = new MemoryStream(1024))
@@ -75,7 +76,7 @@ namespace TechnitiumLibrary.Net.Http
 
                 while (crlfCount != 4)
                 {
-                    length = await stream.ReadAsync(buffer, cancellationToken);
+                    length = await readStream.ReadAsync(buffer, cancellationToken);
                     if (length < 1)
                     {
                         if (firstRead)
@@ -166,7 +167,7 @@ namespace TechnitiumLibrary.Net.Http
                     if (!strTransferEncoding.Trim().Equals("chunked", StringComparison.OrdinalIgnoreCase))
                         throw new HttpRequestException("Transfer encoding is not supported: " + strTransferEncoding);
 
-                    httpRequest._inputStream = new HttpChunkedStream(new HttpContentStream(stream, buffer, offset, length), maxContentLength);
+                    httpRequest._inputStream = new HttpChunkedStream(new HttpContentStream(readStream, buffer, offset, length), maxContentLength);
                     return httpRequest;
                 }
 
@@ -179,9 +180,19 @@ namespace TechnitiumLibrary.Net.Http
                     if ((maxContentLength > -1) && (contentLength > maxContentLength))
                         throw new HttpRequestException("Response content length is greater than max content length: " + contentLength);
 
-                    httpRequest._inputStream = new HttpContentStream(stream, buffer, offset, length, contentLength);
+                    int available = length - offset;
+                    if (available > contentLength)
+                    {
+                        readStream.Unread(buffer, offset + contentLength, available - contentLength);
+                        length = offset + contentLength;
+                    }
+
+                    httpRequest._inputStream = new HttpContentStream(readStream, buffer, offset, length, contentLength);
                     return httpRequest;
                 }
+
+                if (length > offset)
+                    readStream.Unread(buffer, offset, length - offset);
             }
 
             return httpRequest;

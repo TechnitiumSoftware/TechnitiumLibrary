@@ -227,6 +227,10 @@ namespace TechnitiumLibrary.Net.Proxy
                 //signal client 200 OK
                 await localStream.WriteAsync(Encoding.ASCII.GetBytes(httpRequest.Protocol + " 200 OK\r\nConnection: close\r\n\r\n"));
 
+                byte[] pending = HttpBufferedStream.TakePending(localStream);
+                if (pending.Length > 0)
+                    await _remoteSocket.SendAsync(pending, SocketFlags.None);
+
                 //pipe sockets
                 _ = _localSocket.PipeToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
             }
