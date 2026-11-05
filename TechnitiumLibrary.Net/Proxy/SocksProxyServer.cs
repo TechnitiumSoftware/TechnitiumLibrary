@@ -448,6 +448,13 @@ namespace TechnitiumLibrary.Net.Proxy
                         return;
                     }
 
+                    if (request.DestinationEndPoint is null)
+                    {
+                        await new SocksProxyReply(SocksProxyReplyCode.AddressTypeNotSupported).WriteToAsync(localStream);
+                        await localStream.FlushAsync();
+                        return;
+                    }
+
                     //process command
                     SocksProxyReplyCode reply;
                     EndPoint bindEP;
@@ -605,7 +612,14 @@ namespace TechnitiumLibrary.Net.Proxy
 
                                 using (IProxyServerUdpAssociateHandler udpRemoteHandler = await _connectionManager.GetUdpAssociateHandlerAsync(localEP))
                                 {
-                                    using (IProxyServerUdpAssociateHandler udpLocalHandler = new SocksProxyUdpAssociateHandler(_localSocket, _udpRelaySocket, new IPEndPoint((_localSocket.RemoteEndPoint as IPEndPoint).Address, (request.DestinationEndPoint as IPEndPoint).Port)))
+                                    int destinationPort = request.DestinationEndPoint switch
+                                    {
+                                        IPEndPoint ipEndPoint => ipEndPoint.Port,
+                                        DomainEndPoint domainEndPoint => domainEndPoint.Port,
+                                        _ => 0
+                                    };
+
+                                    using (IProxyServerUdpAssociateHandler udpLocalHandler = new SocksProxyUdpAssociateHandler(_localSocket, _udpRelaySocket, new IPEndPoint((_localSocket.RemoteEndPoint as IPEndPoint).Address, destinationPort)))
                                     {
                                         _ = CopyToAsync(udpRemoteHandler, udpLocalHandler);
                                         await CopyToAsync(udpLocalHandler, udpRemoteHandler);
