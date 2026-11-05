@@ -497,16 +497,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             else if (_ttl > maximumTtl)
                 _ttl = maximumTtl; //to help remove record from cache early
 
-            _setExpiry = true;
-            _wasExpiryReset = false;
             _ttlExpires = DateTime.UtcNow.AddSeconds(_ttl);
             _serveStaleTtlExpires = _ttlExpires.AddSeconds(serveStaleTtl);
             _serveStaleAnswerTtl = serveStaleAnswerTtl;
+            _wasExpiryReset = false;
+            Volatile.Write(ref _setExpiry, true);
         }
 
         public void ResetExpiry(uint seconds)
         {
-            if (!_setExpiry)
+            if (!Volatile.Read(ref _setExpiry))
                 throw new InvalidOperationException("Must call SetExpiry() before ResetExpiry().");
 
             _wasExpiryReset = true;
@@ -515,7 +515,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public void RemoveExpiry()
         {
-            _setExpiry = false;
+            Volatile.Write(ref _setExpiry, false);
         }
 
         public bool IsExpired(bool serveStale)
@@ -682,7 +682,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             get
             {
-                if (_setExpiry)
+                if (Volatile.Read(ref _setExpiry))
                 {
                     DateTime utcNow = DateTime.UtcNow;
 
@@ -703,7 +703,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             get
             {
-                if (_setExpiry)
+                if (Volatile.Read(ref _setExpiry))
                     return DateTime.UtcNow > _ttlExpires;
 
                 return false;
