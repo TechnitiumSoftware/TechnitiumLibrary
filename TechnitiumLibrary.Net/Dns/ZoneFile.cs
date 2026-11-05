@@ -695,6 +695,50 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
+        internal static string DecodeCharacterStringToken(string value)
+        {
+            if ((value.Length == 0) || (value[0] != '"'))
+                return UnescapeCharacterString(value);
+
+            int i = 0;
+
+            do
+            {
+                i = value.IndexOf('"', i + 1);
+                if (i < 0)
+                    throw new FormatException("Closing double quotes are missing.");
+
+                int slashes = 0;
+                for (int j = i - 1; (j > 0) && (value[j] == '\\'); j--)
+                    slashes++;
+
+                if ((slashes % 2) == 0)
+                    break;
+            }
+            while (true);
+
+            if (i != (value.Length - 1))
+                throw new FormatException("Zone file character string has text after the closing quote.");
+
+            return UnescapeCharacterString(value.Substring(1, i - 1));
+        }
+
+        internal static byte[] DecodeCharacterStringOctets(string value)
+        {
+            string decoded = DecodeCharacterStringToken(value);
+            byte[] octets = new byte[decoded.Length];
+
+            for (int i = 0; i < decoded.Length; i++)
+            {
+                if (decoded[i] > 255)
+                    throw new FormatException("Zone file character string contains a character outside the octet range.");
+
+                octets[i] = (byte)decoded[i];
+            }
+
+            return octets;
+        }
+
         internal static string UnescapeCharacterString(string value)
         {
             StringBuilder result = new StringBuilder(value.Length);

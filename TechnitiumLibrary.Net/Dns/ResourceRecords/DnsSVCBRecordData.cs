@@ -103,47 +103,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     lastSvcParamKey = svcParamKeyWire;
 
                     DnsSvcParamKey svcParamKey = (DnsSvcParamKey)svcParamKeyWire;
-                    DnsSvcParamValue svcParamValue;
-
-                    switch (svcParamKey)
-                    {
-                        case DnsSvcParamKey.Mandatory:
-                            svcParamValue = new DnsSvcMandatoryParamValue(mS);
-                            break;
-
-                        case DnsSvcParamKey.ALPN:
-                            svcParamValue = new DnsSvcAlpnParamValue(mS);
-                            break;
-
-                        case DnsSvcParamKey.No_Default_ALPN:
-                            svcParamValue = new DnsSvcAlpnParamValue(mS);
-                            if (svcParamValue.ValueLength != 0)
-                                throw new DnsClientException("SVCB no-default-alpn value must be empty.");
-
-                            break;
-
-                        case DnsSvcParamKey.Port:
-                            svcParamValue = new DnsSvcPortParamValue(mS);
-                            break;
-
-                        case DnsSvcParamKey.IPv4Hint:
-                            svcParamValue = new DnsSvcIPv4HintParamValue(mS);
-                            break;
-
-                        case DnsSvcParamKey.IPv6Hint:
-                            svcParamValue = new DnsSvcIPv6HintParamValue(mS);
-                            break;
-
-                        case DnsSvcParamKey.DoHPath:
-                            svcParamValue = new DnsSvcDoHPathParamValue(mS);
-                            break;
-
-                        default:
-                            svcParamValue = new DnsSvcUnknownParamValue(mS);
-                            break;
-                    }
-
-                    svcParams.Add(svcParamKey, svcParamValue);
+                    svcParams.Add(svcParamKey, ReadSvcParam(svcParamKey, mS));
                 }
 
                 _svcParams = svcParams;
@@ -208,12 +168,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     break;
 
                 i = param.IndexOf('=');
-                if (i < 0)
-                    svcParamKey = Enum.Parse<DnsSvcParamKey>(param.Replace('-', '_'), true);
-                else
-                    svcParamKey = Enum.Parse<DnsSvcParamKey>(param.Substring(0, i).Replace('-', '_'), true);
+                string keyToken = (i < 0) ? param : param.Substring(0, i);
+                svcParamValue = (i < 0) ? "" : param.Substring(i + 1);
 
-                svcParamValue = param.Substring(i + 1);
+                if (TryParseKeyNumber(keyToken, out ushort keyNumber))
+                {
+                    svcParamKey = (DnsSvcParamKey)keyNumber;
+                    svcParams.Add(svcParamKey, ReadSvcParam(svcParamKey, ZoneFile.DecodeCharacterStringOctets(svcParamValue)));
+                    continue;
+                }
+
+                svcParamKey = Enum.Parse<DnsSvcParamKey>(keyToken.Replace('-', '_'), true);
 
                 switch (svcParamKey)
                 {
@@ -242,6 +207,89 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             svcb.EnsureMandatoryKeysAreConsistent();
 
             return svcb;
+        }
+
+        static DnsSvcParamValue ReadSvcParam(DnsSvcParamKey svcParamKey, byte[] value)
+        {
+            using (MemoryStream mS = new MemoryStream(2 + value.Length))
+            {
+                DnsDatagram.WriteUInt16NetworkOrder((ushort)value.Length, mS);
+                mS.Write(value, 0, value.Length);
+                mS.Position = 0;
+
+                return ReadSvcParam(svcParamKey, mS);
+            }
+        }
+
+        static DnsSvcParamValue ReadSvcParam(DnsSvcParamKey svcParamKey, Stream s)
+        {
+            switch (svcParamKey)
+            {
+                case DnsSvcParamKey.Mandatory:
+                    return new DnsSvcMandatoryParamValue(s);
+
+                case DnsSvcParamKey.ALPN:
+                    return new DnsSvcAlpnParamValue(s);
+
+                case DnsSvcParamKey.No_Default_ALPN:
+                    DnsSvcParamValue noDefaultAlpn = new DnsSvcAlpnParamValue(s);
+                    if (noDefaultAlpn.ValueLength != 0)
+                        throw new DnsClientException("SVCB no-default-alpn value must be empty.");
+
+                    return noDefaultAlpn;
+
+                case DnsSvcParamKey.Port:
+                    return new DnsSvcPortParamValue(s);
+
+                case DnsSvcParamKey.IPv4Hint:
+                    return new DnsSvcIPv4HintParamValue(s);
+
+                case DnsSvcParamKey.IPv6Hint:
+                    return new DnsSvcIPv6HintParamValue(s);
+
+                case DnsSvcParamKey.DoHPath:
+                    return new DnsSvcDoHPathParamValue(s);
+
+                default:
+                    return new DnsSvcUnknownParamValue(s);
+            }
+        }
+
+        internal static DnsSvcParamKey ParseSvcParamKey(string keyToken)
+        {
+            if (TryParseKeyNumber(keyToken, out ushort keyNumber))
+                return (DnsSvcParamKey)keyNumber;
+
+            return Enum.Parse<DnsSvcParamKey>(keyToken.Replace('-', '_'), true);
+        }
+
+        static bool TryParseKeyNumber(string keyToken, out ushort keyNumber)
+        {
+            keyNumber = 0;
+
+            if ((keyToken.Length < 4) || !keyToken.StartsWith("key", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            for (int i = 3; i < keyToken.Length; i++)
+            {
+                if ((keyToken[i] < '0') || (keyToken[i] > '9'))
+                    return false;
+            }
+
+            if ((keyToken.Length > 4) && (keyToken[3] == '0'))
+                throw new FormatException("SVCB key number must not contain leading zeros.");
+
+            int value = 0;
+
+            for (int i = 3; i < keyToken.Length; i++)
+            {
+                value = (value * 10) + (keyToken[i] - '0');
+                if (value > ushort.MaxValue)
+                    throw new FormatException("SVCB key number is outside the key range.");
+            }
+
+            keyNumber = (ushort)value;
+            return true;
         }
 
         void EnsureMandatoryKeysAreConsistent()
@@ -642,7 +690,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             return new DnsSvcMandatoryParamValue(svcParamValue.Split(delegate (string value)
             {
-                return Enum.Parse<DnsSvcParamKey>(value.Replace('-', '_'), true);
+                return DnsSVCBRecordData.ParseSvcParamKey(value);
             }, ','));
         }
 
