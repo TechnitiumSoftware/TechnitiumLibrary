@@ -149,7 +149,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (rdata is not null)
                 return new DnsTXTRecordData(rdata);
 
-            List<string> characterStrings = new List<string>(1);
+            List<ArraySegment<byte>> characterStrings = new List<ArraySegment<byte>>(1);
 
             do
             {
@@ -157,14 +157,30 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (value is null)
                     break;
 
-                characterStrings.Add(value);
+                characterStrings.Add(GetCharacterStringOctets(value));
             }
             while (true);
 
-            if (characterStrings.Count == 1)
-                return new DnsTXTRecordData(characterStrings[0]);
-
             return new DnsTXTRecordData(characterStrings);
+        }
+
+        static byte[] GetCharacterStringOctets(string value)
+        {
+            if (value.Length > 255)
+                throw new DnsClientException("TXT record character-string length cannot exceed 255 bytes.");
+
+            byte[] bytes = new byte[value.Length];
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (c > 0xFF)
+                    throw new DnsClientException("TXT record character-string contains a character that is not an octet.");
+
+                bytes[i] = (byte)c;
+            }
+
+            return bytes;
         }
 
         internal override string ToZoneFileEntry(string originDomain = null)
@@ -173,7 +189,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             foreach (ArraySegment<byte> characterString in _characterStrings)
             {
-                string cs = DnsDatagram.EncodeCharacterString(Encoding.UTF8.GetString(characterString));
+                string cs = DnsDatagram.EncodeCharacterString(Encoding.Latin1.GetString(characterString));
 
                 if (value is null)
                     value = cs;
