@@ -60,13 +60,20 @@ namespace TechnitiumLibrary.Net
         {
             IAsyncResult result = socket.BeginConnect(host, port, null, null);
 
-            if (!result.AsyncWaitHandle.WaitOne(timeout))
+            try
             {
-                socket.Dispose();
-                throw new SocketException((int)SocketError.TimedOut);
-            }
+                if (!result.AsyncWaitHandle.WaitOne(timeout))
+                {
+                    socket.Dispose();
+                    throw new SocketException((int)SocketError.TimedOut);
+                }
 
-            socket.EndConnect(result);
+                socket.EndConnect(result);
+            }
+            finally
+            {
+                result.AsyncWaitHandle.Dispose();
+            }
         }
 
         public static void Connect(this Socket socket, IPAddress address, int port, int timeout)
@@ -78,13 +85,20 @@ namespace TechnitiumLibrary.Net
         {
             IAsyncResult result = socket.BeginConnect(ep, null, null);
 
-            if (!result.AsyncWaitHandle.WaitOne(timeout))
+            try
             {
-                socket.Dispose();
-                throw new SocketException((int)SocketError.TimedOut);
-            }
+                if (!result.AsyncWaitHandle.WaitOne(timeout))
+                {
+                    socket.Dispose();
+                    throw new SocketException((int)SocketError.TimedOut);
+                }
 
-            socket.EndConnect(result);
+                socket.EndConnect(result);
+            }
+            finally
+            {
+                result.AsyncWaitHandle.Dispose();
+            }
         }
 
         public static async Task<int> UdpQueryAsync(this Socket socket, ArraySegment<byte> request, ArraySegment<byte> response, IPEndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool> isResponseValid = null, CancellationToken cancellationToken = default)
