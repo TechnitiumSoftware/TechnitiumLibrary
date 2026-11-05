@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TechnitiumLibrary.IO
@@ -57,6 +58,7 @@ namespace TechnitiumLibrary.IO
         }
 
         bool _disposed = false;
+        int _remainingCopies = 2;
         readonly object _disposeLock = new object();
 
         protected virtual void Dispose(bool disposing)
@@ -87,9 +89,15 @@ namespace TechnitiumLibrary.IO
             {
                 await src.CopyToAsync(dst);
             }
-            finally
+            catch
             {
                 Dispose();
+                throw;
+            }
+            finally
+            {
+                if (Interlocked.Decrement(ref _remainingCopies) == 0)
+                    Dispose();
             }
         }
 
