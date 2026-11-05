@@ -336,7 +336,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static void WriteTypeBitMapsTo(IReadOnlyList<DnsResourceRecordType> types, Stream s)
         {
-            Span<byte> windowBlockSurvey = stackalloc byte[256];
+            // -1 means the window has no types. Zero is a real bit number (for example URI, type 256).
+            Span<short> windowBlockSurvey = stackalloc short[256];
+            windowBlockSurvey.Fill(-1);
 
             foreach (DnsResourceRecordType type in types)
             {
@@ -351,7 +353,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             for (int currentWindowBlockNumber = 0; currentWindowBlockNumber < windowBlockSurvey.Length; currentWindowBlockNumber++)
             {
                 int maxBits = windowBlockSurvey[currentWindowBlockNumber];
-                if (maxBits > 0)
+                if (maxBits >= 0)
                 {
                     int bitmapLength = (int)Math.Ceiling((maxBits + 1) / 8.0);
                     byte[] bitmap = new byte[bitmapLength];
