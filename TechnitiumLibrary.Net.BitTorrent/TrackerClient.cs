@@ -219,7 +219,10 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         public override int GetHashCode()
         {
-            return base.GetHashCode();
+            HashCode hash = new HashCode();
+            hash.Add(_trackerURI);
+            hash.AddBytes(_infoHash);
+            return hash.ToHashCode();
         }
 
         #endregion
