@@ -1863,7 +1863,10 @@ namespace TechnitiumLibrary.Net.Dns
                     if (!current.IsSigned)
                     {
                         if (dnsMessages.Count < 100)
+                        {
+                            current = current._nextDatagram;
                             continue; //MUST accept up to 99 intermediary messages without a TSIG
+                        }
 
                         unsignedResponse = null;
                         requestFailed = false;
