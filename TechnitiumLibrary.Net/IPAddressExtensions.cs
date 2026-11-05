@@ -444,9 +444,15 @@ namespace TechnitiumLibrary.Net
                 //192.168.10.1
 
                 string[] parts = ptrDomain.Split('.');
+                if (parts.Length != 6)
+                {
+                    address = null;
+                    return false;
+                }
+
                 Span<byte> buffer = stackalloc byte[4];
 
-                for (int i = 0, j = parts.Length - 3; (i < 4) && (j > -1); i++, j--)
+                for (int i = 0, j = parts.Length - 3; i < 4; i++, j--)
                 {
                     if (!byte.TryParse(parts[j], out buffer[i]))
                     {
@@ -464,10 +470,16 @@ namespace TechnitiumLibrary.Net
                 //64:ff9b::8b3b:3eb
 
                 string[] parts = ptrDomain.Split('.');
+                if (parts.Length != 34)
+                {
+                    address = null;
+                    return false;
+                }
+
                 Span<byte> buffer = stackalloc byte[16];
                 byte p1, p2;
 
-                for (int i = 0, j = parts.Length - 3; (i < 16) && (j > 0); i++, j -= 2)
+                for (int i = 0, j = parts.Length - 3; i < 16; i++, j -= 2)
                 {
                     if (!byte.TryParse(parts[j], NumberStyles.HexNumber, null, out p1) || !byte.TryParse(parts[j - 1], NumberStyles.HexNumber, null, out p2))
                     {
