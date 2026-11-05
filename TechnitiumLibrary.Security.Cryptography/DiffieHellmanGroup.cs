@@ -363,17 +363,25 @@ namespace TechnitiumLibrary.Security.Cryptography
             switch (group)
             {
                 case DiffieHellmanGroupType.RFC3526_GROUP14_2048BIT:
-                    return new DiffieHellmanGroup(group, 2048, new BigInteger(p2048), new BigInteger(2));
+                    return new DiffieHellmanGroup(group, 2048, ReadRfc3526Modulus(p2048), new BigInteger(2));
 
                 case DiffieHellmanGroupType.RFC3526_GROUP15_3072BIT:
-                    return new DiffieHellmanGroup(group, 3072, new BigInteger(p3072), new BigInteger(2));
+                    return new DiffieHellmanGroup(group, 3072, ReadRfc3526Modulus(p3072), new BigInteger(2));
 
                 case DiffieHellmanGroupType.RFC3526_GROUP16_4096BIT:
-                    return new DiffieHellmanGroup(group, 4096, new BigInteger(p4096), new BigInteger(2));
+                    return new DiffieHellmanGroup(group, 4096, ReadRfc3526Modulus(p4096), new BigInteger(2));
 
                 default:
                     throw new CryptoException("DiffieHellman group not supported.");
             }
+        }
+
+        static BigInteger ReadRfc3526Modulus(byte[] modulus)
+        {
+            // The static arrays are the RFC 3526 prime in big-endian order, plus a trailing 0x00
+            // that kept the little-endian BigInteger(byte[]) constructor positive. That constructor
+            // reversed the prime. Skip the sign byte and decode the RFC octet string as written.
+            return new BigInteger(modulus.AsSpan(0, modulus.Length - 1), isUnsigned: true, isBigEndian: true);
         }
 
         #endregion
