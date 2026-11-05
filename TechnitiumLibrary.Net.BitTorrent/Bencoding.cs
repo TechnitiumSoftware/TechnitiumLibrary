@@ -140,10 +140,13 @@ namespace TechnitiumLibrary.Net.BitTorrent
         {
             s.WriteByte(100); //d
 
-            foreach (KeyValuePair<string, Bencoding> item in dict)
+            List<string> keys = new List<string>(dict.Keys);
+            keys.Sort(StringComparer.Ordinal);
+
+            foreach (string key in keys)
             {
-                EncodeString(Encoding.ASCII.GetBytes(item.Key), s);
-                item.Value.Encode(s);
+                EncodeString(Encoding.Latin1.GetBytes(key), s);
+                dict[key].Encode(s);
             }
 
             s.WriteByte(101); //e
@@ -217,7 +220,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
                 case BencodingType.String:
                     if (_value.GetType().Equals(typeof(string)))
-                        EncodeString(Encoding.ASCII.GetBytes(_value as string), stream);
+                        EncodeString(Encoding.Latin1.GetBytes(_value as string), stream);
                     else
                         EncodeString((_value as byte[]), stream);
                     break;
@@ -251,7 +254,7 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
         public string ValueString
         {
-            get { return Encoding.ASCII.GetString(_value as byte[]); }
+            get { return Encoding.Latin1.GetString(_value as byte[]); }
         }
 
         public long ValueInteger
