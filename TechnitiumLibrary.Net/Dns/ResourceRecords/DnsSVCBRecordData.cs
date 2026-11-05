@@ -389,6 +389,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         void EnsureSvcParamsAreConsistent()
         {
+            if (_svcPriority == 0)
+                return;
+
             if (_svcParams.ContainsKey(DnsSvcParamKey.No_Default_ALPN) && !_svcParams.ContainsKey(DnsSvcParamKey.ALPN))
                 throw new DnsClientException("SVCB no-default-alpn requires an alpn parameter.");
 
