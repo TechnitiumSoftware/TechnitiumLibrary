@@ -36,13 +36,17 @@ namespace TechnitiumLibrary.IO
             if (length1 > 127)
             {
                 int numberLenBytes = length1 & 0x7F;
-                if (numberLenBytes > 4)
+                if ((numberLenBytes < 1) || (numberLenBytes > 4))
                     throw new IOException("BinaryReaderExtension encoding length not supported.");
 
                 Span<byte> valueBytes = stackalloc byte[4];
                 bR.BaseStream.ReadExactly(valueBytes.Slice(4 - numberLenBytes, numberLenBytes));
 
-                return BinaryPrimitives.ReadInt32BigEndian(valueBytes);
+                int length = BinaryPrimitives.ReadInt32BigEndian(valueBytes);
+                if (length < 0)
+                    throw new IOException("BinaryReaderExtension encoding length not supported.");
+
+                return length;
             }
             else
             {
