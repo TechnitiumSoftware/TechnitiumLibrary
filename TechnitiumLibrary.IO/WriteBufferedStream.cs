@@ -57,7 +57,16 @@ namespace TechnitiumLibrary.IO
                 return;
 
             if (disposing)
+            {
+                try
+                {
+                    Flush();
+                }
+                catch
+                { }
+
                 _baseStream?.Dispose();
+            }
 
             _disposed = true;
 
@@ -123,28 +132,32 @@ namespace TechnitiumLibrary.IO
 
         public override long Position
         {
-            get { return _baseStream.Position; }
+            get { return _baseStream.Position + _writeBufferPosition; }
             set { throw new NotSupportedException(); }
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
+            Flush();
             return _baseStream.Read(buffer, offset, count);
         }
 
         public override int Read(Span<byte> buffer)
         {
+            Flush();
             return _baseStream.Read(buffer);
         }
 
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            return _baseStream.ReadAsync(buffer, offset, count, cancellationToken);
+            await FlushAsync(cancellationToken);
+            return await _baseStream.ReadAsync(buffer, offset, count, cancellationToken);
         }
 
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            return _baseStream.ReadAsync(buffer, cancellationToken);
+            await FlushAsync(cancellationToken);
+            return await _baseStream.ReadAsync(buffer, cancellationToken);
         }
 
         public override long Seek(long offset, SeekOrigin origin)
