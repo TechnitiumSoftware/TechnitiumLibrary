@@ -240,10 +240,10 @@ namespace TechnitiumLibrary.Net.Proxy
                 string content = "<h1>500 Internal Server Error</h1>";
 
                 if (!string.IsNullOrEmpty(ex.Message))
-                    content += "<p>" + ex.Message + "</p>";
+                    content += "<p>" + WebUtility.HtmlEncode(ex.Message) + "</p>";
 
                 if (Debugger.IsAttached)
-                    content += "<p>" + ex.ToString() + "</p>";
+                    content += "<p>" + WebUtility.HtmlEncode(ex.ToString()) + "</p>";
 
                 return SendResponseAsync(500, content);
             }
@@ -262,7 +262,7 @@ namespace TechnitiumLibrary.Net.Proxy
                         sb.Append(c);
                     }
 
-                    statusString = statusCode + " " + sb.ToString();
+                    statusString = sb.ToString();
                 }
 
                 string response = "HTTP/1.1 " + statusCode + " " + statusString + "\r\nDate: " + DateTime.UtcNow.ToString("R", CultureInfo.InvariantCulture) + "\r\nConnection: close\r\nContent-Type: text/html\r\nContent-Length: " + content.Length + "\r\n\r\n" + content;
