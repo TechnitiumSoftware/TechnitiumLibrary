@@ -927,7 +927,7 @@ namespace TechnitiumLibrary.Net.Dns
                         {
                             //answer response with authority; received from a forwarder (null zonecut)
                             DnsResourceRecord lastAnswer = response.GetLastAnswerRecord();
-                            if (lastAnswer.Type == DnsResourceRecordType.CNAME)
+                            if ((lastAnswer is not null) && (lastAnswer.Type == DnsResourceRecordType.CNAME))
                             {
                                 string cnameDomain = (lastAnswer.RDATA as DnsCNAMERecordData).Domain;
 

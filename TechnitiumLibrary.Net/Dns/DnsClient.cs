@@ -4380,7 +4380,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 DnsResourceRecord lastRR = response.GetLastAnswerRecord();
 
-                if ((lastRR.Type != question.Type) && (lastRR.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
+                if ((lastRR is not null) && (lastRR.Type != question.Type) && (lastRR.Type == DnsResourceRecordType.CNAME) && (question.Type != DnsResourceRecordType.ANY))
                 {
                     List<DnsResourceRecord> newAnswer = new List<DnsResourceRecord>(response.Answer.Count + 4);
                     newAnswer.AddRange(response.Answer);
@@ -4439,10 +4439,12 @@ namespace TechnitiumLibrary.Net.Dns
                             break; //cannot proceed to resolve further
 
                         lastRR = newResponse.GetLastAnswerRecord();
-                        if (lastRR.Type != DnsResourceRecordType.CNAME)
+                        if ((lastRR is null) || (lastRR.Type != DnsResourceRecordType.CNAME))
                         {
-                            newAnswer.AddRange(newResponse.Answer);
-                            break; //cname was resolved
+                            if (lastRR is not null)
+                                newAnswer.AddRange(newResponse.Answer);
+
+                            break; //cname was resolved, or the answer does not continue this name
                         }
 
                         foreach (DnsResourceRecord answerRecord in newAnswer)

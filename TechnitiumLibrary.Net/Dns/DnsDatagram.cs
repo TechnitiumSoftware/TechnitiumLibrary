@@ -1138,9 +1138,6 @@ namespace TechnitiumLibrary.Net.Dns
                 }
             }
 
-            if (lastAnswer is null)
-                return _answer[_answer.Count - 1];
-
             return lastAnswer;
         }
 
