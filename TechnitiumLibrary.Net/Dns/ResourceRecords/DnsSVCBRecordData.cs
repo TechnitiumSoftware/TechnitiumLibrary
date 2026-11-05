@@ -1573,8 +1573,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (!dohPath.StartsWith('/'))
                 throw new ArgumentException("DoH path template must be relative and start with a '/'.");
 
-            if (!ContainsOnlyDnsVariable(dohPath))
-                throw new ArgumentException("DoH path template must contain a variable named 'dns' and no other variables.");
+            if (!ContainsDnsVariable(dohPath))
+                throw new ArgumentException("DoH path template must contain a variable named 'dns'.");
 
             _dohPath = dohPath;
         }
@@ -1594,11 +1594,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (!_dohPath.StartsWith('/'))
                 throw new DnsClientException("SVCB dohpath template must be relative and start with a '/'.");
 
-            if (!ContainsOnlyDnsVariable(_dohPath))
-                throw new DnsClientException("SVCB dohpath template must contain a variable named 'dns' and no other variables.");
+            if (!ContainsDnsVariable(_dohPath))
+                throw new DnsClientException("SVCB dohpath template must contain a variable named 'dns'.");
         }
 
-        static bool ContainsOnlyDnsVariable(string template)
+        static bool ContainsDnsVariable(string template)
         {
             bool sawDns = false;
 
@@ -1611,7 +1611,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (close < 0)
                     return false;
 
-                if (!ExpressionUsesOnlyDns(template, i + 1, close, ref sawDns))
+                if (!TryReadTemplateExpression(template, i + 1, close, ref sawDns))
                     return false;
 
                 i = close;
@@ -1620,7 +1620,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return sawDns;
         }
 
-        static bool ExpressionUsesOnlyDns(string template, int start, int end, ref bool sawDns)
+        static bool TryReadTemplateExpression(string template, int start, int end, ref bool sawDns)
         {
             int i = start;
 
@@ -1635,10 +1635,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (!TryReadVariableName(template, ref i, end, out string name))
                     return false;
 
-                if (!name.Equals("dns", StringComparison.Ordinal))
-                    return false;
-
-                sawDns = true;
+                if (name.Equals("dns", StringComparison.Ordinal))
+                    sawDns = true;
 
                 if ((i < end) && (template[i] == ':'))
                 {
