@@ -796,7 +796,7 @@ namespace TechnitiumLibrary.ByteTree
 
             public override string ToString()
             {
-                return Convert.ToHexString(_key).ToLower() + ": " + _value?.ToString() ?? "null";
+                return Convert.ToHexString(_key).ToLower() + ": " + (_value?.ToString() ?? "null");
             }
 
             #endregion
