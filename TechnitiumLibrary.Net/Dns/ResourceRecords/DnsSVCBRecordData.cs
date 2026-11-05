@@ -103,8 +103,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                             break;
 
                         case DnsSvcParamKey.ALPN:
+                            svcParamValue = new DnsSvcAlpnParamValue(mS);
+                            break;
+
                         case DnsSvcParamKey.No_Default_ALPN:
                             svcParamValue = new DnsSvcAlpnParamValue(mS);
+                            if (svcParamValue.ValueLength != 0)
+                                throw new DnsClientException("SVCB no-default-alpn value must be empty.");
+
                             break;
 
                         case DnsSvcParamKey.Port:
@@ -374,6 +380,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected readonly ushort _length;
 
+        internal ushort ValueLength
+        { get { return _length; } }
+
         #endregion
 
         #region constructors
@@ -385,7 +394,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             _length = DnsDatagram.ReadUInt16NetworkOrder(s);
 
-            ReadSvcParamValue(s);
+            byte[] value = new byte[_length];
+            s.ReadExactly(value, 0, value.Length);
+
+            using (MemoryStream valueStream = new MemoryStream(value, writable: false))
+            {
+                ReadSvcParamValue(valueStream);
+
+                if (valueStream.Position != valueStream.Length)
+                    throw new DnsClientException("SVCB parameter length does not match its value.");
+            }
         }
 
         #endregion
