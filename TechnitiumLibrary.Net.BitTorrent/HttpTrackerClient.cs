@@ -150,13 +150,13 @@ namespace TechnitiumLibrary.Net.BitTorrent
 
             SocketsHttpHandler handler = new SocketsHttpHandler();
             handler.Proxy = _proxy;
+            handler.AutomaticDecompression = GetDecompressionMethods(_clientID.HttpAcceptEncoding);
 
             using (HttpClient httpClient = new HttpClient(handler))
             {
                 httpClient.Timeout = TimeSpan.FromMilliseconds(30000); //30 sec timeout
 
                 httpClient.DefaultRequestHeaders.Add("user-agent", _clientID.HttpUserAgent);
-                httpClient.DefaultRequestHeaders.Add("Accept-Encoding", _clientID.HttpAcceptEncoding);
 
                 using (Stream responseStream = new MemoryStream(await httpClient.GetByteArrayAsync(_trackerURI.AbsoluteUri + queryString), false))
                 {
@@ -221,6 +221,25 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     }
                 }
             }
+        }
+
+        static DecompressionMethods GetDecompressionMethods(string acceptEncoding)
+        {
+            if (string.IsNullOrEmpty(acceptEncoding))
+                return DecompressionMethods.None;
+
+            DecompressionMethods methods = DecompressionMethods.None;
+
+            if (acceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
+                methods |= DecompressionMethods.GZip;
+
+            if (acceptEncoding.Contains("deflate", StringComparison.OrdinalIgnoreCase))
+                methods |= DecompressionMethods.Deflate;
+
+            if (acceptEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
+                methods |= DecompressionMethods.Brotli;
+
+            return methods;
         }
 
         static string PercentEncode(byte[] data)
