@@ -312,10 +312,10 @@ namespace TechnitiumLibrary.Security.Cryptography
             if (cP._type != _type)
                 return false;
 
-            if ((cP._emailAddress != null) && (cP._emailAddress.Address != _emailAddress.Address))
+            if (cP._emailAddress?.Address != _emailAddress?.Address)
                 return false;
 
-            if ((cP._website != null) && (cP._website.AbsoluteUri != _website.AbsoluteUri))
+            if (cP._website?.AbsoluteUri != _website?.AbsoluteUri)
                 return false;
 
             if (cP._phoneNumber != _phoneNumber)
@@ -341,7 +341,20 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public override int GetHashCode()
         {
-            return base.GetHashCode();
+            HashCode hash = new HashCode();
+            hash.Add(_version);
+            hash.Add(_verified);
+            hash.Add(_name);
+            hash.Add(_type);
+            hash.Add(_emailAddress?.Address);
+            hash.Add(_website?.AbsoluteUri);
+            hash.Add(_phoneNumber);
+            hash.Add(_streetAddress);
+            hash.Add(_city);
+            hash.Add(_state);
+            hash.Add(_country);
+            hash.Add(_postalCode);
+            return hash.ToHashCode();
         }
 
         public void WriteTo(Stream s)
