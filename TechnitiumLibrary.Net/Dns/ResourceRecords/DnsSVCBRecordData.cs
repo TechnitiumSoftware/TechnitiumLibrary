@@ -107,7 +107,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 }
 
                 _svcParams = svcParams;
-                EnsureMandatoryKeysAreConsistent();
+                EnsureSvcParamsAreConsistent();
             }
         }
 
@@ -205,7 +205,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             while (true);
 
             DnsSVCBRecordData svcb = new DnsSVCBRecordData(svcPriority, targetName, svcParams) { _autoIpv4Hint = autoIpv4Hint, _autoIpv6Hint = autoIpv6Hint };
-            svcb.EnsureMandatoryKeysAreConsistent();
+            svcb.EnsureSvcParamsAreConsistent();
 
             return svcb;
         }
@@ -230,7 +230,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     return new DnsSvcMandatoryParamValue(s);
 
                 case DnsSvcParamKey.ALPN:
-                    return new DnsSvcAlpnParamValue(s);
+                    DnsSvcAlpnParamValue alpn = new DnsSvcAlpnParamValue(s);
+                    if (alpn.AlpnIds.Count == 0)
+                        throw new DnsClientException("SVCB alpn value must contain at least one id.");
+
+                    return alpn;
 
                 case DnsSvcParamKey.No_Default_ALPN:
                     DnsSvcParamValue noDefaultAlpn = new DnsSvcAlpnParamValue(s);
@@ -332,6 +336,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             items.Add(item.ToString());
             return items;
+        }
+
+        void EnsureSvcParamsAreConsistent()
+        {
+            if (_svcParams.ContainsKey(DnsSvcParamKey.No_Default_ALPN) && !_svcParams.ContainsKey(DnsSvcParamKey.ALPN))
+                throw new DnsClientException("SVCB no-default-alpn requires an alpn parameter.");
+
+            EnsureMandatoryKeysAreConsistent();
         }
 
         void EnsureMandatoryKeysAreConsistent()
@@ -1126,6 +1138,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadSvcParamValue(Stream s)
         {
+            if (_length == 0)
+                throw new DnsClientException("SVCB ipv4hint value must contain at least one address.");
+
             int count = _length / 4;
             IPAddress[] addresses = new IPAddress[count];
             Span<byte> buffer = stackalloc byte[4];
@@ -1256,6 +1271,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadSvcParamValue(Stream s)
         {
+            if (_length == 0)
+                throw new DnsClientException("SVCB ipv6hint value must contain at least one address.");
+
             int count = _length / 16;
             IPAddress[] addresses = new IPAddress[count];
             Span<byte> buffer = stackalloc byte[16];
