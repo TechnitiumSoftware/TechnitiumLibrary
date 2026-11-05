@@ -122,9 +122,9 @@ namespace TechnitiumLibrary.Net.Proxy
                         string matchDomainName = dep.Address;
 
                         if (_domainName.Length == matchDomainName.Length)
-                            return _domainName.Equals(matchDomainName, StringComparison.OrdinalIgnoreCase);
+                            return DnsDatagram.EqualsIgnoreCaseAscii(_domainName, matchDomainName);
                         else
-                            return matchDomainName.EndsWith("." + _domainName, StringComparison.OrdinalIgnoreCase);
+                            return DnsDatagram.EndsWithIgnoreCaseAscii(matchDomainName, "." + _domainName);
                     }
 
                     return false;

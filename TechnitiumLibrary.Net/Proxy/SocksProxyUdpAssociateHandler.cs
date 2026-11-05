@@ -23,6 +23,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TechnitiumLibrary.Net.Dns;
 
 namespace TechnitiumLibrary.Net.Proxy
 {
@@ -344,7 +345,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 }
 
                 if ((_relayEP is DomainEndPoint expectedDomain) && (remoteEP is DomainEndPoint actualDomain))
-                    return expectedDomain.Address.Equals(actualDomain.Address, StringComparison.OrdinalIgnoreCase);
+                    return DnsDatagram.EqualsIgnoreCaseAscii(expectedDomain.Address, actualDomain.Address);
 
                 return false;
             }

@@ -56,7 +56,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             handler.EnableMultipleHttp2Connections = true;
             handler.UseProxy = false;
 
-            if (_server.DoHEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase))
+            if (DnsDatagram.EqualsIgnoreCaseAscii(_server.DoHEndPoint.Scheme, "h3"))
             {
                 handler.AllowAutoRedirect = false; //disable redirect since next call may bypass proxy tunnel
             }
@@ -105,7 +105,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             IPEndPoint remoteEP;
 
-            if (_server.DoHEndPoint.Host.Equals(context.DnsEndPoint.Host, StringComparison.OrdinalIgnoreCase))
+            if (DnsDatagram.EqualsIgnoreCaseAscii(_server.DoHEndPoint.Host, context.DnsEndPoint.Host))
             {
                 if (_server.IsIPEndPointStale)
                     await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
@@ -181,7 +181,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             EndPoint remoteEP;
 
-            if (!_server.IsIPEndPointStale && _server.DoHEndPoint.Host.Equals(context.DnsEndPoint.Host, StringComparison.OrdinalIgnoreCase))
+            if (!_server.IsIPEndPointStale && DnsDatagram.EqualsIgnoreCaseAscii(_server.DoHEndPoint.Host, context.DnsEndPoint.Host))
             {
                 if (_server.IPEndPoint.Port == context.DnsEndPoint.Port)
                     remoteEP = _server.IPEndPoint;
@@ -203,7 +203,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         private async Task<HttpRequestMessage> GetHttpRequestAsync(byte[] requestBuffer, CancellationToken cancellationToken)
         {
-            bool isH3 = _server.DoHEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase);
+            bool isH3 = DnsDatagram.EqualsIgnoreCaseAscii(_server.DoHEndPoint.Scheme, "h3");
             Uri queryUri;
             Version httpVersion;
             HttpVersionPolicy httpVersionPolicy;

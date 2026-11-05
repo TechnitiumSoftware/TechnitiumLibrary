@@ -21,6 +21,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using TechnitiumLibrary.Net.Dns;
 using TechnitiumLibrary.Net.Proxy;
 
 namespace TechnitiumLibrary.Security.Cryptography
@@ -203,7 +204,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                         case CertificateCapability.SignDomainUserCertificate:
                             //check if issuer email domain matches with user email domain
 
-                            if (!_issuedTo.FieldExists(CertificateProfileFlags.EmailAddress) || !signingCert.IssuedTo.EmailAddress.Host.Equals(_issuedTo.EmailAddress.Host, StringComparison.OrdinalIgnoreCase))
+                            if (!_issuedTo.FieldExists(CertificateProfileFlags.EmailAddress) || !DnsDatagram.EqualsIgnoreCaseAscii(signingCert.IssuedTo.EmailAddress.Host, _issuedTo.EmailAddress.Host))
                                 throw new CryptoException("Signing certificate domain must match with user certificate email address domain.");
 
                             break;
@@ -301,7 +302,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                         case CertificateCapability.SignDomainUserCertificate:
                             //check if issuer email domain matches with user email domain
 
-                            if (!_issuedTo.FieldExists(CertificateProfileFlags.EmailAddress) || !issuerCert.IssuedTo.EmailAddress.Host.Equals(_issuedTo.EmailAddress.Host, StringComparison.OrdinalIgnoreCase))
+                            if (!_issuedTo.FieldExists(CertificateProfileFlags.EmailAddress) || !DnsDatagram.EqualsIgnoreCaseAscii(issuerCert.IssuedTo.EmailAddress.Host, _issuedTo.EmailAddress.Host))
                                 throw new CryptoException("Certificate issuer '" + issuerCert._issuedTo.Name + "' domain must match with user certificate email address domain.");
 
                             break;

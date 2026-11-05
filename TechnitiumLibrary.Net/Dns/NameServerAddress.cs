@@ -453,7 +453,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         private int GetDoHPort()
         {
-            if ((_dohEndPoint.Port == -1) && _dohEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase))
+            if ((_dohEndPoint.Port == -1) && DnsDatagram.EqualsIgnoreCaseAscii(_dohEndPoint.Scheme, "h3"))
                 return 443;
 
             return _dohEndPoint.Port;
@@ -521,7 +521,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (authorityRecord.Type == DnsResourceRecordType.NS)
                 {
-                    if ((authorityRecord.Name.Length == 0) || question.Name.Equals(authorityRecord.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authorityRecord.Name, StringComparison.OrdinalIgnoreCase))
+                    if ((authorityRecord.Name.Length == 0) || DnsDatagram.EqualsIgnoreCaseAscii(question.Name, authorityRecord.Name) || DnsDatagram.EndsWithIgnoreCaseAscii(question.Name, "." + authorityRecord.Name))
                     {
                         DnsNSRecordData nsRecord = (DnsNSRecordData)authorityRecord.RDATA;
 
@@ -534,7 +534,7 @@ namespace TechnitiumLibrary.Net.Dns
                         //find ip address of authoritative name server from additional records
                         foreach (DnsResourceRecord rr in response.Additional)
                         {
-                            if (nsRecord.NameServer.Equals(rr.Name, StringComparison.OrdinalIgnoreCase))
+                            if (DnsDatagram.EqualsIgnoreCaseAscii(nsRecord.NameServer, rr.Name))
                             {
                                 switch (rr.Type)
                                 {

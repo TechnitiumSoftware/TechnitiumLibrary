@@ -291,7 +291,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_protocol != other._protocol)
                     return false;
 
-                if (!_forwarder.Equals(other._forwarder, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_forwarder, other._forwarder))
                     return false;
 
                 if (!_isPartialRecordData)
@@ -326,7 +326,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_protocol, StringComparer.OrdinalIgnoreCase.GetHashCode(_forwarder));
+            return HashCode.Combine(_protocol, DnsDatagram.GetHashCodeIgnoreCaseAscii(_forwarder));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

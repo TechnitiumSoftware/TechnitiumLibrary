@@ -99,7 +99,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_type != other._type)
                     return false;
 
-                return Domain.Equals(other.Domain, StringComparison.OrdinalIgnoreCase);
+                return DnsDatagram.EqualsIgnoreCaseAscii(Domain, other.Domain);
             }
 
             return false;
@@ -107,7 +107,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_type, StringComparer.OrdinalIgnoreCase.GetHashCode(Domain));
+            return HashCode.Combine(_type, DnsDatagram.GetHashCodeIgnoreCaseAscii(Domain));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

@@ -254,7 +254,7 @@ namespace TechnitiumLibrary.Net.Dns
             do
             {
                 string cnameDomain = (lastCNAME.RDATA as DnsCNAMERecordData).Domain;
-                if (lastCNAME.Name.Equals(cnameDomain, StringComparison.OrdinalIgnoreCase))
+                if (DnsDatagram.EqualsIgnoreCaseAscii(lastCNAME.Name, cnameDomain))
                     break; //loop detected
 
                 if (!_cache.TryGetValue(DnsDatagram.ToLowerInvariantAscii(cnameDomain), out DnsCacheEntry entry))
@@ -634,7 +634,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     foreach (DnsResourceRecord record in response.Answer)
                     {
-                        if ((record.Type == rrsig.TypeCovered) && record.Name.Equals(rrsigRecord.Name, StringComparison.OrdinalIgnoreCase))
+                        if ((record.Type == rrsig.TypeCovered) && DnsDatagram.EqualsIgnoreCaseAscii(record.Name, rrsigRecord.Name))
                         {
                             DnsResourceRecordInfo recordInfo = GetRecordInfo(record);
 
@@ -671,7 +671,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     foreach (DnsResourceRecord record in response.Authority)
                     {
-                        if ((record.Type == rrsig.TypeCovered) && record.Name.Equals(rrsigRecord.Name, StringComparison.OrdinalIgnoreCase))
+                        if ((record.Type == rrsig.TypeCovered) && DnsDatagram.EqualsIgnoreCaseAscii(record.Name, rrsigRecord.Name))
                         {
                             GetRecordInfo(record).AddRRSIGRecord(rrsigRecord);
                             break;
@@ -688,7 +688,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     foreach (DnsResourceRecord record in response.Additional)
                     {
-                        if ((record.Type == rrsig.TypeCovered) && record.Name.Equals(rrsigRecord.Name, StringComparison.OrdinalIgnoreCase))
+                        if ((record.Type == rrsig.TypeCovered) && DnsDatagram.EqualsIgnoreCaseAscii(record.Name, rrsigRecord.Name))
                         {
                             GetRecordInfo(record).AddRRSIGRecord(rrsigRecord);
                             break;
@@ -707,7 +707,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 foreach (DnsResourceRecord answer in response.Answer)
                 {
-                    if (answer.Name.Equals(qName, StringComparison.OrdinalIgnoreCase))
+                    if (DnsDatagram.EqualsIgnoreCaseAscii(answer.Name, qName))
                     {
                         switch (answer.Type)
                         {
@@ -740,7 +740,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 continue;
                                         }
 
-                                        if (nsDomain.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                        if (DnsDatagram.EqualsIgnoreCaseAscii(nsDomain, additional.Name))
                                         {
                                             switch (additional.Type)
                                             {
@@ -784,7 +784,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 continue;
                                         }
 
-                                        if (mxExchange.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                        if (DnsDatagram.EqualsIgnoreCaseAscii(mxExchange, additional.Name))
                                         {
                                             switch (additional.Type)
                                             {
@@ -819,7 +819,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 continue;
                                         }
 
-                                        if (srvTarget.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                        if (DnsDatagram.EqualsIgnoreCaseAscii(srvTarget, additional.Name))
                                         {
                                             switch (additional.Type)
                                             {
@@ -846,7 +846,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     if (svcb.SvcPriority == 0)
                                     {
                                         //Alias mode
-                                        if ((targetName.Length == 0) || targetName.Equals(answer.Name, StringComparison.OrdinalIgnoreCase))
+                                        if ((targetName.Length == 0) || DnsDatagram.EqualsIgnoreCaseAscii(targetName, answer.Name))
                                             break; //For AliasMode SVCB RRs, a TargetName of "." indicates that the service is not available or does not exist [draft-ietf-dnsop-svcb-https-12]
                                     }
                                     else
@@ -869,7 +869,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 continue;
                                         }
 
-                                        if (targetName.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                        if (DnsDatagram.EqualsIgnoreCaseAscii(targetName, additional.Name))
                                         {
                                             switch (additional.Type)
                                             {
@@ -898,7 +898,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 break;
                         }
                     }
-                    else if ((answer.Type == DnsResourceRecordType.DNAME) && qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                    else if ((answer.Type == DnsResourceRecordType.DNAME) && DnsDatagram.EndsWithIgnoreCaseAscii(qName, "." + answer.Name))
                     {
                         cachableRecords.Add(answer);
                     }
@@ -931,7 +931,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 string cnameDomain = (lastAnswer.RDATA as DnsCNAMERecordData).Domain;
 
-                                if (cnameDomain.Equals(firstAuthority.Name, StringComparison.OrdinalIgnoreCase) || cnameDomain.EndsWith("." + firstAuthority.Name, StringComparison.OrdinalIgnoreCase))
+                                if (DnsDatagram.EqualsIgnoreCaseAscii(cnameDomain, firstAuthority.Name) || DnsDatagram.EndsWithIgnoreCaseAscii(cnameDomain, "." + firstAuthority.Name))
                                 {
                                     foreach (DnsQuestionRecord question in response.Question)
                                     {
@@ -966,7 +966,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 {
                                     if (authority.Type == DnsResourceRecordType.NS)
                                     {
-                                        if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
+                                        if (DnsDatagram.EqualsIgnoreCaseAscii(authority.Name, zoneCut))
                                         {
                                             //empty response with authority name servers that match the zone cut; dont cache authority section with NS records
                                             DnsResourceRecord record = new DnsResourceRecord(question.Name, question.Type, question.Class, _negativeRecordTtl, new DnsSpecialCacheRecordData(DnsSpecialCacheRecordType.NegativeCache, response.RCODE, [question], Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), Array.Empty<DnsResourceRecord>(), response.EDNS, response.DnsClientExtendedErrors));
@@ -977,7 +977,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             break;
                                         }
 
-                                        if ((zoneCut.Length > 0) && !authority.Name.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase))
+                                        if ((zoneCut.Length > 0) && !DnsDatagram.EndsWithIgnoreCaseAscii(authority.Name, "." + zoneCut))
                                         {
                                             //empty response with authority name server out of bailiwick; dont cache invalid referral response
                                             isReferralResponse = false;
@@ -996,7 +996,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                                 NameServerMetadata GetCachedMetadataFor(string zoneCut, string nsDomain)
                                 {
-                                    if ((cachedResponse is null) || (cachedResponse.Answer.Count == 0) || !cachedResponse.Answer[0].Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
+                                    if ((cachedResponse is null) || (cachedResponse.Answer.Count == 0) || !DnsDatagram.EqualsIgnoreCaseAscii(cachedResponse.Answer[0].Name, zoneCut))
                                         cachedResponse = QueryAsync(new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, [new DnsQuestionRecord(zoneCut, DnsResourceRecordType.PARENT_NS, DnsClass.IN)]), true, false, false).Sync();
 
                                     if (cachedResponse is null)
@@ -1007,10 +1007,10 @@ namespace TechnitiumLibrary.Net.Dns
                                         if (record.Type != DnsResourceRecordType.NS)
                                             continue;
 
-                                        if (!record.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase))
+                                        if (!DnsDatagram.EqualsIgnoreCaseAscii(record.Name, zoneCut))
                                             continue;
 
-                                        if (record.RDATA is DnsNSRecordData nsRecord && nsRecord.NameServer.Equals(nsDomain, StringComparison.OrdinalIgnoreCase))
+                                        if (record.RDATA is DnsNSRecordData nsRecord && DnsDatagram.EqualsIgnoreCaseAscii(nsRecord.NameServer, nsDomain))
                                             return nsRecord.Metadata;
                                     }
 
@@ -1024,7 +1024,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         case DnsResourceRecordType.NS:
                                             foreach (DnsQuestionRecord question in response.Question)
                                             {
-                                                if (question.Name.Equals(authority.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authority.Name, StringComparison.OrdinalIgnoreCase))
+                                                if (DnsDatagram.EqualsIgnoreCaseAscii(question.Name, authority.Name) || DnsDatagram.EndsWithIgnoreCaseAscii(question.Name, "." + authority.Name))
                                                 {
                                                     cachableRecords.Add(authority);
 
@@ -1038,7 +1038,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                     //add glue from additional section
                                                     foreach (DnsResourceRecord additional in response.Additional)
                                                     {
-                                                        if (nsDomain.Equals(additional.Name, StringComparison.OrdinalIgnoreCase))
+                                                        if (DnsDatagram.EqualsIgnoreCaseAscii(nsDomain, additional.Name))
                                                         {
                                                             switch (additional.Type)
                                                             {
@@ -1753,7 +1753,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                     foreach (NameServerAddress ipv6Hint in DnsClient.IPv6RootHints)
                     {
-                        if (ipv6Hint.Host.Equals(nsDomain, StringComparison.OrdinalIgnoreCase))
+                        if (DnsDatagram.EqualsIgnoreCaseAscii(ipv6Hint.Host, nsDomain))
                         {
                             DnsResourceRecord ipv6Glue = new DnsResourceRecord(nsDomain, DnsResourceRecordType.AAAA, DnsClass.IN, 518400, new DnsAAAARecordData(ipv6Hint.IPEndPoint.Address));
                             nsRecordInfo.AddGlueRecord(ipv6Glue);

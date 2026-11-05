@@ -116,14 +116,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return true;
 
             if (obj is DnsNSRecordData other)
-                return _nameServer.Equals(other._nameServer, StringComparison.OrdinalIgnoreCase);
+                return DnsDatagram.EqualsIgnoreCaseAscii(_nameServer, other._nameServer);
 
             return false;
         }
 
         public override int GetHashCode()
         {
-            return StringComparer.OrdinalIgnoreCase.GetHashCode(_nameServer);
+            return DnsDatagram.GetHashCodeIgnoreCaseAscii(_nameServer);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

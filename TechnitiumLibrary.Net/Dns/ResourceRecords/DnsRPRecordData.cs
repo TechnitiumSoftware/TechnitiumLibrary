@@ -104,10 +104,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             if (obj is DnsRPRecordData other)
             {
-                if (!_mailbox.Equals(other._mailbox, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_mailbox, other._mailbox))
                     return false;
 
-                if (!_txtDomain.Equals(other._txtDomain, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_txtDomain, other._txtDomain))
                     return false;
 
                 return true;
@@ -118,7 +118,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(_mailbox), StringComparer.OrdinalIgnoreCase.GetHashCode(_txtDomain));
+            return HashCode.Combine(DnsDatagram.GetHashCodeIgnoreCaseAscii(_mailbox), DnsDatagram.GetHashCodeIgnoreCaseAscii(_txtDomain));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

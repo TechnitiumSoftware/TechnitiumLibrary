@@ -146,7 +146,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             if (obj is DnsTSIGRecordData other)
             {
-                if (!_algorithmName.Equals(other._algorithmName, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_algorithmName, other._algorithmName))
                     return false;
 
                 if (_timeSigned != other._timeSigned)
@@ -175,7 +175,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(_algorithmName), _timeSigned, _fudge, _mac.GetArrayHashCode(), _originalID, _error, _otherData.GetArrayHashCode());
+            return HashCode.Combine(DnsDatagram.GetHashCodeIgnoreCaseAscii(_algorithmName), _timeSigned, _fudge, _mac.GetArrayHashCode(), _originalID, _error, _otherData.GetArrayHashCode());
         }
 
         public override string ToString()

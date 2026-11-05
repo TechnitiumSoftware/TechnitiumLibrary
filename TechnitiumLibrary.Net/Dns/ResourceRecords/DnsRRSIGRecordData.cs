@@ -413,7 +413,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     continue;
 
                 //The RRSIG RR's Signer's Name, Algorithm, and Key Tag fields MUST match the owner name, algorithm, and key tag for some DNSKEY RR in the zone's apex DNSKEY RRset.
-                if (!dnsKeyRecord.Name.Equals(_signersName, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(dnsKeyRecord.Name, _signersName))
                     continue;
 
                 DnsDNSKEYRecordData dnsKey = dnsKeyRecord.RDATA as DnsDNSKEYRecordData;
@@ -530,7 +530,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_keyTag != other._keyTag)
                     return false;
 
-                if (!_signersName.Equals(other._signersName, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_signersName, other._signersName))
                     return false;
 
                 if (!_signature.SequenceEqual(other._signature))
@@ -553,7 +553,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             hash.Add(_signatureExpiration);
             hash.Add(_signatureInception);
             hash.Add(_keyTag);
-            hash.Add(StringComparer.OrdinalIgnoreCase.GetHashCode(_signersName));
+            hash.Add(DnsDatagram.GetHashCodeIgnoreCaseAscii(_signersName));
             hash.AddBytes(_signature);
 
             return hash.ToHashCode();

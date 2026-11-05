@@ -99,14 +99,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return true;
 
             if (obj is DnsPTRRecordData other)
-                return _domain.Equals(other._domain, StringComparison.OrdinalIgnoreCase);
+                return DnsDatagram.EqualsIgnoreCaseAscii(_domain, other._domain);
 
             return false;
         }
 
         public override int GetHashCode()
         {
-            return StringComparer.OrdinalIgnoreCase.GetHashCode(_domain);
+            return DnsDatagram.GetHashCodeIgnoreCaseAscii(_domain);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

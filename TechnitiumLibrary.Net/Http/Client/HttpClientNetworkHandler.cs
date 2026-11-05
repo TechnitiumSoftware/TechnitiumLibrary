@@ -312,7 +312,7 @@ namespace TechnitiumLibrary.Net.Http.Client
 
                     foreach (DnsResourceRecord record in response.Answer)
                     {
-                        if ((record.Type == DnsResourceRecordType.CNAME) && record.Name.Equals(baseDomain, StringComparison.OrdinalIgnoreCase))
+                        if ((record.Type == DnsResourceRecordType.CNAME) && DnsDatagram.EqualsIgnoreCaseAscii(record.Name, baseDomain))
                         {
                             if (record.DnssecStatus != DnssecStatus.Secure)
                             {
@@ -325,7 +325,7 @@ namespace TechnitiumLibrary.Net.Http.Client
                     }
 
                     Task<DnsDatagram> tlsaTask1 = _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + baseDomain, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
-                    Task<DnsDatagram> tlsaTask2 = host.Equals(baseDomain, StringComparison.OrdinalIgnoreCase) ? null : _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + host, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
+                    Task<DnsDatagram> tlsaTask2 = DnsDatagram.EqualsIgnoreCaseAscii(host, baseDomain) ? null : _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + host, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
 
                     IReadOnlyList<DnsTLSARecordData> tlsaRecords1 = Dns.DnsClient.ParseResponseTLSA(await tlsaTask1);
                     IReadOnlyList<DnsTLSARecordData> tlsaRecords2 = tlsaTask2 is null ? null : Dns.DnsClient.ParseResponseTLSA(await tlsaTask2);

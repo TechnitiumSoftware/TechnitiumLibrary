@@ -187,7 +187,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if (obj is DnsQuestionRecord other)
             {
-                if (!_name.Equals(other._name, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_name, other._name))
                     return false;
 
                 if (_type != other._type)
@@ -204,7 +204,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(_name), _type, _class);
+            return HashCode.Combine(DnsDatagram.GetHashCodeIgnoreCaseAscii(_name), _type, _class);
         }
 
         public override string ToString()

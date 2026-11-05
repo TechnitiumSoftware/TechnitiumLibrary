@@ -455,9 +455,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             if (string.IsNullOrEmpty(originDomain))
                 value = domain + ".";
-            else if (domain.Equals(originDomain, StringComparison.OrdinalIgnoreCase))
+            else if (DnsDatagram.EqualsIgnoreCaseAscii(domain, originDomain))
                 value = "@";
-            else if (domain.EndsWith("." + originDomain, StringComparison.OrdinalIgnoreCase))
+            else if (DnsDatagram.EndsWithIgnoreCaseAscii(domain, "." + originDomain))
                 value = domain.Substring(0, domain.Length - originDomain.Length - 1);
             else
                 value = domain + ".";
@@ -582,7 +582,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             if (obj is DnsResourceRecord other)
             {
-                if (!_name.Equals(other._name, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_name, other._name))
                     return false;
 
                 if (_type != other._type)
@@ -602,7 +602,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(_name), _type, _class, _ttl, _rData);
+            return HashCode.Combine(DnsDatagram.GetHashCodeIgnoreCaseAscii(_name), _type, _class, _ttl, _rData);
         }
 
         public int CompareTo(DnsResourceRecord other)

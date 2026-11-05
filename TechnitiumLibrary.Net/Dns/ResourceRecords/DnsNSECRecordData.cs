@@ -172,7 +172,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 DnsNSECRecordData nsec = nsecRecord.RDATA as DnsNSECRecordData;
 
-                if (nsecRecord.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                if (DnsDatagram.EqualsIgnoreCaseAscii(nsecRecord.Name, domain))
                 {
                     //found proof of existence
 
@@ -186,7 +186,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 {
                     //found proof of cover
 
-                    if (nsec._nextDomainName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase))
+                    if (DnsDatagram.EndsWithIgnoreCaseAscii(nsec._nextDomainName, "." + domain))
                         return DnssecProofOfNonExistence.NoData; //domain is empty non-terminal (ENT) so proves NO DATA
 
                     if (wildcardAnswerValidation)
@@ -211,7 +211,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 DnsNSECRecordData nsec = nsecRecord.RDATA as DnsNSECRecordData;
 
-                if (nsecRecord.Name.Equals(wildcardDomain, StringComparison.OrdinalIgnoreCase))
+                if (DnsDatagram.EqualsIgnoreCaseAscii(nsecRecord.Name, wildcardDomain))
                 {
                     //found proof of existence for a wildcard domain
 
@@ -226,7 +226,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 {
                     //found proof of cover for wildcard domain
 
-                    if (nsec._nextDomainName.EndsWith("." + wildcardDomain, StringComparison.OrdinalIgnoreCase))
+                    if (DnsDatagram.EndsWithIgnoreCaseAscii(nsec._nextDomainName, "." + wildcardDomain))
                         return DnssecProofOfNonExistence.NoData; //wildcard domain is empty non-terminal (ENT) so proves NO DATA
 
                     //proved that the actual domain does not exists since a wildcard does not exists
@@ -276,7 +276,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 string label1 = labels1[labels1.Length - 1 - i];
                 string label2 = labels2[labels2.Length - 1 - i];
 
-                if (label1.Equals(label2, StringComparison.OrdinalIgnoreCase))
+                if (DnsDatagram.EqualsIgnoreCaseAscii(label1, label2))
                 {
                     if (wildcard is null)
                         wildcard = label1;
@@ -494,7 +494,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             if (obj is DnsNSECRecordData other)
             {
-                if (!_nextDomainName.Equals(other._nextDomainName, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_nextDomainName, other._nextDomainName))
                     return false;
 
                 if (_types.Count != other._types.Count)
@@ -515,7 +515,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public override int GetHashCode()
         {
             HashCode hash = new HashCode();
-            hash.Add(StringComparer.OrdinalIgnoreCase.GetHashCode(_nextDomainName));
+            hash.Add(DnsDatagram.GetHashCodeIgnoreCaseAscii(_nextDomainName));
 
             foreach (DnsResourceRecordType type in _types)
                 hash.Add(type);

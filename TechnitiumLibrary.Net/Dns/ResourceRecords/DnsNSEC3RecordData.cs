@@ -186,11 +186,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     string hashedClosestEncloserDomain = hashedClosestEncloser + (nsec3ZoneName.Length > 0 ? "." + nsec3ZoneName : "");
 
-                    if (nsec3Record.Name.Equals(hashedClosestEncloserDomain, StringComparison.OrdinalIgnoreCase))
+                    if (DnsDatagram.EqualsIgnoreCaseAscii(nsec3Record.Name, hashedClosestEncloserDomain))
                     {
                         //found proof for closest encloser
 
-                        if (closestEncloser.Equals(domain, StringComparison.OrdinalIgnoreCase))
+                        if (DnsDatagram.EqualsIgnoreCaseAscii(closestEncloser, domain))
                         {
                             //domain matches exactly with closest encloser
 
@@ -229,7 +229,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 DnsNSEC3RecordData nsec3 = nsec3Record.RDATA as DnsNSEC3RecordData;
                 string nsec3ZoneName = GetHashedOwnerNameZoneNameFrom(nsec3Record.Name);
 
-                if ((closestEncloserZoneName is not null) && !nsec3ZoneName.Equals(closestEncloserZoneName, StringComparison.OrdinalIgnoreCase))
+                if ((closestEncloserZoneName is not null) && !DnsDatagram.EqualsIgnoreCaseAscii(nsec3ZoneName, closestEncloserZoneName))
                     continue;
 
                 if (closestEncloserSalt is not null)
@@ -284,7 +284,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (hashedWildcardDomainName is null)
                     hashedWildcardDomainName = nsec3.ComputeHashedOwnerName(wildcardDomain) + (closestEncloserZoneName.Length > 0 ? "." + closestEncloserZoneName : "");
 
-                if (nsec3Record.Name.Equals(hashedWildcardDomainName, StringComparison.OrdinalIgnoreCase))
+                if (DnsDatagram.EqualsIgnoreCaseAscii(nsec3Record.Name, hashedWildcardDomainName))
                 {
                     //found proof for wildcard domain
 

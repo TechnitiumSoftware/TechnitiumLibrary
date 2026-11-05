@@ -629,6 +629,40 @@ namespace TechnitiumLibrary.Net.Dns
             return true;
         }
 
+        public static bool EqualsIgnoreCaseAscii(string x, string y)
+        {
+            if (ReferenceEquals(x, y))
+                return true;
+
+            if ((x is null) || (y is null))
+                return false;
+
+            return EqualsIgnoreCaseAscii(x.AsSpan(), y.AsSpan());
+        }
+
+        public static bool EndsWithIgnoreCaseAscii(string name, string suffix)
+        {
+            if ((name is null) || (suffix is null) || (suffix.Length > name.Length))
+                return false;
+
+            return EqualsIgnoreCaseAscii(name.AsSpan(name.Length - suffix.Length), suffix.AsSpan());
+        }
+
+        public static int GetHashCodeIgnoreCaseAscii(string value)
+        {
+            HashCode hash = new HashCode();
+
+            foreach (char c in value)
+            {
+                if ((c >= 'A') && (c <= 'Z'))
+                    hash.Add((char)(c + 0x20));
+                else
+                    hash.Add(c);
+            }
+
+            return hash.ToHashCode();
+        }
+
         public static int GetSerializeDomainNameLength(string domain)
         {
             if (domain.Length == 0)
@@ -1090,7 +1124,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             foreach (DnsResourceRecord record in _answer)
             {
-                if (!record.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(record.Name, name))
                     continue;
 
                 if (record.Type == question.Type)
@@ -1546,7 +1580,7 @@ namespace TechnitiumLibrary.Net.Dns
             ushort expectedMacSize = GetTsigMacSize(tsig.AlgorithmName);
 
             //Key Check
-            if ((expectedMacSize == ushort.MinValue) || (keys is null) || !keys.TryGetValue(ToLowerInvariantAscii(tsigRecord.Name), out TsigKey key) || !key.AlgorithmName.Equals(tsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
+            if ((expectedMacSize == ushort.MinValue) || (keys is null) || !keys.TryGetValue(ToLowerInvariantAscii(tsigRecord.Name), out TsigKey key) || !DnsDatagram.EqualsIgnoreCaseAscii(key.AlgorithmName, tsig.AlgorithmName))
             {
                 unsignedRequest = null;
 
@@ -1677,7 +1711,7 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
             }
 
-            if ((keys is null) || !keys.TryGetValue(ToLowerInvariantAscii(requestTsigRecord.Name), out TsigKey key) || !key.AlgorithmName.Equals(requestTsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
+            if ((keys is null) || !keys.TryGetValue(ToLowerInvariantAscii(requestTsigRecord.Name), out TsigKey key) || !DnsDatagram.EqualsIgnoreCaseAscii(key.AlgorithmName, requestTsig.AlgorithmName))
                 throw new InvalidOperationException("Cannot sign this datagram: key not found or algorithm mismatch.");
 
             byte[] mac = ComputeTsigResponseMac(requestTsigRecord, key.KeyName, key.AlgorithmName, timeSigned, requestTsig.Fudge, error, otherData, key.SharedSecret, 0);
@@ -1796,7 +1830,7 @@ namespace TechnitiumLibrary.Net.Dns
             ushort expectedMacSize = GetTsigMacSize(tsig.AlgorithmName);
 
             //Key Check
-            if ((expectedMacSize == ushort.MinValue) || !key.KeyName.Equals(tsigRecord.Name, StringComparison.OrdinalIgnoreCase) || !key.AlgorithmName.Equals(tsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
+            if ((expectedMacSize == ushort.MinValue) || !DnsDatagram.EqualsIgnoreCaseAscii(key.KeyName, tsigRecord.Name) || !DnsDatagram.EqualsIgnoreCaseAscii(key.AlgorithmName, tsig.AlgorithmName))
             {
                 unsignedResponse = null;
                 requestFailed = false;

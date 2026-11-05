@@ -124,7 +124,7 @@ namespace TechnitiumLibrary.Net
 
             if (obj is DomainEndPoint other)
             {
-                if (!_address.Equals(other._address, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_address, other._address))
                     return false;
 
                 if (_port != other._port)
@@ -138,7 +138,7 @@ namespace TechnitiumLibrary.Net
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(_address), _port);
+            return HashCode.Combine(DnsDatagram.GetHashCodeIgnoreCaseAscii(_address), _port);
         }
 
         public override string ToString()

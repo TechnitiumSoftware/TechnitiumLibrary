@@ -126,7 +126,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_port != other._port)
                     return false;
 
-                if (!_target.Equals(other._target, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_target, other._target))
                     return false;
 
                 return true;
@@ -137,7 +137,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_priority, _weight, _port, StringComparer.OrdinalIgnoreCase.GetHashCode(_target));
+            return HashCode.Combine(_priority, _weight, _port, DnsDatagram.GetHashCodeIgnoreCaseAscii(_target));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

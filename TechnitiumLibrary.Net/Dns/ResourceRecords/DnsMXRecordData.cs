@@ -115,7 +115,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_preference != other._preference)
                     return false;
 
-                return _exchange.Equals(other._exchange, StringComparison.OrdinalIgnoreCase);
+                return DnsDatagram.EqualsIgnoreCaseAscii(_exchange, other._exchange);
             }
 
             return false;
@@ -123,7 +123,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_preference, StringComparer.OrdinalIgnoreCase.GetHashCode(_exchange));
+            return HashCode.Combine(_preference, DnsDatagram.GetHashCodeIgnoreCaseAscii(_exchange));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

@@ -187,7 +187,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 switch (svcParamKey)
                 {
                     case DnsSvcParamKey.IPv4Hint:
-                        if (svcParamValue.Equals("auto", StringComparison.OrdinalIgnoreCase))
+                        if (DnsDatagram.EqualsIgnoreCaseAscii(svcParamValue, "auto"))
                         {
                             autoIpv4Hint = true;
                             continue;
@@ -195,7 +195,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         break;
 
                     case DnsSvcParamKey.IPv6Hint:
-                        if (svcParamValue.Equals("auto", StringComparison.OrdinalIgnoreCase))
+                        if (DnsDatagram.EqualsIgnoreCaseAscii(svcParamValue, "auto"))
                         {
                             autoIpv6Hint = true;
                             continue;
@@ -551,7 +551,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (_svcPriority != other._svcPriority)
                     return false;
 
-                if (!_targetName.Equals(other._targetName, StringComparison.OrdinalIgnoreCase))
+                if (!DnsDatagram.EqualsIgnoreCaseAscii(_targetName, other._targetName))
                     return false;
 
                 if (_svcParams.Count != other._svcParams.Count)
@@ -574,7 +574,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_svcPriority, StringComparer.OrdinalIgnoreCase.GetHashCode(_targetName), _svcParams.GetArrayHashCode());
+            return HashCode.Combine(_svcPriority, DnsDatagram.GetHashCodeIgnoreCaseAscii(_targetName), _svcParams.GetArrayHashCode());
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
