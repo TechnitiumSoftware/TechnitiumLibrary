@@ -218,7 +218,7 @@ namespace TechnitiumLibrary.IO
                     throw new InvalidOperationException();
             }
 
-            if ((pos < 0) || (pos >= _length))
+            if ((pos < 0) || (pos > _length))
                 throw new EndOfStreamException("OffsetStream reached begining/end of stream.");
 
             _position = pos;
