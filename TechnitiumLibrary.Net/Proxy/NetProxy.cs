@@ -90,7 +90,8 @@ namespace TechnitiumLibrary.Net.Proxy
             if (proxyAddress.Equals(testUri))
                 return null; //no proxy configured
 
-            return new HttpProxy(EndPointExtensions.GetEndPoint(proxyAddress.Host, proxyAddress.Port), proxy.Credentials.GetCredential(proxyAddress, "BASIC"));
+            NetworkCredential credential = proxy.Credentials?.GetCredential(proxyAddress, "BASIC");
+            return new HttpProxy(EndPointExtensions.GetEndPoint(proxyAddress.Host, proxyAddress.Port), credential);
         }
 
         public static NetProxy CreateSocksProxy(string address, int port = 1080, NetworkCredential credential = null)
