@@ -123,6 +123,9 @@ namespace TechnitiumLibrary.Net.Mail
             if (_sock != null)
                 throw new Pop3Exception("Pop3Client previous connection was not closed.");
 
+            if (HasPop3LineBreak(_username) || HasPop3LineBreak(_password))
+                throw new Pop3Exception("Username or password contains a CR or LF character.");
+
             TcpClient sock = new TcpClient(_hostname, _port);
             StreamReader reader = null;
             StreamWriter writer = null;
@@ -376,6 +379,11 @@ namespace TechnitiumLibrary.Net.Mail
                 throw new Pop3Exception("No response from server.");
             if (IsPop3Error(response))
                 throw new Pop3Exception("Server returned: " + Pop3ErrorText(response));
+        }
+
+        static bool HasPop3LineBreak(string value)
+        {
+            return (value != null) && (value.IndexOfAny(new char[] { '\r', '\n' }) >= 0);
         }
 
         static bool IsPop3Error(string response)
