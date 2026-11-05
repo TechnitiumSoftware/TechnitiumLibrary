@@ -99,6 +99,8 @@ namespace TechnitiumLibrary.Security.Cryptography
             if (length1 > 127)
             {
                 int numberLenBytes = length1 & 0x7F;
+                if ((numberLenBytes < 1) || (numberLenBytes > 4))
+                    throw new IOException("DER encoding length not supported.");
 
                 byte[] valueBytes = new byte[4];
                 s.ReadExactly(valueBytes, 0, numberLenBytes);
@@ -110,8 +112,7 @@ namespace TechnitiumLibrary.Security.Cryptography
                         break;
 
                     case 2:
-                        Array.Reverse(valueBytes, 0, 2);
-                        valueLength = BitConverter.ToInt16(valueBytes, 0);
+                        valueLength = (valueBytes[0] << 8) | valueBytes[1];
                         break;
 
                     case 3:
@@ -127,6 +128,9 @@ namespace TechnitiumLibrary.Security.Cryptography
                     default:
                         throw new IOException("DER encoding length not supported.");
                 }
+
+                if (valueLength < 0)
+                    throw new IOException("DER encoding length not supported.");
             }
             else
             {
