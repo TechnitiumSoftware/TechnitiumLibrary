@@ -602,7 +602,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_name, _type, _class, _ttl, _rData);
+            return HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(_name), _type, _class, _ttl, _rData);
         }
 
         public int CompareTo(DnsResourceRecord other)

@@ -438,12 +438,26 @@ namespace TechnitiumLibrary.Security.Cryptography
             if (_issuerSignature == cert._issuerSignature)
                 return true;
 
+            if ((_issuerSignature is null) || (cert._issuerSignature is null))
+                return false;
+
             return _issuerSignature.Equals(cert._issuerSignature);
         }
 
         public override int GetHashCode()
         {
-            return base.GetHashCode();
+            HashCode hash = new HashCode();
+            hash.Add(_version);
+            hash.Add(_type);
+            hash.Add(_serialNumber);
+            hash.Add(_issuedTo);
+            hash.Add(_capability);
+            hash.Add(_issuedOnUTC);
+            hash.Add(_expiresOnUTC);
+            hash.Add(_publicKeyEncryptionAlgorithm);
+            hash.Add(_publicKeyXML);
+            hash.Add(_issuerSignature);
+            return hash.ToHashCode();
         }
 
         public byte[] GetHash(string hashAlgorithm)

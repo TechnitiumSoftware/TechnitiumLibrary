@@ -154,12 +154,19 @@ namespace TechnitiumLibrary.Security.Cryptography
             if (s._signingCert == _signingCert)
                 return true;
 
-            return (s._signingCert.Equals(_signingCert));
+            if ((s._signingCert is null) || (_signingCert is null))
+                return false;
+
+            return s._signingCert.Equals(_signingCert);
         }
 
         public override int GetHashCode()
         {
-            return base.GetHashCode();
+            HashCode hash = new HashCode();
+            hash.Add(_hashAlgo);
+            hash.AddBytes(_signedHash);
+            hash.Add(_signingCert);
+            return hash.ToHashCode();
         }
 
         public override string ToString()
