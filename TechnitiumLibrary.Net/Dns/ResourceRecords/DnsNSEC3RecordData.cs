@@ -372,7 +372,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                     using (MemoryStream mS = new MemoryStream(Math.Max(ownerName.Length, SHA1.HashSizeInBytes)))
                     {
-                        DnsDatagram.SerializeDomainName(ownerName.ToLowerInvariant(), mS);
+                        DnsDatagram.SerializeDomainName(DnsDatagram.ToLowerInvariantAscii(ownerName), mS);
                         mS.Write(salt);
 
                         mS.Position = 0;

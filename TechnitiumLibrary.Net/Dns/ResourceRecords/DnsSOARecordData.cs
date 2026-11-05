@@ -94,8 +94,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            DnsDatagram.SerializeDomainName(canonicalForm ? _primaryNameServer.ToLowerInvariant() : _primaryNameServer, s, domainEntries);
-            DnsDatagram.SerializeDomainName(canonicalForm ? _responsiblePerson.ToLowerInvariant() : _responsiblePerson, s, domainEntries, true);
+            DnsDatagram.SerializeDomainName(canonicalForm ? DnsDatagram.ToLowerInvariantAscii(_primaryNameServer) : _primaryNameServer, s, domainEntries);
+            DnsDatagram.SerializeDomainName(canonicalForm ? DnsDatagram.ToLowerInvariantAscii(_responsiblePerson) : _responsiblePerson, s, domainEntries, true);
             DnsDatagram.WriteUInt32NetworkOrder(_serial, s);
             DnsDatagram.WriteUInt32NetworkOrder(_refresh, s);
             DnsDatagram.WriteUInt32NetworkOrder(_retry, s);
@@ -109,8 +109,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override void NormalizeName()
         {
-            _primaryNameServer = _primaryNameServer.ToLowerInvariant();
-            _responsiblePerson = _responsiblePerson.ToLowerInvariant();
+            _primaryNameServer = DnsDatagram.ToLowerInvariantAscii(_primaryNameServer);
+            _responsiblePerson = DnsDatagram.ToLowerInvariantAscii(_responsiblePerson);
         }
 
         internal static async Task<DnsSOARecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)

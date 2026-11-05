@@ -90,7 +90,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if (resourceRecord.Type == DnsResourceRecordType.DNAME)
                     return; //DnsCache does not support DNAME
 
-                DnsCacheEntry entry = _cache.GetOrAdd(resourceRecord.Name.ToLowerInvariant(), delegate (string key)
+                DnsCacheEntry entry = _cache.GetOrAdd(DnsDatagram.ToLowerInvariantAscii(resourceRecord.Name), delegate (string key)
                 {
                     return new DnsCacheEntry(1);
                 });
@@ -118,7 +118,7 @@ namespace TechnitiumLibrary.Net.Dns
                     if (foundDNAME)
                         continue; //DnsCache does not support DNAME
 
-                    DnsCacheEntry entry = _cache.GetOrAdd(cacheEntry.Key.ToLowerInvariant(), delegate (string key)
+                    DnsCacheEntry entry = _cache.GetOrAdd(DnsDatagram.ToLowerInvariantAscii(cacheEntry.Key), delegate (string key)
                     {
                         return new DnsCacheEntry(cacheEntry.Value.Count);
                     });
@@ -178,7 +178,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         private IReadOnlyList<DnsResourceRecord> GetClosestReferralNameServers(string domain, bool dnssecOk)
         {
-            domain = domain.ToLowerInvariant();
+            domain = DnsDatagram.ToLowerInvariantAscii(domain);
 
             do
             {
@@ -257,7 +257,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if (lastCNAME.Name.Equals(cnameDomain, StringComparison.OrdinalIgnoreCase))
                     break; //loop detected
 
-                if (!_cache.TryGetValue(cnameDomain.ToLowerInvariant(), out DnsCacheEntry entry))
+                if (!_cache.TryGetValue(DnsDatagram.ToLowerInvariantAscii(cnameDomain), out DnsCacheEntry entry))
                     break;
 
                 IReadOnlyList<DnsResourceRecord> records = entry.QueryRecords(question.Type, true);
@@ -341,7 +341,7 @@ namespace TechnitiumLibrary.Net.Dns
                     return;
             }
 
-            if (_cache.TryGetValue(domain.ToLowerInvariant(), out DnsCacheEntry entry))
+            if (_cache.TryGetValue(DnsDatagram.ToLowerInvariantAscii(domain), out DnsCacheEntry entry))
             {
                 IReadOnlyList<DnsResourceRecord> glueAs = entry.QueryRecords(DnsResourceRecordType.A, true);
                 if ((glueAs.Count > 0) && (glueAs[0].Type == DnsResourceRecordType.A))
@@ -361,7 +361,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             DnsQuestionRecord question = request.Question[0];
 
-            if (_cache.TryGetValue(question.Name.ToLowerInvariant(), out DnsCacheEntry entry))
+            if (_cache.TryGetValue(DnsDatagram.ToLowerInvariantAscii(question.Name), out DnsCacheEntry entry))
             {
                 DnsResourceRecordType qtype;
 

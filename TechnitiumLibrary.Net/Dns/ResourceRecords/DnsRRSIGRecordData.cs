@@ -133,12 +133,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     if (rrsigRecord._labels == labelCount)
                     {
                         //name = fqdn
-                        name = records[0].Name.ToLowerInvariant();
+                        name = DnsDatagram.ToLowerInvariantAscii(records[0].Name);
                     }
                     else if (rrsigRecord._labels < labelCount)
                     {
                         //name = "*." | the rightmost rrsig_label labels of the fqdn
-                        name = GetWildcardDomain(records[0].Name, rrsigRecord._labels).ToLowerInvariant();
+                        name = DnsDatagram.ToLowerInvariantAscii(GetWildcardDomain(records[0].Name, rrsigRecord._labels));
                     }
                     else
                     {
@@ -359,7 +359,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             DnsDatagram.WriteUInt32NetworkOrder(_signatureExpiration, s);
             DnsDatagram.WriteUInt32NetworkOrder(_signatureInception, s);
             DnsDatagram.WriteUInt16NetworkOrder(_keyTag, s);
-            DnsDatagram.SerializeDomainName(_signersName.ToLowerInvariant(), s);
+            DnsDatagram.SerializeDomainName(DnsDatagram.ToLowerInvariantAscii(_signersName), s);
 
             if (includeSignature)
                 s.Write(_signature);
@@ -456,7 +456,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         {
                             byte labelCount = GetLabelCount(records[0].Name);
                             if (_labels < labelCount)
-                                records[0].FixNameForNSEC(GetWildcardDomain(records[0].Name, _labels).ToLowerInvariant());
+                                records[0].FixNameForNSEC(DnsDatagram.ToLowerInvariantAscii(GetWildcardDomain(records[0].Name, _labels)));
                         }
 
                         extendedDnsErrorCode = EDnsExtendedDnsErrorCode.Other; //no error

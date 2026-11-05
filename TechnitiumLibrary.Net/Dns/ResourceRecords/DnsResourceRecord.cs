@@ -252,7 +252,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             foreach (DnsResourceRecord record in records)
             {
-                string recordName = record.Name.ToLowerInvariant();
+                string recordName = DnsDatagram.ToLowerInvariantAscii(record.Name);
 
                 if (!groupedByDomainRecords.TryGetValue(recordName, out Dictionary<DnsResourceRecordType, List<DnsResourceRecord>> groupedByTypeRecords))
                 {
@@ -430,7 +430,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal void NormalizeName()
         {
-            _name = _name.ToLowerInvariant();
+            _name = DnsDatagram.ToLowerInvariantAscii(_name);
             _rData.NormalizeName();
         }
 

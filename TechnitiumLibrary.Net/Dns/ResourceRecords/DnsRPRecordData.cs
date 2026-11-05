@@ -65,8 +65,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
-            DnsDatagram.SerializeDomainName(canonicalForm ? _mailbox.ToLowerInvariant() : _mailbox, s, isEmailAddress: true);
-            DnsDatagram.SerializeDomainName(canonicalForm ? _txtDomain.ToLowerInvariant() : _txtDomain, s);
+            DnsDatagram.SerializeDomainName(canonicalForm ? DnsDatagram.ToLowerInvariantAscii(_mailbox) : _mailbox, s, isEmailAddress: true);
+            DnsDatagram.SerializeDomainName(canonicalForm ? DnsDatagram.ToLowerInvariantAscii(_txtDomain) : _txtDomain, s);
         }
 
         #endregion

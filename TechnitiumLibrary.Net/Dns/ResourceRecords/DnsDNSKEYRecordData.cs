@@ -155,7 +155,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             using (MemoryStream mS = new MemoryStream(DnsDatagram.GetSerializeDomainNameLength(ownerName) + _rData.Length))
             {
-                DnsDatagram.SerializeDomainName(ownerName.ToLowerInvariant(), mS);
+                DnsDatagram.SerializeDomainName(DnsDatagram.ToLowerInvariantAscii(ownerName), mS);
                 mS.Write(_rData);
 
                 mS.Position = 0;

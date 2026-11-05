@@ -155,7 +155,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 using (MemoryStream mS = new MemoryStream(UncompressedLength))
                 {
                     DnsDatagram.WriteUInt16NetworkOrder(_svcPriority, mS);
-                    DnsDatagram.SerializeDomainName(canonicalForm ? _targetName.ToLowerInvariant() : _targetName, mS, null); //no compression for domain name as per RFC
+                    DnsDatagram.SerializeDomainName(canonicalForm ? DnsDatagram.ToLowerInvariantAscii(_targetName) : _targetName, mS, null); //no compression for domain name as per RFC
 
                     foreach (KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> svcParam in svcParams)
                     {

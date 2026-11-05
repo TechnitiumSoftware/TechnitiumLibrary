@@ -64,7 +64,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
         {
             DnsDatagram.WriteUInt16NetworkOrder(_preference, s);
-            DnsDatagram.SerializeDomainName(canonicalForm ? _exchange.ToLowerInvariant() : _exchange, s, domainEntries);
+            DnsDatagram.SerializeDomainName(canonicalForm ? DnsDatagram.ToLowerInvariantAscii(_exchange) : _exchange, s, domainEntries);
         }
 
         #endregion
@@ -73,7 +73,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal override void NormalizeName()
         {
-            _exchange = _exchange.ToLowerInvariant();
+            _exchange = DnsDatagram.ToLowerInvariantAscii(_exchange);
         }
 
         internal static async Task<DnsMXRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
