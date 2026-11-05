@@ -40,19 +40,24 @@ namespace TechnitiumLibrary
 
         static Base32()
         {
-            {
-                REVERSE_BASE32_MAP = new int[255];
+            REVERSE_BASE32_MAP = CreateReverseMap(BASE32_MAP);
+            REVERSE_BASE32_HEX_MAP = CreateReverseMap(BASE32_HEX_MAP);
+        }
 
-                for (int i = 0; i < BASE32_MAP.Length; i++)
-                    REVERSE_BASE32_MAP[BASE32_MAP[i]] = i;
+        static int[] CreateReverseMap(char[] map)
+        {
+            int[] reverse = new int[128];
+            Array.Fill(reverse, -1);
+
+            for (int i = 0; i < map.Length; i++)
+            {
+                reverse[map[i]] = i;
+
+                if ((map[i] >= 'A') && (map[i] <= 'Z'))
+                    reverse[map[i] - 'A' + 'a'] = i;
             }
 
-            {
-                REVERSE_BASE32_HEX_MAP = new int[255];
-
-                for (int i = 0; i < BASE32_HEX_MAP.Length; i++)
-                    REVERSE_BASE32_HEX_MAP[BASE32_HEX_MAP[i]] = i;
-            }
+            return reverse;
         }
 
         #endregion
@@ -159,8 +164,15 @@ namespace TechnitiumLibrary
 
             if (data.Length > 0)
             {
-                while (data[data.Length - 1 - paddingCount] == '=')
+                while ((paddingCount < data.Length) && (data[data.Length - 1 - paddingCount] == '='))
                     paddingCount++;
+            }
+
+            for (int i = 0; i < data.Length - paddingCount; i++)
+            {
+                char symbol = data[i];
+                if ((symbol >= rmap.Length) || (rmap[symbol] < 0))
+                    throw new ArgumentException("The string is not a valid base32 string.", nameof(data));
             }
 
             switch (paddingCount)
