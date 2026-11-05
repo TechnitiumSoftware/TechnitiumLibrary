@@ -215,12 +215,14 @@ namespace TechnitiumLibrary.Security.Cryptography
             }
 
             _revocationUri = revocationUri;
+            _lastHashAlgo = null;
             _issuerSignature = new Signature(GetHash(hashAlgo), hashAlgo, signingCert, privateKey);
         }
 
         public void SelfSign(string hashAlgo, AsymmetricCryptoKey privateKey, Uri revocationUri)
         {
             _revocationUri = revocationUri;
+            _lastHashAlgo = null;
             _issuerSignature = new Signature(GetHash(hashAlgo), hashAlgo, null, privateKey);
         }
 
