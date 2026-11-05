@@ -168,56 +168,60 @@ namespace TechnitiumLibrary.Net.BitTorrent
                     if (x.ValueDictionary.TryGetValue("failure reason", out Bencoding failure))
                         throw new TrackerClientException("Tracker returned: " + failure.ValueString);
 
-                    switch (@event)
+                    _peers.Clear();
+
+                    foreach (var item in x.ValueDictionary)
                     {
-                        case TrackerClientEvent.None:
-                        case TrackerClientEvent.Started:
-                            _peers.Clear();
-
-                            foreach (var item in x.ValueDictionary)
-                            {
-                                switch (item.Key)
+                        switch (item.Key)
+                        {
+                            case "peers":
+                                switch (item.Value.Type)
                                 {
-                                    case "peers":
-                                        switch (item.Value.Type)
+                                    case BencodingType.String:
+                                        ParseCompactPeersIPv4(item.Value.Value as byte[], _peers);
+                                        break;
+
+                                    case BencodingType.List:
+                                        foreach (var peerObj in item.Value.ValueList)
                                         {
-                                            case BencodingType.String:
-                                                ParseCompactPeersIPv4(item.Value.Value as byte[], _peers);
-                                                break;
+                                            var peer = peerObj.ValueDictionary;
 
-                                            case BencodingType.List:
-                                                foreach (var peerObj in item.Value.ValueList)
-                                                {
-                                                    var peer = peerObj.ValueDictionary;
-
-                                                    _peers.Add(new IPEndPoint(IPAddress.Parse(peer["ip"].ValueString), Convert.ToInt32(peer["port"].ValueInteger)));
-                                                }
-                                                break;
+                                            _peers.Add(new IPEndPoint(IPAddress.Parse(peer["ip"].ValueString), Convert.ToInt32(peer["port"].ValueInteger)));
                                         }
-                                        break;
-
-                                    case "peers_ipv6":
-                                    case "peers6":
-                                        switch (item.Value.Type)
-                                        {
-                                            case BencodingType.String:
-                                                ParseCompactPeersIPv6(item.Value.Value as byte[], _peers);
-                                                break;
-                                        }
-                                        break;
-
-                                    case "interval":
-                                        if (item.Value.Type == BencodingType.Integer)
-                                            _interval = Convert.ToInt32(item.Value.Value);
-                                        break;
-
-                                    case "min interval":
-                                        if (item.Value.Type == BencodingType.Integer)
-                                            _minInterval = Convert.ToInt32(item.Value.Value);
                                         break;
                                 }
-                            }
-                            break;
+                                break;
+
+                            case "peers_ipv6":
+                            case "peers6":
+                                switch (item.Value.Type)
+                                {
+                                    case BencodingType.String:
+                                        ParseCompactPeersIPv6(item.Value.Value as byte[], _peers);
+                                        break;
+                                }
+                                break;
+
+                            case "interval":
+                                if (item.Value.Type == BencodingType.Integer)
+                                    _interval = Convert.ToInt32(item.Value.Value);
+                                break;
+
+                            case "min interval":
+                                if (item.Value.Type == BencodingType.Integer)
+                                    _minInterval = Convert.ToInt32(item.Value.Value);
+                                break;
+
+                            case "complete":
+                                if (item.Value.Type == BencodingType.Integer)
+                                    _seeders = Convert.ToInt32(item.Value.Value);
+                                break;
+
+                            case "incomplete":
+                                if (item.Value.Type == BencodingType.Integer)
+                                    _leachers = Convert.ToInt32(item.Value.Value);
+                                break;
+                        }
                     }
                 }
             }
