@@ -87,6 +87,13 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             return new EDnsOption[] { new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, 0, eDnsClientSubnet.Address)) };
         }
 
+        static void MaskAddressToPrefix(Span<byte> buffer, int count, int prefixLength)
+        {
+            int unusedBits = (count * 8) - prefixLength;
+            if ((unusedBits > 0) && (count > 0))
+                buffer[count - 1] &= (byte)(0xFF << unusedBits);
+        }
+
         #endregion
 
         #region protected
@@ -106,7 +113,9 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
                 case EDnsClientSubnetAddressFamily.IPv4:
                     {
                         Span<byte> buffer = stackalloc byte[4];
+                        buffer.Clear();
                         s.ReadExactly(buffer.Slice(0, count));
+                        MaskAddressToPrefix(buffer, count, _sourcePrefixLength);
                         _address = new IPAddress(buffer);
                     }
                     break;
@@ -114,7 +123,9 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
                 case EDnsClientSubnetAddressFamily.IPv6:
                     {
                         Span<byte> buffer = stackalloc byte[16];
+                        buffer.Clear();
                         s.ReadExactly(buffer.Slice(0, count));
+                        MaskAddressToPrefix(buffer, count, _sourcePrefixLength);
                         _address = new IPAddress(buffer);
                     }
                     break;
@@ -143,6 +154,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
                         if (!_address.TryWriteBytes(buffer, out _))
                             throw new InvalidOperationException();
 
+                        MaskAddressToPrefix(buffer, count, _sourcePrefixLength);
                         s.Write(buffer.Slice(0, count));
                     }
                     break;
@@ -154,6 +166,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
                         if (!_address.TryWriteBytes(buffer, out _))
                             throw new InvalidOperationException();
 
+                        MaskAddressToPrefix(buffer, count, _sourcePrefixLength);
                         s.Write(buffer.Slice(0, count));
                     }
                     break;

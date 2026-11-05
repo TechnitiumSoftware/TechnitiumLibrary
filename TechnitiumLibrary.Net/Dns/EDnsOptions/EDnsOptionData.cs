@@ -40,7 +40,16 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         {
             _length = DnsDatagram.ReadUInt16NetworkOrder(s);
 
-            ReadOptionData(s);
+            byte[] value = new byte[_length];
+            s.ReadExactly(value, 0, value.Length);
+
+            using (MemoryStream valueStream = new MemoryStream(value, writable: false))
+            {
+                ReadOptionData(valueStream);
+
+                if (valueStream.Position != valueStream.Length)
+                    throw new DnsClientException("EDNS option length does not match its value.");
+            }
         }
 
         #endregion
