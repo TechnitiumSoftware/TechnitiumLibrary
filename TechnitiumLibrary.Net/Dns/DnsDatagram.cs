@@ -616,7 +616,29 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal static string EncodeCharacterString(string value)
         {
-            return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+            StringBuilder encoded = new StringBuilder(value.Length + 2);
+            encoded.Append('"');
+
+            foreach (char c in value)
+            {
+                if ((c == '\\') || (c == '"'))
+                {
+                    encoded.Append('\\');
+                    encoded.Append(c);
+                }
+                else if ((c < 0x20) || ((c > 0x7E) && (c <= 0xFF)))
+                {
+                    encoded.Append('\\');
+                    encoded.Append(((byte)c).ToString("D3"));
+                }
+                else
+                {
+                    encoded.Append(c);
+                }
+            }
+
+            encoded.Append('"');
+            return encoded.ToString();
         }
 
         internal static string DecodeCharacterString(string value)

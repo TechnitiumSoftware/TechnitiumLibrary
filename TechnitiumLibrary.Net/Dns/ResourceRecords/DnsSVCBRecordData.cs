@@ -297,6 +297,55 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return true;
         }
 
+        internal static string FormatSvcParamKey(DnsSvcParamKey key)
+        {
+            if (!Enum.IsDefined(key))
+                return "key" + ((ushort)key).ToString();
+
+            return key.ToString().ToLowerInvariant().Replace('_', '-');
+        }
+
+        static string FormatOpaqueSvcValue(byte[] value)
+        {
+            bool quote = false;
+
+            foreach (byte b in value)
+            {
+                if ((b <= 0x20) || (b >= 0x7F) || (b == '"') || (b == '\\') || (b == '(') || (b == ')') || (b == ';'))
+                {
+                    quote = true;
+                    break;
+                }
+            }
+
+            if (!quote)
+                return Encoding.ASCII.GetString(value);
+
+            StringBuilder encoded = new StringBuilder(value.Length + 2);
+            encoded.Append('"');
+
+            foreach (byte b in value)
+            {
+                if ((b == (byte)'\\') || (b == (byte)'"'))
+                {
+                    encoded.Append('\\');
+                    encoded.Append((char)b);
+                }
+                else if ((b < 0x20) || (b > 0x7E))
+                {
+                    encoded.Append('\\');
+                    encoded.Append(b.ToString("D3"));
+                }
+                else
+                {
+                    encoded.Append((char)b);
+                }
+            }
+
+            encoded.Append('"');
+            return encoded.ToString();
+        }
+
         internal static List<string> SplitValueList(string value)
         {
             List<string> items = new List<string>();
@@ -384,7 +433,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 switch (svcParam.Key)
                 {
                     case DnsSvcParamKey.No_Default_ALPN:
-                        svcParams += " " + svcParam.Key.ToString().ToLowerInvariant().Replace('_', '-');
+                        svcParams += " " + FormatSvcParamKey(svcParam.Key);
                         break;
 
                     case DnsSvcParamKey.IPv4Hint:
@@ -402,7 +451,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         break;
 
                     default:
-                        svcParams += " " + svcParam.Key.ToString().ToLowerInvariant().Replace('_', '-') + "=" + svcParam.Value.ToString();
+                        if (!Enum.IsDefined(svcParam.Key) && (svcParam.Value is DnsSvcUnknownParamValue unknown))
+                            svcParams += " " + FormatSvcParamKey(svcParam.Key) + "=" + FormatOpaqueSvcValue(unknown.Value);
+                        else
+                            svcParams += " " + FormatSvcParamKey(svcParam.Key) + "=" + svcParam.Value.ToString();
+
                         break;
                 }
             }
@@ -836,9 +889,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             foreach (DnsSvcParamKey key in _keys)
             {
                 if (value is null)
-                    value = key.ToString().ToLowerInvariant().Replace('_', '-');
+                    value = DnsSVCBRecordData.FormatSvcParamKey(key);
                 else
-                    value += "," + key.ToString().ToLowerInvariant().Replace('_', '-');
+                    value += "," + DnsSVCBRecordData.FormatSvcParamKey(key);
             }
 
             return value;
