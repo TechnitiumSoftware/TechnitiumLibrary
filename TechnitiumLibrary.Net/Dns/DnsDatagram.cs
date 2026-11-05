@@ -1704,6 +1704,18 @@ namespace TechnitiumLibrary.Net.Dns
             return signedDatagram;
         }
 
+        static bool IsTsigTimeValid(ulong timeSigned, ushort fudge, DateTime utcNow)
+        {
+            long unixNow = new DateTimeOffset(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc)).ToUnixTimeSeconds();
+            if (unixNow < 0)
+                return false;
+
+            ulong now = (ulong)unixNow;
+            ulong start = timeSigned >= fudge ? timeSigned - fudge : 0;
+            ulong end = fudge > (ulong.MaxValue - timeSigned) ? ulong.MaxValue : timeSigned + fudge;
+            return (now >= start) && (now <= end);
+        }
+
         public bool VerifySignedResponse(DnsDatagram signedRequest, TsigKey key, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error, out string errorMessage)
         {
             if (!IsResponse)
@@ -1792,10 +1804,8 @@ namespace TechnitiumLibrary.Net.Dns
 
             //Check time values
             DateTime utcNow = DateTime.UtcNow;
-            DateTime startTime = DateTime.UnixEpoch.AddSeconds(tsig.TimeSigned - tsig.Fudge);
-            DateTime endTime = DateTime.UnixEpoch.AddSeconds(tsig.TimeSigned + tsig.Fudge);
 
-            if ((utcNow < startTime) || (utcNow > endTime))
+            if (!IsTsigTimeValid(tsig.TimeSigned, tsig.Fudge, utcNow))
             {
                 unsignedResponse = null;
                 requestFailed = false;
@@ -1907,10 +1917,7 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     //Check time values
-                    DateTime currentStartTime = DateTime.UnixEpoch.AddSeconds(currentTsig.TimeSigned - currentTsig.Fudge);
-                    DateTime currentEndTime = DateTime.UnixEpoch.AddSeconds(currentTsig.TimeSigned + currentTsig.Fudge);
-
-                    if ((utcNow < currentStartTime) || (utcNow > currentEndTime))
+                    if (!IsTsigTimeValid(currentTsig.TimeSigned, currentTsig.Fudge, utcNow))
                     {
                         unsignedResponse = null;
                         requestFailed = false;
