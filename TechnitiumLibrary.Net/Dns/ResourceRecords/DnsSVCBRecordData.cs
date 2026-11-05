@@ -618,6 +618,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     return DnsSvcAlpnParamValue.Parse(svcParamValue);
 
                 case DnsSvcParamKey.No_Default_ALPN:
+                    if (svcParamValue.Length != 0)
+                        throw new FormatException("SVCB no-default-alpn value must be empty.");
+
                     return new DnsSvcAlpnParamValue();
 
                 case DnsSvcParamKey.Port:
