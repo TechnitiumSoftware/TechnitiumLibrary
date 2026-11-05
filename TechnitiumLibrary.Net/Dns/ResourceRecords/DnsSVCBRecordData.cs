@@ -443,6 +443,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         svcParams += " " + FormatSvcParamKey(svcParam.Key) + "=" + DnsDatagram.EncodeCharacterString(svcParam.Value.ToString());
                         break;
 
+                    case DnsSvcParamKey.DoHPath:
+                        svcParams += " " + FormatSvcParamKey(svcParam.Key) + "=" + DnsDatagram.EncodeCharacterString(svcParam.Value.ToString());
+                        break;
+
                     case DnsSvcParamKey.IPv4Hint:
                         if (_autoIpv4Hint)
                             continue;

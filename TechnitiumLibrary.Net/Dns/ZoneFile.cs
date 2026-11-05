@@ -677,20 +677,41 @@ namespace TechnitiumLibrary.Net.Dns
             }
             else
             {
-                int i = line.IndexOfAny(_popSeperator);
-                string word;
+                int i = 0;
 
-                if (i < 0)
+                while (i < line.Length)
                 {
-                    word = line;
-                    line = "";
-                }
-                else
-                {
-                    word = line.Substring(0, i);
-                    line = line.Substring(i);
+                    if (line[i] == '"')
+                    {
+                        int quote = i;
+
+                        do
+                        {
+                            quote = line.IndexOf('"', quote + 1);
+                            if (quote < 0)
+                                throw new FormatException("Closing double quotes are missing.");
+
+                            int slashes = 0;
+                            for (int j = quote - 1; (j > i) && (line[j] == '\\'); j--)
+                                slashes++;
+
+                            if ((slashes % 2) == 0)
+                                break;
+                        }
+                        while (true);
+
+                        i = quote + 1;
+                        continue;
+                    }
+
+                    if (Array.IndexOf(_popSeperator, line[i]) >= 0)
+                        break;
+
+                    i++;
                 }
 
+                string word = line.Substring(0, i);
+                line = line.Substring(i);
                 return word;
             }
         }
