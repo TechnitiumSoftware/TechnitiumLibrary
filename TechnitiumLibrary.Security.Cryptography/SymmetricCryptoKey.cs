@@ -45,6 +45,11 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         #region constructor
 
+        static SymmetricCryptoKey()
+        {
+            CryptoConfig.AddAlgorithm(typeof(RC4Managed), "RC4");
+        }
+
         public SymmetricCryptoKey(SymmetricEncryptionAlgorithm cryptoAlgo, int keySize, PaddingMode padding = PaddingMode.ISO10126)
         {
             _symAlgo = SymmetricAlgorithm.Create(cryptoAlgo.ToString());

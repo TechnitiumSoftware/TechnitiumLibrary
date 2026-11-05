@@ -29,7 +29,9 @@ namespace TechnitiumLibrary.Security.Cryptography
         public RC4Managed()
         {
             this.LegalKeySizesValue = new KeySizes[] { new KeySizes(128, 512, 128) };
+            this.LegalBlockSizesValue = new KeySizes[] { new KeySizes(128, 512, 128) };
             this.KeySizeValue = 256;
+            this.BlockSizeValue = 256;
 
             GenerateKey();
             GenerateIV();
@@ -38,6 +40,7 @@ namespace TechnitiumLibrary.Security.Cryptography
         public RC4Managed(int keySize)
         {
             this.LegalKeySizesValue = new KeySizes[] { new KeySizes(128, 256, 128) };
+            this.LegalBlockSizesValue = new KeySizes[] { new KeySizes(128, 512, 128) };
             this.KeySize = keySize;
 
             GenerateKey();
@@ -47,10 +50,32 @@ namespace TechnitiumLibrary.Security.Cryptography
         public RC4Managed(byte[] key, byte[] IV)
         {
             this.LegalKeySizesValue = new KeySizes[] { new KeySizes(128, 512, 128) };
+            this.LegalBlockSizesValue = new KeySizes[] { new KeySizes(128, 512, 128) };
             this.KeySize = key.Length * 8;
 
             this.KeyValue = key;
+            this.BlockSizeValue = key.Length * 8;
             this.IVValue = IV;
+        }
+
+        public override int KeySize
+        {
+            get { return base.KeySize; }
+            set
+            {
+                base.KeySize = value;
+                BlockSizeValue = value;
+            }
+        }
+
+        public override byte[] Key
+        {
+            get { return base.Key; }
+            set
+            {
+                base.Key = value;
+                BlockSizeValue = value.Length * 8;
+            }
         }
 
         #endregion
