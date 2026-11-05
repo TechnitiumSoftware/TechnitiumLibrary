@@ -1020,7 +1020,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 for (int i = 0; i < _alpnIds.Count; i++)
                 {
-                    if (!_alpnIds[i].Equals(other._alpnIds[i], StringComparison.OrdinalIgnoreCase))
+                    if (!_alpnIds[i].Equals(other._alpnIds[i], StringComparison.Ordinal))
                         return false;
                 }
 
@@ -1035,7 +1035,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             HashCode hash = new HashCode();
 
             foreach (string alpnId in _alpnIds)
-                hash.Add(StringComparer.OrdinalIgnoreCase.GetHashCode(alpnId));
+                hash.Add(StringComparer.Ordinal.GetHashCode(alpnId));
 
             return hash.ToHashCode();
         }
