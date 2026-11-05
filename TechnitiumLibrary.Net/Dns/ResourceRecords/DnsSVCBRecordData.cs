@@ -312,7 +312,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_svcPriority, _targetName, _svcParams.GetArrayHashCode());
+            return HashCode.Combine(_svcPriority, StringComparer.OrdinalIgnoreCase.GetHashCode(_targetName), _svcParams.GetArrayHashCode());
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

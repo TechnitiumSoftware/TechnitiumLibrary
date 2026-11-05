@@ -118,7 +118,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_mailbox, _txtDomain);
+            return HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(_mailbox), StringComparer.OrdinalIgnoreCase.GetHashCode(_txtDomain));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

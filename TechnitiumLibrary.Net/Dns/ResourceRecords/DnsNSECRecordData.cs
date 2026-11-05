@@ -514,7 +514,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_nextDomainName, _types);
+            HashCode hash = new HashCode();
+            hash.Add(StringComparer.OrdinalIgnoreCase.GetHashCode(_nextDomainName));
+
+            foreach (DnsResourceRecordType type in _types)
+                hash.Add(type);
+
+            return hash.ToHashCode();
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

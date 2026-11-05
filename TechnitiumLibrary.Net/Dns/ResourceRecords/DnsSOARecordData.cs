@@ -245,7 +245,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_primaryNameServer, _responsiblePerson, _serial, _refresh, _retry, _expire, _minimum);
+            return HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(_primaryNameServer), StringComparer.OrdinalIgnoreCase.GetHashCode(_responsiblePerson), _serial, _refresh, _retry, _expire, _minimum);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

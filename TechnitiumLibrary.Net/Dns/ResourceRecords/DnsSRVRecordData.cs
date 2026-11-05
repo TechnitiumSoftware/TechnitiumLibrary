@@ -137,7 +137,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_priority, _weight, _port, _target);
+            return HashCode.Combine(_priority, _weight, _port, StringComparer.OrdinalIgnoreCase.GetHashCode(_target));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

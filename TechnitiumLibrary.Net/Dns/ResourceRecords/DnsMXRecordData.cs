@@ -123,7 +123,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_preference, _exchange);
+            return HashCode.Combine(_preference, StringComparer.OrdinalIgnoreCase.GetHashCode(_exchange));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

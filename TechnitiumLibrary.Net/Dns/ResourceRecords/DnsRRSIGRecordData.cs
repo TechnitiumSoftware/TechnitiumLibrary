@@ -553,8 +553,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             hash.Add(_signatureExpiration);
             hash.Add(_signatureInception);
             hash.Add(_keyTag);
-            hash.Add(_signersName);
-            hash.Add(_signature);
+            hash.Add(StringComparer.OrdinalIgnoreCase.GetHashCode(_signersName));
+            hash.AddBytes(_signature);
 
             return hash.ToHashCode();
         }

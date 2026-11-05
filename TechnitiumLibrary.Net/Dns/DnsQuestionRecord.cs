@@ -203,7 +203,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_name, _type, _class);
+            return HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(_name), _type, _class);
         }
 
         public override string ToString()
