@@ -410,10 +410,16 @@ namespace TechnitiumLibrary.Net
             if (ReferenceEquals(this, obj))
                 return true;
 
-            if (_nic.NetworkInterfaceType != _nic.NetworkInterfaceType)
+            if (_nic.Id != obj._nic.Id)
                 return false;
 
             if (!_localIP.Equals(obj._localIP))
+                return false;
+
+            if (!object.Equals(_subnetMask, obj._subnetMask))
+                return false;
+
+            if (!object.Equals(_broadcastIP, obj._broadcastIP))
                 return false;
 
             return true;
@@ -421,7 +427,7 @@ namespace TechnitiumLibrary.Net
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_nic, _localIP, _subnetMask, _broadcastIP);
+            return HashCode.Combine(_nic.Id, _localIP, _subnetMask, _broadcastIP);
         }
 
         #endregion
