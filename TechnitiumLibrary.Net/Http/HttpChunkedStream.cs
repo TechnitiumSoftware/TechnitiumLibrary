@@ -114,12 +114,13 @@ namespace TechnitiumLibrary.Net.Http
                 {
                     _baseStream.CopyTo(_buffer, BUFFER_SIZE, chunkLength);
                     _buffer.Position = 0;
+                    ReadChunkDelimiter();
                 }
-
-                _baseStream.CopyTo(Null, 2, 2); //remove trailing \r\n
-
-                if (chunkLength == 0)
+                else
+                {
+                    ReadTrailers();
                     return 0;
+                }
             }
         }
 
@@ -145,12 +146,99 @@ namespace TechnitiumLibrary.Net.Http
                 {
                     await _baseStream.CopyToAsync(_buffer, BUFFER_SIZE, chunkLength, cancellationToken);
                     _buffer.Position = 0;
+                    await ReadChunkDelimiterAsync(cancellationToken);
+                }
+                else
+                {
+                    await ReadTrailersAsync(cancellationToken);
+                    return 0;
+                }
+            }
+        }
+
+        void ReadChunkDelimiter()
+        {
+            byte[] crlf = new byte[2];
+            int read = 0;
+
+            while (read < crlf.Length)
+            {
+                int bytesRead = _baseStream.Read(crlf, read, crlf.Length - read);
+                if (bytesRead < 1)
+                    throw new EndOfStreamException();
+
+                read += bytesRead;
+            }
+
+            if ((crlf[0] != (byte)'\r') || (crlf[1] != (byte)'\n'))
+                throw new HttpRequestException("Chunk is not terminated by CRLF.");
+        }
+
+        async Task ReadChunkDelimiterAsync(CancellationToken cancellationToken)
+        {
+            byte[] crlf = new byte[2];
+            int read = 0;
+
+            while (read < crlf.Length)
+            {
+                int bytesRead = await _baseStream.ReadAsync(crlf, read, crlf.Length - read, cancellationToken);
+                if (bytesRead < 1)
+                    throw new EndOfStreamException();
+
+                read += bytesRead;
+            }
+
+            if ((crlf[0] != (byte)'\r') || (crlf[1] != (byte)'\n'))
+                throw new HttpRequestException("Chunk is not terminated by CRLF.");
+        }
+
+        void ReadTrailers()
+        {
+            byte[] one = new byte[1];
+
+            while (true)
+            {
+                bool lineEmpty = true;
+
+                while (true)
+                {
+                    if (_baseStream.Read(one, 0, 1) < 1)
+                        throw new EndOfStreamException();
+
+                    if (one[0] == (byte)'\n')
+                        break;
+
+                    if (one[0] != (byte)'\r')
+                        lineEmpty = false;
                 }
 
-                await _baseStream.CopyToAsync(Null, 2, 2, cancellationToken); //remove trailing \r\n
+                if (lineEmpty)
+                    return;
+            }
+        }
 
-                if (chunkLength == 0)
-                    return 0;
+        async Task ReadTrailersAsync(CancellationToken cancellationToken)
+        {
+            byte[] one = new byte[1];
+
+            while (true)
+            {
+                bool lineEmpty = true;
+
+                while (true)
+                {
+                    if (await _baseStream.ReadAsync(one, 0, 1, cancellationToken) < 1)
+                        throw new EndOfStreamException();
+
+                    if (one[0] == (byte)'\n')
+                        break;
+
+                    if (one[0] != (byte)'\r')
+                        lineEmpty = false;
+                }
+
+                if (lineEmpty)
+                    return;
             }
         }
 
