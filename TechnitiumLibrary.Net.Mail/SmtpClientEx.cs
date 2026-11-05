@@ -49,6 +49,9 @@ namespace TechnitiumLibrary.Net.Mail
         bool _ignoreCertificateErrors;
 
         TunnelProxy _tunnelProxy;
+        bool _tunnelUsesSsl;
+        bool _tunnelIgnoresCertificateErrors;
+        NetProxy _tunnelProxyOwner;
 
         #endregion
 
@@ -342,50 +345,48 @@ namespace TechnitiumLibrary.Net.Mail
 
         async Task DeliverAsync(MailMessage message, string host, int port)
         {
-            if (_proxy == null)
+            if ((_proxy == null) && !_smtpOverTls)
             {
-                if (_smtpOverTls)
-                {
-                    EndPoint remoteEP = EndPointExtensions.GetEndPoint(host, port);
-
-                    if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
-                    {
-                        _tunnelProxy.Dispose();
-                        _tunnelProxy = null;
-                    }
-
-                    if ((_tunnelProxy == null) || _tunnelProxy.IsBroken)
-                        _tunnelProxy = await TunnelProxy.CreateTunnelProxyAsync(remoteEP, true, _ignoreCertificateErrors);
-
-                    base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
-                    base.Port = _tunnelProxy.TunnelEndPoint.Port;
-                }
-                else
-                {
-                    base.Host = host;
-                    base.Port = port;
-                }
-
-                await base.SendMailAsync(message);
+                base.Host = host;
+                base.Port = port;
             }
             else
             {
-                EndPoint remoteEP = EndPointExtensions.GetEndPoint(host, port);
+                await EnsureTunnelAsync(EndPointExtensions.GetEndPoint(host, port), _smtpOverTls, _ignoreCertificateErrors, _proxy);
+            }
 
-                if ((_tunnelProxy != null) && !_tunnelProxy.RemoteEndPoint.Equals(remoteEP))
+            await base.SendMailAsync(message);
+        }
+
+        async Task EnsureTunnelAsync(EndPoint remoteEP, bool useSsl, bool ignoreCertificateErrors, NetProxy proxy)
+        {
+            bool sameTunnel = (_tunnelProxy != null)
+                && !_tunnelProxy.IsBroken
+                && _tunnelProxy.RemoteEndPoint.Equals(remoteEP)
+                && (_tunnelUsesSsl == useSsl)
+                && (_tunnelIgnoresCertificateErrors == ignoreCertificateErrors)
+                && ReferenceEquals(_tunnelProxyOwner, proxy);
+
+            if (!sameTunnel)
+            {
+                if (_tunnelProxy != null)
                 {
                     _tunnelProxy.Dispose();
                     _tunnelProxy = null;
                 }
 
-                if ((_tunnelProxy == null) || _tunnelProxy.IsBroken)
-                    _tunnelProxy = await _proxy.CreateTunnelProxyAsync(remoteEP, _smtpOverTls, _ignoreCertificateErrors);
+                if (proxy == null)
+                    _tunnelProxy = await TunnelProxy.CreateTunnelProxyAsync(remoteEP, useSsl, ignoreCertificateErrors);
+                else
+                    _tunnelProxy = await proxy.CreateTunnelProxyAsync(remoteEP, useSsl, ignoreCertificateErrors);
 
-                base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
-                base.Port = _tunnelProxy.TunnelEndPoint.Port;
-
-                await base.SendMailAsync(message);
+                _tunnelUsesSsl = useSsl;
+                _tunnelIgnoresCertificateErrors = ignoreCertificateErrors;
+                _tunnelProxyOwner = proxy;
             }
+
+            base.Host = _tunnelProxy.TunnelEndPoint.Address.ToString();
+            base.Port = _tunnelProxy.TunnelEndPoint.Port;
         }
 
         public new Task SendMailAsync(string from, string recipients, string subject, string body)
