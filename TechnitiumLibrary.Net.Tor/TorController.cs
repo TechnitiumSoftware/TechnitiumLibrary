@@ -328,7 +328,7 @@ namespace TechnitiumLibrary.Net.Tor
 
         public TorHiddenServiceInfo CreateHiddenService(int virtualPort, string privateKey, IPEndPoint localHiddenEP = null, string clientBasicAuthUser = null, string clientBasicAuthCookie = null)
         {
-            _sW.WriteLine("ADD_ONION " + privateKey + (clientBasicAuthUser == null ? "" : " Flags=BasicAuth") + " Port=" + virtualPort + (localHiddenEP == null ? "" : "," + localHiddenEP.ToString()) + (clientBasicAuthUser == null ? "" : " ClientAuth=" + clientBasicAuthUser + ":" + (clientBasicAuthCookie == null ? "" : ":" + clientBasicAuthCookie)));
+            _sW.WriteLine("ADD_ONION " + privateKey + (clientBasicAuthUser == null ? "" : " Flags=BasicAuth") + " Port=" + virtualPort + (localHiddenEP == null ? "" : "," + localHiddenEP.ToString()) + (clientBasicAuthUser == null ? "" : " ClientAuth=" + clientBasicAuthUser + (clientBasicAuthCookie == null ? "" : ":" + clientBasicAuthCookie)));
             return new TorHiddenServiceInfo(_sR);
         }
 
