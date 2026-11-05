@@ -116,7 +116,8 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                 HttpWebRequest wReq = WebRequest.Create(descriptionUri) as HttpWebRequest;
                                 wReq.KeepAlive = false;
 
-                                desc.Load(wReq.GetResponse().GetResponseStream());
+                                using (HttpWebResponse descResponse = (HttpWebResponse)wReq.GetResponse())
+                                    desc.Load(descResponse.GetResponseStream());
 
                                 XmlNamespaceManager nsMgr = new XmlNamespaceManager(desc.NameTable);
                                 nsMgr.AddNamespace("tns", "urn:schemas-upnp-org:device-1-0");
@@ -241,7 +242,9 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
             wReq.KeepAlive = false;
             wReq.ContentType = "text/xml; charset=\"utf-8\"";
             wReq.ContentLength = buffer.Length;
-            wReq.GetRequestStream().Write(buffer, 0, buffer.Length);
+
+            using (Stream requestStream = wReq.GetRequestStream())
+                requestStream.Write(buffer, 0, buffer.Length);
 
             HttpWebResponse response;
 
@@ -251,9 +254,14 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
             }
             catch (WebException ex)
             {
-                response = (HttpWebResponse)ex.Response;
+                response = ex.Response as HttpWebResponse;
             }
 
+            if (response is null)
+                throw new InternetGatewayDeviceException("UPnP device did not return a response.");
+
+            try
+            {
             int statusCode = (int)response.StatusCode;
 
             switch (statusCode)
@@ -323,6 +331,12 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                 default:
                     return response;
             }
+            }
+            catch
+            {
+                response.Dispose();
+                throw;
+            }
         }
 
         #endregion
@@ -338,7 +352,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                 "<NewLeaseDuration>" + leaseDuration + "</NewLeaseDuration>" +
                            "</u:AddPortMapping>";
 
-            HttpWebResponse response = SOAPRequest(SOAP, "AddPortMapping");
+            using HttpWebResponse response = SOAPRequest(SOAP, "AddPortMapping");
 
             int statusCode = Convert.ToInt32(response.StatusCode);
 
@@ -381,7 +395,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                                 "<NewProtocol>" + protocol.ToString().ToUpper() + "</NewProtocol>" +
                           "</u:DeletePortMapping>";
 
-            HttpWebResponse response = SOAPRequest(SOAP, "DeletePortMapping");
+            using HttpWebResponse response = SOAPRequest(SOAP, "DeletePortMapping");
 
             int statusCode = Convert.ToInt32(response.StatusCode);
 
@@ -402,7 +416,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
         {
             string SOAP = "<u:GetExternalIPAddress xmlns:u=\"urn:schemas-upnp-org:service:WANPPPConnection:1\"></u:GetExternalIPAddress>";
 
-            HttpWebResponse response = SOAPRequest(SOAP, "GetExternalIPAddress");
+            using HttpWebResponse response = SOAPRequest(SOAP, "GetExternalIPAddress");
 
             int statusCode = Convert.ToInt32(response.StatusCode);
 
@@ -450,6 +464,8 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                 }
             }
 
+            using (response)
+            {
             int statusCode = Convert.ToInt32(response.StatusCode);
 
             switch (statusCode)
@@ -475,6 +491,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
 
                 default:
                     throw new InternetGatewayDeviceException(statusCode, "UPnP device returned an error: (" + statusCode + ") " + response.StatusDescription);
+            }
             }
         }
 
@@ -503,6 +520,8 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
                 }
             }
 
+            using (response)
+            {
             int statusCode = Convert.ToInt32(response.StatusCode);
 
             switch (statusCode)
@@ -537,6 +556,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
 
                 default:
                     throw new InternetGatewayDeviceException("UPnP device returned an error: (" + statusCode + ") " + response.StatusDescription);
+            }
             }
         }
 
