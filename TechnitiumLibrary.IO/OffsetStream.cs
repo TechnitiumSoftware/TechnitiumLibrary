@@ -319,6 +319,9 @@ namespace TechnitiumLibrary.IO
             if (!_stream.CanSeek)
                 throw new InvalidOperationException("Stream is not seekable.");
 
+            if (_length < 1)
+                return;
+
             if (_length < bufferSize)
                 bufferSize = Convert.ToInt32(_length);
 
@@ -346,6 +349,9 @@ namespace TechnitiumLibrary.IO
         {
             if (!_stream.CanSeek)
                 throw new InvalidOperationException("Stream is not seekable.");
+
+            if (_length < 1)
+                return;
 
             if (_length < bufferSize)
                 bufferSize = Convert.ToInt32(_length);
