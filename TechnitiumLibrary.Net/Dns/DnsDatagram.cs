@@ -503,6 +503,7 @@ namespace TechnitiumLibrary.Net.Dns
             Span<char> domain = stackalloc char[256];
             Span<byte> buffer = stackalloc byte[63];
             int domainPosition = 0;
+            int uncompressedLength = 0;
 
             while (labelLength > 0)
             {
@@ -521,9 +522,13 @@ namespace TechnitiumLibrary.Net.Dns
                     s.Position = offset;
 
                     string domainSuffix = DeserializeDomainName(s, maxDepth - 1, ignoreMissingNullTermination, isEmailAddress);
+                    int suffixWireLength = domainSuffix.Length == 0 ? 1 : domainSuffix.Length + 2;
+                    if (uncompressedLength + suffixWireLength > 255)
+                        throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
+
                     if (domainSuffix.Length > 0)
                     {
-                        if (!domainSuffix.AsSpan().TryCopyTo(domain.Slice(domainPosition)))
+                        if ((domainPosition + domainSuffix.Length >= domain.Length) || !domainSuffix.AsSpan().TryCopyTo(domain.Slice(domainPosition)))
                             throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
 
                         domainPosition += domainSuffix.Length;
@@ -537,6 +542,9 @@ namespace TechnitiumLibrary.Net.Dns
                 if (labelLength > 63)
                     throw new DnsClientException("Error while reading domain name: label length cannot exceed 63 bytes.");
 
+                if ((uncompressedLength + labelLength + 2 > 255) || (domainPosition + labelLength >= domain.Length))
+                    throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
+
                 Span<byte> label = buffer.Slice(0, labelLength);
                 s.ReadExactly(label);
 
@@ -544,6 +552,10 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
 
                 domainPosition += labelLength;
+                uncompressedLength += 1 + labelLength;
+
+                if (domainPosition >= domain.Length)
+                    throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
 
                 if (isEmailAddress)
                 {

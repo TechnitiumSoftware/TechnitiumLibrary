@@ -2549,7 +2549,8 @@ namespace TechnitiumLibrary.Net.Dns
             if (domain.Length == 0)
                 return true; //domain is root zone
 
-            if (domain.Length > 255)
+            int wireLength = domain[domain.Length - 1] == '.' ? domain.Length + 1 : domain.Length + 2;
+            if (wireLength > 255)
             {
                 if (throwException)
                     throw new DnsClientException("Invalid domain name [" + domain + "]: length cannot exceed 255 bytes.");
