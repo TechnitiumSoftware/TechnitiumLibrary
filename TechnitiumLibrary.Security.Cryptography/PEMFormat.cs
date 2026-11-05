@@ -28,7 +28,7 @@ namespace TechnitiumLibrary.Security.Cryptography
     {
         public static RSAParameters ReadRSAPrivateKey(Stream s)
         {
-            using (StreamReader sR = new StreamReader(s))
+            using (StreamReader sR = new StreamReader(s, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 1024, leaveOpen: true))
             {
                 if (sR.ReadLine() != "-----BEGIN RSA PRIVATE KEY-----")
                     throw new IOException("The data should begin with header: -----BEGIN RSA PRIVATE KEY-----");
@@ -38,6 +38,8 @@ namespace TechnitiumLibrary.Security.Cryptography
                 do
                 {
                     string line = sR.ReadLine();
+                    if (line is null)
+                        throw new EndOfStreamException();
 
                     if (line == "-----END RSA PRIVATE KEY-----")
                         break;
@@ -83,7 +85,7 @@ namespace TechnitiumLibrary.Security.Cryptography
 
         public static RSAParameters ReadRSAPublicKey(Stream s)
         {
-            using (StreamReader sR = new StreamReader(s))
+            using (StreamReader sR = new StreamReader(s, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 1024, leaveOpen: true))
             {
                 if (sR.ReadLine() != "-----BEGIN RSA PUBLIC KEY-----")
                     throw new IOException("The data should begin with header: -----BEGIN RSA PUBLIC KEY-----");
@@ -93,6 +95,8 @@ namespace TechnitiumLibrary.Security.Cryptography
                 do
                 {
                     string line = sR.ReadLine();
+                    if (line is null)
+                        throw new EndOfStreamException();
 
                     if (line == "-----END RSA PUBLIC KEY-----")
                         break;
