@@ -118,32 +118,18 @@ namespace TechnitiumLibrary.Net.Mail
                 if (smtpClient._ignoreCertificateErrors)
                     return true;
 
+                bool currentTunnel = IsCurrentSmtpTunnel(smtpClient, sender);
+
                 switch (sslPolicyErrors)
                 {
                     case SslPolicyErrors.None:
                         return true;
 
                     case SslPolicyErrors.RemoteCertificateNameMismatch:
-                        return smtpClient._proxy != null; //trusting name mismatch when proxy is set
+                        return currentTunnel;
 
                     default:
-                        return false;
-                }
-            }
-
-            if (sender is SslStream sslStream && IPAddress.TryParse(sslStream.TargetHostName, out IPAddress address) && IPAddress.IsLoopback(address))
-            {
-                if (_ignoreCertificateErrorsForProxy)
-                    return true;
-
-                switch (sslPolicyErrors)
-                {
-                    case SslPolicyErrors.None:
-                    case SslPolicyErrors.RemoteCertificateNameMismatch: //trusting name mismatch for loopback tunnel proxy
-                        return true;
-
-                    default:
-                        return false;
+                        return _ignoreCertificateErrorsForProxy && currentTunnel;
                 }
             }
 
@@ -151,6 +137,17 @@ namespace TechnitiumLibrary.Net.Mail
                 return _existingServerCertificateValidationCallback(sender, certificate, chain, sslPolicyErrors);
 
             return sslPolicyErrors == SslPolicyErrors.None;
+        }
+
+        static bool IsCurrentSmtpTunnel(SmtpClientEx smtpClient, object sender)
+        {
+            if ((smtpClient._tunnelProxy is null) || (sender is not SslStream sslStream))
+                return false;
+
+            if (!IPAddress.TryParse(sslStream.TargetHostName, out IPAddress address))
+                return false;
+
+            return address.Equals(smtpClient._tunnelProxy.TunnelEndPoint.Address);
         }
 
         #endregion
