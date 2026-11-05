@@ -83,7 +83,7 @@ namespace TechnitiumLibrary
             if (_disposed)
                 return;
 
-            _tasks?.Dispose();
+            _tasks.CompleteAdding();
 
             _disposed = true;
             GC.SuppressFinalize(this);
@@ -118,8 +118,14 @@ namespace TechnitiumLibrary
                 {
                     _tasks.Add(task);
                 }
+                catch (InvalidOperationException)
+                {
+                    TryExecuteTask(task);
+                }
                 catch (ObjectDisposedException)
-                { }
+                {
+                    TryExecuteTask(task);
+                }
             }
         }
 
