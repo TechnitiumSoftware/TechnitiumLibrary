@@ -933,6 +933,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (alpnIds.Count < 1)
                 throw new ArgumentException("Missing param value for 'alpn' key.");
 
+            foreach (string alpnId in alpnIds)
+            {
+                if ((alpnId is null) || (alpnId.Length < 1) || (alpnId.Length > 255))
+                    throw new ArgumentException("SVCB alpn id must be 1 to 255 octets.");
+            }
+
             _alpnIds = alpnIds;
         }
 
