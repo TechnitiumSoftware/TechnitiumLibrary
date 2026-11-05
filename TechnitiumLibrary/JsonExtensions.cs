@@ -54,7 +54,7 @@ namespace TechnitiumLibrary
             switch (jsonArray.ValueKind)
             {
                 case JsonValueKind.Array:
-                    HashSet<string> set = new HashSet<string>(jsonArray.GetArrayLength());
+                    HashSet<string> set = new HashSet<string>(jsonArray.GetArrayLength(), StringComparer.OrdinalIgnoreCase);
 
                     foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
                         set.Add(jsonItem.ToString());
