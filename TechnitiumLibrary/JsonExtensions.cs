@@ -28,6 +28,16 @@ namespace TechnitiumLibrary
     {
         #region private
 
+        private static bool IsArrayOrNull(JsonElement jsonElement)
+        {
+            return (jsonElement.ValueKind == JsonValueKind.Array) || (jsonElement.ValueKind == JsonValueKind.Null);
+        }
+
+        private static bool IsObjectOrNull(JsonElement jsonElement)
+        {
+            return (jsonElement.ValueKind == JsonValueKind.Object) || (jsonElement.ValueKind == JsonValueKind.Null);
+        }
+
         private static string[]? ReadArray(JsonElement jsonArray)
         {
             switch (jsonArray.ValueKind)
@@ -175,7 +185,7 @@ namespace TechnitiumLibrary
 
         public static bool TryReadArray(this JsonElement jsonElement, string propertyName, [MaybeNullWhen(false)] out string[]? array)
         {
-            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray) && IsArrayOrNull(jsonArray))
             {
                 array = ReadArray(jsonArray);
                 return true;
@@ -192,7 +202,7 @@ namespace TechnitiumLibrary
 
         public static bool TryReadArray<T>(this JsonElement jsonElement, string propertyName, Func<string, T> getObject, [MaybeNullWhen(false)] out T[]? array)
         {
-            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray) && IsArrayOrNull(jsonArray))
             {
                 array = ReadArray(jsonArray, getObject);
                 return true;
@@ -209,7 +219,7 @@ namespace TechnitiumLibrary
 
         public static bool TryReadArray<T>(this JsonElement jsonElement, string propertyName, Func<JsonElement, T> getObject, [MaybeNullWhen(false)] out T[]? array)
         {
-            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray) && IsArrayOrNull(jsonArray))
             {
                 array = ReadArray(jsonArray, getObject);
                 return true;
@@ -226,7 +236,7 @@ namespace TechnitiumLibrary
 
         public static bool TryReadArrayAsSet(this JsonElement jsonElement, string propertyName, [MaybeNullWhen(false)] out HashSet<string>? set)
         {
-            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray) && IsArrayOrNull(jsonArray))
             {
                 set = ReadArrayAsSet(jsonArray);
                 return true;
@@ -243,7 +253,7 @@ namespace TechnitiumLibrary
 
         public static bool TryReadArrayAsMap<TKey, TValue>(this JsonElement jsonElement, string propertyName, Func<JsonElement, Tuple<TKey, TValue>> getObject, [MaybeNullWhen(false)] out Dictionary<TKey, TValue>? map) where TKey : notnull
         {
-            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray) && IsArrayOrNull(jsonArray))
             {
                 map = ReadArrayAsMap(jsonArray, getObject);
                 return true;
@@ -253,24 +263,14 @@ namespace TechnitiumLibrary
             return false;
         }
 
-        public static Dictionary<TKey, TValue> ReadObjectAsMap<TKey, TValue>(this JsonElement jsonElement, string propertyName, Func<string, JsonElement, Tuple<TKey, TValue>> getObject) where TKey : notnull
+        public static Dictionary<TKey, TValue>? ReadObjectAsMap<TKey, TValue>(this JsonElement jsonElement, string propertyName, Func<string, JsonElement, Tuple<TKey, TValue>> getObject) where TKey : notnull
         {
-            JsonElement jsonMap = jsonElement.GetProperty(propertyName);
-            Dictionary<TKey, TValue> map = new Dictionary<TKey, TValue>();
-
-            foreach (JsonProperty jsonProperty in jsonMap.EnumerateObject())
-            {
-                Tuple<TKey, TValue> item = getObject(jsonProperty.Name, jsonProperty.Value);
-                if (item is not null)
-                    map.Add(item.Item1, item.Item2);
-            }
-
-            return map;
+            return ReadObjectAsMap(jsonElement.GetProperty(propertyName), getObject);
         }
 
         public static bool TryReadObjectAsMap<TKey, TValue>(this JsonElement jsonElement, string propertyName, Func<string, JsonElement, Tuple<TKey, TValue>> getObject, [MaybeNullWhen(false)] out Dictionary<TKey, TValue>? map) where TKey : notnull
         {
-            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray))
+            if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonArray) && IsObjectOrNull(jsonArray))
             {
                 map = ReadObjectAsMap(jsonArray, getObject);
                 return true;
@@ -280,11 +280,15 @@ namespace TechnitiumLibrary
             return false;
         }
 
-        [return: NotNullIfNotNull(nameof(defaultValue))]
         public static string? GetPropertyValue(this JsonElement jsonElement, string propertyName, string? defaultValue)
         {
             if (jsonElement.TryGetProperty(propertyName, out JsonElement jsonValue))
+            {
+                if (jsonValue.ValueKind == JsonValueKind.Null)
+                    return null;
+
                 return jsonValue.ToString();
+            }
 
             return defaultValue;
         }
