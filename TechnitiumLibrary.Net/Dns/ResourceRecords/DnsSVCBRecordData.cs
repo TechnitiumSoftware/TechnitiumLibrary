@@ -794,7 +794,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return _alpnIds.GetArrayHashCode();
+            HashCode hash = new HashCode();
+
+            foreach (string alpnId in _alpnIds)
+                hash.Add(StringComparer.OrdinalIgnoreCase.GetHashCode(alpnId));
+
+            return hash.ToHashCode();
         }
 
         public override string ToString()

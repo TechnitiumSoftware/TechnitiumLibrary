@@ -326,7 +326,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(_protocol, _forwarder);
+            return HashCode.Combine(_protocol, StringComparer.OrdinalIgnoreCase.GetHashCode(_forwarder));
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

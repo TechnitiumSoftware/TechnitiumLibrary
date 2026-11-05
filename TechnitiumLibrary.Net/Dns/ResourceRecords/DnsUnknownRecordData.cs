@@ -111,7 +111,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int GetHashCode()
         {
-            return _data.GetHashCode();
+            return _data.GetArrayHashCode();
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
