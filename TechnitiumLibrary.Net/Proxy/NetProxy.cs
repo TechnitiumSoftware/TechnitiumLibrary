@@ -49,6 +49,7 @@ namespace TechnitiumLibrary.Net.Proxy
         IReadOnlyCollection<NetProxyBypassItem> _bypassList = new List<NetProxyBypassItem> { new NetProxyBypassItem("127.0.0.0/8"), new NetProxyBypassItem("169.254.0.0/16"), new NetProxyBypassItem("fe80::/10"), new NetProxyBypassItem("::1"), new NetProxyBypassItem("localhost") };
 
         HttpProxyServer _httpProxyServer;
+        readonly object _httpProxyServerLock = new object();
 
         #endregion
 
@@ -169,7 +170,13 @@ namespace TechnitiumLibrary.Net.Proxy
                 return destination;
 
             if (_httpProxyServer == null)
-                _httpProxyServer = new HttpProxyServer(this);
+            {
+                lock (_httpProxyServerLock)
+                {
+                    if (_httpProxyServer == null)
+                        _httpProxyServer = new HttpProxyServer(this);
+                }
+            }
 
             return new Uri("http://" + _httpProxyServer.LocalEndPoint.ToString());
         }
