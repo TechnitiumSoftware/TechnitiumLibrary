@@ -150,7 +150,12 @@ namespace TechnitiumLibrary.Net.Http
 
                 bytesRead = _baseStream.Read(_buffer, 0, bytesRemaining);
                 if (bytesRead < 1)
+                {
+                    if ((_contentLength > -1) && (_totalBytesRead < _contentLength))
+                        throw new EndOfStreamException();
+
                     return bytesRead;
+                }
 
                 _offset = 0;
                 _length = bytesRead;
@@ -187,7 +192,12 @@ namespace TechnitiumLibrary.Net.Http
 
                 bytesRead = await _baseStream.ReadAsync(_buffer, 0, bytesRemaining, cancellationToken);
                 if (bytesRead < 1)
+                {
+                    if ((_contentLength > -1) && (_totalBytesRead < _contentLength))
+                        throw new EndOfStreamException();
+
                     return bytesRead;
+                }
 
                 _offset = 0;
                 _length = bytesRead;
