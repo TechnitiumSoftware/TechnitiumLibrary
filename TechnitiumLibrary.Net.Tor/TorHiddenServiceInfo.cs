@@ -40,8 +40,8 @@ namespace TechnitiumLibrary.Net.Tor
             while (true)
             {
                 string response = sR.ReadLine();
-                if (response == null)
-                    break;
+                if (response is null)
+                    throw new TorControllerException("Control connection closed.");
 
                 if (!response.StartsWith("250"))
                     throw new TorControllerException("Server returned: " + response);

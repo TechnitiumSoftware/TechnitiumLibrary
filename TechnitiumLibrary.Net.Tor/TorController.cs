@@ -211,17 +211,17 @@ namespace TechnitiumLibrary.Net.Tor
                         _sW.AutoFlush = true;
 
                         _sW.WriteLine("AUTHENTICATE \"" + password + "\"");
-                        string response = _sR.ReadLine();
+                        string response = ReadReply();
                         if (!response.StartsWith("250 "))
                             throw new TorControllerException("Authentication failed: " + response);
 
                         _sW.WriteLine("SETCONF __OwningControllerProcess=" + Environment.ProcessId);
-                        response = _sR.ReadLine();
+                        response = ReadReply();
                         if (!response.StartsWith("250 "))
                             throw new TorControllerException("Server returned: " + response);
 
                         _sW.WriteLine("TAKEOWNERSHIP");
-                        response = _sR.ReadLine();
+                        response = ReadReply();
                         if (!response.StartsWith("250 "))
                             throw new TorControllerException("Server returned: " + response);
 
@@ -288,56 +288,86 @@ namespace TechnitiumLibrary.Net.Tor
             }
         }
 
+        string ReadReply()
+        {
+            string response = _sR.ReadLine();
+            if (response is null)
+                throw new TorControllerException("Control connection closed.");
+
+            return response;
+        }
+
         public void Shutdown()
         {
-            _sW.WriteLine("SIGNAL SHUTDOWN");
-            string response = _sR.ReadLine();
-            if (!response.StartsWith("250 "))
-                throw new TorControllerException("Server returned: " + response);
+            lock (_lock)
+            {
+                _sW.WriteLine("SIGNAL SHUTDOWN");
+                string response = ReadReply();
+                if (!response.StartsWith("250 "))
+                    throw new TorControllerException("Server returned: " + response);
+            }
         }
 
         public void SwitchCircuit()
         {
-            _sW.WriteLine("SIGNAL NEWNYM");
-            string response = _sR.ReadLine();
-            if (!response.StartsWith("250 "))
-                throw new TorControllerException("Server returned: " + response);
+            lock (_lock)
+            {
+                _sW.WriteLine("SIGNAL NEWNYM");
+                string response = ReadReply();
+                if (!response.StartsWith("250 "))
+                    throw new TorControllerException("Server returned: " + response);
+            }
         }
 
         public void ClearDnsCache()
         {
-            _sW.WriteLine("SIGNAL CLEARDNSCACHE");
-            string response = _sR.ReadLine();
-            if (!response.StartsWith("250 "))
-                throw new TorControllerException("Server returned: " + response);
+            lock (_lock)
+            {
+                _sW.WriteLine("SIGNAL CLEARDNSCACHE");
+                string response = ReadReply();
+                if (!response.StartsWith("250 "))
+                    throw new TorControllerException("Server returned: " + response);
+            }
         }
 
         public void ImmediateShutdown()
         {
-            _sW.WriteLine("SIGNAL HALT");
-            string response = _sR.ReadLine();
-            if (!response.StartsWith("250 "))
-                throw new TorControllerException("Server returned: " + response);
+            lock (_lock)
+            {
+                _sW.WriteLine("SIGNAL HALT");
+                string response = ReadReply();
+                if (!response.StartsWith("250 "))
+                    throw new TorControllerException("Server returned: " + response);
+            }
         }
 
         public TorHiddenServiceInfo CreateHiddenService(int virtualPort, IPEndPoint localHiddenEP = null, string clientBasicAuthUser = null, string clientBasicAuthCookie = null)
         {
-            _sW.WriteLine("ADD_ONION NEW:BEST" + (clientBasicAuthUser == null ? "" : " Flags=BasicAuth") + " Port=" + virtualPort + (localHiddenEP == null ? "" : "," + localHiddenEP.ToString()) + (clientBasicAuthUser == null ? "" : " ClientAuth=" + clientBasicAuthUser + (clientBasicAuthCookie == null ? "" : ":" + clientBasicAuthCookie)));
-            return new TorHiddenServiceInfo(_sR);
+            lock (_lock)
+            {
+                _sW.WriteLine("ADD_ONION NEW:BEST" + (clientBasicAuthUser == null ? "" : " Flags=BasicAuth") + " Port=" + virtualPort + (localHiddenEP == null ? "" : "," + localHiddenEP.ToString()) + (clientBasicAuthUser == null ? "" : " ClientAuth=" + clientBasicAuthUser + (clientBasicAuthCookie == null ? "" : ":" + clientBasicAuthCookie)));
+                return new TorHiddenServiceInfo(_sR);
+            }
         }
 
         public TorHiddenServiceInfo CreateHiddenService(int virtualPort, string privateKey, IPEndPoint localHiddenEP = null, string clientBasicAuthUser = null, string clientBasicAuthCookie = null)
         {
-            _sW.WriteLine("ADD_ONION " + privateKey + (clientBasicAuthUser == null ? "" : " Flags=BasicAuth") + " Port=" + virtualPort + (localHiddenEP == null ? "" : "," + localHiddenEP.ToString()) + (clientBasicAuthUser == null ? "" : " ClientAuth=" + clientBasicAuthUser + (clientBasicAuthCookie == null ? "" : ":" + clientBasicAuthCookie)));
-            return new TorHiddenServiceInfo(_sR);
+            lock (_lock)
+            {
+                _sW.WriteLine("ADD_ONION " + privateKey + (clientBasicAuthUser == null ? "" : " Flags=BasicAuth") + " Port=" + virtualPort + (localHiddenEP == null ? "" : "," + localHiddenEP.ToString()) + (clientBasicAuthUser == null ? "" : " ClientAuth=" + clientBasicAuthUser + (clientBasicAuthCookie == null ? "" : ":" + clientBasicAuthCookie)));
+                return new TorHiddenServiceInfo(_sR);
+            }
         }
 
         public void DeleteHiddenService(string serviceId)
         {
-            _sW.WriteLine("DEL_ONION " + serviceId);
-            string response = _sR.ReadLine();
-            if (!response.StartsWith("250 "))
-                throw new TorControllerException("Server returned: " + response);
+            lock (_lock)
+            {
+                _sW.WriteLine("DEL_ONION " + serviceId);
+                string response = ReadReply();
+                if (!response.StartsWith("250 "))
+                    throw new TorControllerException("Server returned: " + response);
+            }
         }
 
         #endregion
