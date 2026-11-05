@@ -513,6 +513,10 @@ namespace TechnitiumLibrary.Net.Dns
                         throw new EndOfStreamException();
 
                     int offset = ((labelLength << 8) | secondByte) & 0x3FFF;
+                    long pointerStart = s.Position - 2;
+                    if ((offset >= pointerStart) || (s.CanSeek && (offset >= s.Length)))
+                        throw new DnsClientException("Error while reading domain name: compression pointer must point backward inside the message.");
+
                     long currentPosition = s.Position;
                     s.Position = offset;
 
