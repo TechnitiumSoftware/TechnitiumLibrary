@@ -123,67 +123,95 @@ namespace TechnitiumLibrary.Net.Mail
             if (_sock != null)
                 throw new Pop3Exception("Pop3Client previous connection was not closed.");
 
-            _sock = new TcpClient(_hostname, _port);
+            TcpClient sock = new TcpClient(_hostname, _port);
+            StreamReader reader = null;
+            StreamWriter writer = null;
 
-            Stream stream;
-
-            if (_ssl)
+            try
             {
-                SslStream sslStream;
+                Stream stream;
 
-                if (_ignoreCertificateErrors)
-                    sslStream = new SslStream(_sock.GetStream(), false, RemoteCertificateValidationCallback);
+                if (_ssl)
+                {
+                    SslStream sslStream;
+
+                    if (_ignoreCertificateErrors)
+                        sslStream = new SslStream(sock.GetStream(), false, RemoteCertificateValidationCallback);
+                    else
+                        sslStream = new SslStream(sock.GetStream(), false);
+
+                    sslStream.AuthenticateAsClient(_hostname);
+
+                    stream = sslStream;
+                }
                 else
-                    sslStream = new SslStream(_sock.GetStream(), false);
+                    stream = sock.GetStream();
 
-                sslStream.AuthenticateAsClient(_hostname);
+                reader = new StreamReader(stream, Encoding.Latin1, false, 1);
+                writer = new StreamWriter(stream, Encoding.ASCII, 1);
+                writer.AutoFlush = true;
 
-                stream = sslStream;
+                string response = reader.ReadLine();
+                if (response == null)
+                    throw new Pop3Exception("No response from server.");
+                if (IsPop3Error(response))
+                    throw new Pop3Exception("Server returned: " + Pop3ErrorText(response));
+
+                int i = response.IndexOf('<');
+                int j = response.LastIndexOf('>');
+                bool secureAuthAvailable = ((i > -1) && (j > i));
+
+                if (_preferSecureAuth && secureAuthAvailable)
+                {
+                    string timestamp = response.Substring(i, j - i + 1);
+                    string digest = Convert.ToHexString(MD5.HashData(Encoding.ASCII.GetBytes(timestamp + _password))).ToLowerInvariant();
+
+                    writer.WriteLine("APOP " + _username + " " + digest);
+                    response = reader.ReadLine();
+                    if (response == null)
+                        throw new Pop3Exception("No response from server.");
+                    if (IsPop3Error(response))
+                        throw new Pop3InvalidUsernamePasswordException("Server returned: " + Pop3ErrorText(response));
+                }
+                else
+                {
+                    writer.WriteLine("USER " + _username);
+                    response = reader.ReadLine();
+                    if (response == null)
+                        throw new Pop3Exception("No response from server.");
+                    if (IsPop3Error(response))
+                        throw new Pop3InvalidUsernamePasswordException("Server returned: " + Pop3ErrorText(response));
+
+                    writer.WriteLine("PASS " + _password);
+                    response = reader.ReadLine();
+                    if (response == null)
+                        throw new Pop3Exception("No response from server.");
+                    if (IsPop3Error(response))
+                        throw new Pop3InvalidUsernamePasswordException("Server returned: " + Pop3ErrorText(response));
+                }
+
+                _sock = sock;
+                _sR = reader;
+                _sW = writer;
             }
-            else
-                stream = _sock.GetStream();
-
-            _sR = new StreamReader(stream, Encoding.Latin1, false, 1);
-            _sW = new StreamWriter(stream, Encoding.ASCII, 1);
-            _sW.AutoFlush = true;
-
-            string response = _sR.ReadLine();
-            if (response == null)
-                throw new Pop3Exception("No response from server.");
-            if (IsPop3Error(response))
-                throw new Pop3Exception("Server returned: " + Pop3ErrorText(response));
-
-            int i = response.IndexOf('<');
-            int j = response.LastIndexOf('>');
-            bool secureAuthAvailable = ((i > -1) && (j > i));
-
-            if (_preferSecureAuth && secureAuthAvailable)
+            catch
             {
-                string timestamp = response.Substring(i, j - i + 1);
-                string digest = Convert.ToHexString(MD5.HashData(Encoding.ASCII.GetBytes(timestamp + _password))).ToLowerInvariant();
+                try
+                {
+                    writer?.Dispose();
+                }
+                catch
+                { }
 
-                _sW.WriteLine("APOP " + _username + " " + digest);
-                response = _sR.ReadLine();
-                if (response == null)
-                    throw new Pop3Exception("No response from server.");
-                if (IsPop3Error(response))
-                    throw new Pop3InvalidUsernamePasswordException("Server returned: " + Pop3ErrorText(response));
-            }
-            else
-            {
-                _sW.WriteLine("USER " + _username);
-                response = _sR.ReadLine();
-                if (response == null)
-                    throw new Pop3Exception("No response from server.");
-                if (IsPop3Error(response))
-                    throw new Pop3InvalidUsernamePasswordException("Server returned: " + Pop3ErrorText(response));
+                try
+                {
+                    reader?.Dispose();
+                }
+                catch
+                { }
 
-                _sW.WriteLine("PASS " + _password);
-                response = _sR.ReadLine();
-                if (response == null)
-                    throw new Pop3Exception("No response from server.");
-                if (IsPop3Error(response))
-                    throw new Pop3InvalidUsernamePasswordException("Server returned: " + Pop3ErrorText(response));
+                sock.Dispose();
+                throw;
             }
         }
 
