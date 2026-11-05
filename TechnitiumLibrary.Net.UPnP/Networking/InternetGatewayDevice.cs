@@ -191,6 +191,14 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
 
         #region private
 
+        static string XmlEscape(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return "";
+
+            return value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;").Replace("'", "&apos;");
+        }
+
         private HttpWebResponse SOAPRequest(string SOAP, string functionName)
         {
             Exception exPPP = null;
@@ -355,7 +363,7 @@ namespace TechnitiumLibrary.Net.UPnP.Networking
             string SOAP = "<u:AddPortMapping xmlns:u=\"urn:schemas-upnp-org:service:WANPPPConnection:1\">" +
                                 "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + externalPort + "</NewExternalPort><NewProtocol>" + protocol.ToString().ToUpper() + "</NewProtocol>" +
                                 "<NewInternalPort>" + internalEP.Port + "</NewInternalPort><NewInternalClient>" + internalEP.Address.ToString() + "</NewInternalClient>" +
-                                "<NewEnabled>" + (enabled ? "1" : "0") + "</NewEnabled><NewPortMappingDescription>" + description + "</NewPortMappingDescription>" +
+                                "<NewEnabled>" + (enabled ? "1" : "0") + "</NewEnabled><NewPortMappingDescription>" + XmlEscape(description) + "</NewPortMappingDescription>" +
                                 "<NewLeaseDuration>" + leaseDuration + "</NewLeaseDuration>" +
                            "</u:AddPortMapping>";
 
