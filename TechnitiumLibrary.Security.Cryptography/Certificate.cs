@@ -347,8 +347,11 @@ namespace TechnitiumLibrary.Security.Cryptography
 
             #region check if user cert is expired
 
-            if ((_type == CertificateType.User) && HasExpired())
+            if (HasExpired())
                 throw new InvalidCertificateException("Certificate issued to '" + _issuedTo.Name + "' has expired.");
+
+            if ((issuerCert != null) && issuerCert.HasExpired())
+                throw new InvalidCertificateException("Issuer '" + issuerCert._issuedTo.Name + "' certificate has expired.");
 
             #endregion
         }
