@@ -72,13 +72,20 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 await viaSocket.SendAsync(Encoding.ASCII.GetBytes(httpConnectRequest), SocketFlags.None, cancellationToken);
 
-                byte[] buffer = new byte[128];
-                int bytesRecv = await viaSocket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
+                byte[] buffer = new byte[4096];
+                int headerLength = await ReadConnectHeaderLengthAsync(viaSocket, buffer, cancellationToken);
+                int consumed = 0;
 
-                if (bytesRecv < 1)
-                    throw new HttpProxyException("No response was received from http proxy server.");
+                while (consumed < headerLength)
+                {
+                    int bytesRecv = viaSocket.Receive(buffer, consumed, headerLength - consumed, SocketFlags.None);
+                    if (bytesRecv < 1)
+                        throw new HttpProxyException("No response was received from http proxy server.");
 
-                string httpResponse = Encoding.ASCII.GetString(buffer, 0, bytesRecv);
+                    consumed += bytesRecv;
+                }
+
+                string httpResponse = Encoding.ASCII.GetString(buffer, 0, headerLength);
                 string[] httpResponseParts = httpResponse.Split('\r')[0].Split(spaceSeparator, 3);
 
                 if (httpResponseParts.Length != 3)
@@ -100,6 +107,40 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 viaSocket.Dispose();
                 throw;
+            }
+        }
+
+        static async Task<int> ReadConnectHeaderLengthAsync(Socket viaSocket, byte[] buffer, CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                int available = viaSocket.Available;
+                if (available < 1)
+                {
+                    if (!viaSocket.Poll(250000, SelectMode.SelectRead))
+                        continue;
+
+                    available = viaSocket.Available;
+                    if (available < 1)
+                        throw new HttpProxyException("No response was received from http proxy server.");
+                }
+
+                int peeked = viaSocket.Receive(buffer, 0, Math.Min(available, buffer.Length), SocketFlags.Peek);
+                if (peeked < 1)
+                    throw new HttpProxyException("No response was received from http proxy server.");
+
+                for (int i = 0; i < peeked - 3; i++)
+                {
+                    if ((buffer[i] == (byte)'\r') && (buffer[i + 1] == (byte)'\n') && (buffer[i + 2] == (byte)'\r') && (buffer[i + 3] == (byte)'\n'))
+                        return i + 4;
+                }
+
+                if (peeked >= buffer.Length)
+                    throw new HttpProxyException("HTTP proxy response header is too large.");
+
+                await Task.Delay(1, cancellationToken);
             }
         }
 
