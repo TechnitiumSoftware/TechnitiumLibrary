@@ -103,7 +103,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     lastSvcParamKey = svcParamKeyWire;
 
                     DnsSvcParamKey svcParamKey = (DnsSvcParamKey)svcParamKeyWire;
-                    svcParams.Add(svcParamKey, ReadSvcParam(svcParamKey, mS));
+                    svcParams.Add(svcParamKey, (_svcPriority == 0) ? ReadAliasSvcParam(svcParamKey, mS) : ReadSvcParam(svcParamKey, mS));
                 }
 
                 _svcParams = svcParams;
@@ -174,7 +174,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (TryParseKeyNumber(keyToken, out ushort keyNumber))
                 {
                     svcParamKey = (DnsSvcParamKey)keyNumber;
-                    svcParams.Add(svcParamKey, ReadSvcParam(svcParamKey, ZoneFile.DecodeCharacterStringOctets(svcParamValue)));
+                    byte[] keyValue = ZoneFile.DecodeCharacterStringOctets(svcParamValue);
+                    svcParams.Add(svcParamKey, (svcPriority == 0) ? ReadAliasSvcParam(svcParamKey, keyValue) : ReadSvcParam(svcParamKey, keyValue));
                     continue;
                 }
 
@@ -200,7 +201,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                         break;
                 }
 
-                svcParams.Add(svcParamKey, DnsSvcParamValue.Parse(svcParamKey, svcParamValue));
+                svcParams.Add(svcParamKey, (svcPriority == 0) ? ParseAliasSvcParam(svcParamKey, svcParamValue) : DnsSvcParamValue.Parse(svcParamKey, svcParamValue));
             }
             while (true);
 
@@ -220,6 +221,43 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 return ReadSvcParam(svcParamKey, mS);
             }
+        }
+
+        static DnsSvcParamValue ReadAliasSvcParam(DnsSvcParamKey svcParamKey, Stream s)
+        {
+            ushort length = DnsDatagram.ReadUInt16NetworkOrder(s);
+            byte[] value = s.ReadExactly(length);
+
+            return ReadAliasSvcParam(svcParamKey, value);
+        }
+
+        static DnsSvcParamValue ReadAliasSvcParam(DnsSvcParamKey svcParamKey, byte[] value)
+        {
+            try
+            {
+                return ReadSvcParam(svcParamKey, value);
+            }
+            catch (Exception ex) when (IsIgnoredAliasParamException(ex))
+            {
+                return new DnsSvcUnknownParamValue(value);
+            }
+        }
+
+        static DnsSvcParamValue ParseAliasSvcParam(DnsSvcParamKey svcParamKey, string svcParamValue)
+        {
+            try
+            {
+                return DnsSvcParamValue.Parse(svcParamKey, svcParamValue);
+            }
+            catch (Exception ex) when (IsIgnoredAliasParamException(ex))
+            {
+                return new DnsSvcIgnoredParamValue(svcParamValue);
+            }
+        }
+
+        static bool IsIgnoredAliasParamException(Exception ex)
+        {
+            return (ex is DnsClientException) || (ex is FormatException) || (ex is ArgumentException) || (ex is OverflowException) || (ex is EndOfStreamException);
         }
 
         static DnsSvcParamValue ReadSvcParam(DnsSvcParamKey svcParamKey, Stream s)
@@ -433,6 +471,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             foreach (KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> svcParam in _svcParams)
             {
+                if (svcParam.Value is DnsSvcIgnoredParamValue)
+                {
+                    svcParams += " " + FormatSvcParamKey(svcParam.Key) + "=" + DnsDatagram.EncodeCharacterString(svcParam.Value.ToString());
+                    continue;
+                }
+
                 switch (svcParam.Key)
                 {
                     case DnsSvcParamKey.No_Default_ALPN:
@@ -777,6 +821,64 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int UncompressedLength
         { get { return _value.Length; } }
+
+        #endregion
+    }
+
+    class DnsSvcIgnoredParamValue : DnsSvcParamValue
+    {
+        #region variables
+
+        readonly string _presentation;
+
+        #endregion
+
+        #region constructors
+
+        public DnsSvcIgnoredParamValue(string presentation)
+        {
+            _presentation = presentation;
+        }
+
+        #endregion
+
+        #region protected
+
+        protected override void ReadSvcParamValue(Stream s)
+        {
+            s.ReadExactly(_length);
+        }
+
+        protected override void WriteSvcParamValue(Stream s)
+        {
+            s.Write(Encoding.UTF8.GetBytes(_presentation));
+        }
+
+        #endregion
+
+        #region public
+
+        public override bool Equals(object obj)
+        {
+            return (obj is DnsSvcIgnoredParamValue other) && _presentation.Equals(other._presentation, StringComparison.Ordinal);
+        }
+
+        public override int GetHashCode()
+        {
+            return StringComparer.Ordinal.GetHashCode(_presentation);
+        }
+
+        public override string ToString()
+        {
+            return _presentation;
+        }
+
+        #endregion
+
+        #region properties
+
+        public override int UncompressedLength
+        { get { return Encoding.UTF8.GetByteCount(_presentation); } }
 
         #endregion
     }
