@@ -437,7 +437,7 @@ namespace TechnitiumLibrary.Net.Dns
                     //search domain list
                     foreach (DnsDomainOffset domainEntry in domainEntries)
                     {
-                        if (domain.Equals(domainEntry.Domain.Span, StringComparison.OrdinalIgnoreCase))
+                        if (EqualsIgnoreCaseAscii(domain, domainEntry.Domain.Span))
                         {
                             //found matching domain offset for compression
                             ushort pointer = 0xC000;
@@ -604,6 +604,29 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             return buffer is null ? domain : new string(buffer);
+        }
+
+        internal static bool EqualsIgnoreCaseAscii(ReadOnlySpan<char> x, ReadOnlySpan<char> y)
+        {
+            if (x.Length != y.Length)
+                return false;
+
+            for (int i = 0; i < x.Length; i++)
+            {
+                char a = x[i];
+                char b = y[i];
+
+                if ((a >= 'A') && (a <= 'Z'))
+                    a = (char)(a + 0x20);
+
+                if ((b >= 'A') && (b <= 'Z'))
+                    b = (char)(b + 0x20);
+
+                if (a != b)
+                    return false;
+            }
+
+            return true;
         }
 
         public static int GetSerializeDomainNameLength(string domain)
