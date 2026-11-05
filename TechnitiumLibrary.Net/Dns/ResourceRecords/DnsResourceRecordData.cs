@@ -43,10 +43,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             //read RDLENGTH
             _rdLength = DnsDatagram.ReadUInt16NetworkOrder(s);
 
-            //read RDATA
-            if (_rdLength > 0)
-                ReadRecordData(s);
-            else
+            //read RDATA from a window so a short or long length cannot pull in the next record.
+            //compression pointers may still seek into the rest of the message.
+            long rdataStart = s.Position;
+            ReadRecordData(new DnsRDataStream(s, _rdLength));
+
+            long rdataEnd = rdataStart + _rdLength;
+            if (s.Position != rdataEnd)
+                throw new DnsClientException("RDATA length does not match RDLENGTH.");
+
+            if (_rdLength == 0)
                 _emptyRData = true;
         }
 
@@ -131,5 +137,84 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         { get; }
 
         #endregion
+
+        sealed class DnsRDataStream : Stream
+        {
+            readonly Stream _inner;
+            readonly long _start;
+            readonly long _end;
+
+            public DnsRDataStream(Stream inner, int length)
+            {
+                _inner = inner;
+                _start = inner.Position;
+                _end = _start + length;
+            }
+
+            public override bool CanRead
+            { get { return _inner.CanRead; } }
+
+            public override bool CanSeek
+            { get { return _inner.CanSeek; } }
+
+            public override bool CanWrite
+            { get { return false; } }
+
+            public override long Length
+            { get { return _inner.Length; } }
+
+            public override long Position
+            {
+                get { return _inner.Position; }
+                set { _inner.Position = value; }
+            }
+
+            public override void Flush()
+            { }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                return Read(buffer.AsSpan(offset, count));
+            }
+
+            public override int Read(Span<byte> buffer)
+            {
+                long position = _inner.Position;
+                if (position >= _end)
+                    return 0;
+
+                if (position >= _start)
+                {
+                    long remaining = _end - position;
+                    if (remaining < buffer.Length)
+                        buffer = buffer.Slice(0, (int)remaining);
+                }
+
+                return _inner.Read(buffer);
+            }
+
+            public override int ReadByte()
+            {
+                if (_inner.Position >= _end)
+                    return -1;
+
+                return _inner.ReadByte();
+            }
+
+            public override long Seek(long offset, SeekOrigin origin)
+            {
+                return _inner.Seek(offset, origin);
+            }
+
+            public override void SetLength(long value)
+            {
+                throw new NotSupportedException();
+            }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                throw new NotSupportedException();
+            }
+        }
     }
 }
