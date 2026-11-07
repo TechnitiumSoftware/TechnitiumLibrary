@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             //read RDLENGTH
             _rdLength = DnsDatagram.ReadUInt16NetworkOrder(s);
-            _emptyRData = (_rdLength == 0);
+            _emptyRData = _rdLength == 0;
 
             //read RDATA
             //Parse unconditionally: a record type with a fixed structure (SRV, MX, NS,
@@ -59,7 +59,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             long consumed = s.Position - rdataStart;
             if (consumed != _rdLength)
-                throw new InvalidOperationException("Invalid resource record: RDATA length " + consumed + " does not match RDLENGTH " + _rdLength + ".");
+                throw new DnsClientException("Invalid resource record: RDATA length " + consumed + " does not match RDLENGTH " + _rdLength + ".");
         }
 
         #endregion
