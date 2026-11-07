@@ -42,12 +42,24 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             //read RDLENGTH
             _rdLength = DnsDatagram.ReadUInt16NetworkOrder(s);
+            _emptyRData = (_rdLength == 0);
 
             //read RDATA
-            if (_rdLength > 0)
-                ReadRecordData(s);
-            else
-                _emptyRData = true;
+            //Parse unconditionally: a record type with a fixed structure (SRV, MX, NS,
+            //...) otherwise leaves its fields unset when RDLENGTH is zero, which later
+            //faults on the null name. Then verify the parse consumed exactly RDLENGTH
+            //bytes. The type parsers advance by structure and do not themselves check
+            //RDLENGTH, so a length that disagrees with the structure would either leave
+            //bytes unread or read into the following record; names follow compression
+            //pointers but restore the stream, so a well-formed record advances by
+            //exactly RDLENGTH.
+            long rdataStart = s.Position;
+
+            ReadRecordData(s);
+
+            long consumed = s.Position - rdataStart;
+            if (consumed != _rdLength)
+                throw new InvalidOperationException("Invalid resource record: RDATA length " + consumed + " does not match RDLENGTH " + _rdLength + ".");
         }
 
         #endregion
