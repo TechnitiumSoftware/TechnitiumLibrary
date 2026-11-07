@@ -1993,6 +1993,8 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (_glueRecords is null)
                     _glueRecords = new List<DnsResourceRecord>(2);
+                else if (_glueRecords.Contains(glueRecord))
+                    return;
 
                 _glueRecords.Add(glueRecord);
             }
@@ -2001,6 +2003,8 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (_rrsigRecords is null)
                     _rrsigRecords = new List<DnsResourceRecord>(1);
+                else if (_rrsigRecords.Contains(rrsigRecord))
+                    return;
 
                 _rrsigRecords.Add(rrsigRecord);
             }
@@ -2009,6 +2013,8 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (_nsecRecords is null)
                     _nsecRecords = new List<DnsResourceRecord>(2);
+                else if (_nsecRecords.Contains(nsecRecord))
+                    return;
 
                 _nsecRecords.Add(nsecRecord);
             }
