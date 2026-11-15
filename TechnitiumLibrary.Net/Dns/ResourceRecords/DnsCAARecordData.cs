@@ -44,6 +44,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (tag.Length < 1)
                 throw new InvalidDataException("CAA tag length must be at least 1.");
 
+            foreach (char c in tag)
+            {
+                if ((c >= 97) && (c <= 122)) //[a-z]
+                    continue;
+
+                if ((c >= 65) && (c <= 90)) //[A-Z]
+                    continue;
+
+                if ((c >= 48) && (c <= 57)) //[0-9]
+                    continue;
+
+                throw new ArgumentException("Tag can only contain characters \"a\" through \"z\", \"A\" through \"Z\", and the numbers 0 through 9.", nameof(tag));
+            }
+
             _flags = flags;
             _tag = tag.ToLowerInvariant();
             _value = value;
