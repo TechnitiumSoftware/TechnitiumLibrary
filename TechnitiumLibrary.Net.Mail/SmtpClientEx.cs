@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -35,18 +35,18 @@ namespace TechnitiumLibrary.Net.Mail
     {
         #region variables
 
-        readonly static RemoteCertificateValidationCallback _existingServerCertificateValidationCallback;
+        readonly static RemoteCertificateValidationCallback? _existingServerCertificateValidationCallback;
         static bool _ignoreCertificateErrorsForProxy;
 
-        readonly static FieldInfo _localHostName = typeof(SmtpClient).GetField("_clientDomain", BindingFlags.Instance | BindingFlags.NonPublic);
-        IDnsClient _dnsClient;
-        NetProxy _proxy;
+        readonly static FieldInfo _localHostName = typeof(SmtpClient).GetField("_clientDomain", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        IDnsClient? _dnsClient;
+        NetProxy? _proxy;
         bool _smtpOverTls;
-        string _host;
+        string? _host;
         int _port;
         bool _ignoreCertificateErrors;
 
-        TunnelProxy _tunnelProxy;
+        TunnelProxy? _tunnelProxy;
 
         #endregion
 
@@ -54,8 +54,10 @@ namespace TechnitiumLibrary.Net.Mail
 
         static SmtpClientEx()
         {
+#pragma warning disable SYSLIB0014 // Type or member is obsolete
             _existingServerCertificateValidationCallback = ServicePointManager.ServerCertificateValidationCallback;
             ServicePointManager.ServerCertificateValidationCallback = ServerCertificateValidationCallback;
+#pragma warning restore SYSLIB0014 // Type or member is obsolete
         }
 
         public SmtpClientEx()
@@ -88,10 +90,7 @@ namespace TechnitiumLibrary.Net.Mail
                 return;
 
             if (disposing)
-            {
-                if (_tunnelProxy != null)
-                    _tunnelProxy.Dispose();
-            }
+                _tunnelProxy?.Dispose();
 
             _disposed = true;
 
@@ -102,7 +101,7 @@ namespace TechnitiumLibrary.Net.Mail
 
         #region static
 
-        private static bool ServerCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        private static bool ServerCertificateValidationCallback(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
             if (sender is SmtpClientEx smtpClient)
             {
@@ -122,7 +121,7 @@ namespace TechnitiumLibrary.Net.Mail
                 }
             }
 
-            if (sender is SslStream sslStream && IPAddress.TryParse(sslStream.TargetHostName, out IPAddress address) && IPAddress.IsLoopback(address))
+            if (sender is SslStream sslStream && IPAddress.TryParse(sslStream.TargetHostName, out IPAddress? address) && IPAddress.IsLoopback(address))
             {
                 if (_ignoreCertificateErrorsForProxy)
                     return true;
@@ -185,7 +184,7 @@ namespace TechnitiumLibrary.Net.Mail
 
             if (DeliveryMethod == SmtpDeliveryMethod.Network)
             {
-                string host = _host;
+                string? host = _host;
 
                 if (string.IsNullOrEmpty(host))
                 {
@@ -263,7 +262,7 @@ namespace TechnitiumLibrary.Net.Mail
 
         #region properties
 
-        public string LocalHostName
+        public string? LocalHostName
         {
             get
             {
@@ -278,13 +277,13 @@ namespace TechnitiumLibrary.Net.Mail
             }
         }
 
-        public IDnsClient DnsClient
+        public IDnsClient? DnsClient
         {
             get { return _dnsClient; }
             set { _dnsClient = value; }
         }
 
-        public NetProxy Proxy
+        public NetProxy? Proxy
         {
             get { return _proxy; }
             set { _proxy = value; }
@@ -296,7 +295,7 @@ namespace TechnitiumLibrary.Net.Mail
             set { _smtpOverTls = value; }
         }
 
-        public new string Host
+        public new string? Host
         {
             get { return _host; }
             set { _host = value; }

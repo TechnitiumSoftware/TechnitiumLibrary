@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,18 +32,20 @@ namespace TechnitiumLibrary.Net.Mail
     {
         #region variables
 
-        TcpClient _sock;
+        private static readonly char[] spaceSeparator = new char[] { ' ' };
+
+        TcpClient? _sock;
 
         readonly string _hostname;
         readonly int _port;
-        readonly string _username;
-        readonly string _password;
+        readonly string? _username;
+        readonly string? _password;
         readonly bool _ssl = false;
         readonly bool _ignoreCertificateErrors = false;
         readonly bool _preferSecureAuth = true;
 
-        StreamWriter _sW;
-        StreamReader _sR;
+        StreamWriter? _sW;
+        StreamReader? _sR;
 
         #endregion
 
@@ -79,14 +81,9 @@ namespace TechnitiumLibrary.Net.Mail
 
             if (disposing)
             {
-                if (_sW != null)
-                    _sW.Dispose();
-
-                if (_sR != null)
-                    _sR.Dispose();
-
-                if (_sock != null)
-                    _sock.Dispose();
+                _sW?.Dispose();
+                _sR?.Dispose();
+                _sock?.Dispose();
             }
 
             _disposed = true;
@@ -96,7 +93,7 @@ namespace TechnitiumLibrary.Net.Mail
 
         #region private
 
-        private bool RemoteCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        private bool RemoteCertificateValidationCallback(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
             return true; //ignore cert errors
         }
@@ -130,11 +127,11 @@ namespace TechnitiumLibrary.Net.Mail
             else
                 stream = _sock.GetStream();
 
-            _sR = new StreamReader(stream, Encoding.ASCII, false, 1);
-            _sW = new StreamWriter(stream, Encoding.ASCII, 1);
+            _sR = new StreamReader(stream, Encoding.ASCII, false);
+            _sW = new StreamWriter(stream, Encoding.ASCII);
             _sW.AutoFlush = true;
 
-            string response = _sR.ReadLine();
+            string? response = _sR.ReadLine();
             if (response == null)
                 throw new Pop3Exception("No response from server.");
             if (response.StartsWith("-ERR "))
@@ -185,8 +182,11 @@ namespace TechnitiumLibrary.Net.Mail
 
         public void QUIT()
         {
-            _sW.WriteLine("QUIT");
-            string response = _sR.ReadLine();
+            if (_sock is null)
+                throw new InvalidOperationException("Not connected.");
+
+            _sW!.WriteLine("QUIT");
+            string? response = _sR!.ReadLine();
             if (response == null)
                 throw new Pop3Exception("No response from server.");
             if (response.StartsWith("-ERR "))
@@ -195,22 +195,28 @@ namespace TechnitiumLibrary.Net.Mail
 
         public Pop3Stats STAT()
         {
-            _sW.WriteLine("STAT");
-            string response = _sR.ReadLine();
+            if (_sock is null)
+                throw new InvalidOperationException("Not connected.");
+
+            _sW!.WriteLine("STAT");
+            string? response = _sR!.ReadLine();
             if (response == null)
                 throw new Pop3Exception("No response from server.");
             if (response.StartsWith("-ERR "))
                 throw new Pop3Exception("Server returned: " + response.Substring(5));
 
-            string[] tmp = response.Substring(4).Split(new char[] { ' ' });
+            string[] tmp = response.Substring(4).Split(spaceSeparator);
 
             return new Pop3Stats() { TotalMessages = Convert.ToInt32(tmp[0]), TotalSize = Convert.ToInt32(tmp[1]) };
         }
 
         public Pop3MessageInfo[] LIST()
         {
-            _sW.WriteLine("LIST");
-            string response = _sR.ReadLine();
+            if (_sock is null)
+                throw new InvalidOperationException("Not connected.");
+
+            _sW!.WriteLine("LIST");
+            string? response = _sR!.ReadLine();
             if (response == null)
                 throw new Pop3Exception("No response from server.");
             if (response.StartsWith("-ERR "))
@@ -220,11 +226,13 @@ namespace TechnitiumLibrary.Net.Mail
 
             while (true)
             {
-                string tmp = _sR.ReadLine();
+                string? tmp = _sR!.ReadLine();
+                if (tmp is null)
+                    throw new Pop3Exception("Invalid response from server.");
                 if (tmp == ".")
                     break;
 
-                string[] tmp2 = tmp.Split(new char[] { ' ' });
+                string[] tmp2 = tmp.Split(spaceSeparator);
 
                 info.Add(new Pop3MessageInfo() { MessageNumber = Convert.ToInt32(tmp2[0]), MessageSize = Convert.ToInt32(tmp2[1]) });
             }
@@ -234,8 +242,11 @@ namespace TechnitiumLibrary.Net.Mail
 
         public byte[] RETR(int messageNumber)
         {
-            _sW.WriteLine("RETR " + messageNumber);
-            string response = _sR.ReadLine();
+            if (_sock is null)
+                throw new InvalidOperationException("Not connected.");
+
+            _sW!.WriteLine("RETR " + messageNumber);
+            string? response = _sR!.ReadLine();
             if (response == null)
                 throw new Pop3Exception("No response from server.");
             if (response.StartsWith("-ERR "))
@@ -245,7 +256,9 @@ namespace TechnitiumLibrary.Net.Mail
             {
                 while (true)
                 {
-                    string tmp = _sR.ReadLine();
+                    string? tmp = _sR!.ReadLine();
+                    if (tmp is null)
+                        throw new Pop3Exception("Invalid response from server.");
                     if (tmp == ".")
                         break;
 
@@ -261,8 +274,11 @@ namespace TechnitiumLibrary.Net.Mail
 
         public byte[] TOP(int messageNumber, int lines)
         {
-            _sW.WriteLine("TOP " + messageNumber + " " + lines);
-            string response = _sR.ReadLine();
+            if (_sock is null)
+                throw new InvalidOperationException("Not connected.");
+
+            _sW!.WriteLine("TOP " + messageNumber + " " + lines);
+            string? response = _sR!.ReadLine();
             if (response == null)
                 throw new Pop3Exception("No response from server.");
             if (response.StartsWith("-ERR "))
@@ -272,7 +288,9 @@ namespace TechnitiumLibrary.Net.Mail
             {
                 while (true)
                 {
-                    string tmp = _sR.ReadLine();
+                    string? tmp = _sR!.ReadLine();
+                    if (tmp is null)
+                        throw new Pop3Exception("Invalid response from server.");
                     if (tmp == ".")
                         break;
 
@@ -288,8 +306,11 @@ namespace TechnitiumLibrary.Net.Mail
 
         public void DELE(int messageNumber)
         {
-            _sW.WriteLine("DELE " + messageNumber);
-            string response = _sR.ReadLine();
+            if (_sock is null)
+                throw new InvalidOperationException("Not connected.");
+
+            _sW!.WriteLine("DELE " + messageNumber);
+            string? response = _sR!.ReadLine();
             if (response == null)
                 throw new Pop3Exception("No response from server.");
             if (response.StartsWith("-ERR "))
@@ -298,8 +319,11 @@ namespace TechnitiumLibrary.Net.Mail
 
         public void NOOP()
         {
-            _sW.WriteLine("NOOP");
-            string response = _sR.ReadLine();
+            if (_sock is null)
+                throw new InvalidOperationException("Not connected.");
+
+            _sW!.WriteLine("NOOP");
+            string? response = _sR!.ReadLine();
             if (response == null)
                 throw new Pop3Exception("No response from server.");
             if (response.StartsWith("-ERR "))
@@ -308,8 +332,11 @@ namespace TechnitiumLibrary.Net.Mail
 
         public void RSET()
         {
-            _sW.WriteLine("RSET");
-            string response = _sR.ReadLine();
+            if (_sock is null)
+                throw new InvalidOperationException("Not connected.");
+
+            _sW!.WriteLine("RSET");
+            string? response = _sR!.ReadLine();
             if (response == null)
                 throw new Pop3Exception("No response from server.");
             if (response.StartsWith("-ERR "))
