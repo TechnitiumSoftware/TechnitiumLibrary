@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
 using System.Security.Cryptography;
@@ -69,14 +70,14 @@ namespace TechnitiumLibrary.Net.Dns
 
         const int MAX_XFR_RESPONSE_SIZE = 16384; //since the compressed name pointer offset can only address 16384 bytes in datagram
 
-        DnsDatagramMetadata _metadata;
-        DnsDatagramEdns _edns;
-        List<EDnsExtendedDnsErrorOptionData> _dnsClientExtendedErrors;
+        DnsDatagramMetadata? _metadata;
+        DnsDatagramEdns? _edns;
+        List<EDnsExtendedDnsErrorOptionData>? _dnsClientExtendedErrors;
         bool _shadowHideECSOption;
-        EDnsClientSubnetOptionData _shadowECSOption;
+        EDnsClientSubnetOptionData? _shadowECSOption;
 
         int _size = -1;
-        byte[] _parsedDatagramUnsigned;
+        byte[]? _parsedDatagramUnsigned;
 
         ushort _ID;
 
@@ -96,18 +97,20 @@ namespace TechnitiumLibrary.Net.Dns
         IReadOnlyList<DnsResourceRecord> _authority;
         IReadOnlyList<DnsResourceRecord> _additional;
 
-        Exception _parsingException;
+        Exception? _parsingException;
 
-        DnsDatagram _nextDatagram; //used for TCP XFR multiple messages
+        DnsDatagram? _nextDatagram; //used for TCP XFR multiple messages
 
         #endregion
 
         #region constructor
 
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         private DnsDatagram()
         { }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
-        public DnsDatagram(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, IReadOnlyList<DnsQuestionRecord> question, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null, ushort udpPayloadSize = ushort.MinValue, EDnsHeaderFlags ednsFlags = EDnsHeaderFlags.None, IReadOnlyList<EDnsOption> options = null)
+        public DnsDatagram(ushort ID, bool isResponse, DnsOpcode OPCODE, bool authoritativeAnswer, bool truncation, bool recursionDesired, bool recursionAvailable, bool authenticData, bool checkingDisabled, DnsResponseCode RCODE, IReadOnlyList<DnsQuestionRecord>? question, IReadOnlyList<DnsResourceRecord>? answer = null, IReadOnlyList<DnsResourceRecord>? authority = null, IReadOnlyList<DnsResourceRecord>? additional = null, ushort udpPayloadSize = ushort.MinValue, EDnsHeaderFlags ednsFlags = EDnsHeaderFlags.None, IReadOnlyList<EDnsOption>? options = null)
         {
             _ID = ID;
 
@@ -136,19 +139,10 @@ namespace TechnitiumLibrary.Net.Dns
 
             _RCODE = RCODE;
 
-            _question = question;
-            _answer = answer;
-            _authority = authority;
-            _additional = additional;
-
-            if (_question is null)
-                _question = [];
-
-            if (_answer is null)
-                _answer = [];
-
-            if (_authority is null)
-                _authority = [];
+            _question = question ?? [];
+            _answer = answer ?? [];
+            _authority = authority ?? [];
+            _additional = additional!;
 
             if (_additional is null)
             {
@@ -333,7 +327,7 @@ namespace TechnitiumLibrary.Net.Dns
                 s.Position = datagram._size;
 
                 BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(10, 2), Convert.ToUInt16(ARCOUNT - 1)); //originalARCOUNT
-                BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(0, 2), (tsigRecord.RDATA as DnsTSIGRecordData).OriginalID); //originalID
+                BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(0, 2), (tsigRecord.RDATA as DnsTSIGRecordData)!.OriginalID); //originalID
 
                 datagram._parsedDatagramUnsigned = buffer;
             }
@@ -422,7 +416,7 @@ namespace TechnitiumLibrary.Net.Dns
             return t;
         }
 
-        public static void SerializeDomainName(ReadOnlySpan<char> domain, Stream s, List<DnsDomainOffset> domainEntries = null, bool isEmailAddress = false)
+        public static void SerializeDomainName(ReadOnlySpan<char> domain, Stream s, List<DnsDomainOffset>? domainEntries = null, bool isEmailAddress = false)
         {
             Span<byte> labelBytes = stackalloc byte[63];
             int labelBytesLength;
@@ -573,7 +567,7 @@ namespace TechnitiumLibrary.Net.Dns
             //full Unicode case folding and would corrupt those bytes, so domain names use this instead wherever
             //the result feeds into a signed hash or a canonical-order comparison.
 
-            char[] buffer = null;
+            char[]? buffer = null;
 
             for (int i = 0; i < domain.Length; i++)
             {
@@ -634,7 +628,7 @@ namespace TechnitiumLibrary.Net.Dns
             return datagram;
         }
 
-        internal DnsDatagram CloneInternal(DnsResponseCode? rcode = null, IReadOnlyList<DnsQuestionRecord> question = null, IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
+        internal DnsDatagram CloneInternal(DnsResponseCode? rcode = null, IReadOnlyList<DnsQuestionRecord>? question = null, IReadOnlyList<DnsResourceRecord>? answer = null, IReadOnlyList<DnsResourceRecord>? authority = null, IReadOnlyList<DnsResourceRecord>? additional = null)
         {
             if (rcode is null)
                 rcode = _RCODE;
@@ -679,7 +673,7 @@ namespace TechnitiumLibrary.Net.Dns
             return datagram;
         }
 
-        internal void AddDnsClientExtendedError(EDnsExtendedDnsErrorCode errorCode, string extraText = null)
+        internal void AddDnsClientExtendedError(EDnsExtendedDnsErrorCode errorCode, string? extraText = null)
         {
             AddDnsClientExtendedError(new EDnsExtendedDnsErrorOptionData(errorCode, extraText));
         }
@@ -734,7 +728,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region public
 
-        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord> answer = null, IReadOnlyList<DnsResourceRecord> authority = null, IReadOnlyList<DnsResourceRecord> additional = null)
+        public DnsDatagram Clone(IReadOnlyList<DnsResourceRecord>? answer = null, IReadOnlyList<DnsResourceRecord>? authority = null, IReadOnlyList<DnsResourceRecord>? additional = null)
         {
             return CloneInternal(answer: answer, authority: authority, additional: additional);
         }
@@ -858,7 +852,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (_additional.Count == 0)
                 return this;
 
-            IReadOnlyList<DnsResourceRecord> newAdditional = null;
+            IReadOnlyList<DnsResourceRecord>? newAdditional = null;
 
             for (int i = _additional.Count - 1; i > -1; i--)
             {
@@ -883,7 +877,7 @@ namespace TechnitiumLibrary.Net.Dns
             return finalDatagram;
         }
 
-        public EDnsClientSubnetOptionData GetEDnsClientSubnetOption(bool noShadow = false)
+        public EDnsClientSubnetOptionData? GetEDnsClientSubnetOption(bool noShadow = false)
         {
             if (!noShadow)
             {
@@ -977,7 +971,7 @@ namespace TechnitiumLibrary.Net.Dns
             return (_RCODE == DnsResponseCode.NoError) && (_answer.Count == 0) && (FindFirstAuthorityType() == DnsResourceRecordType.NS);
         }
 
-        public void SetMetadata(NameServerAddress server, double rtt = 0.0)
+        public void SetMetadata(NameServerAddress? server, double rtt = 0.0)
         {
             if (_metadata is not null)
                 throw new InvalidOperationException("Cannot overwrite existing Metadata.");
@@ -1023,13 +1017,13 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public DnsResourceRecord GetLastAnswerRecord()
+        public DnsResourceRecord? GetLastAnswerRecord()
         {
             if (_question.Count == 0)
                 return null;
 
             DnsQuestionRecord question = _question[0];
-            DnsResourceRecord lastAnswer = null;
+            DnsResourceRecord? lastAnswer = null;
             string name = question.Name;
 
             foreach (DnsResourceRecord record in _answer)
@@ -1044,7 +1038,7 @@ namespace TechnitiumLibrary.Net.Dns
                 else if (record.Type == DnsResourceRecordType.CNAME)
                 {
                     lastAnswer = record;
-                    name = (record.RDATA as DnsCNAMERecordData).Domain;
+                    name = (record.RDATA as DnsCNAMERecordData)!.Domain;
                 }
             }
 
@@ -1056,32 +1050,32 @@ namespace TechnitiumLibrary.Net.Dns
 
         public bool IsFirstAuthoritySOA()
         {
-            DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
+            DnsResourceRecord? firstAuthority = FindFirstAuthorityRecord();
             return (firstAuthority is not null) && (firstAuthority.Type == DnsResourceRecordType.SOA);
         }
 
         public bool IsFirstAuthoritySOAOrFWD()
         {
-            DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
+            DnsResourceRecord? firstAuthority = FindFirstAuthorityRecord();
             return (firstAuthority is not null) && ((firstAuthority.Type == DnsResourceRecordType.SOA) || (firstAuthority.Type == DnsResourceRecordType.FWD));
         }
 
         public bool IsFirstAuthoritySOAOrFWDOrAPP()
         {
-            DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
+            DnsResourceRecord? firstAuthority = FindFirstAuthorityRecord();
             return (firstAuthority is not null) && ((firstAuthority.Type == DnsResourceRecordType.SOA) || (firstAuthority.Type == DnsResourceRecordType.FWD) || (firstAuthority.Type == DnsResourceRecordType.APP));
         }
 
         public DnsResourceRecordType FindFirstAuthorityType()
         {
-            DnsResourceRecord firstAuthority = FindFirstAuthorityRecord();
+            DnsResourceRecord? firstAuthority = FindFirstAuthorityRecord();
             if (firstAuthority is null)
                 return DnsResourceRecordType.Unknown;
 
             return firstAuthority.Type;
         }
 
-        public DnsResourceRecord FindFirstAuthorityRecord()
+        public DnsResourceRecord? FindFirstAuthorityRecord()
         {
             foreach (DnsResourceRecord record in _authority)
             {
@@ -1139,7 +1133,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public async Task WriteToTcpAsync(Stream s, MemoryStream sharedBuffer, CancellationToken cancellationToken = default)
         {
-            DnsDatagram current = this;
+            DnsDatagram? current = this;
             long datagramLength;
 
             do
@@ -1152,7 +1146,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if (datagramLength > ushort.MaxValue)
                 {
                     //truncate and write
-                    IReadOnlyList<DnsResourceRecord> additional = null;
+                    IReadOnlyList<DnsResourceRecord>? additional = null;
 
                     if (_edns is not null)
                         additional = [DnsDatagramEdns.GetOPTFor(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, _edns.Options)];
@@ -1265,8 +1259,8 @@ namespace TechnitiumLibrary.Net.Dns
             if (_answer.Count == 0)
                 return this;
 
-            DnsDatagram first = null;
-            DnsDatagram last = null;
+            DnsDatagram? first = null;
+            DnsDatagram? last = null;
             int iQD = 0;
             int iAN = 0;
             int iNS = 0;
@@ -1290,10 +1284,10 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 int datagramSize = 12; //init with header size
 
-                IReadOnlyList<DnsQuestionRecord> question = null;
-                IReadOnlyList<DnsResourceRecord> answer = null;
-                IReadOnlyList<DnsResourceRecord> authority = null;
-                IReadOnlyList<DnsResourceRecord> additional = null;
+                IReadOnlyList<DnsQuestionRecord>? question = null;
+                IReadOnlyList<DnsResourceRecord>? answer = null;
+                IReadOnlyList<DnsResourceRecord>? authority = null;
+                IReadOnlyList<DnsResourceRecord>? additional = null;
 
                 if (iQD < _question.Count)
                 {
@@ -1364,7 +1358,7 @@ namespace TechnitiumLibrary.Net.Dns
                 }
                 else
                 {
-                    last._nextDatagram = datagram;
+                    last!._nextDatagram = datagram;
                     last = datagram;
                 }
             }
@@ -1390,7 +1384,7 @@ namespace TechnitiumLibrary.Net.Dns
             List<DnsResourceRecord> answer = new List<DnsResourceRecord>(_answer.Count * 2);
             List<DnsResourceRecord> authority = new List<DnsResourceRecord>(_authority.Count * 2);
             List<DnsResourceRecord> additional = new List<DnsResourceRecord>(_additional.Count * 2);
-            DnsDatagram current = this;
+            DnsDatagram? current = this;
             int size = 0;
 
             ushort udpPayloadSize = 0;
@@ -1426,7 +1420,10 @@ namespace TechnitiumLibrary.Net.Dns
 
             DnsDatagram joinedDatagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, _question, answer, authority, additional, udpPayloadSize, ednsFlags, options);
             joinedDatagram._size = size;
-            joinedDatagram.SetMetadata(_metadata.NameServer, _metadata.RoundTripTime);
+
+            if (_metadata is not null)
+                joinedDatagram.SetMetadata(_metadata.NameServer, _metadata.RoundTripTime);
+
             joinedDatagram.Tag = Tag;
 
             return joinedDatagram;
@@ -1475,7 +1472,7 @@ namespace TechnitiumLibrary.Net.Dns
             return signedDatagram;
         }
 
-        public bool VerifySignedRequest(IReadOnlyDictionary<string, TsigKey> keys, out DnsDatagram unsignedRequest, out DnsDatagram errorResponse)
+        public bool VerifySignedRequest(IReadOnlyDictionary<string, TsigKey> keys, [NotNullWhen(true)] out DnsDatagram? unsignedRequest, [NotNullWhen(false)] out DnsDatagram? errorResponse)
         {
             if (IsResponse)
                 throw new InvalidOperationException("Cannot verify this datagram: datagram must be a request.");
@@ -1484,13 +1481,13 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new InvalidOperationException("Cannot verify this datagram: datagram is not signed.");
 
             DnsResourceRecord tsigRecord = _additional[_additional.Count - 1];
-            DnsTSIGRecordData tsig = tsigRecord.RDATA as DnsTSIGRecordData;
+            DnsTSIGRecordData tsig = (tsigRecord.RDATA as DnsTSIGRecordData)!;
 
             //verify
             ushort expectedMacSize = GetTsigMacSize(tsig.AlgorithmName);
 
             //Key Check
-            if ((expectedMacSize == ushort.MinValue) || (keys is null) || !keys.TryGetValue(tsigRecord.Name.ToLowerInvariant(), out TsigKey key) || !key.AlgorithmName.Equals(tsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
+            if ((expectedMacSize == ushort.MinValue) || (keys is null) || !keys.TryGetValue(tsigRecord.Name.ToLowerInvariant(), out TsigKey? key) || !key.AlgorithmName.Equals(tsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
             {
                 unsignedRequest = null;
 
@@ -1603,7 +1600,7 @@ namespace TechnitiumLibrary.Net.Dns
                 throw new InvalidOperationException("Cannot sign this datagram: a signed request datagram is expected.");
 
             DnsResourceRecord requestTsigRecord = signedRequest._additional[signedRequest._additional.Count - 1];
-            DnsTSIGRecordData requestTsig = requestTsigRecord.RDATA as DnsTSIGRecordData;
+            DnsTSIGRecordData requestTsig = (requestTsigRecord.RDATA as DnsTSIGRecordData)!;
 
             ulong timeSigned;
             byte[] otherData;
@@ -1621,7 +1618,7 @@ namespace TechnitiumLibrary.Net.Dns
                     break;
             }
 
-            if ((keys is null) || !keys.TryGetValue(requestTsigRecord.Name.ToLowerInvariant(), out TsigKey key) || !key.AlgorithmName.Equals(requestTsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
+            if ((keys is null) || !keys.TryGetValue(requestTsigRecord.Name.ToLowerInvariant(), out TsigKey? key) || !key.AlgorithmName.Equals(requestTsig.AlgorithmName, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Cannot sign this datagram: key not found or algorithm mismatch.");
 
             byte[] mac = ComputeTsigResponseMac(requestTsigRecord, key.KeyName, key.AlgorithmName, timeSigned, requestTsig.Fudge, error, otherData, key.SharedSecret, 0);
@@ -1659,7 +1656,7 @@ namespace TechnitiumLibrary.Net.Dns
             //sign next messages
             if (_nextDatagram is not null)
             {
-                DnsDatagram current = _nextDatagram;
+                DnsDatagram? current = _nextDatagram;
                 DnsTSIGRecordData priorTsig = tsig;
                 DnsDatagram lastSigned = signedDatagram;
 
@@ -1705,7 +1702,7 @@ namespace TechnitiumLibrary.Net.Dns
             return signedDatagram;
         }
 
-        public bool VerifySignedResponse(DnsDatagram signedRequest, TsigKey key, out DnsDatagram unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error, out string errorMessage)
+        public bool VerifySignedResponse(DnsDatagram signedRequest, TsigKey key, [NotNullWhen(true)] out DnsDatagram? unsignedResponse, out bool requestFailed, out DnsResponseCode rCode, out DnsTsigError error, out string? errorMessage)
         {
             if (!IsResponse)
                 throw new InvalidOperationException("Cannot verify this datagram: datagram must be a response.");
@@ -1722,7 +1719,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
 
             DnsResourceRecord tsigRecord = _additional[_additional.Count - 1];
-            DnsTSIGRecordData tsig = tsigRecord.RDATA as DnsTSIGRecordData;
+            DnsTSIGRecordData tsig = (tsigRecord.RDATA as DnsTSIGRecordData)!;
 
             //verify
             ushort expectedMacSize = GetTsigMacSize(tsig.AlgorithmName);
@@ -1857,7 +1854,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (_nextDatagram is not null)
             {
                 DnsDatagram unsignedPrior = unsignedResponse;
-                DnsDatagram current = _nextDatagram;
+                DnsDatagram? current = _nextDatagram;
                 DnsTSIGRecordData priorTsig = tsig;
                 List<DnsDatagram> dnsMessages = new List<DnsDatagram>();
 
@@ -1879,7 +1876,7 @@ namespace TechnitiumLibrary.Net.Dns
                     }
 
                     DnsResourceRecord currentTsigRecord = current._additional[current._additional.Count - 1];
-                    DnsTSIGRecordData currentTsig = currentTsigRecord.RDATA as DnsTSIGRecordData;
+                    DnsTSIGRecordData currentTsig = (currentTsigRecord.RDATA as DnsTSIGRecordData)!;
 
                     //verify
                     //MAC Check
@@ -2037,7 +2034,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         private byte[] ComputeTsigResponseMac(DnsResourceRecord requestTsigRecord, string keyName, string algorithmName, ulong timeSigned, ushort fudge, DnsTsigError error, byte[] otherData, string sharedSecret, int truncationLength)
         {
-            DnsTSIGRecordData requestTsig = requestTsigRecord.RDATA as DnsTSIGRecordData;
+            DnsTSIGRecordData requestTsig = (requestTsigRecord.RDATA as DnsTSIGRecordData)!;
 
             using (MemoryStream mS = new MemoryStream(256))
             {
@@ -2253,10 +2250,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region properties
 
-        public DnsDatagramMetadata Metadata
+        public DnsDatagramMetadata? Metadata
         { get { return _metadata; } }
 
-        public DnsDatagramEdns EDNS
+        public DnsDatagramEdns? EDNS
         { get { return _edns; } }
 
         public IReadOnlyList<EDnsExtendedDnsErrorOptionData> DnsClientExtendedErrors
@@ -2337,7 +2334,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public string TsigKeyName
+        public string? TsigKeyName
         {
             get
             {
@@ -2351,10 +2348,10 @@ namespace TechnitiumLibrary.Net.Dns
         public bool IsZoneTransfer
         { get { return (_question.Count > 0) && ((_question[0].Type == DnsResourceRecordType.IXFR) || (_question[0].Type == DnsResourceRecordType.AXFR)); } }
 
-        public Exception ParsingException
+        public Exception? ParsingException
         { get { return _parsingException; } }
 
-        public DnsDatagram NextDatagram
+        public DnsDatagram? NextDatagram
         {
             get { return _nextDatagram; }
             set
@@ -2377,7 +2374,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public object Tag { get; set; }
+        public object? Tag { get; set; }
 
         #endregion
     }

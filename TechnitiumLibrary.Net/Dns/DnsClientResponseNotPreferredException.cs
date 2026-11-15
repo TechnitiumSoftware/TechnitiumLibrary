@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ namespace TechnitiumLibrary.Net.Dns
         #region constructors
 
         public DnsClientResponseNotPreferredException(DnsDatagram response)
-            : base(null)
+            : base()
         {
             _response = response;
         }

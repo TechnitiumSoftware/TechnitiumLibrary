@@ -44,8 +44,8 @@ namespace TechnitiumLibrary.Net.Dns
 
         //QNAME Minimization
         const int MAX_MINIMISE_COUNT = 10;
-        string _zoneCut;
-        string _minimizedName;
+        string? _zoneCut;
+        string? _minimizedName;
 
         #endregion  
 
@@ -80,7 +80,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         public DnsQuestionRecord(JsonElement jsonQuestionRecord)
         {
-            _name = jsonQuestionRecord.GetProperty("name").GetString().TrimEnd('.');
+            _name = jsonQuestionRecord.GetProperty("name").ToString().TrimEnd('.');
             _type = (DnsResourceRecordType)jsonQuestionRecord.GetProperty("type").GetUInt16();
             _class = DnsClass.IN;
         }
@@ -94,26 +94,26 @@ namespace TechnitiumLibrary.Net.Dns
             if (string.IsNullOrEmpty(name))
                 return name;
 
-            byte[] asciiName = Encoding.ASCII.GetBytes(name);
-            Span<byte> r = stackalloc byte[asciiName.Length];
+            byte[] nameBytes = Encoding.Latin1.GetBytes(name);
+            Span<byte> r = stackalloc byte[nameBytes.Length];
 
             RandomNumberGenerator.Fill(r);
 
-            for (int i = 0; i < asciiName.Length; i++)
+            for (int i = 0; i < nameBytes.Length; i++)
             {
-                if (((asciiName[i] >= 97) && (asciiName[i] <= 122)) || ((asciiName[i] >= 65) && (asciiName[i] <= 90)))
+                if (((nameBytes[i] >= 97) && (nameBytes[i] <= 122)) || ((nameBytes[i] >= 65) && (nameBytes[i] <= 90)))
                 {
                     if ((r[i] & 0x1) > 0)
-                        asciiName[i] |= 0x20;
+                        nameBytes[i] |= 0x20;
                     else
-                        asciiName[i] &= 0xDF;
+                        nameBytes[i] &= 0xDF;
                 }
             }
 
-            return Encoding.ASCII.GetString(asciiName);
+            return Encoding.Latin1.GetString(nameBytes);
         }
 
-        private static string GetMinimizedName(string name, string zoneCut)
+        private static string? GetMinimizedName(string name, string? zoneCut)
         {
             //www.example.com
             //com
@@ -176,7 +176,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -217,7 +217,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             jsonWriter.WriteString("Name", _name);
 
-            if (DnsClient.TryConvertDomainNameToUnicode(_name, out string nameIDN))
+            if (DnsClient.TryConvertDomainNameToUnicode(_name, out string? nameIDN))
                 jsonWriter.WriteString("NameIDN", nameIDN);
 
             jsonWriter.WriteString("Type", _type.ToString());
@@ -239,7 +239,7 @@ namespace TechnitiumLibrary.Net.Dns
         public DnsClass Class
         { get { return _class; } }
 
-        internal string ZoneCut
+        internal string? ZoneCut
         {
             get { return _zoneCut; }
             set
@@ -255,7 +255,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        internal string MinimizedName
+        internal string? MinimizedName
         { get { return _minimizedName; } }
 
         internal DnsResourceRecordType MinimizedType
