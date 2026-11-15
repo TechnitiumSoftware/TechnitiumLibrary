@@ -898,7 +898,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 break;
                         }
                     }
-                    else if ((answer.Type == DnsResourceRecordType.DNAME) && qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                    else if ((answer.Type == DnsResourceRecordType.DNAME) && DnsDatagram.IsSubDomainName(qName, answer.Name))
                     {
                         cachableRecords.Add(answer);
                     }
@@ -931,7 +931,7 @@ namespace TechnitiumLibrary.Net.Dns
                             {
                                 string cnameDomain = (lastAnswer.RDATA as DnsCNAMERecordData).Domain;
 
-                                if (cnameDomain.Equals(firstAuthority.Name, StringComparison.OrdinalIgnoreCase) || cnameDomain.EndsWith("." + firstAuthority.Name, StringComparison.OrdinalIgnoreCase))
+                                if (cnameDomain.Equals(firstAuthority.Name, StringComparison.OrdinalIgnoreCase) || DnsDatagram.IsSubDomainName(cnameDomain, firstAuthority.Name))
                                 {
                                     foreach (DnsQuestionRecord question in response.Question)
                                     {
@@ -977,7 +977,7 @@ namespace TechnitiumLibrary.Net.Dns
                                             break;
                                         }
 
-                                        if ((zoneCut.Length > 0) && !authority.Name.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase))
+                                        if ((zoneCut.Length > 0) && !DnsDatagram.IsSubDomainName(authority.Name, zoneCut))
                                         {
                                             //empty response with authority name server out of bailiwick; dont cache invalid referral response
                                             isReferralResponse = false;
@@ -1024,7 +1024,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         case DnsResourceRecordType.NS:
                                             foreach (DnsQuestionRecord question in response.Question)
                                             {
-                                                if (question.Name.Equals(authority.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authority.Name, StringComparison.OrdinalIgnoreCase))
+                                                if (question.Name.Equals(authority.Name, StringComparison.OrdinalIgnoreCase) || DnsDatagram.IsSubDomainName(question.Name, authority.Name))
                                                 {
                                                     cachableRecords.Add(authority);
 

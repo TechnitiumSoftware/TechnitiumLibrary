@@ -107,8 +107,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static int CanonicalComparison(string domain1, string domain2)
         {
-            string[] labels1 = DnsDatagram.ToLowerInvariantAscii(domain1).Split('.');
-            string[] labels2 = DnsDatagram.ToLowerInvariantAscii(domain2).Split('.');
+            string[] labels1 = DnsDatagram.SplitDomainNameLabels(DnsDatagram.ToLowerInvariantAscii(domain1));
+            string[] labels2 = DnsDatagram.SplitDomainNameLabels(DnsDatagram.ToLowerInvariantAscii(domain2));
 
             int minLength = labels1.Length;
 
@@ -117,7 +117,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             for (int i = 0; i < minLength; i++)
             {
-                int value = CanonicalComparison(Encoding.Latin1.GetBytes(labels1[labels1.Length - 1 - i]), Encoding.Latin1.GetBytes(labels2[labels2.Length - 1 - i]));
+                int value = CanonicalComparison(Encoding.Latin1.GetBytes(DnsDatagram.UnescapeDomainLabel(labels1[labels1.Length - 1 - i])), Encoding.Latin1.GetBytes(DnsDatagram.UnescapeDomainLabel(labels2[labels2.Length - 1 - i])));
                 if (value != 0)
                     return value;
             }
@@ -186,7 +186,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 {
                     //found proof of cover
 
-                    if (nsec._nextDomainName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase))
+                    if (DnsDatagram.IsSubDomainName(nsec._nextDomainName, domain))
                         return DnssecProofOfNonExistence.NoData; //domain is empty non-terminal (ENT) so proves NO DATA
 
                     if (wildcardAnswerValidation)
@@ -226,7 +226,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 {
                     //found proof of cover for wildcard domain
 
-                    if (nsec._nextDomainName.EndsWith("." + wildcardDomain, StringComparison.OrdinalIgnoreCase))
+                    if (DnsDatagram.IsSubDomainName(nsec._nextDomainName, wildcardDomain))
                         return DnssecProofOfNonExistence.NoData; //wildcard domain is empty non-terminal (ENT) so proves NO DATA
 
                     //proved that the actual domain does not exists since a wildcard does not exists
@@ -259,8 +259,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             // abc.xyz.example.com
             // x.y.z.example.com
             // *.example.com
-            string[] labels1 = nsecOwnerName.Split('.');
-            string[] labels2 = nxDomain.Split('.');
+            string[] labels1 = DnsDatagram.SplitDomainNameLabels(nsecOwnerName);
+            string[] labels2 = DnsDatagram.SplitDomainNameLabels(nxDomain);
 
             int minCount;
 

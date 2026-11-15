@@ -521,7 +521,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 if (authorityRecord.Type == DnsResourceRecordType.NS)
                 {
-                    if ((authorityRecord.Name.Length == 0) || question.Name.Equals(authorityRecord.Name, StringComparison.OrdinalIgnoreCase) || question.Name.EndsWith("." + authorityRecord.Name, StringComparison.OrdinalIgnoreCase))
+                    if ((authorityRecord.Name.Length == 0) || question.Name.Equals(authorityRecord.Name, StringComparison.OrdinalIgnoreCase) || DnsDatagram.IsSubDomainName(question.Name, authorityRecord.Name))
                     {
                         DnsNSRecordData nsRecord = (DnsNSRecordData)authorityRecord.RDATA;
 
