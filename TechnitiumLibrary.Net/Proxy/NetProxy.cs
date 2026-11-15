@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -43,18 +43,18 @@ namespace TechnitiumLibrary.Net.Proxy
         readonly NetProxyType _type;
 
         protected readonly EndPoint _proxyEP;
-        protected readonly NetworkCredential _credential;
+        protected readonly NetworkCredential? _credential;
 
-        protected NetProxy _viaProxy;
+        protected NetProxy? _viaProxy;
         IReadOnlyCollection<NetProxyBypassItem> _bypassList = new List<NetProxyBypassItem> { new NetProxyBypassItem("127.0.0.0/8"), new NetProxyBypassItem("169.254.0.0/16"), new NetProxyBypassItem("fe80::/10"), new NetProxyBypassItem("::1"), new NetProxyBypassItem("localhost") };
 
-        HttpProxyServer _httpProxyServer;
+        HttpProxyServer? _httpProxyServer;
 
         #endregion
 
         #region constructor
 
-        protected NetProxy(NetProxyType type, EndPoint proxyEP, NetworkCredential credential = null)
+        protected NetProxy(NetProxyType type, EndPoint proxyEP, NetworkCredential? credential = null)
         {
             _type = type;
             _proxyEP = proxyEP;
@@ -65,19 +65,19 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region static
 
-        public static NetProxy CreateHttpProxy(string address, int port = 8080, NetworkCredential credential = null)
+        public static NetProxy CreateHttpProxy(string address, int port = 8080, NetworkCredential? credential = null)
         {
             return new HttpProxy(EndPointExtensions.GetEndPoint(address, port), credential);
         }
 
-        public static NetProxy CreateHttpProxy(EndPoint proxyEP, NetworkCredential credential = null)
+        public static NetProxy CreateHttpProxy(EndPoint proxyEP, NetworkCredential? credential = null)
         {
             return new HttpProxy(proxyEP, credential);
         }
 
-        public static NetProxy CreateSystemHttpProxy()
+        public static NetProxy? CreateSystemHttpProxy()
         {
-            IWebProxy proxy = WebRequest.DefaultWebProxy;
+            IWebProxy? proxy = WebRequest.DefaultWebProxy;
             if (proxy == null)
                 return null; //no proxy configured
 
@@ -86,29 +86,29 @@ namespace TechnitiumLibrary.Net.Proxy
             if (proxy.IsBypassed(testUri))
                 return null; //no proxy configured
 
-            Uri proxyAddress = proxy.GetProxy(testUri);
-            if (proxyAddress.Equals(testUri))
+            Uri? proxyAddress = proxy.GetProxy(testUri);
+            if ((proxyAddress is null) || proxyAddress.Equals(testUri))
                 return null; //no proxy configured
 
-            return new HttpProxy(EndPointExtensions.GetEndPoint(proxyAddress.Host, proxyAddress.Port), proxy.Credentials.GetCredential(proxyAddress, "BASIC"));
+            return new HttpProxy(EndPointExtensions.GetEndPoint(proxyAddress.Host, proxyAddress.Port), proxy.Credentials?.GetCredential(proxyAddress, "BASIC"));
         }
 
-        public static NetProxy CreateSocksProxy(string address, int port = 1080, NetworkCredential credential = null)
+        public static NetProxy CreateSocksProxy(string address, int port = 1080, NetworkCredential? credential = null)
         {
             return new SocksProxy(EndPointExtensions.GetEndPoint(address, port), credential);
         }
 
-        public static NetProxy CreateSocksProxy(EndPoint proxyEP, NetworkCredential credential = null)
+        public static NetProxy CreateSocksProxy(EndPoint proxyEP, NetworkCredential? credential = null)
         {
             return new SocksProxy(proxyEP, credential);
         }
 
-        public static NetProxy CreateProxy(NetProxyType type, string address, int port, string username, string password)
+        public static NetProxy CreateProxy(NetProxyType type, string address, int port, string? username, string? password)
         {
             return CreateProxy(type, address, port, string.IsNullOrEmpty(username) ? null : new NetworkCredential(username, password));
         }
 
-        public static NetProxy CreateProxy(NetProxyType type, string address, int port, NetworkCredential credential = null)
+        public static NetProxy CreateProxy(NetProxyType type, string address, int port, NetworkCredential? credential = null)
         {
             switch (type)
             {
@@ -123,7 +123,7 @@ namespace TechnitiumLibrary.Net.Proxy
             }
         }
 
-        public static NetProxy CreateProxy(NetProxyType type, EndPoint proxyEP, NetworkCredential credential = null)
+        public static NetProxy CreateProxy(NetProxyType type, EndPoint proxyEP, NetworkCredential? credential = null)
         {
             switch (type)
             {
@@ -221,8 +221,8 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public async Task<Socket> ConnectAsync(IReadOnlyCollection<IPAddress> addresses, int port, CancellationToken cancellationToken = default)
         {
-            IPEndPoint endPoint = null;
-            Exception lastException = null;
+            IPEndPoint? endPoint = null;
+            Exception? lastException = null;
 
             foreach (IPAddress address in addresses)
             {
@@ -241,7 +241,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 }
             }
 
-            ExceptionDispatchInfo.Throw(lastException);
+            ExceptionDispatchInfo.Throw(lastException!);
             throw new InvalidOperationException();
         }
 
@@ -281,7 +281,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return new TunnelProxy(await ConnectAsync(remoteEP, cancellationToken), remoteEP, enableSsl, ignoreCertificateErrors);
         }
 
-        public virtual Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool> isResponseValid = null, CancellationToken cancellationToken = default)
+        public virtual Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool>? isResponseValid = null, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException("UDP transport is not supported by the proxy protocol.");
         }
@@ -302,16 +302,16 @@ namespace TechnitiumLibrary.Net.Proxy
         public int Port
         { get { return _proxyEP.GetPort(); } }
 
-        public NetworkCredential Credential
+        public NetworkCredential? Credential
         { get { return _credential; } }
 
-        ICredentials IWebProxy.Credentials
+        ICredentials? IWebProxy.Credentials
         {
             get { return _credential; }
             set { throw new NotImplementedException(); }
         }
 
-        public NetProxy ViaProxy
+        public NetProxy? ViaProxy
         {
             get { return _viaProxy; }
             set { _viaProxy = value; }
@@ -334,7 +334,7 @@ namespace TechnitiumLibrary.Net.Proxy
         class NoProxy : NetProxy
         {
             public NoProxy()
-                : base(NetProxyType.None, null, null)
+                : base(NetProxyType.None, null!, null)
             { }
 
             protected override Task<Socket> ConnectAsync(EndPoint remoteEP, Socket viaSocket, CancellationToken cancellationToken)

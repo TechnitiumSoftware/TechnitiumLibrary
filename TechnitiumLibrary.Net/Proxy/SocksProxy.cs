@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ namespace TechnitiumLibrary.Net.Proxy
         #region variables
 
         SocksProxyNegotiationRequest _negotiationRequest;
-        SocksProxyAuthenticationRequest _authRequest;
+        SocksProxyAuthenticationRequest? _authRequest;
 
         bool _isUdpAvailableChecked;
         bool _isUdpAvailable;
@@ -41,19 +41,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region constructor
 
-        public SocksProxy(EndPoint proxyEP, NetworkCredential credential = null)
+        public SocksProxy(EndPoint proxyEP, NetworkCredential? credential = null)
             : base(NetProxyType.Socks5, proxyEP, credential)
         {
-            InitCredential();
-        }
-
-        #endregion
-
-        #region private
-
-        private void InitCredential()
-        {
-            if (_credential == null)
+            if (_credential is null)
             {
                 _negotiationRequest = new SocksProxyNegotiationRequest(new SocksProxyAuthenticationMethod[] { SocksProxyAuthenticationMethod.NoAuthenticationRequired });
             }
@@ -63,6 +54,10 @@ namespace TechnitiumLibrary.Net.Proxy
                 _authRequest = new SocksProxyAuthenticationRequest(_credential.UserName, _credential.Password);
             }
         }
+
+        #endregion
+
+        #region private
 
         private async Task AuthenticateAsync(Stream s, CancellationToken cancellationToken)
         {
@@ -151,7 +146,7 @@ namespace TechnitiumLibrary.Net.Proxy
             if (_isUdpAvailableChecked)
                 return _isUdpAvailable;
 
-            SocksProxyUdpAssociateHandler udpHandler = null;
+            SocksProxyUdpAssociateHandler? udpHandler = null;
 
             try
             {
@@ -202,7 +197,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return await UdpAssociateAsync(localEP);
         }
 
-        public override async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool> isResponseValid = null, CancellationToken cancellationToken = default)
+        public override async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool>? isResponseValid = null, CancellationToken cancellationToken = default)
         {
             if (IsBypassed(remoteEP))
             {
@@ -284,7 +279,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 Stream stream = new WriteBufferedStream(new NetworkStream(socket));
 
                 await AuthenticateAsync(stream, cancellationToken);
-                EndPoint relayEP = await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.UdpAssociate, udpSocket.LocalEndPoint), cancellationToken);
+                EndPoint relayEP = await RequestAsync(stream, new SocksProxyRequest(SocksProxyRequestCommand.UdpAssociate, udpSocket.LocalEndPoint!), cancellationToken);
 
                 return new SocksProxyUdpAssociateHandler(socket, udpSocket, relayEP);
             }

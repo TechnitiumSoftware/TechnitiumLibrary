@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         readonly Socket _tunnelListener;
         readonly IPEndPoint _tunnelEP;
-        Socket _tunnelSocket;
+        Socket? _tunnelSocket;
 
         #endregion
 
@@ -67,7 +67,7 @@ namespace TechnitiumLibrary.Net.Proxy
             _tunnelListener.Bind(bindEP);
             _tunnelListener.Listen(1);
 
-            _tunnelEP = _tunnelListener.LocalEndPoint as IPEndPoint;
+            _tunnelEP = (_tunnelListener.LocalEndPoint as IPEndPoint)!;
 
             //accept tunnel connection async
             _ = AcceptTunnelConnectionAsync();
@@ -105,8 +105,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     _remoteSocket.Dispose();
                 }
 
-                if (_tunnelListener != null)
-                    _tunnelListener.Dispose();
+                _tunnelListener?.Dispose();
 
                 if (_tunnelSocket != null)
                 {
@@ -164,7 +163,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     if (_ignoreCertificateErrors)
                     {
-                        sslStream = new SslStream(remoteStream, false, delegate (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+                        sslStream = new SslStream(remoteStream, false, delegate (object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
                         {
                             return true; //ignore cert errors
                         });

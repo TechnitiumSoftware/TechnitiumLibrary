@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,14 +30,14 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        readonly IProxyServerUdpAssociateHandler _proxyUdpHandler;
-        readonly Socket _remoteSocket;
+        readonly IProxyServerUdpAssociateHandler? _proxyUdpHandler;
+        readonly Socket? _remoteSocket;
         readonly EndPoint _remoteEP;
 
         readonly Socket _tunnelSocket;
         readonly IPEndPoint _tunnelLocalEP;
 
-        EndPoint _tunnelRemoteEP;
+        EndPoint? _tunnelRemoteEP;
 
         #endregion
 
@@ -52,7 +52,7 @@ namespace TechnitiumLibrary.Net.Proxy
             _tunnelSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _tunnelSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
 
-            _tunnelLocalEP = _tunnelSocket.LocalEndPoint as IPEndPoint;
+            _tunnelLocalEP = (_tunnelSocket.LocalEndPoint as IPEndPoint)!;
 
             _ = Task.Factory.StartNew(PipeTunnelToProxy, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
         }
@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Net.Proxy
             _tunnelSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _tunnelSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
 
-            _tunnelLocalEP = _tunnelSocket.LocalEndPoint as IPEndPoint;
+            _tunnelLocalEP = (_tunnelSocket.LocalEndPoint as IPEndPoint)!;
 
             _ = Task.Factory.StartNew(PipeTunnelToRemoteSocket, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Current);
         }
@@ -103,6 +103,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         private async Task CopyTunnelToProxyAsync()
         {
+            if (_proxyUdpHandler is null)
+                throw new InvalidOperationException();
+
             byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
             try
             {
@@ -126,6 +129,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         private async Task CopyProxyToTunnelAsync()
         {
+            if (_proxyUdpHandler is null)
+                throw new InvalidOperationException();
+
             byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
             try
             {
@@ -152,6 +158,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         private async Task CopyTunnelToRemoteSocketAsync()
         {
+            if (_remoteSocket is null)
+                throw new InvalidOperationException();
+
             byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
 
             try
@@ -176,6 +185,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         private async Task CopyRemoteSocketToTunnelAsync()
         {
+            if (_remoteSocket is null)
+                throw new InvalidOperationException();
+
             byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
             try
             {

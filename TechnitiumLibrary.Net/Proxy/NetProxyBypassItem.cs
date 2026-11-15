@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -40,9 +40,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         readonly NetProxyBypassItemType _type;
 
-        readonly IPAddress _ipAddress;
-        readonly NetworkAddress _networkAddress;
-        readonly string _domainName;
+        readonly IPAddress? _ipAddress;
+        readonly NetworkAddress? _networkAddress;
+        readonly string? _domainName;
 
         #endregion
 
@@ -106,13 +106,13 @@ namespace TechnitiumLibrary.Net.Proxy
             {
                 case NetProxyBypassItemType.IpAddress:
                     if (ep is IPEndPoint ipep1)
-                        return _ipAddress.Equals(ipep1.Address);
+                        return _ipAddress!.Equals(ipep1.Address);
 
                     return false;
 
                 case NetProxyBypassItemType.NetworkAddress:
                     if (ep is IPEndPoint ipep2)
-                        return _networkAddress.Contains(ipep2.Address);
+                        return _networkAddress!.Contains(ipep2.Address);
 
                     return false;
 
@@ -121,7 +121,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     {
                         string matchDomainName = dep.Address;
 
-                        if (_domainName.Length == matchDomainName.Length)
+                        if (_domainName!.Length == matchDomainName.Length)
                             return _domainName.Equals(matchDomainName, StringComparison.OrdinalIgnoreCase);
                         else
                             return matchDomainName.EndsWith("." + _domainName, StringComparison.OrdinalIgnoreCase);

@@ -40,32 +40,29 @@ namespace TechnitiumLibrary.Net.Proxy
 
         readonly IPEndPoint _localEP;
         readonly IProxyServerConnectionManager _connectionManager;
-        readonly IProxyServerAuthenticationManager _authenticationManager;
+        readonly IProxyServerAuthenticationManager? _authenticationManager;
 
         readonly Socket _listener;
-        readonly ConcurrentDictionary<ProxyServerSession, object> _sessions = new ConcurrentDictionary<ProxyServerSession, object>();
+        readonly ConcurrentDictionary<ProxyServerSession, object?> _sessions = new ConcurrentDictionary<ProxyServerSession, object?>();
 
         #endregion
 
         #region constructors
 
-        public HttpProxyServer(IProxyServerConnectionManager connectionManager = null, IProxyServerAuthenticationManager authenticationManager = null, int backlog = 10)
+        public HttpProxyServer(IProxyServerConnectionManager? connectionManager = null, IProxyServerAuthenticationManager? authenticationManager = null, int backlog = 10)
             : this(new IPEndPoint(IPAddress.Loopback, 0), connectionManager, authenticationManager, backlog)
         { }
 
-        public HttpProxyServer(IPEndPoint localEP, IProxyServerConnectionManager connectionManager = null, IProxyServerAuthenticationManager authenticationManager = null, int backlog = 10)
+        public HttpProxyServer(IPEndPoint localEP, IProxyServerConnectionManager? connectionManager = null, IProxyServerAuthenticationManager? authenticationManager = null, int backlog = 10)
         {
             _listener = new Socket(localEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             _listener.Bind(localEP);
             _listener.Listen(backlog);
             _listener.NoDelay = true;
 
-            _localEP = (IPEndPoint)_listener.LocalEndPoint;
-            _connectionManager = connectionManager;
+            _localEP = (IPEndPoint)_listener.LocalEndPoint!;
+            _connectionManager = connectionManager ?? new DefaultProxyServerConnectionManager();
             _authenticationManager = authenticationManager;
-
-            if (_connectionManager == null)
-                _connectionManager = new DefaultProxyServerConnectionManager();
 
             //accept requests async
             int tasks = Environment.ProcessorCount;
@@ -92,10 +89,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
             if (disposing)
             {
-                if (_listener != null)
-                    _listener.Dispose();
+                _listener?.Dispose();
 
-                foreach (KeyValuePair<ProxyServerSession, object> session in _sessions)
+                foreach (KeyValuePair<ProxyServerSession, object?> session in _sessions)
                     session.Key.Dispose();
 
                 _sessions.Clear();
@@ -118,9 +114,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     ProxyServerSession session = new ProxyServerSession(socket, _connectionManager, _authenticationManager);
 
-                    session.Disposed += delegate (object sender, EventArgs e)
+                    session.Disposed += delegate (object? sender, EventArgs e)
                     {
-                        _sessions.TryRemove(sender as ProxyServerSession, out _);
+                        _sessions.TryRemove((sender as ProxyServerSession)!, out _);
                     };
 
                     if (_sessions.TryAdd(session, null))
@@ -146,7 +142,7 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             #region events
 
-            public event EventHandler Disposed;
+            public event EventHandler? Disposed;
 
             #endregion
 
@@ -157,15 +153,15 @@ namespace TechnitiumLibrary.Net.Proxy
 
             readonly Socket _localSocket;
             readonly IProxyServerConnectionManager _connectionManager;
-            readonly IProxyServerAuthenticationManager _authenticationManager;
+            readonly IProxyServerAuthenticationManager? _authenticationManager;
 
-            Socket _remoteSocket;
+            Socket? _remoteSocket;
 
             #endregion
 
             #region constructor
 
-            public ProxyServerSession(Socket localSocket, IProxyServerConnectionManager connectionManager, IProxyServerAuthenticationManager authenticationManager)
+            public ProxyServerSession(Socket localSocket, IProxyServerConnectionManager connectionManager, IProxyServerAuthenticationManager? authenticationManager)
             {
                 _localSocket = localSocket;
                 _connectionManager = connectionManager;
@@ -177,7 +173,7 @@ namespace TechnitiumLibrary.Net.Proxy
             #region IDisposable
 
             bool _disposed;
-            readonly object _disposeLock = new object();
+            readonly Lock _disposeLock = new Lock();
 
             public void Dispose()
             {
@@ -193,11 +189,8 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     if (disposing)
                     {
-                        if (_localSocket != null)
-                            _localSocket.Dispose();
-
-                        if (_remoteSocket != null)
-                            _remoteSocket.Dispose();
+                        _localSocket?.Dispose();
+                        _remoteSocket?.Dispose();
                     }
 
                     _disposed = true;
@@ -209,9 +202,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region private
 
-            private async Task DoConnectAsync(NetworkStream localStream, HttpRequest httpRequest, string username)
+            private async Task DoConnectAsync(NetworkStream localStream, HttpRequest httpRequest, string? username)
             {
-                if (!EndPointExtensions.TryParse(httpRequest.RequestPath, out EndPoint ep))
+                if (!EndPointExtensions.TryParse(httpRequest.RequestPath, out EndPoint? ep))
                     throw new HttpProxyServerException("Invalid CONNECT request: " + httpRequest.RequestPath);
 
                 if (ep.GetPort() == 0)
@@ -282,15 +275,15 @@ namespace TechnitiumLibrary.Net.Proxy
                 try
                 {
                     NetworkStream localStream = new NetworkStream(_localSocket);
-                    WriteBufferedStream remoteStream = null;
+                    WriteBufferedStream? remoteStream = null;
 
-                    EndPoint lastEP = null;
+                    EndPoint? lastEP = null;
 
                     while (true)
                     {
-                        HttpRequest httpRequest;
+                        HttpRequest? httpRequest;
                         {
-                            Task<HttpRequest> task = HttpRequest.ReadRequestAsync(localStream);
+                            Task<HttpRequest?> task = HttpRequest.ReadRequestAsync(localStream);
 
                             if (remoteStream is null)
                             {
@@ -310,11 +303,11 @@ namespace TechnitiumLibrary.Net.Proxy
                         if (httpRequest == null)
                             return; //connection closed gracefully by client
 
-                        string username = null;
+                        string? username = null;
 
                         if (_authenticationManager != null)
                         {
-                            string proxyAuth = httpRequest.Headers[HttpRequestHeader.ProxyAuthorization];
+                            string? proxyAuth = httpRequest.Headers[HttpRequestHeader.ProxyAuthorization];
                             if (string.IsNullOrEmpty(proxyAuth))
                             {
                                 await SendResponseAsync(407, "<h1>Proxy Authentication Required</h1>");
@@ -359,17 +352,17 @@ namespace TechnitiumLibrary.Net.Proxy
                         {
                             #region connect to remote server
 
-                            EndPoint ep;
+                            EndPoint? ep;
                             string requestPathAndQuery;
 
-                            if (Uri.TryCreate(httpRequest.RequestPathAndQuery, UriKind.Absolute, out Uri requestUri))
+                            if (Uri.TryCreate(httpRequest.RequestPathAndQuery, UriKind.Absolute, out Uri? requestUri))
                             {
                                 ep = EndPointExtensions.GetEndPoint(requestUri.Host, requestUri.Port);
                                 requestPathAndQuery = requestUri.PathAndQuery;
                             }
                             else
                             {
-                                string hostHeader = httpRequest.Headers[HttpRequestHeader.Host];
+                                string? hostHeader = httpRequest.Headers[HttpRequestHeader.Host];
                                 if (string.IsNullOrEmpty(hostHeader) || !EndPointExtensions.TryParse(hostHeader, out ep))
                                     throw new HttpProxyServerException("Invalid proxy request.");
 
@@ -379,7 +372,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                 requestPathAndQuery = httpRequest.RequestPathAndQuery;
                             }
 
-                            if (!ep.IsEquals(lastEP) || !_remoteSocket.Connected)
+                            if (!ep.IsEquals(lastEP) || !_remoteSocket!.Connected)
                             {
                                 if (_remoteSocket != null)
                                 {
@@ -430,7 +423,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                     httpRequest.Headers.Remove(header);
                             }
 
-                            await remoteStream.WriteAsync(Encoding.ASCII.GetBytes(httpRequest.HttpMethod + " " + requestPathAndQuery + " " + httpRequest.Protocol + "\r\n"));
+                            await remoteStream!.WriteAsync(Encoding.ASCII.GetBytes(httpRequest.HttpMethod + " " + requestPathAndQuery + " " + httpRequest.Protocol + "\r\n"));
                             await remoteStream.WriteAsync(httpRequest.Headers.ToByteArray());
 
                             if (httpRequest.InputStream != null)
