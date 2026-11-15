@@ -150,16 +150,20 @@ namespace TechnitiumLibrary.Net.Http.Client
                 sslOptions.TargetHost = dnsResult.TlsaBaseDomain;
                 sslOptions.RemoteCertificateValidationCallback += delegate (object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
                 {
-                    if (_innerHandler.SslOptions.RemoteCertificateValidationCallback is not null)
-                    {
-                        if (_innerHandler.SslOptions.RemoteCertificateValidationCallback(sender, certificate, chain, sslPolicyErrors))
-                            return true; //validation passed by user callback
-                    }
+                    if ((certificate is null) || (chain is null))
+                        return false;
 
                     if (certificate is not X509Certificate2 certificate2)
                         certificate2 = new X509Certificate2(certificate);
 
                     ValidateDane(certificate2, chain, sslPolicyErrors, dnsResult.TlsaRecords);
+
+                    if (_innerHandler.SslOptions.RemoteCertificateValidationCallback is not null)
+                    {
+                        if (!_innerHandler.SslOptions.RemoteCertificateValidationCallback(sender, certificate, chain, sslPolicyErrors))
+                            return false; //validation failed by user callback
+                    }
+
                     return true;
                 };
             }
