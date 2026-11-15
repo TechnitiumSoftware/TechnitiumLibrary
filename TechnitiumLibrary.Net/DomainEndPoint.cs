@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -52,14 +53,16 @@ namespace TechnitiumLibrary.Net
             _port = port;
         }
 
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         private DomainEndPoint()
         { }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
         #endregion
 
         #region static
 
-        public static bool TryParse(string value, out DomainEndPoint ep)
+        public static bool TryParse(string value, [NotNullWhen(true)] out DomainEndPoint? ep)
         {
             string[] parts = value.Split(':');
             if (parts.Length > 2)
@@ -114,7 +117,7 @@ namespace TechnitiumLibrary.Net
             return address;
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 
@@ -52,7 +53,7 @@ namespace TechnitiumLibrary.Net
 
         #region private
 
-        private IpEntry GetFloorEntry(IpEntry entry)
+        private IpEntry? GetFloorEntry(IpEntry entry)
         {
             int i = _ipLookupList.BinarySearch(entry);
             if (i >= 0)
@@ -74,7 +75,7 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        private IpEntry GetCeilingEntry(IpEntry entry)
+        private IpEntry? GetCeilingEntry(IpEntry entry)
         {
             int i = _ipLookupList.BinarySearch(entry);
             if (i >= 0)
@@ -139,12 +140,12 @@ namespace TechnitiumLibrary.Net
             }
         }
 
-        public bool TryGetValue(string address, out T value)
+        public bool TryGetValue(string address, out T? value)
         {
             return TryGetValue(IPAddress.Parse(address), out value);
         }
 
-        public bool TryGetValue(IPAddress address, out T value)
+        public bool TryGetValue(IPAddress address, [NotNullWhen(true)] out T? value)
         {
             if (address.AddressFamily != _addressFamily)
                 throw new ArgumentException("The address family must be '" + _addressFamily.ToString() + "'.", nameof(address));
@@ -163,8 +164,8 @@ namespace TechnitiumLibrary.Net
 
             IpEntry findEntry = new IpEntry(address);
 
-            IpEntry floorEntry = GetFloorEntry(findEntry);
-            IpEntry ceilingEntry = GetCeilingEntry(findEntry);
+            IpEntry? floorEntry = GetFloorEntry(findEntry);
+            IpEntry? ceilingEntry = GetCeilingEntry(findEntry);
 
             if ((floorEntry == null) || (ceilingEntry == null))
             {
@@ -183,6 +184,9 @@ namespace TechnitiumLibrary.Net
                 value = default;
                 return false;
             }
+
+            if (value is null)
+                throw new InvalidOperationException();
 
             return true;
         }
@@ -209,6 +213,7 @@ namespace TechnitiumLibrary.Net
             public IpEntry(IPAddress ipAddress)
             {
                 _ipAddress = ipAddress.GetAddressBytes();
+                _value = default!;
             }
 
             #endregion
@@ -253,8 +258,11 @@ namespace TechnitiumLibrary.Net
 
             #region public
 
-            public int CompareTo(IpEntry other)
+            public int CompareTo(IpEntry? other)
             {
+                if (other is null)
+                    return 1;
+
                 if (LessThan(_ipAddress, other._ipAddress))
                     return -1;
                 else if (GreaterThan(_ipAddress, other._ipAddress))
@@ -263,7 +271,7 @@ namespace TechnitiumLibrary.Net
                     return 0;
             }
 
-            public override bool Equals(object obj)
+            public override bool Equals(object? obj)
             {
                 if (obj is null)
                     return false;

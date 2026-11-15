@@ -21,6 +21,7 @@ using System;
 using System.IO;
 using System.Net.Http;
 using System.Net.Mime;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Http.Client;
@@ -345,7 +346,7 @@ namespace TechnitiumLibrary.Net
             return new ContentType(mimeType);
         }
 
-        public static async Task<bool> IsWebAccessibleAsync(Uri[] uriCheckList = null, NetProxy proxy = null, HttpClientNetworkType networkType = HttpClientNetworkType.Default, int timeout = 10000, bool throwException = false)
+        public static async Task<bool> IsWebAccessibleAsync(Uri[]? uriCheckList = null, NetProxy? proxy = null, HttpClientNetworkType networkType = HttpClientNetworkType.Default, int timeout = 10000, bool throwException = false)
         {
             if (uriCheckList == null)
                 uriCheckList = [new Uri("https://www.google.com/"), new Uri("https://www.microsoft.com/")];
@@ -358,7 +359,7 @@ namespace TechnitiumLibrary.Net
             {
                 http.Timeout = TimeSpan.FromMilliseconds(timeout);
 
-                Exception lastException = null;
+                Exception? lastException = null;
 
                 foreach (Uri uri in uriCheckList)
                 {
@@ -373,8 +374,8 @@ namespace TechnitiumLibrary.Net
                     }
                 }
 
-                if (throwException)
-                    throw lastException;
+                if (throwException && (lastException is not null))
+                    ExceptionDispatchInfo.Throw(lastException);
             }
 
             return false;

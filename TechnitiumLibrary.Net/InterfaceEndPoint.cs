@@ -28,13 +28,13 @@ namespace TechnitiumLibrary.Net
     {
         #region variables
 
-        string _interfaceName;
+        string? _interfaceName;
 
         #endregion
 
         #region constructor
 
-        public InterfaceEndPoint(IPAddress address, int port, string interfaceName = null)
+        public InterfaceEndPoint(IPAddress address, int port, string? interfaceName = null)
             : base(address, port)
         {
             InterfaceName = interfaceName;
@@ -46,22 +46,22 @@ namespace TechnitiumLibrary.Net
 
         public new static InterfaceEndPoint Parse(string value)
         {
-            if (TryParse(value, out InterfaceEndPoint intEP))
+            if (TryParse(value, out InterfaceEndPoint? intEP))
                 return intEP;
 
             throw new FormatException("Failed to parse interface end point: " + value);
         }
 
-        public static bool TryParse(string value, out InterfaceEndPoint intEP)
+        public static bool TryParse(string value, [NotNullWhen(true)] out InterfaceEndPoint? intEP)
         {
             //fe80::3a3a:12c9:15f4:3355
             //192.168.10.2%eth0:53
             //[fe80::3a3a:12c9:15f4:3355%eth1]:53
             //[fe80::3a3a:12c9:15f4:3355%11]:53
 
-            string interfaceString;
+            string? interfaceString;
             string ipString;
-            string portString;
+            string? portString;
 
             int i = value.LastIndexOf(':');
             if (i < 0)
@@ -107,7 +107,7 @@ namespace TechnitiumLibrary.Net
                 ipString = ipString.Substring(0, j);
             }
 
-            if (!IPAddress.TryParse(ipString, out IPAddress ipAddress))
+            if (!IPAddress.TryParse(ipString, out IPAddress? ipAddress))
             {
                 intEP = null;
                 return false;
@@ -124,7 +124,7 @@ namespace TechnitiumLibrary.Net
 
         #region public
 
-        public override bool Equals([NotNullWhen(true)] object comparand)
+        public override bool Equals(object? comparand)
         {
             if (comparand is null)
                 return false;
@@ -174,7 +174,7 @@ namespace TechnitiumLibrary.Net
 
         #region properties
 
-        public string InterfaceName
+        public string? InterfaceName
         {
             get { return _interfaceName; }
             set

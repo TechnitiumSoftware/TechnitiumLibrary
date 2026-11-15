@@ -100,7 +100,7 @@ namespace TechnitiumLibrary.Net
             return (ip[0] & 0xE0) == 0x20;
         }
 
-        public static NetworkInfo GetDefaultIPv4NetworkInfo()
+        public static NetworkInfo? GetDefaultIPv4NetworkInfo()
         {
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
@@ -143,7 +143,7 @@ namespace TechnitiumLibrary.Net
             return null;
         }
 
-        public static NetworkInfo GetDefaultIPv6NetworkInfo(bool skipTeredo = false)
+        public static NetworkInfo? GetDefaultIPv6NetworkInfo(bool skipTeredo = false)
         {
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
@@ -156,7 +156,7 @@ namespace TechnitiumLibrary.Net
                 {
                     if (gateway.Address.AddressFamily == AddressFamily.InterNetworkV6)
                     {
-                        IPAddress ipv6 = null;
+                        IPAddress? ipv6 = null;
 
                         foreach (UnicastIPAddressInformation ip in ipInterface.UnicastAddresses)
                         {
@@ -198,7 +198,7 @@ namespace TechnitiumLibrary.Net
 
                 IPInterfaceProperties ipInterface = nic.GetIPProperties();
 
-                IPAddress ipv6 = null;
+                IPAddress? ipv6 = null;
 
                 foreach (UnicastIPAddressInformation ip in ipInterface.UnicastAddresses)
                 {
@@ -267,7 +267,7 @@ namespace TechnitiumLibrary.Net
             return networkInfoList;
         }
 
-        public static NetworkInfo GetNetworkInfo(IPAddress destinationIP)
+        public static NetworkInfo? GetNetworkInfo(IPAddress destinationIP)
         {
             if (destinationIP.IsIPv4MappedToIPv6)
                 destinationIP = destinationIP.MapToIPv4();
@@ -358,8 +358,8 @@ namespace TechnitiumLibrary.Net
 
         readonly NetworkInterface _nic;
         readonly IPAddress _localIP;
-        readonly IPAddress _subnetMask;
-        readonly IPAddress _broadcastIP;
+        readonly IPAddress? _subnetMask;
+        readonly IPAddress? _broadcastIP;
 
         #endregion
 
@@ -397,12 +397,12 @@ namespace TechnitiumLibrary.Net
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             return Equals(obj as NetworkInfo);
         }
 
-        public bool Equals(NetworkInfo obj)
+        public bool Equals(NetworkInfo? obj)
         {
             if (obj is null)
                 return false;
@@ -434,10 +434,10 @@ namespace TechnitiumLibrary.Net
         public IPAddress LocalIP
         { get { return _localIP; } }
 
-        public IPAddress SubnetMask
+        public IPAddress? SubnetMask
         { get { return _subnetMask; } }
 
-        public IPAddress BroadcastIP
+        public IPAddress? BroadcastIP
         { get { return _broadcastIP; } }
 
         #endregion

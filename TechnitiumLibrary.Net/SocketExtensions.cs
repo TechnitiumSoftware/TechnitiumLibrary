@@ -87,7 +87,7 @@ namespace TechnitiumLibrary.Net
             socket.EndConnect(result);
         }
 
-        public static async Task<int> UdpQueryAsync(this Socket socket, ArraySegment<byte> request, ArraySegment<byte> response, IPEndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool> isResponseValid = null, CancellationToken cancellationToken = default)
+        public static async Task<int> UdpQueryAsync(this Socket socket, ArraySegment<byte> request, ArraySegment<byte> response, IPEndPoint remoteEP, int timeout = 2000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool>? isResponseValid = null, CancellationToken cancellationToken = default)
         {
             EndPoint epAny = GetEndPointAnyFor(remoteEP.AddressFamily);
 
@@ -105,7 +105,7 @@ namespace TechnitiumLibrary.Net
             using CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
             await using CancellationTokenRegistration ctr = cancellationToken.Register(cancellationTokenSource.Cancel);
 
-            Task<int> recvTask = null;
+            Task<int>? recvTask = null;
 
             int timeoutValue = timeout;
             int retry = 0;
