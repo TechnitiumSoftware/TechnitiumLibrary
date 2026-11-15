@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -40,10 +40,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         readonly TextReader _tR;
 
-        string _originDomain;
+        string? _originDomain;
         uint _defaultTtl;
 
-        string _line;
+        string? _line;
         uint _lineNo;
         bool _multiLine;
 
@@ -51,7 +51,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region constructor
 
-        private ZoneFile(TextReader tR, string originDomain, uint defaultTtl)
+        private ZoneFile(TextReader tR, string? originDomain, uint defaultTtl)
         {
             _tR = tR;
             _originDomain = originDomain;
@@ -62,7 +62,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region static
 
-        public static async Task<List<DnsResourceRecord>> ReadZoneFileFromAsync(string file, string originDomain = null, uint defaultTtl = 0)
+        public static async Task<List<DnsResourceRecord>> ReadZoneFileFromAsync(string file, string? originDomain = null, uint defaultTtl = 0)
         {
             await using (FileStream fS = new FileStream(file, FileMode.Open, FileAccess.Read))
             {
@@ -70,12 +70,12 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static Task<List<DnsResourceRecord>> ReadZoneFileFromAsync(TextReader tR, string originDomain = null, uint defaultTtl = 0)
+        public static Task<List<DnsResourceRecord>> ReadZoneFileFromAsync(TextReader tR, string? originDomain = null, uint defaultTtl = 0)
         {
             return new ZoneFile(tR, originDomain, defaultTtl).ReadZoneFileFromAsync();
         }
 
-        public static async Task WriteZoneFileToAsync(string file, string originDomain, IReadOnlyCollection<DnsResourceRecord> records, Func<DnsResourceRecord, string> getComments = null)
+        public static async Task WriteZoneFileToAsync(string file, string originDomain, IReadOnlyCollection<DnsResourceRecord> records, Func<DnsResourceRecord, string>? getComments = null)
         {
             await using (FileStream fS = new FileStream(file, FileMode.Create, FileAccess.Write))
             {
@@ -86,7 +86,7 @@ namespace TechnitiumLibrary.Net.Dns
             }
         }
 
-        public static async Task WriteZoneFileToAsync(TextWriter tW, string originDomain, IReadOnlyCollection<DnsResourceRecord> records, Func<DnsResourceRecord, string> getComments = null)
+        public static async Task WriteZoneFileToAsync(TextWriter tW, string originDomain, IReadOnlyCollection<DnsResourceRecord> records, Func<DnsResourceRecord, string>? getComments = null)
         {
             async Task WriteEntryAsync(DnsResourceRecord record)
             {
@@ -265,7 +265,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal async Task<string> PopDomainAsync()
         {
-            string domain = await PopItemAsync();
+            string? domain = await PopItemAsync();
+            if (domain is null)
+                throw new FormatException("The zone file parser failed to parse 'domain-name' field on line # " + _lineNo + ".");
 
             if (domain == "@")
             {
@@ -286,15 +288,24 @@ namespace TechnitiumLibrary.Net.Dns
 
         internal async Task<uint> PopTtlAsync(string fieldName = "ttl")
         {
-            string strTtl = await PopItemAsync();
+            string? strTtl = await PopItemAsync();
 
-            if (!TryParseTtl(strTtl, out uint ttl))
+            if ((strTtl is null) || !TryParseTtl(strTtl, out uint ttl))
                 throw new FormatException($"The zone file parser failed to parse '{fieldName}' field on line # " + _lineNo + ".");
 
             return ttl;
         }
 
-        internal async Task<string> PopItemAsync(bool newEntry = false)
+        internal async Task<string> PopFieldAsync()
+        {
+            string? value = await PopItemAsync();
+            if (value is null)
+                throw new FormatException($"The zone file parser failed to parse field value on line # " + _lineNo + ".");
+
+            return value;
+        }
+
+        internal async Task<string?> PopItemAsync(bool newEntry = false)
         {
             if (newEntry)
             {
@@ -302,7 +313,7 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     while (true)
                     {
-                        _line = _line.TrimStart(_trimSeperator);
+                        _line = _line!.TrimStart(_trimSeperator);
 
                         if (_line.StartsWith(')'))
                         {
@@ -310,7 +321,7 @@ namespace TechnitiumLibrary.Net.Dns
                             break;
                         }
 
-                        string word = PopWord(ref _line);
+                        string? word = PopWord(ref _line);
                         if (word is null)
                         {
                             _line = await _tR.ReadLineAsync();
@@ -388,7 +399,7 @@ namespace TechnitiumLibrary.Net.Dns
                     continue;
                 }
 
-                string word = PopWord(ref _line);
+                string? word = PopWord(ref _line);
                 if (word is null)
                 {
                     if (!_multiLine)
@@ -408,7 +419,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             while (true)
             {
-                string item = await PopItemAsync();
+                string? item = await PopItemAsync();
                 if (string.IsNullOrEmpty(item))
                     break;
 
@@ -418,19 +429,22 @@ namespace TechnitiumLibrary.Net.Dns
             return sb.ToString();
         }
 
-        internal async Task<Stream> GetRData()
+        internal async Task<Stream?> GetRData()
         {
-            _line = _line.TrimStart(_trimSeperator);
+            _line = _line!.TrimStart(_trimSeperator);
 
             if (!_line.StartsWith("\\#"))
                 return null;
 
-            string item = await PopItemAsync();
+            string? item = await PopItemAsync();
 
-            if (!item.StartsWith("\\#"))
+            if ((item is null) || !item.StartsWith("\\#"))
                 throw new InvalidOperationException();
 
             item = await PopItemAsync();
+            if (item is null)
+                throw new FormatException();
+
             ushort rdLength = ushort.Parse(item);
 
             string hex = "";
@@ -467,13 +481,13 @@ namespace TechnitiumLibrary.Net.Dns
         {
             List<DnsResourceRecord> records = new List<DnsResourceRecord>();
 
-            string lastDomain = _originDomain;
+            string? lastDomain = _originDomain;
             uint lastTtl = 0;
             DnsClass lastClass = DnsClass.Unknown;
 
             do
             {
-                string item = await PopItemAsync(true);
+                string? item = await PopItemAsync(true);
                 if (item is null)
                     break;
 
@@ -490,7 +504,9 @@ namespace TechnitiumLibrary.Net.Dns
 
                 if (item == "$TTL")
                 {
-                    if (!TryParseTtl(await PopItemAsync(), out _defaultTtl))
+                    string? strTtl = await PopItemAsync();
+
+                    if ((strTtl is null) || !TryParseTtl(strTtl, out _defaultTtl))
                         throw new FormatException("The zone file parser failed to parse $TTL 'default-ttl' field on line # " + _lineNo + ".");
 
                     continue;
@@ -499,7 +515,7 @@ namespace TechnitiumLibrary.Net.Dns
                 if (item == "$INCLUDE")
                     throw new NotSupportedException("The zone file parser does not support $INCLUDE control entry on line # " + _lineNo + ".");
 
-                string domain = item;
+                string? domain = item;
 
                 if (domain.Length == 0)
                 {
@@ -596,9 +612,9 @@ namespace TechnitiumLibrary.Net.Dns
                     throw new FormatException("The zone file parser failed to parse 'rdata' field on line # " + _lineNo + ".", ex);
                 }
 
-                DnsResourceRecord record = new DnsResourceRecord(domain, type, @class, ttl, rdata);
+                DnsResourceRecord record = new DnsResourceRecord(domain!, type, @class, ttl, rdata);
 
-                string comments = await PopCommentAsync();
+                string? comments = await PopCommentAsync();
                 if (!string.IsNullOrEmpty(comments))
                     record.Tag = comments;
 
@@ -613,9 +629,9 @@ namespace TechnitiumLibrary.Net.Dns
             return records;
         }
 
-        private async Task<string> PopCommentAsync()
+        private async Task<string?> PopCommentAsync()
         {
-            while (_line.Length > 0)
+            while (_line!.Length > 0)
             {
                 _line = _line.TrimStart(_trimSeperator);
 
@@ -633,7 +649,7 @@ namespace TechnitiumLibrary.Net.Dns
             return null;
         }
 
-        private static string PopWord(ref string line)
+        private static string? PopWord(ref string line)
         {
             line = line.TrimStart(_trimSeperator);
 
