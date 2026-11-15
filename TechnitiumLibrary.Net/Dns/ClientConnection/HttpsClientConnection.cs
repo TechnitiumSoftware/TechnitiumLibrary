@@ -37,7 +37,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region variables
 
         readonly HttpClient _httpClient;
-        UdpTunnelProxy _udpTunnelProxy;
+        UdpTunnelProxy? _udpTunnelProxy;
 
         bool _pooled;
         DateTime _lastQueried;
@@ -46,7 +46,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region constructor
 
-        public HttpsClientConnection(NameServerAddress server, NetProxy proxy)
+        public HttpsClientConnection(NameServerAddress server, NetProxy? proxy)
             : base(server, proxy)
         {
             if (server.Protocol != DnsTransportProtocol.Https)
@@ -56,7 +56,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             handler.EnableMultipleHttp2Connections = true;
             handler.UseProxy = false;
 
-            if (_server.DoHEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase))
+            if (_server.DoHEndPoint!.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase))
             {
                 handler.AllowAutoRedirect = false; //disable redirect since next call may bypass proxy tunnel
             }
@@ -105,12 +105,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             IPEndPoint remoteEP;
 
-            if (_server.DoHEndPoint.Host.Equals(context.DnsEndPoint.Host, StringComparison.OrdinalIgnoreCase))
+            if (_server.DoHEndPoint!.Host.Equals(context.DnsEndPoint.Host, StringComparison.OrdinalIgnoreCase))
             {
                 if (_server.IsIPEndPointStale)
                     await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
 
-                if (_server.IPEndPoint.Port == context.DnsEndPoint.Port)
+                if (_server.IPEndPoint!.Port == context.DnsEndPoint.Port)
                     remoteEP = _server.IPEndPoint;
                 else
                     remoteEP = new IPEndPoint(_server.IPEndPoint.Address, context.DnsEndPoint.Port);
@@ -125,7 +125,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             switch (remoteEP.AddressFamily)
             {
                 case AddressFamily.InterNetwork:
-                    Tuple<IPEndPoint, byte[]> ipv4SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv4SourceEP();
+                    Tuple<IPEndPoint, byte[]?>? ipv4SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv4SourceEP();
                     if (ipv4SourceEP is not null)
                     {
                         if (ipv4SourceEP.Item2 is not null)
@@ -141,7 +141,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     break;
 
                 case AddressFamily.InterNetworkV6:
-                    Tuple<IPEndPoint, byte[]> ipv6SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv6SourceEP();
+                    Tuple<IPEndPoint, byte[]?>? ipv6SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv6SourceEP();
                     if (ipv6SourceEP is not null)
                     {
                         if (ipv6SourceEP.Item2 is not null)
@@ -181,9 +181,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             EndPoint remoteEP;
 
-            if (!_server.IsIPEndPointStale && _server.DoHEndPoint.Host.Equals(context.DnsEndPoint.Host, StringComparison.OrdinalIgnoreCase))
+            if (!_server.IsIPEndPointStale && _server.DoHEndPoint!.Host.Equals(context.DnsEndPoint.Host, StringComparison.OrdinalIgnoreCase))
             {
-                if (_server.IPEndPoint.Port == context.DnsEndPoint.Port)
+                if (_server.IPEndPoint!.Port == context.DnsEndPoint.Port)
                     remoteEP = _server.IPEndPoint;
                 else
                     remoteEP = new IPEndPoint(_server.IPEndPoint.Address, context.DnsEndPoint.Port);
@@ -195,7 +195,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             Socket socket = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
             {
-                return _proxy.ConnectAsync(remoteEP, cancellationToken1);
+                return _proxy!.ConnectAsync(remoteEP, cancellationToken1);
             }, 30000, cancellationToken);
 
             return new NetworkStream(socket, true);
@@ -203,7 +203,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         private async Task<HttpRequestMessage> GetHttpRequestAsync(byte[] requestBuffer, CancellationToken cancellationToken)
         {
-            bool isH3 = _server.DoHEndPoint.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase);
+            bool isH3 = _server.DoHEndPoint!.Scheme.Equals("h3", StringComparison.OrdinalIgnoreCase);
             Uri queryUri;
             Version httpVersion;
             HttpVersionPolicy httpVersionPolicy;
@@ -219,7 +219,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     {
                         IPEndPoint bindEP;
 
-                        if (_server.IPEndPoint.AddressFamily == AddressFamily.InterNetworkV6)
+                        if (_server.IPEndPoint!.AddressFamily == AddressFamily.InterNetworkV6)
                             bindEP = new IPEndPoint(IPAddress.IPv6Any, 0);
                         else
                             bindEP = new IPEndPoint(IPAddress.Any, 0);

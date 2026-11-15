@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,8 +31,8 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
         #region variables
 
         readonly DnssecAlgorithm _algorithm;
-        readonly Ed25519PublicKeyParameters _ed25519PublicKey;
-        readonly Ed448PublicKeyParameters _ed448PublicKey;
+        readonly Ed25519PublicKeyParameters? _ed25519PublicKey;
+        readonly Ed448PublicKeyParameters? _ed448PublicKey;
 
         #endregion
 

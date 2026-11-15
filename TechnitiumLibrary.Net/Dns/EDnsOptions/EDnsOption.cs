@@ -99,7 +99,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             _data.WriteTo(s);
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

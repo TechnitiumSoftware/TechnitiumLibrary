@@ -76,8 +76,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
     {
         #region variables
 
-        volatile QuicConnection _quicConnection;
-        UdpTunnelProxy _udpTunnelProxy;
+        volatile QuicConnection? _quicConnection;
+        UdpTunnelProxy? _udpTunnelProxy;
 
         bool _pooled;
         DateTime _lastQueried;
@@ -88,7 +88,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region constructor
 
-        public QuicClientConnection(NameServerAddress server, NetProxy proxy)
+        public QuicClientConnection(NameServerAddress server, NetProxy? proxy)
             : base(server, proxy)
         {
             if (server.Protocol != DnsTransportProtocol.Quic)
@@ -103,7 +103,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             if (disposing && !_pooled)
             {
-                QuicConnection quicConnection = _quicConnection;
+                QuicConnection? quicConnection = _quicConnection;
                 if (quicConnection is not null)
                 {
                     quicConnection.CloseAsync(0).Sync();
@@ -120,7 +120,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             if (!_pooled)
             {
-                QuicConnection quicConnection = _quicConnection;
+                QuicConnection? quicConnection = _quicConnection;
                 if (quicConnection is not null)
                 {
                     await quicConnection.CloseAsync(0);
@@ -137,10 +137,10 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region private
 
-        private async Task<QuicConnection> GetConnectionAsync(int timeout, CancellationToken cancellationToken)
+        private async Task<QuicConnection?> GetConnectionAsync(int timeout, CancellationToken cancellationToken)
         {
             {
-                QuicConnection quicConnection = _quicConnection;
+                QuicConnection? quicConnection = _quicConnection;
                 if (quicConnection is not null)
                     return quicConnection;
             }
@@ -150,7 +150,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
             try
             {
-                QuicConnection quicConnection = _quicConnection;
+                QuicConnection? quicConnection = _quicConnection;
                 if (quicConnection is not null)
                     return quicConnection;
 
@@ -161,7 +161,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (_server.IsIPEndPointStale)
                         await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
 
-                    remoteEP = _server.IPEndPoint;
+                    remoteEP = _server.IPEndPoint!;
                 }
                 else
                 {
@@ -193,14 +193,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     switch (remoteEP.AddressFamily)
                     {
                         case AddressFamily.InterNetwork:
-                            Tuple<IPEndPoint, byte[]> ipv4SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv4SourceEP();
+                            Tuple<IPEndPoint, byte[]?>? ipv4SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv4SourceEP();
                             if (ipv4SourceEP is not null)
                                 connectionOptions.LocalEndPoint = ipv4SourceEP.Item1;
 
                             break;
 
                         case AddressFamily.InterNetworkV6:
-                            Tuple<IPEndPoint, byte[]> ipv6SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv6SourceEP();
+                            Tuple<IPEndPoint, byte[]?>? ipv6SourceEP = IPAddress.IsLoopback(remoteEP.Address) ? null : GetIPv6SourceEP();
                             if (ipv6SourceEP is not null)
                                 connectionOptions.LocalEndPoint = ipv6SourceEP.Item1;
 
@@ -248,8 +248,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if ((request.Question.Count > 0) && (request.Question[0].Type == DnsResourceRecordType.AXFR))
                 {
                     //read zone transfer response
-                    DnsDatagram firstResponse = null;
-                    DnsDatagram lastResponse = null;
+                    DnsDatagram? firstResponse = null;
+                    DnsDatagram? lastResponse = null;
                     MemoryStream sharedBuffer = new MemoryStream(4096);
                     bool isFirstResponse = false;
 
@@ -264,7 +264,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         }
                         else
                         {
-                            lastResponse.NextDatagram = response;
+                            lastResponse!.NextDatagram = response;
                         }
 
                         lastResponse = response;
@@ -303,7 +303,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                 retry++;
 
-                Task<QuicConnection> quicConnectionTask = GetConnectionAsync(timeout, cancellationToken);
+                Task<QuicConnection?> quicConnectionTask = GetConnectionAsync(timeout, cancellationToken);
 
                 //wait for connection with timeout
                 using (CancellationTokenSource timeoutCancellationTokenSource = new CancellationTokenSource())
@@ -317,7 +317,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     timeoutCancellationTokenSource.Cancel(); //to stop delay task
                 }
 
-                QuicConnection quicConnection = await quicConnectionTask;
+                QuicConnection? quicConnection = await quicConnectionTask;
                 if (quicConnection is null)
                     continue; //semaphone wait timed out; retry
 

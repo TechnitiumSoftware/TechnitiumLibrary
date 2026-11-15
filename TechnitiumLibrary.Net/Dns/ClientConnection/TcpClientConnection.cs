@@ -37,8 +37,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         const int ASYNC_RECEIVE_TIMEOUT = 120000;
 
-        Socket _socket;
-        Stream _tcpStream;
+        Socket? _socket;
+        Stream? _tcpStream;
 
         readonly ConcurrentDictionary<ushort, Transaction> _transactions = new ConcurrentDictionary<ushort, Transaction>();
 
@@ -54,14 +54,14 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region constructor
 
-        public TcpClientConnection(NameServerAddress server, NetProxy proxy)
+        public TcpClientConnection(NameServerAddress server, NetProxy? proxy)
             : base(server, proxy)
         {
             if (server.Protocol != DnsTransportProtocol.Tcp)
                 throw new ArgumentException("Name server protocol does not match.", nameof(server));
         }
 
-        protected TcpClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy proxy)
+        protected TcpClientConnection(DnsTransportProtocol protocol, NameServerAddress server, NetProxy? proxy)
             : base(server, proxy)
         {
             if (server.Protocol != protocol)
@@ -150,12 +150,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 if (_server.IsIPEndPointStale)
                     await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
 
-                socket = new Socket(_server.IPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                socket = new Socket(_server.IPEndPoint!.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
                 switch (_server.IPEndPoint.AddressFamily)
                 {
                     case AddressFamily.InterNetwork:
-                        Tuple<IPEndPoint, byte[]> ipv4SourceEP = IPAddress.IsLoopback(_server.IPEndPoint.Address) ? null : GetIPv4SourceEP();
+                        Tuple<IPEndPoint, byte[]?>? ipv4SourceEP = IPAddress.IsLoopback(_server.IPEndPoint.Address) ? null : GetIPv4SourceEP();
                         if (ipv4SourceEP is not null)
                         {
                             if (ipv4SourceEP.Item2 is not null)
@@ -171,7 +171,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         break;
 
                     case AddressFamily.InterNetworkV6:
-                        Tuple<IPEndPoint, byte[]> ipv6SourceEP = IPAddress.IsLoopback(_server.IPEndPoint.Address) ? null : GetIPv6SourceEP();
+                        Tuple<IPEndPoint, byte[]?>? ipv6SourceEP = IPAddress.IsLoopback(_server.IPEndPoint.Address) ? null : GetIPv6SourceEP();
                         if (ipv6SourceEP is not null)
                         {
                             if (ipv6SourceEP.Item2 is not null)
@@ -233,7 +233,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     }, ASYNC_RECEIVE_TIMEOUT, CancellationToken.None);
 
                     //signal response
-                    if (_transactions.TryGetValue(response.Identifier, out Transaction transaction))
+                    if (_transactions.TryGetValue(response.Identifier, out Transaction? transaction))
                         transaction.SetResponse(response, _server);
                 }
             }
@@ -304,7 +304,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         {
             _lastQueried = DateTime.UtcNow;
 
-            Task<bool> firstSendAsyncTask = null;
+            Task<bool>? firstSendAsyncTask = null;
 
             int retry = 0;
             while (retry < retries) //retry loop
@@ -371,7 +371,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
                 finally
                 {
-                    if (_transactions.TryRemove(request.Identifier, out Transaction transaction))
+                    if (_transactions.TryRemove(request.Identifier, out Transaction? transaction))
                         transaction.Dispose();
                 }
             }
@@ -406,8 +406,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             readonly Stopwatch _stopwatch = new Stopwatch();
             readonly TaskCompletionSource<DnsDatagram> _responseTask = new TaskCompletionSource<DnsDatagram>();
 
-            DnsDatagram _firstResponse;
-            DnsDatagram _lastResponse;
+            DnsDatagram? _firstResponse;
+            DnsDatagram? _lastResponse;
 
             #endregion
 
@@ -461,7 +461,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     }
                     else
                     {
-                        _lastResponse.NextDatagram = response;
+                        _lastResponse!.NextDatagram = response;
                     }
 
                     _lastResponse = response;

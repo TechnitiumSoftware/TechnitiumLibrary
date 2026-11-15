@@ -28,7 +28,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
     {
         #region variables
 
-        byte[] _data;
+        byte[] _data = null!;
 
         #endregion
 
@@ -64,7 +64,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
