@@ -92,7 +92,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (domain.Length <= closestEncloser.Length)
                 throw new InvalidOperationException();
 
-            string[] labels = domain.Split('.');
+            string[] labels = DnsDatagram.SplitDomainNameLabels(domain);
             string nextCloserName = null;
 
             for (int i = 0; i < labels.Length; i++)
@@ -315,7 +315,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         private static string GetHashedOwnerNameBase32HexStringFrom(string domain)
         {
-            int i = domain.IndexOf('.');
+            int i = DnsDatagram.FindDomainLabelSeparator(domain);
             if (i < 0)
                 return domain;
 
@@ -324,7 +324,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         private static string GetHashedOwnerNameZoneNameFrom(string domain)
         {
-            int i = domain.IndexOf('.');
+            int i = DnsDatagram.FindDomainLabelSeparator(domain);
             if (i < 0)
                 return "";
 
@@ -336,7 +336,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             if (domain.Length == 0)
                 return null; //no parent for root
 
-            int i = domain.IndexOf('.');
+            int i = DnsDatagram.FindDomainLabelSeparator(domain);
             if (i > -1)
                 return domain.Substring(i + 1);
 

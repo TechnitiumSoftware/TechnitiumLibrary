@@ -784,7 +784,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                 while (true)
                                                 {
                                                     //get parent domain
-                                                    int i = currentDomain.IndexOf('.');
+                                                    int i = DnsDatagram.FindDomainLabelSeparator(currentDomain);
                                                     if (i < 0)
                                                         break;
 
@@ -1040,7 +1040,7 @@ namespace TechnitiumLibrary.Net.Dns
                                 //mark all remaining name servers that ends with the same zone cut as misconfigured
                                 for (int i = nameServerIndex; i < nameServers.Count; i++)
                                 {
-                                    if (nameServers[i].Host.EndsWith("." + zoneCut, StringComparison.OrdinalIgnoreCase))
+                                    if (DnsDatagram.IsSubDomainName(nameServers[i].Host, zoneCut))
                                         nameServers[i].Metadata.MarkMisconfigured();
                                 }
 
@@ -1355,7 +1355,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         {
                                             foreach (DnsResourceRecord answer in response.Answer)
                                             {
-                                                if ((answer.Type == DnsResourceRecordType.DNAME) && question.Name.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                                                if ((answer.Type == DnsResourceRecordType.DNAME) && DnsDatagram.IsSubDomainName(question.Name, answer.Name))
                                                 {
                                                     foundDNAME = true;
                                                     break;
@@ -2549,27 +2549,43 @@ namespace TechnitiumLibrary.Net.Dns
             if (domain.Length == 0)
                 return true; //domain is root zone
 
-            if (domain.Length > 255)
+            //Scan label spans without creating a label array or intermediate strings.
+            //Escaped periods/backslashes occupy one DNS octet each.
+            int wireLength = 1; //terminating root label
+            ReadOnlySpan<char> remaining = domain;
+            while (true)
             {
-                if (throwException)
-                    throw new DnsClientException("Invalid domain name [" + domain + "]: length cannot exceed 255 bytes.");
+                int separator = DnsDatagram.FindDomainLabelSeparator(remaining);
+                ReadOnlySpan<char> label = separator < 0 ? remaining : remaining.Slice(0, separator);
+                int labelLength = 0;
+                bool wildcard = (label.Length == 1) && (label[0] == '*');
 
-                return false;
-            }
+                for (int i = 0; i < label.Length; i++)
+                {
+                    int labelChar = label[i];
 
-            int labelStart = 0;
-            int labelEnd;
-            int labelLength;
-            int labelChar;
-            int i;
+                    if (DnsDatagram.TryReadDomainNameEscape(label, ref i, out char unescaped))
+                    {
+                        labelChar = unescaped;
+                    }
+                    else if (!wildcard)
+                    {
+                        bool valid = ((labelChar >= 'a') && (labelChar <= 'z')) ||
+                            ((labelChar >= 'A') && (labelChar <= 'Z')) ||
+                            ((labelChar >= '0') && (labelChar <= '9')) ||
+                            (labelChar == '-') || (labelChar == '_') || (labelChar == '/');
 
-            do
-            {
-                labelEnd = domain.IndexOf('.', labelStart);
-                if (labelEnd < 0)
-                    labelEnd = domain.Length;
+                        if (!valid)
+                        {
+                            if (throwException)
+                                throw new DnsClientException("Invalid domain name [" + domain + "]: invalid character [" + labelChar + "] was found.");
 
-                labelLength = labelEnd - labelStart;
+                            return false;
+                        }
+                    }
+
+                    labelLength++;
+                }
 
                 if (labelLength == 0)
                 {
@@ -2587,40 +2603,20 @@ namespace TechnitiumLibrary.Net.Dns
                     return false;
                 }
 
-                if (labelLength != 1 || domain[labelStart] != '*')
+                wireLength += labelLength + 1;
+                if (wireLength > 255)
                 {
-                    for (i = labelStart; i < labelEnd; i++)
-                    {
-                        labelChar = domain[i];
+                    if (throwException)
+                        throw new DnsClientException("Invalid domain name [" + domain + "]: length cannot exceed 255 bytes.");
 
-                        if ((labelChar >= 97) && (labelChar <= 122)) //[a-z]
-                            continue;
-
-                        if ((labelChar >= 65) && (labelChar <= 90)) //[A-Z]
-                            continue;
-
-                        if ((labelChar >= 48) && (labelChar <= 57)) //[0-9]
-                            continue;
-
-                        if (labelChar == 45) //[-]
-                            continue;
-
-                        if (labelChar == 95) //[_]
-                            continue;
-
-                        if (labelChar == 47) //[/]
-                            continue;
-
-                        if (throwException)
-                            throw new DnsClientException("Invalid domain name [" + domain + "]: invalid character [" + labelChar + "] was found.");
-
-                        return false;
-                    }
+                    return false;
                 }
 
-                labelStart = labelEnd + 1;
+                if (separator < 0)
+                    break;
+
+                remaining = remaining.Slice(separator + 1);
             }
-            while (labelEnd < domain.Length);
 
             return true;
         }
@@ -2863,7 +2859,7 @@ namespace TechnitiumLibrary.Net.Dns
 
                 IReadOnlyList<DnsResourceRecord> dnsKeyRecords;
 
-                if (signersName.EndsWith("." + lastDSOwnerName, StringComparison.OrdinalIgnoreCase) || (lastDSOwnerName.Length == 0))
+                if (DnsDatagram.IsSubDomainName(signersName, lastDSOwnerName) || (lastDSOwnerName.Length == 0))
                 {
                     //signer's name is a subdomain for last DS record owner name
                     //find signer's DNSKEYs
@@ -3177,7 +3173,7 @@ namespace TechnitiumLibrary.Net.Dns
                             DnsRRSIGRecordData rrsig = rrsigRecord.RDATA as DnsRRSIGRecordData;
 
                             //The RRSIG RR's Signer's Name field MUST be the name of the zone that contains the RRset.
-                            if ((rrsig.SignersName.Length > 0) && !ownerName.Equals(rrsig.SignersName, StringComparison.OrdinalIgnoreCase) && !ownerName.EndsWith("." + rrsig.SignersName, StringComparison.OrdinalIgnoreCase))
+                            if ((rrsig.SignersName.Length > 0) && !ownerName.Equals(rrsig.SignersName, StringComparison.OrdinalIgnoreCase) && !DnsDatagram.IsSubDomainName(ownerName, rrsig.SignersName))
                                 continue;
 
                             //The RRSIG RR's Type Covered field MUST equal the RRset's type.
@@ -3299,7 +3295,7 @@ namespace TechnitiumLibrary.Net.Dns
                                         if (dnameRecord.Type != DnsResourceRecordType.DNAME)
                                             continue;
 
-                                        if (cnameRecord.Name.EndsWith("." + dnameRecord.Name, StringComparison.OrdinalIgnoreCase))
+                                        if (DnsDatagram.IsSubDomainName(cnameRecord.Name, dnameRecord.Name))
                                         {
                                             string synthesizedCNAME = (dnameRecord.RDATA as DnsDNAMERecordData).Substitute(cnameRecord.Name, dnameRecord.Name);
                                             string CNAME = (cnameRecord.RDATA as DnsCNAMERecordData).Domain;
@@ -3356,10 +3352,10 @@ namespace TechnitiumLibrary.Net.Dns
         {
             string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
 
-            if (ownerName.Equals(dnsKeyOwnerName, StringComparison.OrdinalIgnoreCase) || ((dnsKeyOwnerName.Length > 0) && !ownerName.EndsWith("." + dnsKeyOwnerName, StringComparison.OrdinalIgnoreCase)))
+            if (ownerName.Equals(dnsKeyOwnerName, StringComparison.OrdinalIgnoreCase) || ((dnsKeyOwnerName.Length > 0) && !DnsDatagram.IsSubDomainName(ownerName, dnsKeyOwnerName)))
                 throw new InvalidOperationException();
 
-            string[] labels = ownerName.Split('.');
+            string[] labels = DnsDatagram.SplitDomainNameLabels(ownerName);
             string nextDomain = null;
 
             for (int i = 0; i < labels.Length; i++)
@@ -3551,7 +3547,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             string dnsKeyOwnerName = currentDnsKeyRecords[0].Name;
 
-            if (ownerName.Equals(dnsKeyOwnerName, StringComparison.OrdinalIgnoreCase) || ((dnsKeyOwnerName.Length > 0) && !ownerName.EndsWith("." + dnsKeyOwnerName, StringComparison.OrdinalIgnoreCase)))
+            if (ownerName.Equals(dnsKeyOwnerName, StringComparison.OrdinalIgnoreCase) || ((dnsKeyOwnerName.Length > 0) && !DnsDatagram.IsSubDomainName(ownerName, dnsKeyOwnerName)))
                 throw new InvalidOperationException();
 
             DnsQuestionRecord dsQuestion = new DnsQuestionRecord(ownerName, DnsResourceRecordType.DS, @class);
@@ -3917,7 +3913,7 @@ namespace TechnitiumLibrary.Net.Dns
                     DnsRRSIGRecordData rrsig = rrsigRecord.RDATA as DnsRRSIGRecordData;
 
                     //The RRSIG RR's Signer's Name field MUST be the name of the zone that contains the RRset.
-                    if ((rrsig.SignersName.Length > 0) && !rrsigRecord.Name.Equals(rrsig.SignersName, StringComparison.OrdinalIgnoreCase) && !rrsigRecord.Name.EndsWith("." + rrsig.SignersName, StringComparison.OrdinalIgnoreCase))
+                    if ((rrsig.SignersName.Length > 0) && !rrsigRecord.Name.Equals(rrsig.SignersName, StringComparison.OrdinalIgnoreCase) && !DnsDatagram.IsSubDomainName(rrsigRecord.Name, rrsig.SignersName))
                         continue;
 
                     if (rrsigRecord.Name.Equals(record.Name, StringComparison.OrdinalIgnoreCase))
@@ -3933,7 +3929,7 @@ namespace TechnitiumLibrary.Net.Dns
                             break;
                         }
                     }
-                    else if ((record.Type == DnsResourceRecordType.CNAME) && record.Name.EndsWith("." + rrsigRecord.Name, StringComparison.OrdinalIgnoreCase) && (rrsig.TypeCovered == DnsResourceRecordType.DNAME))
+                    else if ((record.Type == DnsResourceRecordType.CNAME) && DnsDatagram.IsSubDomainName(record.Name, rrsigRecord.Name) && (rrsig.TypeCovered == DnsResourceRecordType.DNAME))
                     {
                         isRecordCovered = true;
                         break;
@@ -3964,7 +3960,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             foreach (string unsignedZone in unsignedZones)
             {
-                if (domain.Equals(unsignedZone, StringComparison.OrdinalIgnoreCase) || domain.EndsWith("." + unsignedZone, StringComparison.OrdinalIgnoreCase))
+                if (domain.Equals(unsignedZone, StringComparison.OrdinalIgnoreCase) || DnsDatagram.IsSubDomainName(domain, unsignedZone))
                     return true;
             }
 
@@ -4014,7 +4010,7 @@ namespace TechnitiumLibrary.Net.Dns
                                     break;
                             }
                         }
-                        else if ((answer.Type == DnsResourceRecordType.DNAME) && qName.EndsWith("." + answer.Name, StringComparison.OrdinalIgnoreCase))
+                        else if ((answer.Type == DnsResourceRecordType.DNAME) && DnsDatagram.IsSubDomainName(qName, answer.Name))
                         {
                             //found DNAME
                             newAnswers.Add(answer);
@@ -4050,11 +4046,10 @@ namespace TechnitiumLibrary.Net.Dns
 
             //keep answers records only in the zone cut
             bool answerNotInZoneCut = false;
-            string zoneCutEnd = "." + zoneCut;
 
             foreach (DnsResourceRecord answer in response.Answer)
             {
-                if (!answer.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !answer.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                if (!answer.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !DnsDatagram.IsSubDomainName(answer.Name, zoneCut))
                 {
                     answerNotInZoneCut = true;
                     break;
@@ -4068,7 +4063,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             foreach (DnsResourceRecord answer in response.Answer)
             {
-                if (answer.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || answer.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                if (answer.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || DnsDatagram.IsSubDomainName(answer.Name, zoneCut))
                     newAnswers.Add(answer);
             }
 
@@ -4085,13 +4080,12 @@ namespace TechnitiumLibrary.Net.Dns
 
             //remove SOA/NS records from authority section that are not in the zone cut
             bool authorityNotInZoneCut = false;
-            string zoneCutEnd = "." + zoneCut;
 
             foreach (DnsResourceRecord authority in response.Authority)
             {
                 if ((authority.Type == DnsResourceRecordType.SOA) || (authority.Type == DnsResourceRecordType.NS))
                 {
-                    if (!authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                    if (!authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !DnsDatagram.IsSubDomainName(authority.Name, zoneCut))
                     {
                         authorityNotInZoneCut = true;
                         break;
@@ -4106,7 +4100,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             foreach (DnsResourceRecord authority in response.Authority)
             {
-                if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || authority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                if (authority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || DnsDatagram.IsSubDomainName(authority.Name, zoneCut))
                     newAuthority.Add(authority);
             }
 
@@ -4115,7 +4109,7 @@ namespace TechnitiumLibrary.Net.Dns
                 DnsResourceRecord firstAuthority = response.FindFirstAuthorityRecord();
                 if ((firstAuthority is not null) && (firstAuthority.Type == DnsResourceRecordType.SOA))
                 {
-                    if (!firstAuthority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !firstAuthority.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                    if (!firstAuthority.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !DnsDatagram.IsSubDomainName(firstAuthority.Name, zoneCut))
                     {
                         //SOA not in zone cut so RCODE must be reset to NoError to avoid DNSSEC validation issues
                         return response.CloneInternal(rcode: DnsResponseCode.NoError, authority: newAuthority);
@@ -4136,14 +4130,13 @@ namespace TechnitiumLibrary.Net.Dns
 
             //remove records from additional section that are not in the zone cut
             bool additionalNotInZoneCut = false;
-            string zoneCutEnd = "." + zoneCut;
 
             foreach (DnsResourceRecord additional in response.Additional)
             {
                 if ((additional.Type == DnsResourceRecordType.OPT) && (additional.Name.Length == 0))
                     continue;
 
-                if (!additional.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !additional.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                if (!additional.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) && !DnsDatagram.IsSubDomainName(additional.Name, zoneCut))
                 {
                     additionalNotInZoneCut = true;
                     break;
@@ -4163,7 +4156,7 @@ namespace TechnitiumLibrary.Net.Dns
                     continue;
                 }
 
-                if (additional.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || additional.Name.EndsWith(zoneCutEnd, StringComparison.OrdinalIgnoreCase))
+                if (additional.Name.Equals(zoneCut, StringComparison.OrdinalIgnoreCase) || DnsDatagram.IsSubDomainName(additional.Name, zoneCut))
                     newAdditional.Add(additional);
             }
 
@@ -5052,7 +5045,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 DnsQuestionRecord question = request.Question[0];
 
-                if (!question.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !question.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase))
+                if (!question.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !DnsDatagram.IsSubDomainName(question.Name, _conditionalForwardingZoneCut))
                     return new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, DnsResponseCode.Refused, new DnsQuestionRecord[] { question });
             }
 
@@ -5066,7 +5059,7 @@ namespace TechnitiumLibrary.Net.Dns
                 //check if answer contains CNAME under the zone cut
                 foreach (DnsResourceRecord answer in response.Answer)
                 {
-                    if ((answer.Type == DnsResourceRecordType.CNAME) && (answer.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) || answer.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase)))
+                    if ((answer.Type == DnsResourceRecordType.CNAME) && (answer.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) || DnsDatagram.IsSubDomainName(answer.Name, _conditionalForwardingZoneCut)))
                     {
                         //remove any SOA in authority to avoid caching this response as NODATA/NXDOMAIN and allow the CNAME to be separately resolved by the DNS server
                         response = SanitizeResponseAuthorityForZoneCut(response, _conditionalForwardingZoneCut); //keep authority section within zone cut
@@ -5090,7 +5083,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         private async Task<DnsDatagram> InternalDnssecResolveAsync(DnsQuestionRecord question, CancellationToken cancellationToken = default)
         {
-            if ((_conditionalForwardingZoneCut is not null) && !question.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !question.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase))
+            if ((_conditionalForwardingZoneCut is not null) && !question.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !DnsDatagram.IsSubDomainName(question.Name, _conditionalForwardingZoneCut))
                 return new DnsDatagram(0, true, DnsOpcode.StandardQuery, false, false, true, true, false, false, DnsResponseCode.Refused, [question]);
 
             IDnsCache cache;
@@ -5120,7 +5113,7 @@ namespace TechnitiumLibrary.Net.Dns
                             //check if answer contains CNAME under the zone cut
                             foreach (DnsResourceRecord answer in response.Answer)
                             {
-                                if ((answer.Type == DnsResourceRecordType.CNAME) && (answer.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) || answer.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase)))
+                                if ((answer.Type == DnsResourceRecordType.CNAME) && (answer.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) || DnsDatagram.IsSubDomainName(answer.Name, _conditionalForwardingZoneCut)))
                                 {
                                     //remove any SOA in authority to avoid caching this response as NODATA/NXDOMAIN and allow the CNAME to be separately resolved by the DNS server
                                     response = SanitizeResponseAuthorityForZoneCut(response, _conditionalForwardingZoneCut); //keep authority section within zone cut
@@ -5221,7 +5214,7 @@ namespace TechnitiumLibrary.Net.Dns
         {
             return await ResolveQueryAsync(question, async delegate (DnsQuestionRecord q)
             {
-                if ((_conditionalForwardingZoneCut is not null) && !q.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !q.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase))
+                if ((_conditionalForwardingZoneCut is not null) && !q.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !DnsDatagram.IsSubDomainName(q.Name, _conditionalForwardingZoneCut))
                     return null;
 
                 DnsDatagram newRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, _dnssecValidation, DnsResponseCode.NoError, new DnsQuestionRecord[] { q }, null, null, null, _udpPayloadSize, _dnssecValidation ? EDnsHeaderFlags.DNSSEC_OK : EDnsHeaderFlags.None, _advancedForwardingClientSubnet ? null : EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));

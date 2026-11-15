@@ -422,9 +422,124 @@ namespace TechnitiumLibrary.Net.Dns
             return t;
         }
 
+        //A literal period or backslash inside a label uses a backslash escape.
+        private static bool IsEscapableDomainCharacter(char character)
+        {
+            return (character == '.') || (character == '\\');
+        }
+
+        internal static bool TryReadDomainNameEscape(ReadOnlySpan<char> text, ref int index, out char character)
+        {
+            if ((text[index] == '\\') && (index + 1 < text.Length) && IsEscapableDomainCharacter(text[index + 1]))
+            {
+                character = text[++index];
+                return true;
+            }
+
+            character = default;
+            return false;
+        }
+
+        //Only an even number of preceding backslashes leaves a period as a label separator.
+        private static bool IsDomainLabelSeparatorAt(ReadOnlySpan<char> domain, int index)
+        {
+            if (domain[index] != '.')
+                return false;
+
+            int backslashes = 0;
+            for (int i = index - 1; i >= 0 && domain[i] == '\\'; i--)
+                backslashes++;
+
+            return (backslashes & 1) == 0;
+        }
+
+        internal static int FindDomainLabelSeparator(ReadOnlySpan<char> domain)
+        {
+            int index = domain.IndexOf('.');
+            while (index >= 0)
+            {
+                if (IsDomainLabelSeparatorAt(domain, index))
+                    return index;
+
+                int next = domain.Slice(index + 1).IndexOf('.');
+                index = next < 0 ? -1 : index + next + 1;
+            }
+
+            return -1;
+        }
+
+        //Split only on unescaped presentation separators, preserving label contents.
+        internal static string[] SplitDomainNameLabels(string domain)
+        {
+            if (domain.Length == 0)
+                return [];
+
+            List<string> labels = [];
+            ReadOnlySpan<char> remaining = domain;
+            while (true)
+            {
+                int separator = FindDomainLabelSeparator(remaining);
+                if (separator < 0)
+                {
+                    labels.Add(remaining.ToString());
+                    return labels.ToArray();
+                }
+
+                labels.Add(remaining.Slice(0, separator).ToString());
+                remaining = remaining.Slice(separator + 1);
+            }
+        }
+
+        internal static int FindLastDomainLabelSeparator(ReadOnlySpan<char> domain)
+        {
+            int index = domain.LastIndexOf('.');
+            while (index >= 0)
+            {
+                if (IsDomainLabelSeparatorAt(domain, index))
+                    return index;
+
+                index = domain.Slice(0, index).LastIndexOf('.');
+            }
+
+            return -1;
+        }
+
+        //Avoid constructing a string suffix for each cache or resolver comparison.
+        internal static bool IsSubDomainName(string name, string parent)
+        {
+            if (string.IsNullOrEmpty(parent) || name.Length <= parent.Length)
+                return false;
+
+            int separator = name.Length - parent.Length - 1;
+            return IsDomainLabelSeparatorAt(name.AsSpan(), separator) &&
+                name.AsSpan(separator + 1).Equals(parent.AsSpan(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        //Undo the two escapes emitted by DeserializeDomainName, without
+        // interpreting an escaped period as a separator.
+        internal static string UnescapeDomainLabel(string label)
+        {
+            if (label.IndexOf('\\') < 0)
+                return label;
+
+            Span<char> decoded = stackalloc char[label.Length];
+            int length = 0;
+            for (int i = 0; i < label.Length; i++)
+            {
+                char c = label[i];
+                if (TryReadDomainNameEscape(label, ref i, out char unescaped))
+                    c = unescaped;
+
+                decoded[length++] = c;
+            }
+
+            return new string(decoded.Slice(0, length));
+        }
+
         public static void SerializeDomainName(ReadOnlySpan<char> domain, Stream s, List<DnsDomainOffset> domainEntries = null, bool isEmailAddress = false)
         {
             Span<byte> labelBytes = stackalloc byte[63];
+            Span<char> unescapedLabel = stackalloc char[63];
             int labelBytesLength;
 
             ReadOnlySpan<char> label;
@@ -461,13 +576,13 @@ namespace TechnitiumLibrary.Net.Dns
                 {
                     i = domain.LastIndexOf('@');
                     if (i < 0)
-                        i = domain.IndexOf('.');
+                        i = FindDomainLabelSeparator(domain);
 
                     isEmailAddress = false;
                 }
                 else
                 {
-                    i = domain.IndexOf('.');
+                    i = FindDomainLabelSeparator(domain);
                 }
 
                 if (i < 0)
@@ -481,7 +596,20 @@ namespace TechnitiumLibrary.Net.Dns
                     domain = domain.Slice(i + 1);
                 }
 
-                if (!Encoding.Latin1.TryGetBytes(label, labelBytes, out labelBytesLength))
+                int unescapedLength = 0;
+                for (int j = 0; j < label.Length; j++)
+                {
+                    char c = label[j];
+                    if (TryReadDomainNameEscape(label, ref j, out char unescaped))
+                        c = unescaped;
+
+                    if (unescapedLength == unescapedLabel.Length)
+                        throw new DnsClientException("Invalid domain name: label cannot exceed 63 bytes.");
+
+                    unescapedLabel[unescapedLength++] = c;
+                }
+
+                if (!Encoding.Latin1.TryGetBytes(unescapedLabel.Slice(0, unescapedLength), labelBytes, out labelBytesLength))
                     throw new DnsClientException("Invalid domain name: label cannot exceed 63 bytes.");
 
                 s.WriteByte((byte)labelBytesLength);
@@ -500,9 +628,12 @@ namespace TechnitiumLibrary.Net.Dns
             if (labelLength < 0)
                 throw new EndOfStreamException();
 
-            Span<char> domain = stackalloc char[256];
+            //Escaping a literal '.' or '\\' doubles its presentation length.
+            //512 chars accommodate every valid DNS name of at most 255 wire octets.
+            Span<char> domain = stackalloc char[512];
             Span<byte> buffer = stackalloc byte[63];
             int domainPosition = 0;
+            int wireNameLength = 1; //including the terminating root label
 
             while (labelLength > 0)
             {
@@ -519,9 +650,12 @@ namespace TechnitiumLibrary.Net.Dns
                     string domainSuffix = DeserializeDomainName(s, maxDepth - 1, ignoreMissingNullTermination, isEmailAddress);
                     if (domainSuffix.Length > 0)
                     {
-                        if (!domainSuffix.AsSpan().TryCopyTo(domain.Slice(domainPosition)))
+                        int suffixWireLength = GetSerializeDomainNameLength(domainSuffix);
+                        if (suffixWireLength - 1 > 255 - wireNameLength)
                             throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
 
+                        wireNameLength += suffixWireLength - 1;
+                        domainSuffix.AsSpan().CopyTo(domain.Slice(domainPosition));
                         domainPosition += domainSuffix.Length;
                         domain[domainPosition++] = '.';
                     }
@@ -533,13 +667,20 @@ namespace TechnitiumLibrary.Net.Dns
                 if (labelLength > 63)
                     throw new DnsClientException("Error while reading domain name: label length cannot exceed 63 bytes.");
 
+                if (labelLength + 1 > 255 - wireNameLength)
+                    throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
+
+                wireNameLength += labelLength + 1;
                 Span<byte> label = buffer.Slice(0, labelLength);
                 s.ReadExactly(label);
 
-                if (!Encoding.Latin1.TryGetChars(label, domain.Slice(domainPosition), out _))
-                    throw new DnsClientException("Error while reading domain name: domain name length cannot exceed 255 bytes.");
+                foreach (byte octet in label)
+                {
+                    if (IsEscapableDomainCharacter((char)octet))
+                        domain[domainPosition++] = '\\';
 
-                domainPosition += labelLength;
+                    domain[domainPosition++] = (char)octet;
+                }
 
                 if (isEmailAddress)
                 {
@@ -595,7 +736,14 @@ namespace TechnitiumLibrary.Net.Dns
             if (domain.Length == 0)
                 return 1;
 
-            return domain.Length + 2;
+            int length = domain.Length + 2;
+            for (int i = 0; i + 1 < domain.Length; i++)
+            {
+                if (TryReadDomainNameEscape(domain.AsSpan(), ref i, out _))
+                    length--;
+            }
+
+            return length;
         }
 
         internal static string EncodeCharacterString(string value)
