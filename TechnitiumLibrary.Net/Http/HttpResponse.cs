@@ -47,8 +47,10 @@ namespace TechnitiumLibrary.Net.Http
 
         #region constructor
 
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         private HttpResponse()
         { }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
         #endregion
 
@@ -101,7 +103,7 @@ namespace TechnitiumLibrary.Net.Http
                 headerBuffer.Position = 0;
                 StreamReader sR = new StreamReader(headerBuffer);
 
-                string[] requestParts = sR.ReadLine().Split(spaceSeparator, 3);
+                string[] requestParts = sR.ReadLine()!.Split(spaceSeparator, 3);
 
                 if (requestParts.Length != 3)
                     throw new InvalidDataException("Invalid HTTP request.");
@@ -112,7 +114,7 @@ namespace TechnitiumLibrary.Net.Http
 
                 while (true)
                 {
-                    string line = sR.ReadLine();
+                    string? line = sR.ReadLine();
                     if (string.IsNullOrEmpty(line))
                         break;
 
@@ -123,14 +125,14 @@ namespace TechnitiumLibrary.Net.Http
                     httpResponse._headers.Add(parts[0], parts[1]);
                 }
 
-                string strContentLength = httpResponse._headers[HttpRequestHeader.ContentLength];
+                string? strContentLength = httpResponse._headers[HttpRequestHeader.ContentLength];
                 if (!string.IsNullOrEmpty(strContentLength))
                 {
                     httpResponse._outputStream = new HttpContentStream(stream, buffer, offset, length, int.Parse(strContentLength));
                     return httpResponse;
                 }
 
-                string strTransferEncoding = httpResponse._headers[HttpRequestHeader.TransferEncoding];
+                string? strTransferEncoding = httpResponse._headers[HttpRequestHeader.TransferEncoding];
                 if (!string.IsNullOrEmpty(strTransferEncoding))
                 {
                     if (!strTransferEncoding.Equals("chunked", StringComparison.OrdinalIgnoreCase))

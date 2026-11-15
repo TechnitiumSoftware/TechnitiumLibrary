@@ -56,8 +56,8 @@ namespace TechnitiumLibrary.Net.Http.Client
         readonly SocketsHttpHandler _innerHandler;
 
         HttpClientNetworkType _networkType = HttpClientNetworkType.Default;
-        IDnsClient _dnsClient;
-        NetProxy _proxy;
+        IDnsClient? _dnsClient;
+        NetProxy? _proxy;
         bool _enableDANE;
 
         #endregion
@@ -67,7 +67,7 @@ namespace TechnitiumLibrary.Net.Http.Client
         public HttpClientNetworkHandler()
             : base(new SocketsHttpHandler())
         {
-            _innerHandler = base.InnerHandler as SocketsHttpHandler;
+            _innerHandler = (base.InnerHandler as SocketsHttpHandler)!;
 
             _innerHandler.EnableMultipleHttp2Connections = true;
             _innerHandler.AutomaticDecompression = DecompressionMethods.All;
@@ -136,7 +136,7 @@ namespace TechnitiumLibrary.Net.Http.Client
 
             Stream stream = new NetworkStream(socket, true);
 
-            if (!context.InitialRequestMessage.RequestUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+            if ((context.InitialRequestMessage.RequestUri is not null) && !context.InitialRequestMessage.RequestUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
                 return stream;
 
             SslClientAuthenticationOptions sslOptions = new SslClientAuthenticationOptions();
@@ -148,7 +148,7 @@ namespace TechnitiumLibrary.Net.Http.Client
             if (_enableDANE && (dnsResult.TlsaRecords is not null) && (dnsResult.TlsaRecords.Count > 0))
             {
                 sslOptions.TargetHost = dnsResult.TlsaBaseDomain;
-                sslOptions.RemoteCertificateValidationCallback += delegate (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+                sslOptions.RemoteCertificateValidationCallback += delegate (object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
                 {
                     if (_innerHandler.SslOptions.RemoteCertificateValidationCallback is not null)
                     {
@@ -171,7 +171,7 @@ namespace TechnitiumLibrary.Net.Http.Client
                 }
                 else
                 {
-                    string host = context.InitialRequestMessage.Headers.Host;
+                    string? host = context.InitialRequestMessage.Headers.Host;
                     if (!string.IsNullOrEmpty(host))
                     {
                         int i = host.IndexOf(':');
@@ -211,7 +211,7 @@ namespace TechnitiumLibrary.Net.Http.Client
 
         private async ValueTask<DnsResolutionResult> ResolveAddressesAsync(string host, int port, CancellationToken cancellationToken)
         {
-            if (IPAddress.TryParse(host, out IPAddress ip))
+            if (IPAddress.TryParse(host, out IPAddress? ip))
             {
                 switch (_networkType)
                 {
@@ -270,12 +270,12 @@ namespace TechnitiumLibrary.Net.Http.Client
 
                     default:
                         {
-                            Task<DnsDatagram> ipv6Task = (_networkType == HttpClientNetworkType.PreferIPv6) || IsPublicIPv6Available() ? _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken) : null;
+                            Task<DnsDatagram>? ipv6Task = (_networkType == HttpClientNetworkType.PreferIPv6) || IsPublicIPv6Available() ? _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.AAAA, DnsClass.IN), cancellationToken) : null;
                             Task<DnsDatagram> ipv4Task = _dnsClient.ResolveAsync(new DnsQuestionRecord(host, DnsResourceRecordType.A, DnsClass.IN), cancellationToken);
 
                             response = await ipv4Task;
 
-                            IReadOnlyList<IPAddress> ipv6Addresses = ipv6Task is null ? null : Dns.DnsClient.ParseResponseAAAA(await ipv6Task);
+                            IReadOnlyList<IPAddress>? ipv6Addresses = ipv6Task is null ? null : Dns.DnsClient.ParseResponseAAAA(await ipv6Task);
                             IReadOnlyList<IPAddress> ipv4Addresses = Dns.DnsClient.ParseResponseA(response);
 
                             if (ipv6Addresses is null)
@@ -301,8 +301,8 @@ namespace TechnitiumLibrary.Net.Http.Client
                 throw new HttpRequestException("HttpClientNetworkHandler could not resolve IP address for host: " + host, ex);
             }
 
-            string tlsaBaseDomain = null;
-            IReadOnlyList<DnsTLSARecordData> tlsaRecords = null;
+            string? tlsaBaseDomain = null;
+            IReadOnlyList<DnsTLSARecordData>? tlsaRecords = null;
 
             if (_enableDANE)
             {
@@ -320,15 +320,15 @@ namespace TechnitiumLibrary.Net.Http.Client
                                 break;
                             }
 
-                            baseDomain = (record.RDATA as DnsCNAMERecordData).Domain;
+                            baseDomain = (record.RDATA as DnsCNAMERecordData)!.Domain;
                         }
                     }
 
                     Task<DnsDatagram> tlsaTask1 = _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + baseDomain, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
-                    Task<DnsDatagram> tlsaTask2 = host.Equals(baseDomain, StringComparison.OrdinalIgnoreCase) ? null : _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + host, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
+                    Task<DnsDatagram>? tlsaTask2 = host.Equals(baseDomain, StringComparison.OrdinalIgnoreCase) ? null : _dnsClient.ResolveAsync(new DnsQuestionRecord("_" + port + "._tcp." + host, DnsResourceRecordType.TLSA, DnsClass.IN), cancellationToken);
 
-                    IReadOnlyList<DnsTLSARecordData> tlsaRecords1 = Dns.DnsClient.ParseResponseTLSA(await tlsaTask1);
-                    IReadOnlyList<DnsTLSARecordData> tlsaRecords2 = tlsaTask2 is null ? null : Dns.DnsClient.ParseResponseTLSA(await tlsaTask2);
+                    IReadOnlyList<DnsTLSARecordData>? tlsaRecords1 = Dns.DnsClient.ParseResponseTLSA(await tlsaTask1);
+                    IReadOnlyList<DnsTLSARecordData>? tlsaRecords2 = tlsaTask2 is null ? null : Dns.DnsClient.ParseResponseTLSA(await tlsaTask2);
 
                     bool tlsaAvailable1 = (tlsaRecords1 is not null) && (tlsaRecords1.Count > 0);
                     bool tlsaAvailable2 = (tlsaRecords2 is not null) && (tlsaRecords2.Count > 0);
@@ -336,17 +336,17 @@ namespace TechnitiumLibrary.Net.Http.Client
                     if (tlsaAvailable1 && tlsaAvailable2)
                     {
                         tlsaBaseDomain = baseDomain;
-                        tlsaRecords = [.. tlsaRecords1, .. tlsaRecords2];
+                        tlsaRecords = [.. tlsaRecords1!, .. tlsaRecords2!];
                     }
                     else if (tlsaAvailable1)
                     {
                         tlsaBaseDomain = baseDomain;
-                        tlsaRecords = tlsaRecords1;
+                        tlsaRecords = tlsaRecords1!;
                     }
                     else if (tlsaAvailable2)
                     {
                         tlsaBaseDomain = host;
-                        tlsaRecords = tlsaRecords2;
+                        tlsaRecords = tlsaRecords2!;
                     }
                 }
                 catch (Exception ex)
@@ -568,13 +568,13 @@ namespace TechnitiumLibrary.Net.Http.Client
             set { _networkType = value; }
         }
 
-        public IDnsClient DnsClient
+        public IDnsClient? DnsClient
         {
             get { return _dnsClient; }
             set { _dnsClient = value; }
         }
 
-        public NetProxy Proxy
+        public NetProxy? Proxy
         {
             get { return _proxy; }
             set { _proxy = value; }
@@ -593,14 +593,14 @@ namespace TechnitiumLibrary.Net.Http.Client
             #region variables
 
             readonly IPAddress[] _addresses;
-            readonly string _tlsaBaseDomain;
-            readonly IReadOnlyList<DnsTLSARecordData> _tlsaRecords;
+            readonly string? _tlsaBaseDomain;
+            readonly IReadOnlyList<DnsTLSARecordData>? _tlsaRecords;
 
             #endregion
 
             #region constructor
 
-            public DnsResolutionResult(IPAddress[] addresses, string tlsaBaseDomain, IReadOnlyList<DnsTLSARecordData> tlsaRecords)
+            public DnsResolutionResult(IPAddress[] addresses, string? tlsaBaseDomain, IReadOnlyList<DnsTLSARecordData>? tlsaRecords)
             {
                 _addresses = addresses;
                 _tlsaBaseDomain = tlsaBaseDomain;
@@ -614,10 +614,10 @@ namespace TechnitiumLibrary.Net.Http.Client
             public IPAddress[] Addresses
             { get { return _addresses; } }
 
-            public string TlsaBaseDomain
+            public string? TlsaBaseDomain
             { get { return _tlsaBaseDomain; } }
 
-            public IReadOnlyList<DnsTLSARecordData> TlsaRecords
+            public IReadOnlyList<DnsTLSARecordData>? TlsaRecords
             { get { return _tlsaRecords; } }
 
             #endregion
