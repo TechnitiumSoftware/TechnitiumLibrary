@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -33,9 +33,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         ushort _priority;
         ushort _weight;
-        Uri _uri;
+        Uri _uri = null!;
 
-        byte[] _rData;
+        byte[]? _rData;
 
         #endregion
 
@@ -68,7 +68,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             if (_rData is null)
             {
@@ -91,18 +91,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsURIRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsURIRecordData(rdata);
 
-            ushort priority = ushort.Parse(await zoneFile.PopItemAsync());
-            ushort weight = ushort.Parse(await zoneFile.PopItemAsync());
-            Uri uri = new Uri(await zoneFile.PopItemAsync());
+            ushort priority = ushort.Parse(await zoneFile.PopFieldAsync());
+            ushort weight = ushort.Parse(await zoneFile.PopFieldAsync());
+            Uri uri = new Uri(await zoneFile.PopFieldAsync());
 
             return new DnsURIRecordData(priority, weight, uri);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return _priority + " " + _weight + " \"" + _uri.AbsoluteUri + "\"";
         }
@@ -111,7 +111,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

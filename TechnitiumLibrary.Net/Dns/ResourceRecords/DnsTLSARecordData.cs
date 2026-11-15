@@ -59,7 +59,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         DnsTLSACertificateUsage _certificateUsage;
         DnsTLSASelector _selector;
         DnsTLSAMatchingType _matchingType;
-        byte[] _certificateAssociationData;
+        byte[] _certificateAssociationData = null!;
 
         #endregion
 
@@ -199,7 +199,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _certificateAssociationData = s.ReadExactly(_rdLength - 3);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.WriteByte((byte)_certificateUsage);
             s.WriteByte((byte)_selector);
@@ -213,19 +213,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsTLSARecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsTLSARecordData(rdata);
 
-            DnsTLSACertificateUsage certificateUsage = (DnsTLSACertificateUsage)byte.Parse(await zoneFile.PopItemAsync());
-            DnsTLSASelector selector = (DnsTLSASelector)byte.Parse(await zoneFile.PopItemAsync());
-            DnsTLSAMatchingType matchingType = (DnsTLSAMatchingType)byte.Parse(await zoneFile.PopItemAsync());
-            byte[] certificateAssociationData = Convert.FromHexString(await zoneFile.PopItemAsync());
+            DnsTLSACertificateUsage certificateUsage = (DnsTLSACertificateUsage)byte.Parse(await zoneFile.PopFieldAsync());
+            DnsTLSASelector selector = (DnsTLSASelector)byte.Parse(await zoneFile.PopFieldAsync());
+            DnsTLSAMatchingType matchingType = (DnsTLSAMatchingType)byte.Parse(await zoneFile.PopFieldAsync());
+            byte[] certificateAssociationData = Convert.FromHexString(await zoneFile.PopFieldAsync());
 
             return new DnsTLSARecordData(certificateUsage, selector, matchingType, certificateAssociationData);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return (byte)_certificateUsage + " " + (byte)_selector + " " + (byte)_matchingType + " " + Convert.ToHexString(_certificateAssociationData);
         }
@@ -234,7 +234,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

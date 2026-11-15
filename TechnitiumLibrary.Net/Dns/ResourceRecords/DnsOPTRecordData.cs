@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public readonly static DnsOPTRecordData Empty = new DnsOPTRecordData();
 
-        IReadOnlyList<EDnsOption> _options;
+        IReadOnlyList<EDnsOption> _options = null!;
 
         #endregion
 
@@ -49,10 +49,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public DnsOPTRecordData(Stream s)
             : base(s)
-        {
-            if (_options is null)
-                _options = Array.Empty<EDnsOption>();
-        }
+        { }
 
         #endregion
 
@@ -60,7 +57,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            List<EDnsOption> options = null;
+            List<EDnsOption>? options = null;
             int bytesRead = 0;
 
             while (bytesRead < _rdLength)
@@ -75,10 +72,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 bytesRead += 2 + 2 + option.Data.Length;
             }
 
-            _options = options;
+            _options = options ?? [];
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             foreach (EDnsOption option in _options)
                 option.WriteTo(s);
@@ -88,7 +85,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region internal
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             throw new InvalidOperationException();
         }
@@ -97,7 +94,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -126,7 +123,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            string s = null;
+            string? s = null;
 
             foreach (EDnsOption option in _options)
             {

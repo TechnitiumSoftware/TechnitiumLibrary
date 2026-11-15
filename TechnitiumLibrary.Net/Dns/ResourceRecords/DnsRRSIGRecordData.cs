@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
@@ -40,10 +41,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         uint _signatureExpiration;
         uint _signatureInception;
         ushort _keyTag;
-        string _signersName;
-        byte[] _signature;
+        string _signersName = null!;
+        byte[] _signature = null!;
 
-        byte[] _rData;
+        byte[]? _rData;
 
         #endregion
 
@@ -78,7 +79,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             throw new InvalidOperationException();
         }
 
-        public static bool IsWildcard(DnsResourceRecord rrsigRecord, out string nextCloserName)
+        public static bool IsWildcard(DnsResourceRecord rrsigRecord, [NotNullWhen(true)] out string? nextCloserName)
         {
             if (rrsigRecord.RDATA is DnsRRSIGRecordData rrsig)
             {
@@ -116,7 +117,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return count;
         }
 
-        public static bool TryGetRRSetHash(DnsRRSIGRecordData rrsigRecord, IReadOnlyList<DnsResourceRecord> records, out byte[] hash, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
+        public static bool TryGetRRSetHash(DnsRRSIGRecordData rrsigRecord, IReadOnlyList<DnsResourceRecord> records, [NotNullWhen(true)] out byte[]? hash, out EDnsExtendedDnsErrorCode extendedDnsErrorCode)
         {
             using (MemoryStream mS = new MemoryStream(512))
             {
@@ -261,7 +262,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         private static string GetTrimmedDomain(string domain, int labelCount)
         {
             string[] labels = domain.Split('.');
-            string trimmedDomain = null;
+            string? trimmedDomain = null;
 
             for (int i = 0; i < labelCount; i++)
             {
@@ -271,7 +272,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     trimmedDomain = labels[labels.Length - 1 - i] + "." + trimmedDomain;
             }
 
-            return trimmedDomain;
+            return trimmedDomain ?? "";
         }
 
         private void Serialize()
@@ -304,7 +305,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _signature = s.ReadExactly(_rdLength - (int)(s.Position - startPosition));
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             if (_rData is null)
                 Serialize();
@@ -318,37 +319,37 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsRRSIGRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsRRSIGRecordData(rdata);
 
-            DnsResourceRecordType typeCovered = Enum.Parse<DnsResourceRecordType>(await zoneFile.PopItemAsync(), true);
-            DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
-            byte labels = byte.Parse(await zoneFile.PopItemAsync());
-            uint originalTtl = uint.Parse(await zoneFile.PopItemAsync());
+            DnsResourceRecordType typeCovered = Enum.Parse<DnsResourceRecordType>(await zoneFile.PopFieldAsync(), true);
+            DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopFieldAsync());
+            byte labels = byte.Parse(await zoneFile.PopFieldAsync());
+            uint originalTtl = uint.Parse(await zoneFile.PopFieldAsync());
 
-            string strSignatureExpiration = await zoneFile.PopItemAsync();
+            string strSignatureExpiration = await zoneFile.PopFieldAsync();
             uint signatureExpiration;
             if (strSignatureExpiration.Length == 14)
                 signatureExpiration = Convert.ToUInt32((DateTime.ParseExact(strSignatureExpiration, "yyyyMMddHHmmss", CultureInfo.InvariantCulture) - DateTime.UnixEpoch).TotalSeconds);
             else
                 signatureExpiration = uint.Parse(strSignatureExpiration);
 
-            string strSignatureInception = await zoneFile.PopItemAsync();
+            string strSignatureInception = await zoneFile.PopFieldAsync();
             uint signatureInception;
             if (strSignatureInception.Length == 14)
                 signatureInception = Convert.ToUInt32((DateTime.ParseExact(strSignatureInception, "yyyyMMddHHmmss", CultureInfo.InvariantCulture) - DateTime.UnixEpoch).TotalSeconds);
             else
                 signatureInception = uint.Parse(strSignatureInception);
 
-            ushort keyTag = ushort.Parse(await zoneFile.PopItemAsync());
+            ushort keyTag = ushort.Parse(await zoneFile.PopFieldAsync());
             string signersName = await zoneFile.PopDomainAsync();
             byte[] signature = Convert.FromBase64String(await zoneFile.PopToEndAsync());
 
             return new DnsRRSIGRecordData(typeCovered, algorithm, labels, originalTtl, signatureExpiration, signatureInception, keyTag, signersName, signature);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return (ushort)_typeCovered + " " + (byte)_algorithm + " " + _labels + " " + _originalTtl + " " + _signatureExpiration + " " + _signatureInception + " " + _keyTag + " " + DnsResourceRecord.GetRelativeDomainName(_signersName, originDomain) + " " + Convert.ToBase64String(_signature);
         }
@@ -376,7 +377,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, out EDnsExtendedDnsErrorCode extendedDnsErrorCode, DnsClient.ResolverContext context = null)
+        public bool IsSignatureValid(IReadOnlyList<DnsResourceRecord> records, IReadOnlyList<DnsResourceRecord> dnsKeyRecords, out EDnsExtendedDnsErrorCode extendedDnsErrorCode, DnsClient.ResolverContext? context = null)
         {
             //inception must be less than expiration
             if (DnsSOARecordData.IsZoneUpdateAvailable(_signatureExpiration, _signatureInception))
@@ -404,7 +405,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return false;
             }
 
-            if (!TryGetRRSetHash(this, records, out byte[] hash, out extendedDnsErrorCode))
+            if (!TryGetRRSetHash(this, records, out byte[]? hash, out extendedDnsErrorCode))
                 return false;
 
             HashAlgorithmName hashAlgorithm = GetHashAlgorithmName(_algorithm);
@@ -423,7 +424,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (!dnsKeyRecord.Name.Equals(_signersName, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                DnsDNSKEYRecordData dnsKey = dnsKeyRecord.RDATA as DnsDNSKEYRecordData;
+                DnsDNSKEYRecordData dnsKey = (dnsKeyRecord.RDATA as DnsDNSKEYRecordData)!;
 
                 if (dnsKey.Protocol != 3)
                     continue;
@@ -497,7 +498,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return false;
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

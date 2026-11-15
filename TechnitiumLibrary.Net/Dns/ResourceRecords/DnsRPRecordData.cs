@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,8 +31,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _mailbox;
-        string _txtDomain;
+        string _mailbox = null!;
+        string _txtDomain = null!;
 
         #endregion
 
@@ -63,7 +63,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _txtDomain = DnsDatagram.DeserializeDomainName(s);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             DnsDatagram.SerializeDomainName(canonicalForm ? _mailbox.ToLowerInvariant() : _mailbox, s, isEmailAddress: true);
             DnsDatagram.SerializeDomainName(canonicalForm ? _txtDomain.ToLowerInvariant() : _txtDomain, s);
@@ -75,7 +75,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsRPRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsRPRecordData(rdata);
 
@@ -85,7 +85,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return new DnsRPRecordData(mailbox, txtDomain);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return DnsResourceRecord.GetRelativeDomainName(DnsSOARecordData.GetResponsiblePersonDomainFormat(_mailbox), originDomain) + " " + DnsResourceRecord.GetRelativeDomainName(_txtDomain, originDomain);
         }
@@ -94,7 +94,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

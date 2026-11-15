@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        IReadOnlyList<APItem> _apItems;
+        IReadOnlyList<APItem> _apItems = null!;
 
         #endregion
 
@@ -82,7 +82,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _apItems = apItems;
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             foreach (APItem item in _apItems)
                 item.WriteTo(s);
@@ -94,7 +94,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsAPLRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsAPLRecordData(rdata);
 
@@ -102,7 +102,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             while (true)
             {
-                APItem apItem = await APItem.FromZoneFileEntryAsync(zoneFile);
+                APItem? apItem = await APItem.FromZoneFileEntryAsync(zoneFile);
                 if (apItem is null)
                     break;
 
@@ -112,9 +112,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return new DnsAPLRecordData(apItems);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
-            string value = null;
+            string? value = null;
 
             foreach (APItem item in _apItems)
             {
@@ -124,14 +124,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     value += " " + item.ToZoneFileEntry();
             }
 
-            return value;
+            return value ?? "";
         }
 
         #endregion
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -267,6 +267,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                             _networkAddress = new NetworkAddress(new IPAddress(buffer), _prefix);
                         }
                         break;
+
+                    default:
+                        throw new NotSupportedException();
                 }
             }
 
@@ -274,9 +277,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             #region internal
 
-            internal static async Task<APItem> FromZoneFileEntryAsync(ZoneFile zoneFile)
+            internal static async Task<APItem?> FromZoneFileEntryAsync(ZoneFile zoneFile)
             {
-                string apItem = await zoneFile.PopItemAsync();
+                string? apItem = await zoneFile.PopItemAsync();
                 if (apItem is null)
                     return null;
 
@@ -287,7 +290,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 bool n = parts[0].StartsWith('!');
                 IanaAddressFamily addressFamily = (IanaAddressFamily)ushort.Parse(parts[0].TrimStart('!'));
 
-                if (!NetworkAddress.TryParse(parts[1], out NetworkAddress networkAddress))
+                if (!NetworkAddress.TryParse(parts[1], out NetworkAddress? networkAddress))
                     throw new FormatException("Failed to parse APL record data for AP Item: " + apItem);
 
                 switch (networkAddress.AddressFamily)
@@ -325,7 +328,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 s.Write(_afdPart);
             }
 
-            public override bool Equals(object obj)
+            public override bool Equals(object? obj)
             {
                 if (obj is null)
                     return false;

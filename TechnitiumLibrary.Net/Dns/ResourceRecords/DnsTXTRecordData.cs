@@ -31,9 +31,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        IReadOnlyList<ArraySegment<byte>> _characterStrings;
+        IReadOnlyList<ArraySegment<byte>> _characterStrings = null!;
 
-        byte[] _rData;
+        byte[] _rData = null!;
 
         #endregion
 
@@ -134,7 +134,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _characterStrings = characterStrings;
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.Write(_rData);
         }
@@ -145,7 +145,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsTXTRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsTXTRecordData(rdata);
 
@@ -153,7 +153,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             do
             {
-                string value = await zoneFile.PopItemAsync();
+                string? value = await zoneFile.PopItemAsync();
                 if (value is null)
                     break;
 
@@ -167,9 +167,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return new DnsTXTRecordData(characterStrings);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
-            string value = null;
+            string? value = null;
 
             foreach (ArraySegment<byte> characterString in _characterStrings)
             {
@@ -181,7 +181,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     value += " " + cs;
             }
 
-            return value;
+            return value ?? "";
         }
 
         #endregion
@@ -209,7 +209,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return characterStrings;
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

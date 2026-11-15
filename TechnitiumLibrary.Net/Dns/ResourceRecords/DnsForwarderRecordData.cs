@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -42,19 +42,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #region variables
 
         DnsTransportProtocol _protocol;
-        string _forwarder;
+        string _forwarder = null!;
         bool _dnssecValidation;
         DnsForwarderRecordProxyType _proxyType;
-        string _proxyAddress;
+        string? _proxyAddress;
         ushort _proxyPort;
-        string _proxyUsername;
-        string _proxyPassword;
+        string? _proxyUsername;
+        string? _proxyPassword;
         byte _priority;
 
         readonly bool _isPartialRecordData;
 
-        NameServerAddress _nameServer;
-        NetProxy _proxy;
+        NameServerAddress? _nameServer;
+        NetProxy? _proxy;
 
         #endregion
 
@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _isPartialRecordData = true;
         }
 
-        public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder, bool dnssecValidation, DnsForwarderRecordProxyType proxyType, string proxyAddress, ushort proxyPort, string proxyUsername, string proxyPassword, byte priority)
+        public DnsForwarderRecordData(DnsTransportProtocol protocol, string forwarder, bool dnssecValidation, DnsForwarderRecordProxyType proxyType, string? proxyAddress, ushort proxyPort, string? proxyUsername, string? proxyPassword, byte priority)
         {
             _protocol = protocol;
             _forwarder = forwarder;
@@ -77,17 +77,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 case DnsForwarderRecordProxyType.Http:
                 case DnsForwarderRecordProxyType.Socks5:
-                    _proxyAddress = proxyAddress;
+                    _proxyAddress = proxyAddress ?? throw new ArgumentNullException(nameof(proxyAddress));
                     _proxyPort = proxyPort;
-                    _proxyUsername = proxyUsername;
-                    _proxyPassword = proxyPassword;
-
-                    if (_proxyUsername is null)
-                        _proxyUsername = string.Empty;
-
-                    if (_proxyPassword is null)
-                        _proxyPassword = string.Empty;
-
+                    _proxyUsername = proxyUsername ?? "";
+                    _proxyPassword = proxyPassword ?? "";
                     break;
             }
 
@@ -160,7 +153,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 _protocol = DnsTransportProtocol.Https;
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.WriteByte((byte)_protocol);
             s.WriteShortString(_forwarder, Encoding.ASCII);
@@ -171,10 +164,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 case DnsForwarderRecordProxyType.Http:
                 case DnsForwarderRecordProxyType.Socks5:
-                    s.WriteShortString(_proxyAddress, Encoding.ASCII);
+                    s.WriteShortString(_proxyAddress!, Encoding.ASCII);
                     DnsDatagram.WriteUInt16NetworkOrder(_proxyPort, s);
-                    s.WriteShortString(_proxyUsername, Encoding.ASCII);
-                    s.WriteShortString(_proxyPassword, Encoding.ASCII);
+                    s.WriteShortString(_proxyUsername!, Encoding.ASCII);
+                    s.WriteShortString(_proxyPassword!, Encoding.ASCII);
                     break;
             }
 
@@ -187,44 +180,44 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsForwarderRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsForwarderRecordData(rdata);
 
-            DnsTransportProtocol protocol = Enum.Parse<DnsTransportProtocol>(await zoneFile.PopItemAsync(), true);
-            string forwarder = await zoneFile.PopItemAsync();
-            bool dnssecValidation = bool.Parse(await zoneFile.PopItemAsync());
-            DnsForwarderRecordProxyType proxyType = Enum.Parse<DnsForwarderRecordProxyType>(await zoneFile.PopItemAsync(), true);
+            DnsTransportProtocol protocol = Enum.Parse<DnsTransportProtocol>(await zoneFile.PopFieldAsync(), true);
+            string forwarder = await zoneFile.PopFieldAsync();
+            bool dnssecValidation = bool.Parse(await zoneFile.PopFieldAsync());
+            DnsForwarderRecordProxyType proxyType = Enum.Parse<DnsForwarderRecordProxyType>(await zoneFile.PopFieldAsync(), true);
 
-            string proxyAddress = null;
+            string? proxyAddress = null;
             ushort proxyPort = 0;
-            string proxyUsername = null;
-            string proxyPassword = null;
+            string? proxyUsername = null;
+            string? proxyPassword = null;
 
             switch (proxyType)
             {
                 case DnsForwarderRecordProxyType.Http:
                 case DnsForwarderRecordProxyType.Socks5:
-                    proxyAddress = await zoneFile.PopItemAsync();
-                    proxyPort = ushort.Parse(await zoneFile.PopItemAsync());
+                    proxyAddress = await zoneFile.PopFieldAsync();
+                    proxyPort = ushort.Parse(await zoneFile.PopFieldAsync());
 
-                    proxyUsername = await zoneFile.PopItemAsync();
-                    if ((proxyUsername is null) || (proxyUsername == "-"))
+                    proxyUsername = await zoneFile.PopFieldAsync();
+                    if (proxyUsername == "-")
                         proxyUsername = string.Empty;
 
-                    proxyPassword = await zoneFile.PopItemAsync();
-                    if ((proxyPassword is null) || (proxyPassword == "-"))
+                    proxyPassword = await zoneFile.PopFieldAsync();
+                    if (proxyPassword == "-")
                         proxyPassword = string.Empty;
 
                     break;
             }
 
-            byte priority = byte.Parse(await zoneFile.PopItemAsync());
+            byte priority = byte.Parse(await zoneFile.PopFieldAsync());
 
             return new DnsForwarderRecordData(protocol, forwarder, dnssecValidation, proxyType, proxyAddress, proxyPort, proxyUsername, proxyPassword, priority);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             string str = _protocol.ToString() + " " + DnsDatagram.EncodeCharacterString(_forwarder) + " " + _dnssecValidation + " " + _proxyType.ToString();
 
@@ -232,7 +225,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 case DnsForwarderRecordProxyType.Http:
                 case DnsForwarderRecordProxyType.Socks5:
-                    str += " " + DnsDatagram.EncodeCharacterString(_proxyAddress) + " " + _proxyPort;
+                    str += " " + DnsDatagram.EncodeCharacterString(_proxyAddress!) + " " + _proxyPort;
 
                     if (string.IsNullOrEmpty(_proxyUsername))
                         str += " -";
@@ -256,7 +249,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public NetProxy GetProxy(NetProxy defaultProxy)
+        public NetProxy? GetProxy(NetProxy defaultProxy)
         {
             switch (_proxyType)
             {
@@ -267,8 +260,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnsForwarderRecordProxyType.Socks5:
                     if (_proxy is null)
                     {
-                        _proxy = NetProxy.CreateProxy((NetProxyType)_proxyType, _proxyAddress, _proxyPort, _proxyUsername, _proxyPassword);
-                        _proxy.BypassList = null;
+                        _proxy = NetProxy.CreateProxy((NetProxyType)_proxyType, _proxyAddress!, _proxyPort, _proxyUsername, _proxyPassword);
+                        _proxy.BypassList = [];
                     }
 
                     return _proxy;
@@ -278,7 +271,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -369,16 +362,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public DnsForwarderRecordProxyType ProxyType
         { get { return _proxyType; } }
 
-        public string ProxyAddress
+        public string? ProxyAddress
         { get { return _proxyAddress; } }
 
         public ushort ProxyPort
         { get { return _proxyPort; } }
 
-        public string ProxyUsername
+        public string? ProxyUsername
         { get { return _proxyUsername; } }
 
-        public string ProxyPassword
+        public string? ProxyPassword
         { get { return _proxyPassword; } }
 
         public byte Priority
@@ -409,7 +402,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 {
                     case DnsForwarderRecordProxyType.Http:
                     case DnsForwarderRecordProxyType.Socks5:
-                        length += 1 + _proxyAddress.Length + 2 + 1 + _proxyUsername.Length + 1 + _proxyPassword.Length;
+                        length += 1 + _proxyAddress!.Length + 2 + 1 + _proxyUsername!.Length + 1 + _proxyPassword!.Length;
                         break;
                 }
 

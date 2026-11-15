@@ -68,7 +68,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected abstract void ReadRecordData(Stream s);
 
-        protected abstract void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm);
+        protected abstract void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm);
 
         #endregion
 
@@ -82,7 +82,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             WriteRecordData(s, null, true);
         }
 
-        internal abstract string ToZoneFileEntry(string originDomain = null);
+        internal abstract string ToZoneFileEntry(string? originDomain = null);
 
         #endregion
 
@@ -93,7 +93,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             WriteTo(s, null);
         }
 
-        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
+        public void WriteTo(Stream s, List<DnsDomainOffset>? domainEntries)
         {
             if (_emptyRData)
             {
@@ -121,7 +121,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        public override abstract bool Equals(object obj);
+        public override abstract bool Equals(object? obj);
 
         public override abstract int GetHashCode();
 

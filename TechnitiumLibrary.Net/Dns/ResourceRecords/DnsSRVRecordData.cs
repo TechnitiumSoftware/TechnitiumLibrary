@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         ushort _priority;
         ushort _weight;
         ushort _port;
-        string _target;
+        string _target = null!;
 
         #endregion
 
@@ -67,7 +67,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _target = DnsDatagram.DeserializeDomainName(s);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             DnsDatagram.WriteUInt16NetworkOrder(_priority, s);
             DnsDatagram.WriteUInt16NetworkOrder(_weight, s);
@@ -86,19 +86,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsSRVRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsSRVRecordData(rdata);
 
-            ushort priority = ushort.Parse(await zoneFile.PopItemAsync());
-            ushort weight = ushort.Parse(await zoneFile.PopItemAsync());
-            ushort port = ushort.Parse(await zoneFile.PopItemAsync());
+            ushort priority = ushort.Parse(await zoneFile.PopFieldAsync());
+            ushort weight = ushort.Parse(await zoneFile.PopFieldAsync());
+            ushort port = ushort.Parse(await zoneFile.PopFieldAsync());
             string target = await zoneFile.PopDomainAsync();
 
             return new DnsSRVRecordData(priority, weight, port, target);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return _priority + " " + _weight + " " + _port + " " + DnsResourceRecord.GetRelativeDomainName(_target, originDomain);
         }
@@ -107,7 +107,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -149,7 +149,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteNumber("Port", _port);
             jsonWriter.WriteString("Target", _target);
 
-            if (DnsClient.TryConvertDomainNameToUnicode(_target, out string targetIDN))
+            if (DnsClient.TryConvertDomainNameToUnicode(_target, out string? targetIDN))
                 jsonWriter.WriteString("TargetIDN", targetIDN);
 
             jsonWriter.WriteEndObject();

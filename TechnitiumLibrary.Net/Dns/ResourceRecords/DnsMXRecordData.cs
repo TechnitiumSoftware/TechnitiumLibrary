@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #region variables
 
         ushort _preference;
-        string _exchange;
+        string _exchange = null!;
 
         #endregion
 
@@ -61,7 +61,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _exchange = DnsDatagram.DeserializeDomainName(s);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             DnsDatagram.WriteUInt16NetworkOrder(_preference, s);
             DnsDatagram.SerializeDomainName(canonicalForm ? _exchange.ToLowerInvariant() : _exchange, s, domainEntries);
@@ -78,17 +78,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsMXRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsMXRecordData(rdata);
 
-            ushort preference = ushort.Parse(await zoneFile.PopItemAsync());
+            ushort preference = ushort.Parse(await zoneFile.PopFieldAsync());
             string exchange = await zoneFile.PopDomainAsync();
 
             return new DnsMXRecordData(preference, exchange);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return _preference + " " + DnsResourceRecord.GetRelativeDomainName(_exchange, originDomain);
         }
@@ -97,12 +97,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public int CompareTo(DnsMXRecordData other)
+        public int CompareTo(DnsMXRecordData? other)
         {
-            return _preference.CompareTo(other._preference);
+            return _preference.CompareTo(other?._preference);
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -133,7 +133,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             jsonWriter.WriteNumber("Preference", _preference);
             jsonWriter.WriteString("Exchange", _exchange);
 
-            if (DnsClient.TryConvertDomainNameToUnicode(_exchange, out string exchangeIDN))
+            if (DnsClient.TryConvertDomainNameToUnicode(_exchange, out string? exchangeIDN))
                 jsonWriter.WriteString("ExchangeIDN", exchangeIDN);
 
             jsonWriter.WriteEndObject();

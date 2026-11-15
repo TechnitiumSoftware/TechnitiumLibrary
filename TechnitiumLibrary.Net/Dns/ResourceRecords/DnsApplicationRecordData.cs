@@ -33,9 +33,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         readonly static JsonDocumentOptions _jsonParseOptions = new JsonDocumentOptions() { CommentHandling = JsonCommentHandling.Skip };
 
-        string _appName;
-        string _classPath;
-        string _data;
+        string _appName = null!;
+        string _classPath = null!;
+        string _data = null!;
 
         #endregion
 
@@ -81,7 +81,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             using (BinaryWriter bW = new BinaryWriter(s, Encoding.UTF8, true))
             {
@@ -98,13 +98,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsApplicationRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsApplicationRecordData(rdata);
 
-            string appName = await zoneFile.PopItemAsync();
-            string classPath = await zoneFile.PopItemAsync();
-            string data = await zoneFile.PopItemAsync();
+            string appName = await zoneFile.PopFieldAsync();
+            string classPath = await zoneFile.PopFieldAsync();
+            string data = await zoneFile.PopFieldAsync();
 
             if (data == "-")
                 data = string.Empty;
@@ -114,7 +114,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return new DnsApplicationRecordData(appName, classPath, data);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return DnsDatagram.EncodeCharacterString(_appName) + " " + DnsDatagram.EncodeCharacterString(_classPath) + " " + (_data.Length == 0 ? "-" : Convert.ToBase64String(Encoding.UTF8.GetBytes(_data)));
         }
@@ -123,7 +123,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

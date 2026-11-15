@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,8 +31,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _cpu;
-        string _os;
+        string _cpu = null!;
+        string _os = null!;
 
         #endregion
 
@@ -54,17 +54,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected override void ReadRecordData(Stream s)
         {
-            _cpu = Encoding.ASCII.GetString(s.ReadExactly(s.ReadByteValue()));
-            _os = Encoding.ASCII.GetString(s.ReadExactly(s.ReadByteValue()));
+            _cpu = Encoding.Latin1.GetString(s.ReadExactly(s.ReadByteValue()));
+            _os = Encoding.Latin1.GetString(s.ReadExactly(s.ReadByteValue()));
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.WriteByte(Convert.ToByte(_cpu.Length));
-            s.Write(Encoding.ASCII.GetBytes(_cpu));
+            s.Write(Encoding.Latin1.GetBytes(_cpu));
 
             s.WriteByte(Convert.ToByte(_os.Length));
-            s.Write(Encoding.ASCII.GetBytes(_os));
+            s.Write(Encoding.Latin1.GetBytes(_os));
         }
 
         #endregion
@@ -73,17 +73,17 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsHINFORecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsHINFORecordData(rdata);
 
-            string cpu = await zoneFile.PopItemAsync();
-            string os = await zoneFile.PopItemAsync();
+            string cpu = await zoneFile.PopFieldAsync();
+            string os = await zoneFile.PopFieldAsync();
 
             return new DnsHINFORecordData(cpu, os);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return DnsDatagram.EncodeCharacterString(_cpu) + " " + DnsDatagram.EncodeCharacterString(_os);
         }
@@ -92,7 +92,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
