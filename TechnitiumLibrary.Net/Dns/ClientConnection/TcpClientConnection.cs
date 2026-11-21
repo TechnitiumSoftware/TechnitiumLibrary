@@ -35,20 +35,21 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
     {
         #region variables
 
-        const int ASYNC_RECEIVE_TIMEOUT = 120000;
+        const int ASYNC_MINIMUM_RECEIVE_TIMEOUT = 120000;
 
         Socket? _socket;
         Stream? _tcpStream;
 
         readonly ConcurrentDictionary<ushort, Transaction> _transactions = new ConcurrentDictionary<ushort, Transaction>();
 
-        readonly MemoryStream _sendBuffer = new MemoryStream(64);
+        readonly MemoryStream _sendBuffer = new MemoryStream(512);
         readonly MemoryStream _recvBuffer = new MemoryStream(4096);
 
         readonly SemaphoreSlim _sendRequestSemaphore = new SemaphoreSlim(1, 1);
 
         bool _pooled;
         DateTime _lastQueried;
+        volatile int _maxQueryTimeout;
 
         #endregion
 
@@ -226,11 +227,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             {
                 while (true)
                 {
+                    int readTimeout = Math.Max(_maxQueryTimeout, ASYNC_MINIMUM_RECEIVE_TIMEOUT);
+
                     //read response datagram
                     DnsDatagram response = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
                     {
                         return DnsDatagram.ReadFromTcpAsync(tcpStream, _recvBuffer, cancellationToken1);
-                    }, ASYNC_RECEIVE_TIMEOUT, CancellationToken.None);
+                    }, readTimeout, CancellationToken.None);
 
                     //signal response
                     if (_transactions.TryGetValue(response.Identifier, out Transaction? transaction))
@@ -303,6 +306,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout, int retries, CancellationToken cancellationToken)
         {
             _lastQueried = DateTime.UtcNow;
+            _maxQueryTimeout = Math.Max(_maxQueryTimeout, timeout * retries);
 
             Task<bool>? firstSendAsyncTask = null;
 
