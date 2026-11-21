@@ -609,23 +609,14 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region internal
 
-        internal DnsDatagram CloneHeadersAndQuestions()
+        internal DnsDatagram CloneQuestions()
         {
             DnsQuestionRecord[] clonedQuestion = new DnsQuestionRecord[_question.Count];
 
             for (int i = 0; i < _question.Count; i++)
                 clonedQuestion[i] = _question[i].Clone();
 
-            DnsDatagram datagram = new DnsDatagram(_ID, _QR == 1, _OPCODE, _AA == 1, _TC == 1, _RD == 1, _RA == 1, _AD == 1, _CD == 1, _RCODE, clonedQuestion, _answer, _authority, _additional);
-
-            datagram._metadata = _metadata;
-            datagram._edns = _edns;
-            datagram._dnsClientExtendedErrors = _dnsClientExtendedErrors;
-            datagram._shadowHideECSOption = _shadowHideECSOption;
-            datagram._shadowECSOption = _shadowECSOption;
-            datagram.Tag = Tag;
-
-            return datagram;
+            return CloneInternal(question: clonedQuestion);
         }
 
         internal DnsDatagram CloneInternal(DnsResponseCode? rcode = null, IReadOnlyList<DnsQuestionRecord>? question = null, IReadOnlyList<DnsResourceRecord>? answer = null, IReadOnlyList<DnsResourceRecord>? authority = null, IReadOnlyList<DnsResourceRecord>? additional = null)
@@ -742,21 +733,21 @@ namespace TechnitiumLibrary.Net.Dns
             return datagram;
         }
 
-        public DnsDatagram CloneWithEDnsOptions(IReadOnlyList<EDnsOption> options)
+        public DnsDatagram CloneWithEDns(IReadOnlyList<EDnsOption> options)
         {
             if (_edns is null)
                 throw new InvalidOperationException();
 
-            return CloneWithEDnsOptions(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, options);
+            return CloneWithEDns(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, options);
         }
 
-        public DnsDatagram CloneWithEDnsOptions(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption> options)
+        public DnsDatagram CloneWithEDns(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption> options)
         {
             DnsResourceRecord newOptRecord = DnsDatagramEdns.GetOPTFor(udpPayloadSize, extendedRCODE, version, flags, options);
 
             IReadOnlyList<DnsResourceRecord> newAdditional;
 
-            if ((_additional.Count == 1) && (_additional[0].Type == DnsResourceRecordType.OPT))
+            if ((_additional.Count == 0) || ((_additional.Count == 1) && (_additional[0].Type == DnsResourceRecordType.OPT)))
             {
                 newAdditional = [newOptRecord];
             }
@@ -810,41 +801,69 @@ namespace TechnitiumLibrary.Net.Dns
             return CloneInternal(additional: newAdditional);
         }
 
-        public DnsDatagram CloneWithoutEDnsClientSubnet()
+        public DnsDatagram CloneWithoutEDnsOption(EDnsOptionCode code)
         {
             if ((_edns is null) || (_edns.Options.Count == 0))
                 return this;
 
-            List<DnsResourceRecord> newAdditional = new List<DnsResourceRecord>(_additional.Count);
-
-            foreach (DnsResourceRecord record in _additional)
-            {
-                if (record.Type != DnsResourceRecordType.OPT)
-                    newAdditional.Add(record);
-            }
-
             IReadOnlyList<EDnsOption> options;
 
-            if ((_edns.Options.Count == 1) && (_edns.Options[0].Code == EDnsOptionCode.EDNS_CLIENT_SUBNET))
+            if ((_edns.Options.Count == 1) && (_edns.Options[0].Code == code))
             {
-                options = Array.Empty<EDnsOption>();
+                options = [];
             }
             else
             {
+                bool found = false;
+
+                foreach (EDnsOption option in _edns.Options)
+                {
+                    if (option.Code == code)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                    return this;
+
                 List<EDnsOption> newOptions = new List<EDnsOption>(_edns.Options.Count);
 
                 foreach (EDnsOption option in _edns.Options)
                 {
-                    if (option.Code != EDnsOptionCode.EDNS_CLIENT_SUBNET)
-                        newOptions.Add(option);
+                    if (option.Code == code)
+                        continue;
+
+                    newOptions.Add(option);
                 }
 
                 options = newOptions;
             }
 
-            newAdditional.Add(DnsDatagramEdns.GetOPTFor(_edns.UdpPayloadSize, _edns.ExtendedRCODE, _edns.Version, _edns.Flags, options));
+            return CloneWithEDns(options);
+        }
 
-            return CloneInternal(additional: newAdditional);
+        public DnsDatagram CloneWithEDnsPadding(int fromInclusive = 64, int toExclusive = 448)
+        {
+            if (_edns is null)
+                throw new InvalidOperationException();
+
+            foreach (EDnsOption option in _edns.Options)
+            {
+                if (option.Code == EDnsOptionCode.PADDING)
+                    return this; //padding already exist
+            }
+
+            //padded DNS messages MUST NOT exceed the number of octets specified in the UDP Payload Size field
+            int bytesAvailable = _edns.UdpPayloadSize - (GetUncompressedSize() + 2 + 2); //padding code(2) + length(2) added to be considered as used
+            if (bytesAvailable < fromInclusive)
+                return this; //no space for padding
+
+            if (toExclusive > bytesAvailable)
+                toExclusive = bytesAvailable;
+
+            return CloneWithEDns([.. _edns.Options, new EDnsOption(EDnsOptionCode.PADDING, new EDnsUnknownOptionData(new byte[RandomNumberGenerator.GetInt32(fromInclusive, toExclusive)]))]);
         }
 
         public DnsDatagram CloneWithoutGlueRecords()
@@ -911,6 +930,20 @@ namespace TechnitiumLibrary.Net.Dns
         public void ShadowHideEDnsClientSubnetOption()
         {
             _shadowHideECSOption = true;
+        }
+
+        public bool HasEDnsOption(EDnsOptionCode code)
+        {
+            if (_edns is null)
+                return false;
+
+            foreach (var option in _edns.Options)
+            {
+                if (option.Code == code)
+                    return true;
+            }
+
+            return false;
         }
 
         public bool IsBlockedResponse()
@@ -1093,6 +1126,25 @@ namespace TechnitiumLibrary.Net.Dns
                 return _authority[0];
 
             return null;
+        }
+
+        public int GetUncompressedSize()
+        {
+            int uncompressedSize = 12;
+
+            foreach (DnsQuestionRecord question in _question)
+                uncompressedSize += question.UncompressedLength;
+
+            foreach (DnsResourceRecord record in _answer)
+                uncompressedSize += record.UncompressedLength;
+
+            foreach (DnsResourceRecord record in _authority)
+                uncompressedSize += record.UncompressedLength;
+
+            foreach (DnsResourceRecord record in _additional)
+                uncompressedSize += record.UncompressedLength;
+
+            return uncompressedSize;
         }
 
         public void WriteTo(Stream s)
