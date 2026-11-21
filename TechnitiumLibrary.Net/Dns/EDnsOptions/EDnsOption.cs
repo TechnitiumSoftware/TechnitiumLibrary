@@ -70,6 +70,10 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             _code = (EDnsOptionCode)DnsDatagram.ReadUInt16NetworkOrder(s);
             switch (_code)
             {
+                case EDnsOptionCode.NSID:
+                    _data = new EDnsNsidOptionData(s);
+                    break;
+
                 case EDnsOptionCode.EDNS_CLIENT_SUBNET:
                     _data = new EDnsClientSubnetOptionData(s);
                     break;
