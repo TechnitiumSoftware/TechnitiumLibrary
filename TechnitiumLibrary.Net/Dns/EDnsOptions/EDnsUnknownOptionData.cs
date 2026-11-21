@@ -28,11 +28,14 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
     {
         #region variables
 
-        byte[] _data = null!;
+        protected byte[] _data = null!;
 
         #endregion
 
         #region constructor
+
+        protected EDnsUnknownOptionData()
+        { }
 
         public EDnsUnknownOptionData(byte[] data)
         {
@@ -90,7 +93,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         public override string ToString()
         {
-            return string.Empty;
+            return Convert.ToHexStringLower(_data);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)
