@@ -98,6 +98,7 @@ namespace TechnitiumLibrary.Net.Dns
         ushort _udpPayloadSize = DnsDatagram.EDNS_DEFAULT_UDP_PAYLOAD_SIZE;
         bool _randomizeName;
         bool _dnssecValidation;
+        bool _nameServerIdentifier;
         NetworkAddress? _eDnsClientSubnet;
         bool _advancedForwardingClientSubnet; //this feature is used by Advanced Forwarding app to cache response per network group
         string? _conditionalForwardingZoneCut;
@@ -397,7 +398,7 @@ namespace TechnitiumLibrary.Net.Dns
             if (context is null)
                 context = new ResolverContext();
 
-            EDnsOption[]? eDnsClientSubnetOption = eDnsClientSubnet is null ? null : EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(eDnsClientSubnet);
+            EDnsOption[]? eDnsClientSubnetOption = eDnsClientSubnet is null ? null : [EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(eDnsClientSubnet)];
 
             if (cache is null)
                 cache = new DnsCache();
@@ -4567,7 +4568,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             async Task<DnsDatagram> DoResolveAsync(CancellationToken cancellationToken)
             {
-                DnsDatagram asyncRequest = request.CloneHeadersAndQuestions(); //clone request (headers + question section) so that qname randomization does not pollute request question section and does not cause issue with parallel tasks
+                DnsDatagram asyncRequest = request.CloneQuestions(); //clone request (headers + question section) so that qname randomization does not pollute request question section and does not cause issue with parallel tasks
                 DnsDatagram? lastResponse = null;
                 Exception? lastException = null;
 
@@ -4631,6 +4632,21 @@ namespace TechnitiumLibrary.Net.Dns
 
                         default:
                             asyncRequest.SetRandomIdentifier();
+                            break;
+                    }
+
+                    switch (server.Protocol)
+                    {
+                        case DnsTransportProtocol.Tls:
+                        case DnsTransportProtocol.Https:
+                        case DnsTransportProtocol.Quic:
+                            if ((asyncRequest.OPCODE == DnsOpcode.StandardQuery) && (asyncRequest.Question.Count > 0) && (asyncRequest.Question[0].Type != DnsResourceRecordType.AXFR) && (asyncRequest.Question[0].Type != DnsResourceRecordType.IXFR) && !asyncRequest.IsSigned)
+                                asyncRequest = asyncRequest.CloneWithEDnsPadding();
+
+                            break;
+
+                        default:
+                            asyncRequest = asyncRequest.CloneWithoutEDnsOption(EDnsOptionCode.PADDING);
                             break;
                     }
 
@@ -4782,7 +4798,7 @@ namespace TechnitiumLibrary.Net.Dns
                                                         //retry after receiving a REFUSED response because it is not
                                                         //sufficiently clear whether the REFUSED response was because of the
                                                         //ECS option or some other reason.
-                                                        asyncRequest = asyncRequest.CloneWithoutEDnsClientSubnet();
+                                                        asyncRequest = asyncRequest.CloneWithoutEDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET);
 
                                                         server.Metadata.UpdateFailure(_timeout);
                                                         retryRequest = true;
@@ -5114,7 +5130,15 @@ namespace TechnitiumLibrary.Net.Dns
             else
                 cache = _cache;
 
-            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, [question], null, null, null, _udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, _advancedForwardingClientSubnet ? null : _eDnsClientSubnet is null ? null : EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));
+            List<EDnsOption> options = [];
+
+            if (!_advancedForwardingClientSubnet && (_eDnsClientSubnet is not null))
+                options.Add(EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));
+
+            if (_nameServerIdentifier)
+                options.Add(new EDnsOption(EDnsOptionCode.NSID, new EDnsNsidOptionData()));
+
+            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, true, DnsResponseCode.NoError, [question], null, null, null, _udpPayloadSize, EDnsHeaderFlags.DNSSEC_OK, options);
             if (_advancedForwardingClientSubnet)
             {
                 if (_eDnsClientSubnet is null)
@@ -5243,7 +5267,18 @@ namespace TechnitiumLibrary.Net.Dns
                 if ((_conditionalForwardingZoneCut is not null) && !q.Name.Equals(_conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase) && !q.Name.EndsWith("." + _conditionalForwardingZoneCut, StringComparison.OrdinalIgnoreCase))
                     return null;
 
-                DnsDatagram newRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, _dnssecValidation, DnsResponseCode.NoError, new DnsQuestionRecord[] { q }, null, null, null, _udpPayloadSize, _dnssecValidation ? EDnsHeaderFlags.DNSSEC_OK : EDnsHeaderFlags.None, _advancedForwardingClientSubnet ? null : _eDnsClientSubnet is null ? null : EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));
+                List<EDnsOption> options = [];
+
+                if (!_dnssecValidation)
+                {
+                    if (!_advancedForwardingClientSubnet && (_eDnsClientSubnet is not null))
+                        options.Add(EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));
+
+                    if (_nameServerIdentifier)
+                        options.Add(new EDnsOption(EDnsOptionCode.NSID, new EDnsNsidOptionData()));
+                }
+
+                DnsDatagram newRequest = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, _dnssecValidation, DnsResponseCode.NoError, new DnsQuestionRecord[] { q }, null, null, null, _udpPayloadSize, _dnssecValidation ? EDnsHeaderFlags.DNSSEC_OK : EDnsHeaderFlags.None, options);
                 if (_advancedForwardingClientSubnet)
                 {
                     if (_eDnsClientSubnet is null)
@@ -5404,7 +5439,15 @@ namespace TechnitiumLibrary.Net.Dns
 
         public Task<DnsDatagram> TsigResolveAsync(DnsQuestionRecord question, TsigKey key, ushort fudge = 300, CancellationToken cancellationToken = default)
         {
-            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.None, _advancedForwardingClientSubnet ? null : _eDnsClientSubnet is null ? null : EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));
+            List<EDnsOption> options = [];
+
+            if (!_advancedForwardingClientSubnet && (_eDnsClientSubnet is not null))
+                options.Add(EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));
+
+            if (_nameServerIdentifier)
+                options.Add(new EDnsOption(EDnsOptionCode.NSID, new EDnsNsidOptionData()));
+
+            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.None, options);
             if (_advancedForwardingClientSubnet)
             {
                 if (_eDnsClientSubnet is null)
@@ -5432,7 +5475,15 @@ namespace TechnitiumLibrary.Net.Dns
             if (_dnssecValidation)
                 return InternalDnssecResolveAsync(question, cancellationToken);
 
-            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.None, _advancedForwardingClientSubnet ? null : _eDnsClientSubnet is null ? null : EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));
+            List<EDnsOption> options = [];
+
+            if (!_advancedForwardingClientSubnet && (_eDnsClientSubnet is not null))
+                options.Add(EDnsClientSubnetOptionData.GetEDnsClientSubnetOption(_eDnsClientSubnet));
+
+            if (_nameServerIdentifier)
+                options.Add(new EDnsOption(EDnsOptionCode.NSID, new EDnsNsidOptionData()));
+
+            DnsDatagram request = new DnsDatagram(0, false, DnsOpcode.StandardQuery, false, false, true, false, false, false, DnsResponseCode.NoError, new DnsQuestionRecord[] { question }, null, null, null, _udpPayloadSize, EDnsHeaderFlags.None, options);
             if (_advancedForwardingClientSubnet)
             {
                 if (_eDnsClientSubnet is null)
@@ -5562,6 +5613,12 @@ namespace TechnitiumLibrary.Net.Dns
         {
             get { return _dnssecValidation; }
             set { _dnssecValidation = value; }
+        }
+
+        public bool DnsNameServerIdentifier
+        {
+            get { return _nameServerIdentifier; }
+            set { _nameServerIdentifier = value; }
         }
 
         public NetworkAddress? EDnsClientSubnet
