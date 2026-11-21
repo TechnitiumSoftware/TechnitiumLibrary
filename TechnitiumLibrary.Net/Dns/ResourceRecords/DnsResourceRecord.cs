@@ -126,6 +126,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         APP = 65282, //private use - application
         CHILD_NS = 65283, //private use - cached child side NS records to support https://datatracker.ietf.org/doc/draft-fujiwara-dnsop-resolver-update/
         PARENT_NS = 65284, //private use - cached parent side NS records to allow querying them explicitly
+        ANY_RFC_8482 = 65285, //private use - signal to use Minimal Responses for ANY Queries
         ALIAS = 65357 //private use - SimpleDNS ALIAS
     }
 
