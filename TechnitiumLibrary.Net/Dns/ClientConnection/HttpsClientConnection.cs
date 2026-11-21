@@ -288,7 +288,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             //serialize request
             byte[] requestBuffer;
 
-            using (MemoryStream mS = new MemoryStream(32))
+            using (MemoryStream mS = new MemoryStream(512))
             {
                 request.WriteTo(mS);
                 requestBuffer = mS.ToArray();
