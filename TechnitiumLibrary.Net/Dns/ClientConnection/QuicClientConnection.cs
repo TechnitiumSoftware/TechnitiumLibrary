@@ -228,7 +228,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             await using (QuicStream quicStream = await quicConnection.OpenOutboundStreamAsync(QuicStreamType.Bidirectional, cancellationToken))
             {
                 //serialize and send request with FIN flag
-                using (MemoryStream mS = new MemoryStream(64))
+                using (MemoryStream mS = new MemoryStream(512))
                 {
                     mS.Position = 2;
                     request.WriteTo(mS);
