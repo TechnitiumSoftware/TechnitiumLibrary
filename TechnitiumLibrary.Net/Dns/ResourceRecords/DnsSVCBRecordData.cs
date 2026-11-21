@@ -115,6 +115,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                             svcParamValue = new DnsSvcIPv4HintParamValue(mS);
                             break;
 
+                        case DnsSvcParamKey.ECH:
+                            svcParamValue = new DnsSvcEchParamValue(mS);
+                            break;
+
                         case DnsSvcParamKey.IPv6Hint:
                             svcParamValue = new DnsSvcIPv6HintParamValue(mS);
                             break;
@@ -410,6 +414,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 case DnsSvcParamKey.IPv4Hint:
                     return DnsSvcIPv4HintParamValue.Parse(svcParamValue);
+
+                case DnsSvcParamKey.ECH:
+                    return DnsSvcEchParamValue.Parse(svcParamValue);
 
                 case DnsSvcParamKey.IPv6Hint:
                     return DnsSvcIPv6HintParamValue.Parse(svcParamValue);
@@ -1023,6 +1030,39 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override int UncompressedLength
         { get { return _addresses.Count * 4; } }
+
+        #endregion
+    }
+
+    public class DnsSvcEchParamValue : DnsSvcUnknownParamValue
+    {
+        #region constructor
+
+        public DnsSvcEchParamValue(string base64String)
+            : base(Convert.FromBase64String(base64String))
+        { }
+
+        public DnsSvcEchParamValue(Stream s)
+            : base(s)
+        { }
+
+        #endregion
+
+        #region static
+
+        public new static DnsSvcEchParamValue Parse(string svcParamValue)
+        {
+            return new DnsSvcEchParamValue(svcParamValue);
+        }
+
+        #endregion
+
+        #region public
+
+        public override string ToString()
+        {
+            return Convert.ToBase64String(Value);
+        }
 
         #endregion
     }
