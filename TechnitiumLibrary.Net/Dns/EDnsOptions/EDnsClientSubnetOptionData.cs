@@ -74,14 +74,14 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         #region static
 
-        public static EDnsOption[] GetEDnsClientSubnetOption(byte sourcePrefixLength, byte scopePrefixLength, IPAddress address)
+        public static EDnsOption GetEDnsClientSubnetOption(byte sourcePrefixLength, byte scopePrefixLength, IPAddress address)
         {
-            return new EDnsOption[] { new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(sourcePrefixLength, scopePrefixLength, address)) };
+            return new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(sourcePrefixLength, scopePrefixLength, address));
         }
 
-        public static EDnsOption[] GetEDnsClientSubnetOption(NetworkAddress eDnsClientSubnet)
+        public static EDnsOption GetEDnsClientSubnetOption(NetworkAddress eDnsClientSubnet)
         {
-            return new EDnsOption[] { new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, 0, eDnsClientSubnet.Address)) };
+            return new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, 0, eDnsClientSubnet.Address));
         }
 
         #endregion
