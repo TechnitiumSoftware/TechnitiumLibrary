@@ -28,11 +28,14 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
     {
         #region variables
 
-        byte[] _data;
+        protected byte[] _data = null!;
 
         #endregion
 
         #region constructor
+
+        protected EDnsUnknownOptionData()
+        { }
 
         public EDnsUnknownOptionData(byte[] data)
         {
@@ -64,7 +67,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -90,7 +93,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         public override string ToString()
         {
-            return string.Empty;
+            return Convert.ToHexStringLower(_data);
         }
 
         public override void SerializeTo(Utf8JsonWriter jsonWriter)

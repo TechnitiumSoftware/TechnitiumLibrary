@@ -30,9 +30,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        protected string _nameServer;
+        protected string _nameServer = null!;
 
-        NameServerMetadata _metadata;
+        NameServerMetadata? _metadata;
 
         #endregion
 
@@ -67,7 +67,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _nameServer = DnsDatagram.DeserializeDomainName(s);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             DnsDatagram.SerializeDomainName(canonicalForm ? _nameServer.ToLowerInvariant() : _nameServer, s, domainEntries);
         }
@@ -91,14 +91,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsNSRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsNSRecordData(rdata);
 
             return new DnsNSRecordData(await zoneFile.PopDomainAsync());
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return DnsResourceRecord.GetRelativeDomainName(_nameServer, originDomain);
         }
@@ -107,7 +107,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -132,7 +132,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             jsonWriter.WriteString("NameServer", _nameServer);
 
-            if (DnsClient.TryConvertDomainNameToUnicode(_nameServer, out string nameServerIDN))
+            if (DnsClient.TryConvertDomainNameToUnicode(_nameServer, out string? nameServerIDN))
                 jsonWriter.WriteString("NameServerIDN", nameServerIDN);
 
             jsonWriter.WriteEndObject();

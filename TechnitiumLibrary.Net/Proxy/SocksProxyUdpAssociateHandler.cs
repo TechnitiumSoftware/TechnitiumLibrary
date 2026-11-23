@@ -32,7 +32,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         readonly Socket _controlSocket;
         readonly Socket _udpSocket;
-        EndPoint _relayEP;
+        EndPoint? _relayEP;
 
         #endregion
 
@@ -137,7 +137,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     {
                         type = SocksAddressType.IPv4Address;
 
-                        IPEndPoint ep = remoteEP as IPEndPoint;
+                        IPEndPoint ep = (remoteEP as IPEndPoint)!;
                         address = ep.Address.GetAddressBytes();
                         port = Convert.ToUInt16(ep.Port);
                     }
@@ -147,7 +147,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     {
                         type = SocksAddressType.IPv6Address;
 
-                        IPEndPoint ep = remoteEP as IPEndPoint;
+                        IPEndPoint ep = (remoteEP as IPEndPoint)!;
                         address = ep.Address.GetAddressBytes();
                         port = Convert.ToUInt16(ep.Port);
                     }
@@ -157,7 +157,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     {
                         type = SocksAddressType.DomainName;
 
-                        DomainEndPoint ep = remoteEP as DomainEndPoint;
+                        DomainEndPoint ep = (remoteEP as DomainEndPoint)!;
                         address = ep.GetAddressBytes();
                         port = Convert.ToUInt16(ep.Port);
                     }
@@ -256,7 +256,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     break;
 
                 case AddressFamily.Unspecified:
-                    addressSize = 1 + (remoteEP as DomainEndPoint).Address.Length;
+                    addressSize = 1 + (remoteEP as DomainEndPoint)!.Address.Length;
                     break;
 
                 default:
@@ -278,7 +278,7 @@ namespace TechnitiumLibrary.Net.Proxy
             return new SocketReceiveFromResult() { ReceivedBytes = dataSize, RemoteEndPoint = remoteEP };
         }
 
-        public async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool> isResponseValid = null, CancellationToken cancellationToken = default)
+        public async Task<int> UdpQueryAsync(ArraySegment<byte> request, ArraySegment<byte> response, EndPoint remoteEP, int timeout = 10000, int retries = 1, bool expBackoffTimeout = false, Func<int, bool>? isResponseValid = null, CancellationToken cancellationToken = default)
         {
             async Task<int> ReceiveFromAsync(CancellationToken cancellationToken)
             {
@@ -294,7 +294,7 @@ namespace TechnitiumLibrary.Net.Proxy
             using CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
             await using CancellationTokenRegistration ctr = cancellationToken.Register(cancellationTokenSource.Cancel);
 
-            Task<int> recvTask = null;
+            Task<int>? recvTask = null;
 
             int timeoutValue = timeout;
             int retry = 0;
@@ -333,7 +333,7 @@ namespace TechnitiumLibrary.Net.Proxy
         public bool ProxyConnected
         { get { return _controlSocket.Connected; } }
 
-        public EndPoint ProxyUdpRelayEndPoint
+        public EndPoint? ProxyUdpRelayEndPoint
         { get { return _relayEP; } }
 
         #endregion

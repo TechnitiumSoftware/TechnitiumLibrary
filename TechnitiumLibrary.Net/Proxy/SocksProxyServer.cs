@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -45,32 +45,29 @@ namespace TechnitiumLibrary.Net.Proxy
 
         readonly IPEndPoint _localEP;
         readonly IProxyServerConnectionManager _connectionManager;
-        readonly IProxyServerAuthenticationManager _authenticationManager;
+        readonly IProxyServerAuthenticationManager? _authenticationManager;
 
         readonly Socket _listener;
-        readonly ConcurrentDictionary<ProxyServerSession, object> _sessions = new ConcurrentDictionary<ProxyServerSession, object>();
+        readonly ConcurrentDictionary<ProxyServerSession, object?> _sessions = new ConcurrentDictionary<ProxyServerSession, object?>();
 
         #endregion
 
         #region constructors
 
-        public SocksProxyServer(IProxyServerConnectionManager connectionManager = null, IProxyServerAuthenticationManager authenticationManager = null, int backlog = 10)
+        public SocksProxyServer(IProxyServerConnectionManager? connectionManager = null, IProxyServerAuthenticationManager? authenticationManager = null, int backlog = 10)
             : this(new IPEndPoint(IPAddress.Loopback, 0), connectionManager, authenticationManager, backlog)
         { }
 
-        public SocksProxyServer(IPEndPoint localEP, IProxyServerConnectionManager connectionManager = null, IProxyServerAuthenticationManager authenticationManager = null, int backlog = 10)
+        public SocksProxyServer(IPEndPoint localEP, IProxyServerConnectionManager? connectionManager = null, IProxyServerAuthenticationManager? authenticationManager = null, int backlog = 10)
         {
             _listener = new Socket(localEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             _listener.Bind(localEP);
             _listener.Listen(backlog);
             _listener.NoDelay = true;
 
-            _localEP = (IPEndPoint)_listener.LocalEndPoint;
-            _connectionManager = connectionManager;
+            _localEP = (IPEndPoint)_listener.LocalEndPoint!;
+            _connectionManager = connectionManager ?? new DefaultProxyServerConnectionManager();
             _authenticationManager = authenticationManager;
-
-            if (_connectionManager == null)
-                _connectionManager = new DefaultProxyServerConnectionManager();
 
             //accept requests async
             int tasks = Environment.ProcessorCount;
@@ -97,10 +94,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
             if (disposing)
             {
-                if (_listener != null)
-                    _listener.Dispose();
+                _listener?.Dispose();
 
-                foreach (KeyValuePair<ProxyServerSession, object> session in _sessions)
+                foreach (KeyValuePair<ProxyServerSession, object?> session in _sessions)
                     session.Key.Dispose();
 
                 _sessions.Clear();
@@ -123,9 +119,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     ProxyServerSession session = new ProxyServerSession(socket, _connectionManager, _authenticationManager);
 
-                    session.Disposed += delegate (object sender, EventArgs e)
+                    session.Disposed += delegate (object? sender, EventArgs e)
                     {
-                        _sessions.TryRemove(sender as ProxyServerSession, out _);
+                        _sessions.TryRemove((sender as ProxyServerSession)!, out _);
                     };
 
                     if (_sessions.TryAdd(session, null))
@@ -181,14 +177,14 @@ namespace TechnitiumLibrary.Net.Proxy
                         await s.ReadExactlyAsync(buffer, 0, 2, cancellationToken);
                         Array.Reverse(buffer, 0, 2);
 
-                        if (IPAddress.TryParse(domain, out IPAddress address)) //some socks clients send ip address with domain address type
+                        if (IPAddress.TryParse(domain, out IPAddress? address)) //some socks clients send ip address with domain address type
                             return new IPEndPoint(address, BitConverter.ToUInt16(buffer, 0));
                         else
                             return new DomainEndPoint(domain, BitConverter.ToUInt16(buffer, 0));
                     }
 
                 default:
-                    return null;
+                    throw new NotSupportedException();
             }
         }
 
@@ -204,7 +200,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     {
                         addressType = SocksAddressType.IPv4Address;
 
-                        IPEndPoint ep = endPoint as IPEndPoint;
+                        IPEndPoint ep = (endPoint as IPEndPoint)!;
                         address = ep.Address.GetAddressBytes();
                         port = Convert.ToUInt16(ep.Port);
                     }
@@ -214,7 +210,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     {
                         addressType = SocksAddressType.IPv6Address;
 
-                        IPEndPoint ep = endPoint as IPEndPoint;
+                        IPEndPoint ep = (endPoint as IPEndPoint)!;
                         address = ep.Address.GetAddressBytes();
                         port = Convert.ToUInt16(ep.Port);
                     }
@@ -224,7 +220,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     {
                         addressType = SocksAddressType.DomainName;
 
-                        DomainEndPoint ep = endPoint as DomainEndPoint;
+                        DomainEndPoint? ep = endPoint as DomainEndPoint;
                         if (ep == null)
                             throw new NotSupportedException("Address Family not supported.");
 
@@ -258,7 +254,7 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             #region events
 
-            public event EventHandler Disposed;
+            public event EventHandler? Disposed;
 
             #endregion
 
@@ -266,17 +262,17 @@ namespace TechnitiumLibrary.Net.Proxy
 
             readonly Socket _localSocket;
             readonly IProxyServerConnectionManager _connectionManager;
-            readonly IProxyServerAuthenticationManager _authenticationManager;
+            readonly IProxyServerAuthenticationManager? _authenticationManager;
 
-            Socket _remoteSocket;
-            IProxyServerBindHandler _bindHandler;
-            Socket _udpRelaySocket;
+            Socket? _remoteSocket;
+            IProxyServerBindHandler? _bindHandler;
+            Socket? _udpRelaySocket;
 
             #endregion
 
             #region constructor
 
-            public ProxyServerSession(Socket localSocket, IProxyServerConnectionManager connectionManager, IProxyServerAuthenticationManager authenticationManager)
+            public ProxyServerSession(Socket localSocket, IProxyServerConnectionManager connectionManager, IProxyServerAuthenticationManager? authenticationManager)
             {
                 _localSocket = localSocket;
                 _connectionManager = connectionManager;
@@ -288,7 +284,7 @@ namespace TechnitiumLibrary.Net.Proxy
             #region IDisposable
 
             bool _disposed;
-            readonly object _disposeLock = new object();
+            readonly Lock _disposeLock = new Lock();
 
             public void Dispose()
             {
@@ -304,17 +300,10 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     if (disposing)
                     {
-                        if (_localSocket != null)
-                            _localSocket.Dispose();
-
-                        if (_remoteSocket != null)
-                            _remoteSocket.Dispose();
-
-                        if (_bindHandler != null)
-                            _bindHandler.Dispose();
-
-                        if (_udpRelaySocket != null)
-                            _udpRelaySocket.Dispose();
+                        _localSocket?.Dispose();
+                        _remoteSocket?.Dispose();
+                        _bindHandler?.Dispose();
+                        _udpRelaySocket?.Dispose();
                     }
 
                     _disposed = true;
@@ -374,7 +363,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     //match method and authenticate
                     bool methodMatched = false;
                     SocksProxyAuthenticationMethod serverMethod = _authenticationManager == null ? SocksProxyAuthenticationMethod.NoAuthenticationRequired : SocksProxyAuthenticationMethod.UsernamePassword;
-                    string username = null;
+                    string? username = null;
 
                     foreach (SocksProxyAuthenticationMethod method in negotiationRequest.Methods)
                     {
@@ -405,7 +394,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                         return;
                                     }
 
-                                    if (!_authenticationManager.Authenticate(authenticationRequest.Username, authenticationRequest.Password))
+                                    if (!_authenticationManager!.Authenticate(authenticationRequest.Username, authenticationRequest.Password))
                                     {
                                         await new SocksProxyAuthenticationReply(SocksProxyAuthenticationStatus.Failure).WriteToAsync(localStream);
                                         await localStream.FlushAsync();
@@ -464,7 +453,7 @@ namespace TechnitiumLibrary.Net.Proxy
                                         _remoteSocket = await _connectionManager.ConnectAsync(request.DestinationEndPoint);
 
                                     reply = SocksProxyReplyCode.Succeeded;
-                                    bindEP = _remoteSocket.LocalEndPoint;
+                                    bindEP = _remoteSocket.LocalEndPoint!;
                                 }
                                 catch (SocketException ex)
                                 {
@@ -503,17 +492,17 @@ namespace TechnitiumLibrary.Net.Proxy
 
                         case SocksProxyRequestCommand.UdpAssociate:
                             {
-                                switch (_localSocket.LocalEndPoint.AddressFamily)
+                                switch (_localSocket.LocalEndPoint!.AddressFamily)
                                 {
                                     case AddressFamily.InterNetwork:
                                     case AddressFamily.InterNetworkV6:
-                                        IPEndPoint localEP = new IPEndPoint((_localSocket.LocalEndPoint as IPEndPoint).Address, 0);
+                                        IPEndPoint localEP = new IPEndPoint((_localSocket.LocalEndPoint as IPEndPoint)!.Address, 0);
 
                                         _udpRelaySocket = new Socket(localEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
                                         _udpRelaySocket.Bind(localEP);
 
                                         reply = SocksProxyReplyCode.Succeeded;
-                                        bindEP = _udpRelaySocket.LocalEndPoint as IPEndPoint;
+                                        bindEP = (_udpRelaySocket.LocalEndPoint as IPEndPoint)!;
                                         break;
 
                                     default:
@@ -543,7 +532,7 @@ namespace TechnitiumLibrary.Net.Proxy
                         case SocksProxyRequestCommand.Connect:
                             {
                                 //pipe sockets
-                                _ = _localSocket.PipeToAsync(_remoteSocket).ContinueWith(delegate (Task prevTask) { Dispose(); });
+                                _ = _localSocket.PipeToAsync(_remoteSocket!).ContinueWith(delegate (Task prevTask) { Dispose(); });
                                 dontDispose = true;
                             }
                             break;
@@ -554,28 +543,28 @@ namespace TechnitiumLibrary.Net.Proxy
                                 {
                                     _remoteSocket = await TaskExtensions.TimeoutAsync(delegate (CancellationToken cancellationToken1)
                                     {
-                                        return _bindHandler.AcceptAsync(cancellationToken1);
+                                        return _bindHandler!.AcceptAsync(cancellationToken1);
                                     }, CLIENT_WAIT_TIMEOUT);
                                 }
                                 catch (SocksProxyException ex)
                                 {
                                     //send second reply
-                                    await new SocksProxyReply(ex.ReplyCode, _bindHandler.ProxyLocalEndPoint).WriteToAsync(localStream);
+                                    await new SocksProxyReply(ex.ReplyCode, _bindHandler!.ProxyLocalEndPoint).WriteToAsync(localStream);
                                     await localStream.FlushAsync();
                                 }
                                 catch
                                 {
                                     //send second reply
-                                    await new SocksProxyReply(SocksProxyReplyCode.GeneralSocksServerFailure, _bindHandler.ProxyLocalEndPoint).WriteToAsync(localStream);
+                                    await new SocksProxyReply(SocksProxyReplyCode.GeneralSocksServerFailure, _bindHandler!.ProxyLocalEndPoint).WriteToAsync(localStream);
                                     await localStream.FlushAsync();
                                 }
 
                                 if (_remoteSocket != null)
                                 {
-                                    _bindHandler.Dispose();
+                                    _bindHandler!.Dispose();
 
                                     //send second reply
-                                    await new SocksProxyReply(SocksProxyReplyCode.Succeeded, _bindHandler.ProxyRemoteEndPoint).WriteToAsync(localStream);
+                                    await new SocksProxyReply(SocksProxyReplyCode.Succeeded, _bindHandler.ProxyRemoteEndPoint!).WriteToAsync(localStream);
                                     await localStream.FlushAsync();
 
                                     //pipe sockets
@@ -587,9 +576,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
                         case SocksProxyRequestCommand.UdpAssociate:
                             {
-                                EndPoint localEP = null;
+                                EndPoint localEP;
 
-                                switch (_localSocket.LocalEndPoint.AddressFamily)
+                                switch (_localSocket.LocalEndPoint!.AddressFamily)
                                 {
                                     case AddressFamily.InterNetwork:
                                         localEP = new IPEndPoint(IPAddress.Any, 0);
@@ -605,7 +594,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                                 using (IProxyServerUdpAssociateHandler udpRemoteHandler = await _connectionManager.GetUdpAssociateHandlerAsync(localEP))
                                 {
-                                    using (IProxyServerUdpAssociateHandler udpLocalHandler = new SocksProxyUdpAssociateHandler(_localSocket, _udpRelaySocket, new IPEndPoint((_localSocket.RemoteEndPoint as IPEndPoint).Address, (request.DestinationEndPoint as IPEndPoint).Port)))
+                                    using (IProxyServerUdpAssociateHandler udpLocalHandler = new SocksProxyUdpAssociateHandler(_localSocket, _udpRelaySocket!, new IPEndPoint((_localSocket.RemoteEndPoint as IPEndPoint)!.Address, (request.DestinationEndPoint as IPEndPoint)!.Port)))
                                     {
                                         _ = CopyToAsync(udpRemoteHandler, udpLocalHandler);
                                         await CopyToAsync(udpLocalHandler, udpRemoteHandler);

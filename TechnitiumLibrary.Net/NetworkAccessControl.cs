@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
 using TechnitiumLibrary.IO;
@@ -55,17 +56,17 @@ namespace TechnitiumLibrary.Net
 
         public static NetworkAccessControl Parse(string value)
         {
-            if (TryParse(value, out NetworkAccessControl networkAccessControl))
+            if (TryParse(value, out NetworkAccessControl? networkAccessControl))
                 return networkAccessControl;
 
             throw new FormatException("Invalid Network Access Control value was specified: " + value);
         }
 
-        public static bool TryParse(string value, out NetworkAccessControl networkAccessControl)
+        public static bool TryParse(string value, [NotNullWhen(true)] out NetworkAccessControl? networkAccessControl)
         {
             bool deny = value.StartsWith('!');
 
-            if (NetworkAddress.TryParse(deny ? value.TrimStart(_parserTrimStartChars) : value, out NetworkAddress networkAddress))
+            if (NetworkAddress.TryParse(deny ? value.TrimStart(_parserTrimStartChars) : value, out NetworkAddress? networkAddress))
             {
                 networkAccessControl = new NetworkAccessControl(networkAddress, deny);
                 return true;
@@ -162,7 +163,7 @@ namespace TechnitiumLibrary.Net
             _networkAddress.WriteTo(s);
         }
 
-        public bool Equals(NetworkAccessControl other)
+        public bool Equals(NetworkAccessControl? other)
         {
             if (other is null)
                 return false;
@@ -176,7 +177,7 @@ namespace TechnitiumLibrary.Net
             return _networkAddress.Equals(other._networkAddress);
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is NetworkAccessControl other)
                 return Equals(other);

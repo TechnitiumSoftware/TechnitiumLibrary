@@ -39,7 +39,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         EDnsClientSubnetAddressFamily _family;
         byte _sourcePrefixLength;
         byte _scopePrefixLength;
-        IPAddress _address;
+        IPAddress _address = null!;
 
         #endregion
 
@@ -74,17 +74,14 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         #region static
 
-        public static EDnsOption[] GetEDnsClientSubnetOption(byte sourcePrefixLength, byte scopePrefixLength, IPAddress address)
+        public static EDnsOption GetEDnsClientSubnetOption(byte sourcePrefixLength, byte scopePrefixLength, IPAddress address)
         {
-            return new EDnsOption[] { new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(sourcePrefixLength, scopePrefixLength, address)) };
+            return new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(sourcePrefixLength, scopePrefixLength, address));
         }
 
-        public static EDnsOption[] GetEDnsClientSubnetOption(NetworkAddress eDnsClientSubnet)
+        public static EDnsOption GetEDnsClientSubnetOption(NetworkAddress eDnsClientSubnet)
         {
-            if (eDnsClientSubnet is null)
-                return null;
-
-            return new EDnsOption[] { new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, 0, eDnsClientSubnet.Address)) };
+            return new EDnsOption(EDnsOptionCode.EDNS_CLIENT_SUBNET, new EDnsClientSubnetOptionData(eDnsClientSubnet.PrefixLength, 0, eDnsClientSubnet.Address));
         }
 
         #endregion
@@ -167,7 +164,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

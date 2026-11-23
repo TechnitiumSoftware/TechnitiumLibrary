@@ -33,7 +33,7 @@ namespace TechnitiumLibrary.Net.Dns
             : base(message)
         { }
 
-        public DnsClientResolverLimitReachedException(string message, Exception innerException)
+        public DnsClientResolverLimitReachedException(string message, Exception? innerException)
             : base(message, innerException)
         { }
 

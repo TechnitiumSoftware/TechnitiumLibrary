@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
     public interface IProxyServerExtendedConnectionManager : IProxyServerConnectionManager
     {
-        Task<Socket> ConnectAsync(EndPoint remoteEP, string username, CancellationToken cancellationToken = default);
+        Task<Socket> ConnectAsync(EndPoint remoteEP, string? username, CancellationToken cancellationToken = default);
     }
 
     public interface IProxyServerBindHandler : IDisposable
@@ -45,7 +45,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
         SocksProxyReplyCode ReplyCode { get; }
 
-        EndPoint ProxyRemoteEndPoint { get; }
+        EndPoint? ProxyRemoteEndPoint { get; }
 
         EndPoint ProxyLocalEndPoint { get; }
     }

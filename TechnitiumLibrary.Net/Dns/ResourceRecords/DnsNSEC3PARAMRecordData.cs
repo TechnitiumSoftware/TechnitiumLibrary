@@ -33,9 +33,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         DnssecNSEC3HashAlgorithm _hashAlgorithm;
         DnssecNSEC3Flags _flags;
         ushort _iterations;
-        byte[] _salt;
+        byte[] _salt = null!;
 
-        byte[] _rData;
+        byte[] _rData = null!;
 
         #endregion
 
@@ -90,7 +90,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.Write(_rData);
         }
@@ -101,16 +101,16 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsNSEC3PARAMRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsNSEC3PARAMRecordData(rdata);
 
-            DnssecNSEC3HashAlgorithm hashAlgorithm = (DnssecNSEC3HashAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
-            DnssecNSEC3Flags flags = (DnssecNSEC3Flags)byte.Parse(await zoneFile.PopItemAsync());
-            ushort iterations = ushort.Parse(await zoneFile.PopItemAsync());
+            DnssecNSEC3HashAlgorithm hashAlgorithm = (DnssecNSEC3HashAlgorithm)byte.Parse(await zoneFile.PopFieldAsync());
+            DnssecNSEC3Flags flags = (DnssecNSEC3Flags)byte.Parse(await zoneFile.PopFieldAsync());
+            ushort iterations = ushort.Parse(await zoneFile.PopFieldAsync());
             byte[] salt;
             {
-                string value = await zoneFile.PopItemAsync();
+                string value = await zoneFile.PopFieldAsync();
                 if (value == "-")
                     salt = Array.Empty<byte>();
                 else
@@ -120,7 +120,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return new DnsNSEC3PARAMRecordData(hashAlgorithm, flags, iterations, salt);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return (byte)_hashAlgorithm + " " + (byte)_flags + " " + _iterations + " " + (_salt.Length == 0 ? "-" : Convert.ToHexString(_salt));
         }
@@ -139,7 +139,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return DnsNSEC3RecordData.ComputeHashedOwnerName(ownerName, _hashAlgorithm, _iterations, _salt);
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

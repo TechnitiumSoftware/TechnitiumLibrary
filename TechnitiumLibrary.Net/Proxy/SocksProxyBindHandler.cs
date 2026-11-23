@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,12 +29,12 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region variables
 
-        Socket _socket;
+        Socket? _socket;
 
         readonly SocksProxyReplyCode _replyCode;
         readonly EndPoint _bindEP;
 
-        EndPoint _remoteEP;
+        EndPoint? _remoteEP;
 
         #endregion
 
@@ -96,6 +96,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         public async Task<Socket> AcceptAsync(CancellationToken cancellationToken = default)
         {
+            if (_socket is null)
+                throw new InvalidOperationException();
+
             SocksProxyReply reply = await SocksProxyReply.ReadReplyAsync(new NetworkStream(_socket), cancellationToken);
             if (!reply.IsVersionSupported)
                 throw new SocksProxyException("Socks version 5 is not supported by the proxy server.");
@@ -118,7 +121,7 @@ namespace TechnitiumLibrary.Net.Proxy
         public SocksProxyReplyCode ReplyCode
         { get { return _replyCode; } }
 
-        public EndPoint ProxyRemoteEndPoint
+        public EndPoint? ProxyRemoteEndPoint
         { get { return _remoteEP; } }
 
         public EndPoint ProxyLocalEndPoint

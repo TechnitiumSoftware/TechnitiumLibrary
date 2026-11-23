@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _domain;
+        string _domain = null!;
 
         #endregion
 
@@ -58,7 +58,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _domain = DnsDatagram.DeserializeDomainName(s);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             DnsDatagram.SerializeDomainName(canonicalForm ? _domain.ToLowerInvariant() : _domain, s);
         }
@@ -74,14 +74,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsDNAMERecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsDNAMERecordData(rdata);
 
             return new DnsDNAMERecordData(await zoneFile.PopDomainAsync());
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return DnsResourceRecord.GetRelativeDomainName(_domain, originDomain);
         }
@@ -98,7 +98,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return qname.Substring(0, qname.Length - owner.Length) + _domain;
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -123,7 +123,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             jsonWriter.WriteString("Domain", _domain);
 
-            if (DnsClient.TryConvertDomainNameToUnicode(_domain, out string domainIDN))
+            if (DnsClient.TryConvertDomainNameToUnicode(_domain, out string? domainIDN))
                 jsonWriter.WriteString("DomainIDN", domainIDN);
 
             jsonWriter.WriteEndObject();

@@ -47,21 +47,21 @@ namespace TechnitiumLibrary.Net.Proxy
         readonly IProxyServerConnectionManager _connectionManager;
         readonly TransparentProxyServerMethod _method;
 
-        EndPoint _remoteEP;
-        IPAddress _staticRemoteAddress;
+        EndPoint? _remoteEP;
+        IPAddress? _staticRemoteAddress;
 
         readonly Socket _listener;
-        readonly ConcurrentDictionary<ProxyServerSession, object> _sessions = new ConcurrentDictionary<ProxyServerSession, object>();
+        readonly ConcurrentDictionary<ProxyServerSession, object?> _sessions = new ConcurrentDictionary<ProxyServerSession, object?>();
 
         #endregion
 
         #region constructors
 
-        public TransparentProxyServer(IProxyServerConnectionManager connectionManager = null, TransparentProxyServerMethod method = TransparentProxyServerMethod.DNAT, int backlog = 10)
+        public TransparentProxyServer(IProxyServerConnectionManager? connectionManager = null, TransparentProxyServerMethod method = TransparentProxyServerMethod.DNAT, int backlog = 10)
             : this(new IPEndPoint(IPAddress.Any, 8081), connectionManager, method, backlog)
         { }
 
-        public TransparentProxyServer(IPEndPoint localEP, IProxyServerConnectionManager connectionManager = null, TransparentProxyServerMethod method = TransparentProxyServerMethod.DNAT, int backlog = 10)
+        public TransparentProxyServer(IPEndPoint localEP, IProxyServerConnectionManager? connectionManager = null, TransparentProxyServerMethod method = TransparentProxyServerMethod.DNAT, int backlog = 10)
         {
             if (method != TransparentProxyServerMethod.Tunnel)
             {
@@ -84,12 +84,9 @@ namespace TechnitiumLibrary.Net.Proxy
             _listener.Listen(backlog);
             _listener.NoDelay = true;
 
-            _localEP = (IPEndPoint)_listener.LocalEndPoint;
-            _connectionManager = connectionManager;
+            _localEP = (IPEndPoint)_listener.LocalEndPoint!;
+            _connectionManager = connectionManager ?? new DefaultProxyServerConnectionManager();
             _method = method;
-
-            if (_connectionManager == null)
-                _connectionManager = new DefaultProxyServerConnectionManager();
 
             //accept requests async
             int tasks = Environment.ProcessorCount;
@@ -119,7 +116,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 if (_listener != null)
                     _listener.Dispose();
 
-                foreach (KeyValuePair<ProxyServerSession, object> session in _sessions)
+                foreach (KeyValuePair<ProxyServerSession, object?> session in _sessions)
                     session.Key.Dispose();
 
                 _sessions.Clear();
@@ -142,9 +139,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     ProxyServerSession session = new ProxyServerSession(this, socket, _connectionManager, _method);
 
-                    session.Disposed += delegate (object sender, EventArgs e)
+                    session.Disposed += delegate (object? sender, EventArgs e)
                     {
-                        _sessions.TryRemove(sender as ProxyServerSession, out _);
+                        _sessions.TryRemove((sender as ProxyServerSession)!, out _);
                     };
 
                     if (_sessions.TryAdd(session, null))
@@ -164,13 +161,13 @@ namespace TechnitiumLibrary.Net.Proxy
         public IPEndPoint LocalEndPoint
         { get { return _localEP; } }
 
-        public EndPoint RemoteEndPoint
+        public EndPoint? RemoteEndPoint
         {
             get { return _remoteEP; }
             set { _remoteEP = value; }
         }
 
-        public IPAddress StaticRemoteAddress
+        public IPAddress? StaticRemoteAddress
         {
             get { return _staticRemoteAddress; }
             set { _staticRemoteAddress = value; }
@@ -182,7 +179,7 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             #region events
 
-            public event EventHandler Disposed;
+            public event EventHandler? Disposed;
 
             #endregion
 
@@ -193,7 +190,7 @@ namespace TechnitiumLibrary.Net.Proxy
             readonly IProxyServerConnectionManager _connectionManager;
             readonly TransparentProxyServerMethod _method;
 
-            Socket _remoteSocket;
+            Socket? _remoteSocket;
 
             #endregion
 
@@ -212,7 +209,7 @@ namespace TechnitiumLibrary.Net.Proxy
             #region IDisposable
 
             bool _disposed;
-            readonly object _disposeLock = new object();
+            readonly Lock _disposeLock = new Lock();
 
             public void Dispose()
             {
@@ -228,11 +225,8 @@ namespace TechnitiumLibrary.Net.Proxy
 
                     if (disposing)
                     {
-                        if (_localSocket != null)
-                            _localSocket.Dispose();
-
-                        if (_remoteSocket != null)
-                            _remoteSocket.Dispose();
+                        _localSocket?.Dispose();
+                        _remoteSocket?.Dispose();
                     }
 
                     _disposed = true;
@@ -244,7 +238,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region private
 
-            private EndPoint GetOriginalDestination()
+            private EndPoint? GetOriginalDestination()
             {
                 try
                 {
@@ -302,7 +296,7 @@ namespace TechnitiumLibrary.Net.Proxy
                             if (_server._staticRemoteAddress is null)
                                 return _localSocket.LocalEndPoint as IPEndPoint;
                             else
-                                return new IPEndPoint(_server._staticRemoteAddress, (_localSocket.LocalEndPoint as IPEndPoint).Port);
+                                return new IPEndPoint(_server._staticRemoteAddress, (_localSocket.LocalEndPoint as IPEndPoint)!.Port);
                     }
                 }
                 catch
@@ -321,7 +315,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                 try
                 {
-                    EndPoint originalDestinationEP = GetOriginalDestination();
+                    EndPoint? originalDestinationEP = GetOriginalDestination();
                     if (originalDestinationEP is null)
                         return;
 

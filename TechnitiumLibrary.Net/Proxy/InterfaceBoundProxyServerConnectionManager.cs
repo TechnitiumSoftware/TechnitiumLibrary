@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ namespace TechnitiumLibrary.Net.Proxy
         #region variables
 
         readonly IPEndPoint _bindEP;
-        readonly byte[] _bindToInterfaceName;
+        readonly byte[]? _bindToInterfaceName;
 
         #endregion
 
@@ -55,7 +55,7 @@ namespace TechnitiumLibrary.Net.Proxy
                         {
                             if (ip.Address.Equals(bindAddress))
                             {
-                                _bindToInterfaceName = Encoding.ASCII.GetBytes(nic.Name);
+                                _bindToInterfaceName = Encoding.Latin1.GetBytes(nic.Name);
                                 break;
                             }
                         }

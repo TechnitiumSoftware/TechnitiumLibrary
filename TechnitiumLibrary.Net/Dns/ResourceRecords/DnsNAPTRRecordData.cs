@@ -33,12 +33,12 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         ushort _order;
         ushort _preference;
-        string _flags;
-        string _services;
-        string _regexp;
-        string _replacement;
+        string _flags = null!;
+        string _services = null!;
+        string _regexp = null!;
+        string _replacement = null!;
 
-        byte[] _rData;
+        byte[]? _rData;
 
         #endregion
 
@@ -95,9 +95,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 DnsDatagram.WriteUInt16NetworkOrder(_order, mS);
                 DnsDatagram.WriteUInt16NetworkOrder(_preference, mS);
-                mS.WriteShortString(_flags, Encoding.ASCII);
-                mS.WriteShortString(_services, Encoding.ASCII);
-                mS.WriteShortString(_regexp, Encoding.ASCII);
+                mS.WriteShortString(_flags, Encoding.Latin1);
+                mS.WriteShortString(_services, Encoding.Latin1);
+                mS.WriteShortString(_regexp, Encoding.Latin1);
                 DnsDatagram.SerializeDomainName(_replacement, mS);
 
                 _rData = mS.ToArray();
@@ -116,14 +116,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 _order = DnsDatagram.ReadUInt16NetworkOrder(mS);
                 _preference = DnsDatagram.ReadUInt16NetworkOrder(mS);
-                _flags = mS.ReadShortString(Encoding.ASCII);
-                _services = mS.ReadShortString(Encoding.ASCII);
-                _regexp = mS.ReadShortString(Encoding.ASCII);
+                _flags = mS.ReadShortString(Encoding.Latin1);
+                _services = mS.ReadShortString(Encoding.Latin1);
+                _regexp = mS.ReadShortString(Encoding.Latin1);
                 _replacement = DnsDatagram.DeserializeDomainName(mS);
             }
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.Write(_rData);
         }
@@ -134,21 +134,21 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsNAPTRRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsNAPTRRecordData(rdata);
 
-            ushort order = ushort.Parse(await zoneFile.PopItemAsync());
-            ushort preference = ushort.Parse(await zoneFile.PopItemAsync());
-            string flags = DnsDatagram.DecodeCharacterString(await zoneFile.PopItemAsync());
-            string services = DnsDatagram.DecodeCharacterString(await zoneFile.PopItemAsync());
-            string regexp = DnsDatagram.DecodeCharacterString(await zoneFile.PopItemAsync());
+            ushort order = ushort.Parse(await zoneFile.PopFieldAsync());
+            ushort preference = ushort.Parse(await zoneFile.PopFieldAsync());
+            string flags = DnsDatagram.DecodeCharacterString(await zoneFile.PopFieldAsync());
+            string services = DnsDatagram.DecodeCharacterString(await zoneFile.PopFieldAsync());
+            string regexp = DnsDatagram.DecodeCharacterString(await zoneFile.PopFieldAsync());
             string replacement = await zoneFile.PopDomainAsync();
 
             return new DnsNAPTRRecordData(order, preference, flags, services, regexp, replacement);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return _order + " " + _preference + " " + DnsDatagram.EncodeCharacterString(_flags) + " " + DnsDatagram.EncodeCharacterString(_services) + " " + DnsDatagram.EncodeCharacterString(_regexp) + " " + DnsResourceRecord.GetRelativeDomainName(_replacement, originDomain);
         }
@@ -157,7 +157,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

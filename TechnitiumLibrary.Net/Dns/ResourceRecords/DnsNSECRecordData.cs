@@ -49,13 +49,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _nextDomainName;
-        IReadOnlyList<DnsResourceRecordType> _types;
+        string _nextDomainName = null!;
+        IReadOnlyList<DnsResourceRecordType> _types = null!;
 
         bool _isInsecureDelegation;
         bool _isAncestorDelegation;
 
-        byte[] _rData;
+        byte[] _rData = null!;
 
         #endregion
 
@@ -79,7 +79,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public static string GetWildcardFor(DnsResourceRecord nsecRecord, string nxDomain)
         {
-            DnsNSECRecordData nsec = nsecRecord.RDATA as DnsNSECRecordData;
+            DnsNSECRecordData nsec = (nsecRecord.RDATA as DnsNSECRecordData)!;
 
             string w1 = GetWildcardFor(nsecRecord.Name, nxDomain);
             string w2 = GetWildcardFor(nsec._nextDomainName, nxDomain);
@@ -163,14 +163,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         internal static DnssecProofOfNonExistence GetValidatedProofOfNonExistence(IReadOnlyList<DnsResourceRecord> nsecRecords, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation)
         {
             bool foundProofOfCover = false;
-            string wildcardDomain = null;
+            string wildcardDomain = null!;
 
             foreach (DnsResourceRecord nsecRecord in nsecRecords)
             {
                 if (nsecRecord.Type != DnsResourceRecordType.NSEC)
                     continue;
 
-                DnsNSECRecordData nsec = nsecRecord.RDATA as DnsNSECRecordData;
+                DnsNSECRecordData nsec = (nsecRecord.RDATA as DnsNSECRecordData)!;
 
                 if (nsecRecord.Name.Equals(domain, StringComparison.OrdinalIgnoreCase))
                 {
@@ -209,7 +209,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (nsecRecord.Type != DnsResourceRecordType.NSEC)
                     continue;
 
-                DnsNSECRecordData nsec = nsecRecord.RDATA as DnsNSECRecordData;
+                DnsNSECRecordData nsec = (nsecRecord.RDATA as DnsNSECRecordData)!;
 
                 if (nsecRecord.Name.Equals(wildcardDomain, StringComparison.OrdinalIgnoreCase))
                 {
@@ -269,7 +269,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             else
                 minCount = labels2.Length;
 
-            string wildcard = null;
+            string? wildcard = null;
 
             for (int i = 0; i < minCount; i++)
             {
@@ -336,7 +336,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static void WriteTypeBitMapsTo(IReadOnlyList<DnsResourceRecordType> types, Stream s)
         {
-            Span<byte> windowBlockSurvey = stackalloc byte[256];
+            Span<short> windowBlockSurvey = stackalloc short[256];
+
+            for (int i = 0; i < windowBlockSurvey.Length; i++)
+                windowBlockSurvey[i] = -1;
 
             foreach (DnsResourceRecordType type in types)
             {
@@ -351,7 +354,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             for (int currentWindowBlockNumber = 0; currentWindowBlockNumber < windowBlockSurvey.Length; currentWindowBlockNumber++)
             {
                 int maxBits = windowBlockSurvey[currentWindowBlockNumber];
-                if (maxBits > 0)
+                if (maxBits > -1)
                 {
                     int bitmapLength = (int)Math.Ceiling((maxBits + 1) / 8.0);
                     byte[] bitmap = new byte[bitmapLength];
@@ -436,7 +439,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             CheckForDelegation();
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.Write(_rData);
         }
@@ -447,7 +450,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsNSECRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsNSECRecordData(rdata);
 
@@ -457,7 +460,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             do
             {
-                string type = await zoneFile.PopItemAsync();
+                string? type = await zoneFile.PopItemAsync();
                 if (type is null)
                     break;
 
@@ -468,7 +471,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return new DnsNSECRecordData(nextDomainName, types);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             string str = DnsResourceRecord.GetRelativeDomainName(_nextDomainName, originDomain);
 
@@ -482,7 +485,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

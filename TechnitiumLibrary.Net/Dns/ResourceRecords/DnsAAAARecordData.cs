@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,9 +32,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        IPAddress _address;
+        IPAddress _address = null!;
 
-        byte[] _rData;
+        byte[]? _rData;
 
         #endregion
 
@@ -62,7 +62,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _address = new IPAddress(_rData);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             if (_rData is null)
                 _rData = _address.GetAddressBytes();
@@ -76,14 +76,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsAAAARecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsAAAARecordData(rdata);
 
-            return new DnsAAAARecordData(IPAddress.Parse(await zoneFile.PopItemAsync()));
+            return new DnsAAAARecordData(IPAddress.Parse(await zoneFile.PopFieldAsync()));
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return _address.ToString();
         }
@@ -92,7 +92,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

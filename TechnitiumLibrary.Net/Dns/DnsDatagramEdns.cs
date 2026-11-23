@@ -46,28 +46,25 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region constructor
 
-        public DnsDatagramEdns(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption> options)
+        public DnsDatagramEdns(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption>? options)
         {
             _udpPayloadSize = udpPayloadSize;
             _extendedRCODE = extendedRCODE;
             _version = version;
             _flags = flags;
-            _options = options;
+            _options = options ?? [];
 
             if (_udpPayloadSize < 512)
                 _udpPayloadSize = 512;
-
-            if (_options is null)
-                _options = [];
         }
 
         #endregion
 
         #region static
 
-        public static DnsDatagramEdns ReadOPTFrom(IReadOnlyList<DnsResourceRecord> additional, DnsResponseCode RCODE)
+        public static DnsDatagramEdns? ReadOPTFrom(IReadOnlyList<DnsResourceRecord> additional, DnsResponseCode RCODE)
         {
-            DnsResourceRecord optRecord = null;
+            DnsResourceRecord? optRecord = null;
 
             for (int i = 0; i < additional.Count; i++)
             {
@@ -93,10 +90,10 @@ namespace TechnitiumLibrary.Net.Dns
 
         public static DnsDatagramEdns ReadOPTFrom(DnsResourceRecord optRecord, DnsResponseCode RCODE)
         {
-            return new DnsDatagramEdns((ushort)optRecord.Class, (DnsResponseCode)(((optRecord.OriginalTtlValue & 0xff000000u) >> 20) | ((uint)RCODE & 0xfu)), (byte)((optRecord.OriginalTtlValue >> 16) & 0xffu), (EDnsHeaderFlags)(optRecord.OriginalTtlValue & 0xffffu), (optRecord.RDATA as DnsOPTRecordData).Options);
+            return new DnsDatagramEdns((ushort)optRecord.Class, (DnsResponseCode)(((optRecord.OriginalTtlValue & 0xff000000u) >> 20) | ((uint)RCODE & 0xfu)), (byte)((optRecord.OriginalTtlValue >> 16) & 0xffu), (EDnsHeaderFlags)(optRecord.OriginalTtlValue & 0xffffu), (optRecord.RDATA as DnsOPTRecordData)!.Options);
         }
 
-        public static DnsResourceRecord GetOPTFor(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption> options)
+        public static DnsResourceRecord GetOPTFor(ushort udpPayloadSize, DnsResponseCode extendedRCODE, byte version, EDnsHeaderFlags flags, IReadOnlyList<EDnsOption>? options)
         {
             DnsOPTRecordData opt;
 

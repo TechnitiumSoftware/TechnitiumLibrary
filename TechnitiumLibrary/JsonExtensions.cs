@@ -111,7 +111,7 @@ namespace TechnitiumLibrary
             }
         }
 
-        private static Dictionary<TKey, TValue>? ReadArrayAsMap<TKey, TValue>(JsonElement jsonArray, Func<JsonElement, Tuple<TKey, TValue>> getObject) where TKey : notnull
+        private static Dictionary<TKey, TValue>? ReadArrayAsMap<TKey, TValue>(JsonElement jsonArray, Func<JsonElement, Tuple<TKey, TValue>?> getObject) where TKey : notnull
         {
             switch (jsonArray.ValueKind)
             {
@@ -120,7 +120,7 @@ namespace TechnitiumLibrary
 
                     foreach (JsonElement jsonItem in jsonArray.EnumerateArray())
                     {
-                        Tuple<TKey, TValue> item = getObject(jsonItem);
+                        Tuple<TKey, TValue>? item = getObject(jsonItem);
                         if (item is not null)
                             map.Add(item.Item1, item.Item2);
                     }
@@ -135,7 +135,7 @@ namespace TechnitiumLibrary
             }
         }
 
-        private static Dictionary<TKey, TValue>? ReadObjectAsMap<TKey, TValue>(JsonElement jsonMap, Func<string, JsonElement, Tuple<TKey, TValue>> getObject) where TKey : notnull
+        private static Dictionary<TKey, TValue>? ReadObjectAsMap<TKey, TValue>(JsonElement jsonMap, Func<string, JsonElement, Tuple<TKey, TValue>?> getObject) where TKey : notnull
         {
             switch (jsonMap.ValueKind)
             {
@@ -144,7 +144,7 @@ namespace TechnitiumLibrary
 
                     foreach (JsonProperty jsonProperty in jsonMap.EnumerateObject())
                     {
-                        Tuple<TKey, TValue> item = getObject(jsonProperty.Name, jsonProperty.Value);
+                        Tuple<TKey, TValue>? item = getObject(jsonProperty.Name, jsonProperty.Value);
                         if (item is not null)
                             map.Add(item.Item1, item.Item2);
                     }
@@ -253,14 +253,14 @@ namespace TechnitiumLibrary
             return false;
         }
 
-        public static Dictionary<TKey, TValue> ReadObjectAsMap<TKey, TValue>(this JsonElement jsonElement, string propertyName, Func<string, JsonElement, Tuple<TKey, TValue>> getObject) where TKey : notnull
+        public static Dictionary<TKey, TValue> ReadObjectAsMap<TKey, TValue>(this JsonElement jsonElement, string propertyName, Func<string, JsonElement, Tuple<TKey, TValue>?> getObject) where TKey : notnull
         {
             JsonElement jsonMap = jsonElement.GetProperty(propertyName);
             Dictionary<TKey, TValue> map = new Dictionary<TKey, TValue>();
 
             foreach (JsonProperty jsonProperty in jsonMap.EnumerateObject())
             {
-                Tuple<TKey, TValue> item = getObject(jsonProperty.Name, jsonProperty.Value);
+                Tuple<TKey, TValue>? item = getObject(jsonProperty.Name, jsonProperty.Value);
                 if (item is not null)
                     map.Add(item.Item1, item.Item2);
             }
@@ -337,7 +337,7 @@ namespace TechnitiumLibrary
             return defaultValue;
         }
 
-        public static void WriteStringArray<T>(this Utf8JsonWriter jsonWriter, string propertyName, IReadOnlyCollection<T> values)
+        public static void WriteStringArray<T>(this Utf8JsonWriter jsonWriter, string propertyName, IReadOnlyCollection<T>? values)
         {
             jsonWriter.WritePropertyName(propertyName);
             jsonWriter.WriteStartArray();

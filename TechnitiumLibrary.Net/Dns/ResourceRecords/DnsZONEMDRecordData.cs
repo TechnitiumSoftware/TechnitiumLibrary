@@ -46,9 +46,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         uint _serial;
         ZoneMdScheme _scheme;
         ZoneMdHashAlgorithm _hashAlgorithm;
-        byte[] _digest;
+        byte[] _digest = null!;
 
-        byte[] _rData;
+        byte[]? _rData;
 
         #endregion
 
@@ -120,7 +120,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.Write(_rData);
         }
@@ -131,19 +131,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsZONEMDRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsZONEMDRecordData(rdata);
 
-            uint serial = uint.Parse(await zoneFile.PopItemAsync());
-            ZoneMdScheme scheme = (ZoneMdScheme)byte.Parse(await zoneFile.PopItemAsync());
-            ZoneMdHashAlgorithm hashAlgorithm = (ZoneMdHashAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
-            byte[] digest = Convert.FromHexString(await zoneFile.PopItemAsync());
+            uint serial = uint.Parse(await zoneFile.PopFieldAsync());
+            ZoneMdScheme scheme = (ZoneMdScheme)byte.Parse(await zoneFile.PopFieldAsync());
+            ZoneMdHashAlgorithm hashAlgorithm = (ZoneMdHashAlgorithm)byte.Parse(await zoneFile.PopFieldAsync());
+            byte[] digest = Convert.FromHexString(await zoneFile.PopFieldAsync());
 
             return new DnsZONEMDRecordData(serial, scheme, hashAlgorithm, digest);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return _serial + " " + (byte)_scheme + " " + (byte)_hashAlgorithm + " " + Convert.ToHexString(_digest);
         }
@@ -152,7 +152,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

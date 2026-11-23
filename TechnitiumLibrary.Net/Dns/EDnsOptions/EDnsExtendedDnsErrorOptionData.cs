@@ -227,13 +227,13 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         #region variables
 
         EDnsExtendedDnsErrorCode _infoCode;
-        string _extraText;
+        string? _extraText;
 
         #endregion
 
         #region constructor
 
-        public EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode infoCode, string extraText)
+        public EDnsExtendedDnsErrorOptionData(EDnsExtendedDnsErrorCode infoCode, string? extraText)
         {
             _infoCode = infoCode;
             _extraText = extraText;
@@ -268,7 +268,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -317,7 +317,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
         public EDnsExtendedDnsErrorCode InfoCode
         { get { return _infoCode; } }
 
-        public string ExtraText
+        public string? ExtraText
         { get { return _extraText; } }
 
         public override int UncompressedLength

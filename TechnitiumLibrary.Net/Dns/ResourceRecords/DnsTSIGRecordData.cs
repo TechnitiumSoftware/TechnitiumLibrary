@@ -56,13 +56,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region variables
 
-        string _algorithmName;
+        string _algorithmName = null!;
         ulong _timeSigned;
         ushort _fudge;
-        byte[] _mac;
+        byte[] _mac = null!;
         ushort _originalID;
         DnsTsigError _error;
-        byte[] _otherData;
+        byte[] _otherData = null!;
 
         #endregion
 
@@ -107,7 +107,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _otherData = s.ReadExactly(otherLen);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             DnsDatagram.SerializeDomainName(canonicalForm ? _algorithmName.ToLowerInvariant() : _algorithmName, s); //MUST NOT be compressed
             DnsDatagram.WriteUInt48NetworkOrder(_timeSigned, s);
@@ -127,7 +127,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region internal
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             throw new InvalidOperationException();
         }
@@ -136,7 +136,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

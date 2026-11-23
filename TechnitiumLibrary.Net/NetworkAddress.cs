@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -78,17 +79,17 @@ namespace TechnitiumLibrary.Net
 
         public static NetworkAddress Parse(string network)
         {
-            if (TryParse(network, out NetworkAddress networkAddress))
+            if (TryParse(network, out NetworkAddress? networkAddress))
                 return networkAddress;
 
             throw new FormatException("Invalid network address was specified: " + network);
         }
 
-        public static bool TryParse(string network, out NetworkAddress networkAddress)
+        public static bool TryParse(string network, [NotNullWhen(true)] out NetworkAddress? networkAddress)
         {
             string[] parts = network.Split(_slashSeparator, 2);
 
-            if (!IPAddress.TryParse(parts[0], out IPAddress address))
+            if (!IPAddress.TryParse(parts[0], out IPAddress? address))
             {
                 networkAddress = null;
                 return false;
@@ -217,7 +218,7 @@ namespace TechnitiumLibrary.Net
             s.WriteByte(_prefixLength);
         }
 
-        public bool Equals(NetworkAddress other)
+        public bool Equals(NetworkAddress? other)
         {
             if (other is null)
                 return false;
@@ -234,7 +235,7 @@ namespace TechnitiumLibrary.Net
             return true;
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is NetworkAddress other)
                 return Equals(other);

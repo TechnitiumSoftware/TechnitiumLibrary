@@ -62,11 +62,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         DnsDnsKeyFlag _flags;
         byte _protocol;
         DnssecAlgorithm _algorithm;
-        DnssecPublicKey _publicKey;
+        DnssecPublicKey _publicKey = null!;
 
         ushort _computedKeyTag;
 
-        byte[] _rData;
+        byte[] _rData = null!;
 
         #endregion
 
@@ -98,7 +98,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (record.Type != DnsResourceRecordType.DNSKEY)
                     continue;
 
-                if (DnsDSRecordData.IsDnssecAlgorithmSupported((record.RDATA as DnsDNSKEYRecordData)._algorithm))
+                if (DnsDSRecordData.IsDnssecAlgorithmSupported((record.RDATA as DnsDNSKEYRecordData)!._algorithm))
                     return true;
             }
 
@@ -196,7 +196,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             ComputeKeyTag();
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.Write(_rData);
         }
@@ -207,19 +207,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsDNSKEYRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsDNSKEYRecordData(rdata);
 
-            DnsDnsKeyFlag flags = (DnsDnsKeyFlag)ushort.Parse(await zoneFile.PopItemAsync());
-            byte protocol = byte.Parse(await zoneFile.PopItemAsync());
-            DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
+            DnsDnsKeyFlag flags = (DnsDnsKeyFlag)ushort.Parse(await zoneFile.PopFieldAsync());
+            byte protocol = byte.Parse(await zoneFile.PopFieldAsync());
+            DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopFieldAsync());
             DnssecPublicKey publicKey = DnssecPublicKey.Parse(algorithm, Convert.FromBase64String(await zoneFile.PopToEndAsync()));
 
             return new DnsDNSKEYRecordData(flags, protocol, algorithm, publicKey);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return (ushort)_flags + " " + _protocol + " " + (byte)_algorithm + " " + Convert.ToBase64String(_publicKey.RawPublicKey);
         }
@@ -242,7 +242,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return new DnsDSRecordData(_computedKeyTag, _algorithm, digestType, computedDigest);
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2022  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -37,6 +37,9 @@ namespace TechnitiumLibrary.Net.Dns.Dnssec
         public DnssecEcdsaPublicKey(ECParameters ecdsaPublicKey)
         {
             _ecdsaPublicKey = ecdsaPublicKey;
+
+            if ((_ecdsaPublicKey.Q.X is null) || (_ecdsaPublicKey.Q.Y is null))
+                throw new InvalidOperationException();
 
             if (_ecdsaPublicKey.Curve.Oid.Value == ECCurve.NamedCurves.nistP256.Oid.Value)
             {

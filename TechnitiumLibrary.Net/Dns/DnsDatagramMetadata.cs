@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ namespace TechnitiumLibrary.Net.Dns
     {
         #region variables
 
-        readonly NameServerAddress _server;
+        readonly NameServerAddress? _server;
         readonly int _size;
         readonly double _rtt;
 
@@ -35,7 +35,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region constructor
 
-        public DnsDatagramMetadata(NameServerAddress server, int size, double rtt)
+        public DnsDatagramMetadata(NameServerAddress? server, int size, double rtt)
         {
             _server = server;
             _size = size;
@@ -67,6 +67,9 @@ namespace TechnitiumLibrary.Net.Dns
 
         public void WriteTo(BinaryWriter bW)
         {
+            if (_server is null)
+                throw new InvalidOperationException();
+
             bW.Write((byte)1); //version
 
             _server.WriteTo(bW);
@@ -90,7 +93,7 @@ namespace TechnitiumLibrary.Net.Dns
 
         #region properties
 
-        public NameServerAddress NameServer
+        public NameServerAddress? NameServer
         { get { return _server; } }
 
         public DnsTransportProtocol Protocol

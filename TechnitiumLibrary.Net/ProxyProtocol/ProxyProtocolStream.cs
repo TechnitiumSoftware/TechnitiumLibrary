@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -42,8 +42,8 @@ namespace TechnitiumLibrary.Net.ProxyProtocol
         bool _isLocal;
         AddressFamily _addressFamily;
         SocketType _socketType;
-        IPAddress _sourceAddress;
-        IPAddress _destinationAddress;
+        IPAddress? _sourceAddress;
+        IPAddress? _destinationAddress;
         ushort _sourcePort;
         ushort _destinationPort;
 
@@ -466,10 +466,10 @@ namespace TechnitiumLibrary.Net.ProxyProtocol
         public SocketType SocketType
         { get { return _socketType; } }
 
-        public IPAddress SourceAddress
+        public IPAddress? SourceAddress
         { get { return _sourceAddress; } }
 
-        public IPAddress DestinationAddress
+        public IPAddress? DestinationAddress
         { get { return _destinationAddress; } }
 
         public ushort SourcePort

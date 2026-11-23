@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -42,12 +42,24 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             //read RDLENGTH
             _rdLength = DnsDatagram.ReadUInt16NetworkOrder(s);
+            _emptyRData = _rdLength == 0;
 
             //read RDATA
-            if (_rdLength > 0)
-                ReadRecordData(s);
-            else
-                _emptyRData = true;
+            //Parse unconditionally: a record type with a fixed structure (SRV, MX, NS,
+            //...) otherwise leaves its fields unset when RDLENGTH is zero, which later
+            //faults on the null name. Then verify the parse consumed exactly RDLENGTH
+            //bytes. The type parsers advance by structure and do not themselves check
+            //RDLENGTH, so a length that disagrees with the structure would either leave
+            //bytes unread or read into the following record; names follow compression
+            //pointers but restore the stream, so a well-formed record advances by
+            //exactly RDLENGTH.
+            long rdataStart = s.Position;
+
+            ReadRecordData(s);
+
+            long consumed = s.Position - rdataStart;
+            if (consumed != _rdLength)
+                throw new DnsClientException("Invalid resource record: RDATA length " + consumed + " does not match RDLENGTH " + _rdLength + ".");
         }
 
         #endregion
@@ -56,7 +68,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         protected abstract void ReadRecordData(Stream s);
 
-        protected abstract void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm);
+        protected abstract void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm);
 
         #endregion
 
@@ -70,7 +82,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             WriteRecordData(s, null, true);
         }
 
-        internal abstract string ToZoneFileEntry(string originDomain = null);
+        internal abstract string ToZoneFileEntry(string? originDomain = null);
 
         #endregion
 
@@ -81,7 +93,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             WriteTo(s, null);
         }
 
-        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
+        public void WriteTo(Stream s, List<DnsDomainOffset>? domainEntries)
         {
             if (_emptyRData)
             {
@@ -109,7 +121,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        public override abstract bool Equals(object obj);
+        public override abstract bool Equals(object? obj);
 
         public override abstract int GetHashCode();
 

@@ -53,10 +53,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #region variables
 
         ushort _svcPriority;
-        string _targetName;
-        IReadOnlyDictionary<DnsSvcParamKey, DnsSvcParamValue> _svcParams;
+        string _targetName = null!;
+        IReadOnlyDictionary<DnsSvcParamKey, DnsSvcParamValue> _svcParams = null!;
 
-        byte[] _rData;
+        byte[]? _rData;
 
         bool _autoIpv4Hint;
         bool _autoIpv6Hint;
@@ -115,6 +115,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                             svcParamValue = new DnsSvcIPv4HintParamValue(mS);
                             break;
 
+                        case DnsSvcParamKey.ECH:
+                            svcParamValue = new DnsSvcEchParamValue(mS);
+                            break;
+
                         case DnsSvcParamKey.IPv6Hint:
                             svcParamValue = new DnsSvcIPv6HintParamValue(mS);
                             break;
@@ -135,7 +139,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             if (_rData is null)
             {
@@ -170,15 +174,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsSVCBRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsSVCBRecordData(rdata);
 
-            ushort svcPriority = ushort.Parse(await zoneFile.PopItemAsync());
+            ushort svcPriority = ushort.Parse(await zoneFile.PopFieldAsync());
             string targetName = await zoneFile.PopDomainAsync();
 
             Dictionary<DnsSvcParamKey, DnsSvcParamValue> svcParams = new Dictionary<DnsSvcParamKey, DnsSvcParamValue>();
-            string param;
+            string? param;
             int i;
             DnsSvcParamKey svcParamKey;
             string svcParamValue;
@@ -225,7 +229,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return new DnsSVCBRecordData(svcPriority, targetName, svcParams) { _autoIpv4Hint = autoIpv4Hint, _autoIpv6Hint = autoIpv6Hint };
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             string svcParams = string.Empty;
 
@@ -270,7 +274,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -291,7 +295,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
                 foreach (KeyValuePair<DnsSvcParamKey, DnsSvcParamValue> svcParam in _svcParams)
                 {
-                    if (!other._svcParams.TryGetValue(svcParam.Key, out DnsSvcParamValue otherSvcParamValue))
+                    if (!other._svcParams.TryGetValue(svcParam.Key, out DnsSvcParamValue? otherSvcParamValue))
                         return false;
 
                     if (!svcParam.Value.Equals(otherSvcParamValue))
@@ -411,6 +415,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 case DnsSvcParamKey.IPv4Hint:
                     return DnsSvcIPv4HintParamValue.Parse(svcParamValue);
 
+                case DnsSvcParamKey.ECH:
+                    return DnsSvcEchParamValue.Parse(svcParamValue);
+
                 case DnsSvcParamKey.IPv6Hint:
                     return DnsSvcIPv6HintParamValue.Parse(svcParamValue);
 
@@ -454,7 +461,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             s.Position = finalPosition;
         }
 
-        public abstract override bool Equals(object obj);
+        public abstract override bool Equals(object? obj);
 
         public abstract override int GetHashCode();
 
@@ -474,7 +481,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        byte[] _value;
+        byte[] _value = null!;
 
         #endregion
 
@@ -515,7 +522,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             s.Write(_value);
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -556,7 +563,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        IReadOnlyList<DnsSvcParamKey> _keys;
+        IReadOnlyList<DnsSvcParamKey> _keys = null!;
 
         #endregion
 
@@ -618,7 +625,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -650,7 +657,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            string value = null;
+            string? value = null;
 
             foreach (DnsSvcParamKey key in _keys)
             {
@@ -660,7 +667,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     value += "," + key.ToString().ToLowerInvariant().Replace('_', '-');
             }
 
-            return value;
+            return value ?? "";
         }
 
         #endregion
@@ -680,7 +687,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        IReadOnlyList<string> _alpnIds;
+        IReadOnlyList<string> _alpnIds = null!;
 
         #endregion
 
@@ -728,7 +735,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (alpnLength < 0)
                     throw new EndOfStreamException();
 
-                alpnIds.Add(Encoding.ASCII.GetString(s.ReadExactly(alpnLength)));
+                alpnIds.Add(Encoding.Latin1.GetString(s.ReadExactly(alpnLength)));
 
                 bytesRead += alpnLength + 1;
             }
@@ -741,7 +748,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             foreach (string alpnId in _alpnIds)
             {
                 s.WriteByte(Convert.ToByte(alpnId.Length));
-                s.Write(Encoding.ASCII.GetBytes(alpnId));
+                s.Write(Encoding.Latin1.GetBytes(alpnId));
             }
         }
 
@@ -749,7 +756,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -781,7 +788,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            string value = null;
+            string? value = null;
 
             foreach (string alpnId in _alpnIds)
             {
@@ -791,7 +798,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     value += "," + alpnId;
             }
 
-            return value;
+            return value ?? "";
         }
 
         #endregion
@@ -866,7 +873,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -907,7 +914,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        IReadOnlyList<IPAddress> _addresses;
+        IReadOnlyList<IPAddress> _addresses = null!;
 
         #endregion
 
@@ -969,7 +976,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -1001,7 +1008,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            string value = null;
+            string? value = null;
 
             foreach (IPAddress address in _addresses)
             {
@@ -1011,7 +1018,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     value += "," + address.ToString();
             }
 
-            return value;
+            return value ?? "";
         }
 
         #endregion
@@ -1027,11 +1034,44 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #endregion
     }
 
+    public class DnsSvcEchParamValue : DnsSvcUnknownParamValue
+    {
+        #region constructor
+
+        public DnsSvcEchParamValue(string base64String)
+            : base(Convert.FromBase64String(base64String))
+        { }
+
+        public DnsSvcEchParamValue(Stream s)
+            : base(s)
+        { }
+
+        #endregion
+
+        #region static
+
+        public new static DnsSvcEchParamValue Parse(string svcParamValue)
+        {
+            return new DnsSvcEchParamValue(svcParamValue);
+        }
+
+        #endregion
+
+        #region public
+
+        public override string ToString()
+        {
+            return Convert.ToBase64String(Value);
+        }
+
+        #endregion
+    }
+
     public class DnsSvcIPv6HintParamValue : DnsSvcParamValue
     {
         #region variables
 
-        IReadOnlyList<IPAddress> _addresses;
+        IReadOnlyList<IPAddress> _addresses = null!;
 
         #endregion
 
@@ -1093,7 +1133,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -1125,7 +1165,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         public override string ToString()
         {
-            string value = null;
+            string? value = null;
 
             foreach (IPAddress address in _addresses)
             {
@@ -1135,7 +1175,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     value += "," + address.ToString();
             }
 
-            return value;
+            return value ?? "";
         }
 
         #endregion
@@ -1155,7 +1195,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        string _dohPath;
+        string _dohPath = null!;
 
         #endregion
 
@@ -1194,7 +1234,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

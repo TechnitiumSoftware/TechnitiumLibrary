@@ -37,16 +37,16 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         #region variables
 
         const int SOCKET_POOL_SIZE = 2500;
-        static ushort[] _socketPoolExcludedPorts;
-        static PooledSocket[] _ipv4PooledSockets;
-        static PooledSocket[] _ipv6PooledSockets;
+        static ushort[]? _socketPoolExcludedPorts;
+        static PooledSocket[]? _ipv4PooledSockets;
+        static PooledSocket[]? _ipv6PooledSockets;
         static readonly object _poolLock = new object();
 
         #endregion
 
         #region constructor
 
-        public UdpClientConnection(NameServerAddress server, NetProxy proxy)
+        public UdpClientConnection(NameServerAddress server, NetProxy? proxy)
             : base(server, proxy)
         {
             if (server.Protocol != DnsTransportProtocol.Udp)
@@ -156,7 +156,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             if (IPAddress.IsLoopback(serverEP.Address))
                 return new PooledSocket(serverEP.AddressFamily, ignoreSourceBinding: true); //no pooling and source binding for loopback; return new socket
 
-            PooledSocket[] pooledSockets;
+            PooledSocket[]? pooledSockets;
 
             switch (serverEP.AddressFamily)
             {
@@ -188,7 +188,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             return new PooledSocket(serverEP.AddressFamily);
         }
 
-        public static ushort[] SocketPoolExcludedPorts
+        public static ushort[]? SocketPoolExcludedPorts
         {
             get { return _socketPoolExcludedPorts; }
             set
@@ -205,7 +205,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (updateSocketPool)
                     {
                         //update socket pool async in background
-                        ThreadPool.QueueUserWorkItem(delegate (object state)
+                        ThreadPool.QueueUserWorkItem(delegate (object? state)
                         {
                             lock (_poolLock)
                             {
@@ -215,7 +215,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                                     {
                                         PooledSocket pooledSocket = _ipv4PooledSockets[i];
 
-                                        if (_socketPoolExcludedPorts.Contains((ushort)pooledSocket.Socket.LocalEndPoint.GetPort()))
+                                        if (_socketPoolExcludedPorts.Contains((ushort)pooledSocket.Socket.LocalEndPoint!.GetPort()))
                                         {
                                             _ipv4PooledSockets[i] = new PooledSocket(AddressFamily.InterNetwork, i);
                                             pooledSocket.DisposePooled();
@@ -229,7 +229,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                                     {
                                         PooledSocket pooledSocket = _ipv6PooledSockets[i];
 
-                                        if (_socketPoolExcludedPorts.Contains((ushort)pooledSocket.Socket.LocalEndPoint.GetPort()))
+                                        if (_socketPoolExcludedPorts.Contains((ushort)pooledSocket.Socket.LocalEndPoint!.GetPort()))
                                         {
                                             _ipv6PooledSockets[i] = new PooledSocket(AddressFamily.InterNetworkV6, i);
                                             pooledSocket.DisposePooled();
@@ -249,8 +249,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         public override async Task<DnsDatagram> QueryAsync(DnsDatagram request, int timeout, int retries, CancellationToken cancellationToken)
         {
-            byte[] sendBuffer = null;
-            byte[] receiveBuffer = null;
+            byte[]? sendBuffer = null;
+            byte[]? receiveBuffer = null;
 
             try
             {
@@ -283,8 +283,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 }
 
                 Stopwatch stopwatch = new Stopwatch();
-                DnsDatagram lastResponse = null;
-                Exception lastException = null;
+                DnsDatagram? lastResponse = null;
+                Exception? lastException = null;
 
                 bool IsResponseValid(int receivedBytes)
                 {
@@ -321,13 +321,13 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (_server.IsIPEndPointStale)
                         await _server.RecursiveResolveIPAddressAsync(cancellationToken: cancellationToken);
 
-                    using (PooledSocket pooledSocket = GetPooledSocketFor(_server.IPEndPoint))
+                    using (PooledSocket pooledSocket = GetPooledSocketFor(_server.IPEndPoint!))
                     {
                         stopwatch.Start();
 
                         try
                         {
-                            _ = await pooledSocket.Socket.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.IPEndPoint, timeout, retries, false, IsResponseValid, cancellationToken);
+                            _ = await pooledSocket.Socket.UdpQueryAsync(new ArraySegment<byte>(sendBuffer, 0, sendBufferSize), receiveBuffer, _server.IPEndPoint!, timeout, retries, false, IsResponseValid, cancellationToken);
                         }
                         catch (SocketException ex)
                         {
@@ -414,7 +414,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 {
                     case AddressFamily.InterNetwork:
                         {
-                            Tuple<IPEndPoint, byte[]> ipv4SourceEP = ignoreSourceBinding ? null : GetIPv4SourceEP();
+                            Tuple<IPEndPoint, byte[]?>? ipv4SourceEP = ignoreSourceBinding ? null : GetIPv4SourceEP();
 
                             if (index < 0)
                             {
@@ -463,7 +463,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
                     case AddressFamily.InterNetworkV6:
                         {
-                            Tuple<IPEndPoint, byte[]> ipv6SourceEP = ignoreSourceBinding ? null : GetIPv6SourceEP();
+                            Tuple<IPEndPoint, byte[]?>? ipv6SourceEP = ignoreSourceBinding ? null : GetIPv6SourceEP();
 
                             if (index < 0)
                             {

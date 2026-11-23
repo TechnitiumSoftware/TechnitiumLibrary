@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -68,12 +68,12 @@ namespace TechnitiumLibrary.Net.Proxy
         {
             #region variables
 
-            readonly Socket _socket;
+            readonly Socket? _socket;
 
             readonly SocksProxyReplyCode _replyCode;
             readonly EndPoint _bindEP;
 
-            EndPoint _remoteEP;
+            EndPoint? _remoteEP;
 
             #endregion
 
@@ -81,8 +81,8 @@ namespace TechnitiumLibrary.Net.Proxy
 
             public BindHandler(AddressFamily family)
             {
-                IPEndPoint localEP = null;
-                NetworkInfo networkInfo = null;
+                IPEndPoint localEP;
+                NetworkInfo? networkInfo;
 
                 switch (family)
                 {
@@ -99,30 +99,27 @@ namespace TechnitiumLibrary.Net.Proxy
                     default:
                         _replyCode = SocksProxyReplyCode.AddressTypeNotSupported;
                         _bindEP = new IPEndPoint(IPAddress.Any, 0);
-                        break;
+                        return;
                 }
 
-                if (localEP != null)
+                if (networkInfo is null)
                 {
-                    if (networkInfo == null)
-                    {
-                        _replyCode = SocksProxyReplyCode.NetworkUnreachable;
-                        _bindEP = new IPEndPoint(IPAddress.Any, 0);
-                    }
-                    else
-                    {
-                        _socket = new Socket(localEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                        _socket.Bind(localEP);
-                        _socket.Listen(1);
-                        _socket.NoDelay = true;
+                    _replyCode = SocksProxyReplyCode.NetworkUnreachable;
+                    _bindEP = new IPEndPoint(IPAddress.Any, 0);
+                }
+                else
+                {
+                    _socket = new Socket(localEP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                    _socket.Bind(localEP);
+                    _socket.Listen(1);
+                    _socket.NoDelay = true;
 
-                        _replyCode = SocksProxyReplyCode.Succeeded;
-                        _bindEP = new IPEndPoint(networkInfo.LocalIP, (_socket.LocalEndPoint as IPEndPoint).Port);
-                    }
+                    _replyCode = SocksProxyReplyCode.Succeeded;
+                    _bindEP = new IPEndPoint(networkInfo.LocalIP, (_socket.LocalEndPoint as IPEndPoint)!.Port);
                 }
             }
 
-            public BindHandler(IPEndPoint bindEP, byte[] bindToInterfaceName = null)
+            public BindHandler(IPEndPoint bindEP, byte[]? bindToInterfaceName = null)
             {
                 switch (bindEP.AddressFamily)
                 {
@@ -138,7 +135,7 @@ namespace TechnitiumLibrary.Net.Proxy
                         _socket.NoDelay = true;
 
                         _replyCode = SocksProxyReplyCode.Succeeded;
-                        _bindEP = new IPEndPoint(bindEP.Address, (_socket.LocalEndPoint as IPEndPoint).Port);
+                        _bindEP = new IPEndPoint(bindEP.Address, (_socket.LocalEndPoint as IPEndPoint)!.Port);
                         break;
 
                     default:
@@ -160,10 +157,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     return;
 
                 if (disposing)
-                {
-                    if (_socket != null)
-                        _socket.Dispose();
-                }
+                    _socket?.Dispose();
 
                 _disposed = true;
             }
@@ -179,6 +173,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
             public async Task<Socket> AcceptAsync(CancellationToken cancellationToken = default)
             {
+                if (_socket is null)
+                    throw new InvalidOperationException();
+
                 Socket remoteSocket = await _socket.AcceptAsync(cancellationToken);
                 _remoteEP = remoteSocket.RemoteEndPoint;
 
@@ -192,7 +189,7 @@ namespace TechnitiumLibrary.Net.Proxy
             public SocksProxyReplyCode ReplyCode
             { get { return _replyCode; } }
 
-            public EndPoint ProxyRemoteEndPoint
+            public EndPoint? ProxyRemoteEndPoint
             { get { return _remoteEP; } }
 
             public EndPoint ProxyLocalEndPoint
@@ -211,7 +208,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
             #region constructor
 
-            public UdpSocketHandler(EndPoint bindEP, byte[] bindToInterfaceName = null)
+            public UdpSocketHandler(EndPoint bindEP, byte[]? bindToInterfaceName = null)
             {
                 _socket = new Socket(bindEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
 

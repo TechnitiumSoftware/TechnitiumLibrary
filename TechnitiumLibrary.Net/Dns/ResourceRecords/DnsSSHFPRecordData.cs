@@ -49,7 +49,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         DnsSSHFPAlgorithm _algorithm;
         DnsSSHFPFingerprintType _fingerprintType;
-        byte[] _fingerprint;
+        byte[] _fingerprint = null!;
 
         #endregion
 
@@ -95,7 +95,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _fingerprint = s.ReadExactly(_rdLength - 2);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.WriteByte((byte)_algorithm);
             s.WriteByte((byte)_fingerprintType);
@@ -108,18 +108,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsSSHFPRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsSSHFPRecordData(rdata);
 
-            DnsSSHFPAlgorithm algorithm = (DnsSSHFPAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
-            DnsSSHFPFingerprintType fingerprintType = (DnsSSHFPFingerprintType)byte.Parse(await zoneFile.PopItemAsync());
-            byte[] fingerprint = Convert.FromHexString(await zoneFile.PopItemAsync());
+            DnsSSHFPAlgorithm algorithm = (DnsSSHFPAlgorithm)byte.Parse(await zoneFile.PopFieldAsync());
+            DnsSSHFPFingerprintType fingerprintType = (DnsSSHFPFingerprintType)byte.Parse(await zoneFile.PopFieldAsync());
+            byte[] fingerprint = Convert.FromHexString(await zoneFile.PopFieldAsync());
 
             return new DnsSSHFPRecordData(algorithm, fingerprintType, fingerprint);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return (byte)_algorithm + " " + (byte)_fingerprintType + " " + Convert.ToHexString(_fingerprint);
         }
@@ -128,7 +128,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

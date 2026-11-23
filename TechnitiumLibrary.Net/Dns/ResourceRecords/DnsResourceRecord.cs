@@ -126,6 +126,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         APP = 65282, //private use - application
         CHILD_NS = 65283, //private use - cached child side NS records to support https://datatracker.ietf.org/doc/draft-fujiwara-dnsop-resolver-update/
         PARENT_NS = 65284, //private use - cached parent side NS records to allow querying them explicitly
+        ANY_RFC_8482 = 65285, //private use - signal to use Minimal Responses for ANY Queries
         ALIAS = 65357 //private use - SimpleDNS ALIAS
     }
 
@@ -174,8 +175,10 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region constructor
 
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         private DnsResourceRecord()
         { }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
         public DnsResourceRecord(string name, DnsResourceRecordType type, DnsClass @class, uint ttl, DnsResourceRecordData rData)
         {
@@ -254,13 +257,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             {
                 string recordName = record.Name.ToLowerInvariant();
 
-                if (!groupedByDomainRecords.TryGetValue(recordName, out Dictionary<DnsResourceRecordType, List<DnsResourceRecord>> groupedByTypeRecords))
+                if (!groupedByDomainRecords.TryGetValue(recordName, out Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>? groupedByTypeRecords))
                 {
                     groupedByTypeRecords = new Dictionary<DnsResourceRecordType, List<DnsResourceRecord>>();
                     groupedByDomainRecords.Add(recordName, groupedByTypeRecords);
                 }
 
-                if (!groupedByTypeRecords.TryGetValue(record.Type, out List<DnsResourceRecord> groupedRecords))
+                if (!groupedByTypeRecords.TryGetValue(record.Type, out List<DnsResourceRecord>? groupedRecords))
                 {
                     groupedRecords = new List<DnsResourceRecord>();
                     groupedByTypeRecords.Add(record.Type, groupedRecords);
@@ -448,7 +451,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _name = wildcardName;
         }
 
-        internal static string GetRelativeDomainName(string domain, string originDomain = null)
+        internal static string GetRelativeDomainName(string domain, string? originDomain = null)
         {
             string value;
 
@@ -531,7 +534,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             WriteTo(s, null);
         }
 
-        public void WriteTo(Stream s, List<DnsDomainOffset> domainEntries)
+        public void WriteTo(Stream s, List<DnsDomainOffset>? domainEntries)
         {
             DnsDatagram.SerializeDomainName(_name, s, domainEntries);
             DnsDatagram.WriteUInt16NetworkOrder((ushort)_type, s);
@@ -571,7 +574,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             writeTagInfo();
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -604,8 +607,11 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return HashCode.Combine(_name, _type, _class, _ttl, _rData);
         }
 
-        public int CompareTo(DnsResourceRecord other)
+        public int CompareTo(DnsResourceRecord? other)
         {
+            if (other is null)
+                return 1;
+
             int value;
 
             value = DnsNSECRecordData.CanonicalComparison(_name, other._name);
@@ -624,7 +630,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return ToZoneFileEntry();
         }
 
-        public string ToZoneFileEntry(string originDomain = null)
+        public string ToZoneFileEntry(string? originDomain = null)
         {
             string value = GetRelativeDomainName(_name, originDomain).PadRight(20) + "  " + _ttl.ToString().PadRight(8);
 
@@ -649,7 +655,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             jsonWriter.WriteString("Name", _name);
 
-            if (DnsClient.TryConvertDomainNameToUnicode(_name, out string nameIDN))
+            if (DnsClient.TryConvertDomainNameToUnicode(_name, out string? nameIDN))
                 jsonWriter.WriteString("NameIDN", nameIDN);
 
             jsonWriter.WriteString("Type", _type.ToString());
@@ -725,7 +731,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         public int UncompressedLength
         { get { return DnsDatagram.GetSerializeDomainNameLength(_name) + 2 + 2 + 4 + 2 + _rData.UncompressedLength; } }
 
-        public object Tag { get; set; }
+        public object? Tag { get; set; }
 
         public DnssecStatus DnssecStatus
         { get { return _dnssecStatus; } }

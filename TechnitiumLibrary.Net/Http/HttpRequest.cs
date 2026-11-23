@@ -52,14 +52,16 @@ namespace TechnitiumLibrary.Net.Http
 
         #region constructor
 
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         private HttpRequest()
         { }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
         #endregion
 
         #region static
 
-        public static async Task<HttpRequest> ReadRequestAsync(Stream stream, int maxContentLength = -1, CancellationToken cancellationToken = default)
+        public static async Task<HttpRequest?> ReadRequestAsync(Stream stream, int maxContentLength = -1, CancellationToken cancellationToken = default)
         {
             HttpRequest httpRequest = new HttpRequest();
 
@@ -114,7 +116,7 @@ namespace TechnitiumLibrary.Net.Http
                 headerBuffer.Position = 0;
                 StreamReader sR = new StreamReader(headerBuffer);
 
-                string[] requestParts = sR.ReadLine().Split(spaceSeparator, 3);
+                string[] requestParts = sR.ReadLine()!.Split(spaceSeparator, 3);
 
                 if (requestParts.Length != 3)
                     throw new InvalidDataException("Invalid HTTP request.");
@@ -127,7 +129,7 @@ namespace TechnitiumLibrary.Net.Http
 
                 httpRequest._requestPath = requestPathAndQueryParts[0];
 
-                string queryString = null;
+                string? queryString = null;
                 if (requestPathAndQueryParts.Length > 1)
                     queryString = requestPathAndQueryParts[1];
 
@@ -138,7 +140,7 @@ namespace TechnitiumLibrary.Net.Http
                         string[] itemParts = item.Split(equalToSeparator, 2);
 
                         string name = itemParts[0];
-                        string value = null;
+                        string? value = null;
 
                         if (itemParts.Length > 1)
                             value = itemParts[1];
@@ -149,7 +151,7 @@ namespace TechnitiumLibrary.Net.Http
 
                 while (true)
                 {
-                    string line = sR.ReadLine();
+                    string? line = sR.ReadLine();
                     if (string.IsNullOrEmpty(line))
                         break;
 
@@ -160,7 +162,7 @@ namespace TechnitiumLibrary.Net.Http
                     httpRequest._headers.Add(parts[0], parts[1]);
                 }
 
-                string strContentLength = httpRequest._headers[HttpRequestHeader.ContentLength];
+                string? strContentLength = httpRequest._headers[HttpRequestHeader.ContentLength];
                 if (!string.IsNullOrEmpty(strContentLength))
                 {
                     int contentLength = int.Parse(strContentLength);
@@ -172,7 +174,7 @@ namespace TechnitiumLibrary.Net.Http
                     return httpRequest;
                 }
 
-                string strTransferEncoding = httpRequest._headers[HttpRequestHeader.TransferEncoding];
+                string? strTransferEncoding = httpRequest._headers[HttpRequestHeader.TransferEncoding];
                 if (!string.IsNullOrEmpty(strTransferEncoding))
                 {
                     if (!strTransferEncoding.Equals("chunked", StringComparison.OrdinalIgnoreCase))

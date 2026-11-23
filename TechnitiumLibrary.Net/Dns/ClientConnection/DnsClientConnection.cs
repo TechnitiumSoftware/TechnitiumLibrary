@@ -48,12 +48,12 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         const int CONNECTION_EXPIRY = 15 * 60 * 1000;
 
         protected readonly NameServerAddress _server;
-        protected readonly NetProxy _proxy;
+        protected readonly NetProxy? _proxy;
 
-        static IReadOnlyList<NetworkAddress> _ipv4SourceAddresses;
-        static IReadOnlyList<NetworkAddress> _ipv6SourceAddresses;
-        static List<Tuple<IPEndPoint, byte[]>> _ipv4SourceEPs;
-        static List<Tuple<IPEndPoint, byte[]>> _ipv6SourceEPs;
+        static IReadOnlyList<NetworkAddress>? _ipv4SourceAddresses;
+        static IReadOnlyList<NetworkAddress>? _ipv6SourceAddresses;
+        static List<Tuple<IPEndPoint, byte[]?>>? _ipv4SourceEPs;
+        static List<Tuple<IPEndPoint, byte[]?>>? _ipv6SourceEPs;
 
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>> _existingTcpConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TcpClientConnection>>();
         static readonly ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>> _existingTlsConnections = new ConcurrentDictionary<NameServerAddress, ConcurrentDictionary<NetProxy, TlsClientConnection>>();
@@ -66,7 +66,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         static DnsClientConnection()
         {
-            _maintenanceTimer = new Timer(async delegate (object state)
+            _maintenanceTimer = new Timer(async delegate (object? state)
             {
                 try
                 {
@@ -79,7 +79,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         {
                             if (connection.Value.LastQueried < expiryTime)
                             {
-                                if (existingTcpConnection.Value.TryRemove(connection.Key, out TcpClientConnection removedConnection))
+                                if (existingTcpConnection.Value.TryRemove(connection.Key, out TcpClientConnection? removedConnection))
                                 {
                                     removedConnection.Pooled = false;
                                     removedConnection.Dispose();
@@ -98,7 +98,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         {
                             if (connection.Value.LastQueried < expiryTime)
                             {
-                                if (existingTlsConnection.Value.TryRemove(connection.Key, out TlsClientConnection removedConnection))
+                                if (existingTlsConnection.Value.TryRemove(connection.Key, out TlsClientConnection? removedConnection))
                                 {
                                     removedConnection.Pooled = false;
                                     removedConnection.Dispose();
@@ -117,7 +117,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         {
                             if (connection.Value.LastQueried < expiryTime)
                             {
-                                if (existingHttpsConnection.Value.TryRemove(connection.Key, out HttpsClientConnection removedConnection))
+                                if (existingHttpsConnection.Value.TryRemove(connection.Key, out HttpsClientConnection? removedConnection))
                                 {
                                     removedConnection.Pooled = false;
                                     removedConnection.Dispose();
@@ -136,7 +136,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         {
                             if (connection.Value.LastQueried < expiryTime)
                             {
-                                if (existingQuicConnection.Value.TryRemove(connection.Key, out QuicClientConnection removedConnection))
+                                if (existingQuicConnection.Value.TryRemove(connection.Key, out QuicClientConnection? removedConnection))
                                 {
                                     removedConnection.Pooled = false;
                                     await removedConnection.DisposeAsync();
@@ -155,7 +155,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             _maintenanceTimer.Change(MAINTENANCE_TIMER_INITIAL_INTERVAL, MAINTENANCE_TIMER_PERIODIC_INTERVAL);
         }
 
-        protected DnsClientConnection(NameServerAddress server, NetProxy proxy)
+        protected DnsClientConnection(NameServerAddress server, NetProxy? proxy)
         {
             _server = server;
             _proxy = proxy;
@@ -202,7 +202,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region static
 
-        public static DnsClientConnection GetConnection(NameServerAddress server, NetProxy proxy)
+        public static DnsClientConnection GetConnection(NameServerAddress server, NetProxy? proxy)
         {
             switch (server.Protocol)
             {
@@ -216,7 +216,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                             return new ConcurrentDictionary<NetProxy, TcpClientConnection>();
                         });
 
-                        NetProxy proxyKey = proxy;
+                        NetProxy? proxyKey = proxy;
 
                         if (proxyKey is null)
                             proxyKey = NetProxy.NONE;
@@ -236,7 +236,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                             return new ConcurrentDictionary<NetProxy, TlsClientConnection>();
                         });
 
-                        NetProxy proxyKey = proxy;
+                        NetProxy? proxyKey = proxy;
 
                         if (proxyKey is null)
                             proxyKey = NetProxy.NONE;
@@ -256,7 +256,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                             return new ConcurrentDictionary<NetProxy, HttpsClientConnection>();
                         });
 
-                        NetProxy proxyKey = proxy;
+                        NetProxy? proxyKey = proxy;
 
                         if (proxyKey is null)
                             proxyKey = NetProxy.NONE;
@@ -276,7 +276,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                             return new ConcurrentDictionary<NetProxy, QuicClientConnection>();
                         });
 
-                        NetProxy proxyKey = proxy;
+                        NetProxy? proxyKey = proxy;
 
                         if (proxyKey is null)
                             proxyKey = NetProxy.NONE;
@@ -328,8 +328,8 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                         throw new DnsClientResponseValidationException("Invalid response was received: QCLASS mismatch.");
                 }
 
-                EDnsClientSubnetOptionData requestECS = request.GetEDnsClientSubnetOption();
-                EDnsClientSubnetOptionData responseECS = response.GetEDnsClientSubnetOption();
+                EDnsClientSubnetOptionData? requestECS = request.GetEDnsClientSubnetOption();
+                EDnsClientSubnetOptionData? responseECS = response.GetEDnsClientSubnetOption();
                 if (requestECS is null)
                 {
                     if (responseECS is not null)
@@ -361,7 +361,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                 throw new DnsClientResponseSpoofedException("Invalid response was received: query ID mismatch."); //possible spoof attempt for UDP transport since QNAME, QTYPE, & QCLASS match but ID does not match
         }
 
-        protected static Tuple<IPEndPoint, byte[]> GetIPv4SourceEP()
+        protected static Tuple<IPEndPoint, byte[]?>? GetIPv4SourceEP()
         {
             if (_ipv4SourceEPs is null)
                 return null;
@@ -379,7 +379,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
             }
         }
 
-        protected static Tuple<IPEndPoint, byte[]> GetIPv6SourceEP()
+        protected static Tuple<IPEndPoint, byte[]?>? GetIPv6SourceEP()
         {
             if (_ipv6SourceEPs is null)
                 return null;
@@ -401,7 +401,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
 
         #region private
 
-        private static void FindEndPointsFor(NetworkAddress networkAddress, List<Tuple<IPEndPoint, byte[]>> endPoints)
+        private static void FindEndPointsFor(NetworkAddress networkAddress, List<Tuple<IPEndPoint, byte[]?>> endPoints)
         {
             foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
@@ -413,9 +413,9 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (networkAddress.Contains(ip.Address))
                     {
                         if (Environment.OSVersion.Platform == PlatformID.Unix)
-                            endPoints.Add(new Tuple<IPEndPoint, byte[]>(new IPEndPoint(ip.Address, 0), Encoding.ASCII.GetBytes(nic.Name)));
+                            endPoints.Add(new Tuple<IPEndPoint, byte[]?>(new IPEndPoint(ip.Address, 0), Encoding.Latin1.GetBytes(nic.Name)));
                         else
-                            endPoints.Add(new Tuple<IPEndPoint, byte[]>(new IPEndPoint(ip.Address, 0), null));
+                            endPoints.Add(new Tuple<IPEndPoint, byte[]?>(new IPEndPoint(ip.Address, 0), null));
 
                         if (networkAddress.IsHostAddress)
                             return;
@@ -437,7 +437,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
         public NameServerAddress Server
         { get { return _server; } }
 
-        public NetProxy NetProxy
+        public NetProxy? NetProxy
         { get { return _proxy; } }
 
         public static IReadOnlyList<NetworkAddress> IPv4SourceAddresses
@@ -467,7 +467,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (value.HasSameItems(_ipv4SourceAddresses))
                         return; //prevent socket pool recreation
 
-                    List<Tuple<IPEndPoint, byte[]>> ipv4SourceEPs = new List<Tuple<IPEndPoint, byte[]>>(value.Count);
+                    List<Tuple<IPEndPoint, byte[]?>> ipv4SourceEPs = new List<Tuple<IPEndPoint, byte[]?>>(value.Count);
 
                     foreach (NetworkAddress networkAddress in value)
                     {
@@ -512,7 +512,7 @@ namespace TechnitiumLibrary.Net.Dns.ClientConnection
                     if (value.HasSameItems(_ipv6SourceAddresses))
                         return; //prevent socket pool recreation
 
-                    List<Tuple<IPEndPoint, byte[]>> ipv6SourceEPs = new List<Tuple<IPEndPoint, byte[]>>(value.Count);
+                    List<Tuple<IPEndPoint, byte[]?>> ipv6SourceEPs = new List<Tuple<IPEndPoint, byte[]?>>(value.Count);
 
                     foreach (NetworkAddress networkAddress in value)
                     {

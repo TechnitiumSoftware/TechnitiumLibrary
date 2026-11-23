@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,8 +30,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
     {
         #region variables
 
-        protected string _primaryNameServer;
-        string _responsiblePerson;
+        protected string _primaryNameServer = null!;
+        string _responsiblePerson = null!;
         uint _serial;
         uint _refresh;
         uint _retry;
@@ -90,7 +90,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             _minimum = DnsDatagram.ReadUInt32NetworkOrder(s);
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             DnsDatagram.SerializeDomainName(canonicalForm ? _primaryNameServer.ToLowerInvariant() : _primaryNameServer, s, domainEntries);
             DnsDatagram.SerializeDomainName(canonicalForm ? _responsiblePerson.ToLowerInvariant() : _responsiblePerson, s, domainEntries, true);
@@ -113,13 +113,13 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsSOARecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsSOARecordData(rdata);
 
             string primaryNameServer = await zoneFile.PopDomainAsync();
             string responsiblePerson = await zoneFile.PopDomainAsync();
-            uint serial = uint.Parse(await zoneFile.PopItemAsync());
+            uint serial = uint.Parse(await zoneFile.PopFieldAsync());
             uint refresh = await zoneFile.PopTtlAsync("refresh");
             uint retry = await zoneFile.PopTtlAsync("retry");
             uint expire = await zoneFile.PopTtlAsync("expire");
@@ -128,7 +128,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return new DnsSOARecordData(primaryNameServer, responsiblePerson, serial, refresh, retry, expire, minimum);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return DnsResourceRecord.GetRelativeDomainName(_primaryNameServer, originDomain) + " " + DnsResourceRecord.GetRelativeDomainName(GetResponsiblePersonDomainFormat(_responsiblePerson), originDomain) + " " + _serial + " " + _refresh + " " + _retry + " " + _expire + " " + _minimum;
         }
@@ -204,7 +204,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return IsZoneUpdateAvailable(_serial, newRecord._serial);
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
@@ -252,7 +252,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             jsonWriter.WriteString("PrimaryNameServer", _primaryNameServer);
 
-            if (DnsClient.TryConvertDomainNameToUnicode(_primaryNameServer, out string primaryNameServerIDN))
+            if (DnsClient.TryConvertDomainNameToUnicode(_primaryNameServer, out string? primaryNameServerIDN))
                 jsonWriter.WriteString("PrimaryNameServerIDN", primaryNameServerIDN);
 
             jsonWriter.WriteString("ResponsiblePerson", _responsiblePerson);

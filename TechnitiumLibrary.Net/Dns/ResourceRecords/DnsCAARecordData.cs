@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,8 +32,8 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         #region variables
 
         byte _flags;
-        string _tag;
-        string _value;
+        string _tag = null!;
+        string _value = null!;
 
         #endregion
 
@@ -43,6 +43,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         {
             if (tag.Length < 1)
                 throw new InvalidDataException("CAA tag length must be at least 1.");
+
+            foreach (char c in tag)
+            {
+                if ((c >= 97) && (c <= 122)) //[a-z]
+                    continue;
+
+                if ((c >= 65) && (c <= 90)) //[A-Z]
+                    continue;
+
+                if ((c >= 48) && (c <= 57)) //[0-9]
+                    continue;
+
+                throw new ArgumentException("Tag can only contain characters \"a\" through \"z\", \"A\" through \"Z\", and the numbers 0 through 9.", nameof(tag));
+            }
 
             _flags = flags;
             _tag = tag.ToLowerInvariant();
@@ -73,15 +87,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 throw new InvalidDataException("CAA tag length must be at least 1.");
 
             _tag = Encoding.ASCII.GetString(s.ReadExactly(tagLength)).ToLowerInvariant();
-            _value = Encoding.ASCII.GetString(s.ReadExactly(_rdLength - tagLength - 2));
+            _value = Encoding.Latin1.GetString(s.ReadExactly(_rdLength - tagLength - 2));
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.WriteByte(_flags);
             s.WriteByte(Convert.ToByte(_tag.Length));
             s.Write(Encoding.ASCII.GetBytes(_tag));
-            s.Write(Encoding.ASCII.GetBytes(_value));
+            s.Write(Encoding.Latin1.GetBytes(_value));
         }
 
         #endregion
@@ -90,18 +104,18 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsCAARecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsCAARecordData(rdata);
 
-            byte flags = byte.Parse(await zoneFile.PopItemAsync());
-            string tag = await zoneFile.PopItemAsync();
-            string value = await zoneFile.PopItemAsync();
+            byte flags = byte.Parse(await zoneFile.PopFieldAsync());
+            string tag = await zoneFile.PopFieldAsync();
+            string value = await zoneFile.PopFieldAsync();
 
             return new DnsCAARecordData(flags, tag, value);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return _flags + " " + _tag + " " + DnsDatagram.EncodeCharacterString(_value);
         }
@@ -110,7 +124,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

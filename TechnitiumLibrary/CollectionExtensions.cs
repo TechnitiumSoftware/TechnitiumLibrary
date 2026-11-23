@@ -59,7 +59,7 @@ namespace TechnitiumLibrary
             return newArray;
         }
 
-        public static bool ListEquals<T>(this IReadOnlyList<T> value1, IReadOnlyList<T> value2, Func<T, T, bool>? equals = null)
+        public static bool ListEquals<T>(this IReadOnlyList<T>? value1, IReadOnlyList<T>? value2, Func<T, T, bool>? equals = null)
         {
             if (ReferenceEquals(value1, value2))
                 return true;
@@ -91,7 +91,7 @@ namespace TechnitiumLibrary
             return true;
         }
 
-        public static bool HasSameItems<T>(this IReadOnlyCollection<T> value1, IReadOnlyCollection<T> value2)
+        public static bool HasSameItems<T>(this IReadOnlyCollection<T>? value1, IReadOnlyCollection<T>? value2)
         {
             if (ReferenceEquals(value1, value2))
                 return true;
@@ -111,7 +111,7 @@ namespace TechnitiumLibrary
             return true;
         }
 
-        public static int GetArrayHashCode<T>(this IReadOnlyCollection<T> value)
+        public static int GetArrayHashCode<T>(this IReadOnlyCollection<T>? value)
         {
             if (value is null)
                 return 0;

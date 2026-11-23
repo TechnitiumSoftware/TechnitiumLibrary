@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2024  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ namespace TechnitiumLibrary.Net.Proxy
     {
         #region events
 
-        public event EventHandler<Exception> Errors;
+        public event EventHandler<Exception>? Errors;
 
         #endregion
 
@@ -54,26 +54,23 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region constructor
 
-        public LoadBalancingProxyServerConnectionManager(IReadOnlyList<IProxyServerConnectionManager> ipv4ConnectionManagers, IReadOnlyList<IProxyServerConnectionManager> ipv6ConnectionManagers, IReadOnlyCollection<EndPoint> connectivityCheckEPs = null, bool redundancyOnly = false)
+        public LoadBalancingProxyServerConnectionManager(IReadOnlyList<IProxyServerConnectionManager> ipv4ConnectionManagers, IReadOnlyList<IProxyServerConnectionManager> ipv6ConnectionManagers, IReadOnlyCollection<EndPoint>? connectivityCheckEPs = null, bool redundancyOnly = false)
         {
             _ipv4ConnectionManagers = ipv4ConnectionManagers;
             _ipv6ConnectionManagers = ipv6ConnectionManagers;
-            _connectivityCheckEPs = connectivityCheckEPs;
+            _connectivityCheckEPs = connectivityCheckEPs ?? new EndPoint[] { new DomainEndPoint("www.google.com", 443), new DomainEndPoint("www.microsoft.com", 443) }; ;
             _redundancyOnly = redundancyOnly;
-
-            if (_connectivityCheckEPs == null)
-                _connectivityCheckEPs = new EndPoint[] { new DomainEndPoint("www.google.com", 443), new DomainEndPoint("www.microsoft.com", 443) };
 
             _workingIpv4ConnectionManagers = _ipv4ConnectionManagers;
             _workingIpv6ConnectionManagers = _ipv6ConnectionManagers;
 
-            _networkCheckTimer = new Timer(async delegate (object state)
+            _networkCheckTimer = new Timer(async delegate (object? state)
             {
                 try
                 {
                     //filter out working connection managers from available connection managers
-                    List<Task<IProxyServerConnectionManager>> ipv4Tasks = new List<Task<IProxyServerConnectionManager>>();
-                    List<Task<IProxyServerConnectionManager>> ipv6Tasks = new List<Task<IProxyServerConnectionManager>>();
+                    List<Task<IProxyServerConnectionManager?>> ipv4Tasks = new List<Task<IProxyServerConnectionManager?>>();
+                    List<Task<IProxyServerConnectionManager?>> ipv6Tasks = new List<Task<IProxyServerConnectionManager?>>();
 
                     foreach (IProxyServerConnectionManager connectionManager in _ipv4ConnectionManagers)
                         ipv4Tasks.Add(CheckConnectivityAsync(connectionManager));
@@ -81,8 +78,8 @@ namespace TechnitiumLibrary.Net.Proxy
                     foreach (IProxyServerConnectionManager connectionManager in _ipv6ConnectionManagers)
                         ipv6Tasks.Add(CheckConnectivityAsync(connectionManager));
 
-                    IProxyServerConnectionManager[] ipv4Results = await Task.WhenAll(ipv4Tasks);
-                    IProxyServerConnectionManager[] ipv6Results = await Task.WhenAll(ipv6Tasks);
+                    IProxyServerConnectionManager?[] ipv4Results = await Task.WhenAll(ipv4Tasks);
+                    IProxyServerConnectionManager?[] ipv6Results = await Task.WhenAll(ipv6Tasks);
 
                     List<IProxyServerConnectionManager> workingIpv4ConnectionManagers = new List<IProxyServerConnectionManager>();
                     List<IProxyServerConnectionManager> workingIpv6ConnectionManagers = new List<IProxyServerConnectionManager>();
@@ -91,7 +88,7 @@ namespace TechnitiumLibrary.Net.Proxy
                     {
                         foreach (IProxyServerConnectionManager connectionManager in _ipv4ConnectionManagers)
                         {
-                            foreach (IProxyServerConnectionManager result in ipv4Results)
+                            foreach (IProxyServerConnectionManager? result in ipv4Results)
                             {
                                 if (ReferenceEquals(connectionManager, result))
                                 {
@@ -106,7 +103,7 @@ namespace TechnitiumLibrary.Net.Proxy
 
                         foreach (IProxyServerConnectionManager connectionManager in _ipv6ConnectionManagers)
                         {
-                            foreach (IProxyServerConnectionManager result in ipv6Results)
+                            foreach (IProxyServerConnectionManager? result in ipv6Results)
                             {
                                 if (ReferenceEquals(connectionManager, result))
                                 {
@@ -121,13 +118,13 @@ namespace TechnitiumLibrary.Net.Proxy
                     }
                     else
                     {
-                        foreach (IProxyServerConnectionManager result in ipv4Results)
+                        foreach (IProxyServerConnectionManager? result in ipv4Results)
                         {
                             if (result is not null)
                                 workingIpv4ConnectionManagers.Add(result);
                         }
 
-                        foreach (IProxyServerConnectionManager result in ipv6Results)
+                        foreach (IProxyServerConnectionManager? result in ipv6Results)
                         {
                             if (result is not null)
                                 workingIpv6ConnectionManagers.Add(result);
@@ -144,7 +141,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 finally
                 {
                     if (!_disposed)
-                        _networkCheckTimer.Change(NETWORK_CHECK_TIMER_PERIODIC_INTERVAL, Timeout.Infinite);
+                        _networkCheckTimer?.Change(NETWORK_CHECK_TIMER_PERIODIC_INTERVAL, Timeout.Infinite);
                 }
             }, null, Timeout.Infinite, Timeout.Infinite);
 
@@ -193,9 +190,9 @@ namespace TechnitiumLibrary.Net.Proxy
 
         #region private
 
-        private async Task<IProxyServerConnectionManager> CheckConnectivityAsync(IProxyServerConnectionManager connectionManager)
+        private async Task<IProxyServerConnectionManager?> CheckConnectivityAsync(IProxyServerConnectionManager connectionManager)
         {
-            Exception lastException = null;
+            Exception? lastException = null;
 
             foreach (EndPoint connectivityCheckEP in _connectivityCheckEPs)
             {
@@ -214,7 +211,7 @@ namespace TechnitiumLibrary.Net.Proxy
                 }
             }
 
-            Errors?.Invoke(this, lastException);
+            Errors?.Invoke(this, lastException!);
             return null;
         }
 

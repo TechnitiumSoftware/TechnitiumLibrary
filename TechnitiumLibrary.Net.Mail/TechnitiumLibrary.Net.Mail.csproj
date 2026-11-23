@@ -20,6 +20,7 @@
     <PackageId>TechnitiumLibrary.Net.Mail</PackageId>
     <Version>7.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+		<Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>

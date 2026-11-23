@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2025  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Buffers.Binary;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Net;
@@ -430,13 +431,13 @@ namespace TechnitiumLibrary.Net
 
         public static IPAddress ParseReverseDomain(string ptrDomain)
         {
-            if (TryParseReverseDomain(ptrDomain, out IPAddress address))
+            if (TryParseReverseDomain(ptrDomain, out IPAddress? address))
                 return address;
 
             throw new NotSupportedException("Invalid reverse domain: " + ptrDomain);
         }
 
-        public static bool TryParseReverseDomain(string ptrDomain, out IPAddress address)
+        public static bool TryParseReverseDomain(string ptrDomain, [NotNullWhen(true)] out IPAddress? address)
         {
             if (ptrDomain.EndsWith(".in-addr.arpa", StringComparison.OrdinalIgnoreCase))
             {

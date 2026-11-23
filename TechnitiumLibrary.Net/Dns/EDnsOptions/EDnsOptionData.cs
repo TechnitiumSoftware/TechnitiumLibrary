@@ -1,6 +1,6 @@
 ﻿/*
 Technitium Library
-Copyright (C) 2023  Shreyas Zare (shreyas@technitium.com)
+Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -75,7 +75,7 @@ namespace TechnitiumLibrary.Net.Dns.EDnsOptions
             s.Position = finalPosition;
         }
 
-        public override abstract bool Equals(object obj);
+        public override abstract bool Equals(object? obj);
 
         public override abstract int GetHashCode();
 

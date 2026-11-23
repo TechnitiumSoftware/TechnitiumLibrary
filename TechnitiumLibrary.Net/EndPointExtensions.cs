@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -140,10 +141,10 @@ namespace TechnitiumLibrary.Net
             {
                 case AddressFamily.InterNetwork:
                 case AddressFamily.InterNetworkV6:
-                    return (ep as IPEndPoint).Address.ToString();
+                    return (ep as IPEndPoint)!.Address.ToString();
 
                 case AddressFamily.Unspecified:
-                    return (ep as DomainEndPoint).Address;
+                    return (ep as DomainEndPoint)!.Address;
 
                 default:
                     throw new NotSupportedException("Address Family not supported.");
@@ -156,10 +157,10 @@ namespace TechnitiumLibrary.Net
             {
                 case AddressFamily.InterNetwork:
                 case AddressFamily.InterNetworkV6:
-                    return (ep as IPEndPoint).Port;
+                    return (ep as IPEndPoint)!.Port;
 
                 case AddressFamily.Unspecified:
-                    return (ep as DomainEndPoint).Port;
+                    return (ep as DomainEndPoint)!.Port;
 
                 default:
                     throw new NotSupportedException("Address Family not supported.");
@@ -172,11 +173,11 @@ namespace TechnitiumLibrary.Net
             {
                 case AddressFamily.InterNetwork:
                 case AddressFamily.InterNetworkV6:
-                    (ep as IPEndPoint).Port = port;
+                    (ep as IPEndPoint)!.Port = port;
                     break;
 
                 case AddressFamily.Unspecified:
-                    (ep as DomainEndPoint).Port = port;
+                    (ep as DomainEndPoint)!.Port = port;
                     break;
 
                 default:
@@ -190,7 +191,7 @@ namespace TechnitiumLibrary.Net
             {
                 case AddressFamily.InterNetwork:
                 case AddressFamily.InterNetworkV6:
-                    return ep as IPEndPoint;
+                    return (ep as IPEndPoint)!;
 
                 case AddressFamily.Unspecified:
                     if (ep is not DomainEndPoint dep)
@@ -229,7 +230,7 @@ namespace TechnitiumLibrary.Net
 
         public static EndPoint GetEndPoint(string address, int port)
         {
-            if (IPAddress.TryParse(address, out IPAddress ipAddress))
+            if (IPAddress.TryParse(address, out IPAddress? ipAddress))
                 return new IPEndPoint(ipAddress, port);
             else
                 return new DomainEndPoint(address, port);
@@ -237,21 +238,21 @@ namespace TechnitiumLibrary.Net
 
         public static EndPoint Parse(string value)
         {
-            if (TryParse(value, out EndPoint ep))
+            if (TryParse(value, out EndPoint? ep))
                 return ep;
 
             throw new FormatException("Failed to parse end point: " + value);
         }
 
-        public static bool TryParse(string value, out EndPoint ep)
+        public static bool TryParse(string value, [NotNullWhen(true)] out EndPoint? ep)
         {
-            if (IPEndPoint.TryParse(value, out IPEndPoint ep1))
+            if (IPEndPoint.TryParse(value, out IPEndPoint? ep1))
             {
                 ep = ep1;
                 return true;
             }
 
-            if (DomainEndPoint.TryParse(value, out DomainEndPoint ep2))
+            if (DomainEndPoint.TryParse(value, out DomainEndPoint? ep2))
             {
                 ep = ep2;
                 return true;
@@ -261,7 +262,7 @@ namespace TechnitiumLibrary.Net
             return false;
         }
 
-        public static bool IsEquals(this EndPoint ep, EndPoint other)
+        public static bool IsEquals(this EndPoint ep, EndPoint? other)
         {
             if (other is null)
                 return false;
@@ -276,10 +277,10 @@ namespace TechnitiumLibrary.Net
             {
                 case AddressFamily.InterNetwork:
                 case AddressFamily.InterNetworkV6:
-                    return (ep as IPEndPoint).Equals(other);
+                    return (ep as IPEndPoint)!.Equals(other);
 
                 case AddressFamily.Unspecified:
-                    return (ep as DomainEndPoint).Equals(other);
+                    return (ep as DomainEndPoint)!.Equals(other);
 
                 default:
                     throw new NotSupportedException("Address Family not supported.");

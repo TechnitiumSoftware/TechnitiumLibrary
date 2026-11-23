@@ -53,15 +53,15 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         DnssecNSEC3HashAlgorithm _hashAlgorithm;
         DnssecNSEC3Flags _flags;
         ushort _iterations;
-        byte[] _salt;
-        byte[] _nextHashedOwnerNameValue;
-        IReadOnlyList<DnsResourceRecordType> _types;
+        byte[] _salt = null!;
+        byte[] _nextHashedOwnerNameValue = null!;
+        IReadOnlyList<DnsResourceRecordType> _types = null!;
 
-        string _nextHashedOwnerName;
+        string _nextHashedOwnerName = null!;
         bool _isInsecureDelegation;
         bool _isAncestorDelegation;
 
-        byte[] _rData;
+        byte[] _rData = null!;
 
         #endregion
 
@@ -93,7 +93,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 throw new InvalidOperationException();
 
             string[] labels = domain.Split('.');
-            string nextCloserName = null;
+            string? nextCloserName = null;
 
             for (int i = 0; i < labels.Length; i++)
             {
@@ -106,7 +106,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                     break;
             }
 
-            return nextCloserName;
+            return nextCloserName!;
         }
 
         public static byte[] GetHashedOwnerNameFrom(string domain)
@@ -118,19 +118,25 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region private
 
-        internal static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string wildcardNextCloserName, string wildcardZoneName, DnsClient.ResolverContext context = null)
+        internal static async Task<DnssecProofOfNonExistence> GetValidatedProofOfNonExistenceAsync(IReadOnlyList<DnsResourceRecord> nsec3Records, string domain, DnsResourceRecordType type, bool wildcardAnswerValidation, string? wildcardNextCloserName, string? wildcardZoneName, DnsClient.ResolverContext? context = null)
         {
             //find proof for closest encloser
-            string closestEncloser;
-            string nextCloserName;
-            string closestEncloserZoneName;
+            string? closestEncloser;
+            string? nextCloserName;
+            string? closestEncloserZoneName;
             bool foundClosestEncloserProof;
 
             if (wildcardAnswerValidation)
             {
                 //wildcard answer case
+                if ((wildcardNextCloserName is null) || (wildcardZoneName is null))
+                    throw new InvalidOperationException();
+
                 //rfc5155#section-7.2.6 - It is not necessary to return an NSEC3 RR that matches the closest encloser, as the existence of this closest encloser is proven by the presence of the expanded wildcard in the response.
                 closestEncloser = GetParentZone(wildcardNextCloserName);
+                if (closestEncloser is null)
+                    return DnssecProofOfNonExistence.NoProof; //could not find any proof
+
                 nextCloserName = wildcardNextCloserName;
                 closestEncloserZoneName = wildcardZoneName;
                 foundClosestEncloserProof = true;
@@ -145,14 +151,14 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             while (!foundClosestEncloserProof)
             {
-                string hashedClosestEncloser = null;
+                string? hashedClosestEncloser = null;
 
                 foreach (DnsResourceRecord nsec3Record in nsec3Records)
                 {
                     if (nsec3Record.Type != DnsResourceRecordType.NSEC3)
                         continue;
 
-                    DnsNSEC3RecordData nsec3 = nsec3Record.RDATA as DnsNSEC3RecordData;
+                    DnsNSEC3RecordData nsec3 = (nsec3Record.RDATA as DnsNSEC3RecordData)!;
                     if (nsec3.Iterations > DnsClient.MAX_NSEC3_ITERATIONS)
                         return DnssecProofOfNonExistence.UnsupportedNSEC3IterationsValue;
 
@@ -215,19 +221,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
             //find proof for next closer name
             bool foundNextCloserNameProof = false;
-            string hashedNextCloserName = null;
+            string? hashedNextCloserName = null;
 
             foreach (DnsResourceRecord nsec3Record in nsec3Records)
             {
                 if (nsec3Record.Type != DnsResourceRecordType.NSEC3)
                     continue;
 
-                DnsNSEC3RecordData nsec3 = nsec3Record.RDATA as DnsNSEC3RecordData;
+                DnsNSEC3RecordData nsec3 = (nsec3Record.RDATA as DnsNSEC3RecordData)!;
                 string nsec3ZoneName = GetHashedOwnerNameZoneNameFrom(nsec3Record.Name);
                 string nextHashedOwnerName = nsec3._nextHashedOwnerName + (nsec3ZoneName.Length > 0 ? "." + nsec3ZoneName : "");
 
                 if (hashedNextCloserName is null)
-                    hashedNextCloserName = nsec3.ComputeHashedOwnerName(nextCloserName) + (closestEncloserZoneName.Length > 0 ? "." + closestEncloserZoneName : "");
+                    hashedNextCloserName = nsec3.ComputeHashedOwnerName(nextCloserName!) + (closestEncloserZoneName!.Length > 0 ? "." + closestEncloserZoneName : "");
 
                 if (DnsNSECRecordData.IsDomainCovered(nsec3Record.Name, nextHashedOwnerName, hashedNextCloserName))
                 {
@@ -250,20 +256,20 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             //found next closer name proof; so the domain does not exists but there could be a possibility of wildcard that may exist which also needs to be proved as non-existent
 
             //find proof for wildcard NXDomain
-            string wildcardDomain = closestEncloser.Length > 0 ? "*." + closestEncloser : "*";
-            string hashedWildcardDomainName = null;
+            string wildcardDomain = closestEncloser!.Length > 0 ? "*." + closestEncloser : "*";
+            string? hashedWildcardDomainName = null;
 
             foreach (DnsResourceRecord nsec3Record in nsec3Records)
             {
                 if (nsec3Record.Type != DnsResourceRecordType.NSEC3)
                     continue;
 
-                DnsNSEC3RecordData nsec3 = nsec3Record.RDATA as DnsNSEC3RecordData;
+                DnsNSEC3RecordData nsec3 = (nsec3Record.RDATA as DnsNSEC3RecordData)!;
                 string nsec3ZoneName = GetHashedOwnerNameZoneNameFrom(nsec3Record.Name);
                 string nextHashedOwnerName = nsec3._nextHashedOwnerName + (nsec3ZoneName.Length > 0 ? "." + nsec3ZoneName : "");
 
                 if (hashedWildcardDomainName is null)
-                    hashedWildcardDomainName = nsec3.ComputeHashedOwnerName(wildcardDomain) + (closestEncloserZoneName.Length > 0 ? "." + closestEncloserZoneName : "");
+                    hashedWildcardDomainName = nsec3.ComputeHashedOwnerName(wildcardDomain) + (closestEncloserZoneName!.Length > 0 ? "." + closestEncloserZoneName : "");
 
                 if (nsec3Record.Name.Equals(hashedWildcardDomainName, StringComparison.OrdinalIgnoreCase))
                 {
@@ -331,7 +337,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return domain.Substring(i + 1);
         }
 
-        private static string GetParentZone(string domain)
+        private static string? GetParentZone(string domain)
         {
             if (domain.Length == 0)
                 return null; //no parent for root
@@ -450,7 +456,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             CheckForDelegation();
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.Write(_rData);
         }
@@ -461,29 +467,29 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsNSEC3RecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsNSEC3RecordData(rdata);
 
-            DnssecNSEC3HashAlgorithm hashAlgorithm = (DnssecNSEC3HashAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
-            DnssecNSEC3Flags flags = (DnssecNSEC3Flags)byte.Parse(await zoneFile.PopItemAsync());
-            ushort iterations = ushort.Parse(await zoneFile.PopItemAsync());
+            DnssecNSEC3HashAlgorithm hashAlgorithm = (DnssecNSEC3HashAlgorithm)byte.Parse(await zoneFile.PopFieldAsync());
+            DnssecNSEC3Flags flags = (DnssecNSEC3Flags)byte.Parse(await zoneFile.PopFieldAsync());
+            ushort iterations = ushort.Parse(await zoneFile.PopFieldAsync());
             byte[] salt;
             {
-                string value = await zoneFile.PopItemAsync();
+                string value = await zoneFile.PopFieldAsync();
                 if (value == "-")
                     salt = Array.Empty<byte>();
                 else
                     salt = Convert.FromHexString(value);
             }
 
-            byte[] nextHashedOwnerName = Base32.FromBase32HexString(await zoneFile.PopItemAsync());
+            byte[] nextHashedOwnerName = Base32.FromBase32HexString(await zoneFile.PopFieldAsync());
 
             List<DnsResourceRecordType> types = new List<DnsResourceRecordType>();
 
             do
             {
-                string type = await zoneFile.PopItemAsync();
+                string? type = await zoneFile.PopItemAsync();
                 if (type is null)
                     break;
 
@@ -494,7 +500,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return new DnsNSEC3RecordData(hashAlgorithm, flags, iterations, salt, nextHashedOwnerName, types);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             string str = (byte)_hashAlgorithm + " " + (byte)_flags + " " + _iterations + " " + (_salt.Length == 0 ? "-" : Convert.ToHexString(_salt)) + " " + Base32.ToBase32HexString(_nextHashedOwnerNameValue);
 
@@ -513,7 +519,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             return Base32.ToBase32HexString(ComputeHashedOwnerName(ownerName, _hashAlgorithm, _iterations, _salt));
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;

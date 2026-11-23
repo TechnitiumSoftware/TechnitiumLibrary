@@ -42,9 +42,9 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
         ushort _keyTag;
         DnssecAlgorithm _algorithm;
         DnssecDigestType _digestType;
-        byte[] _digest;
+        byte[] _digest = null!;
 
-        byte[] _rData;
+        byte[]? _rData;
 
         #endregion
 
@@ -100,7 +100,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (record.Type != DnsResourceRecordType.DS)
                     throw new InvalidOperationException();
 
-                if (IsDnssecAlgorithmSupported((record.RDATA as DnsDSRecordData)._algorithm))
+                if (IsDnssecAlgorithmSupported((record.RDATA as DnsDSRecordData)!._algorithm))
                     return true;
             }
 
@@ -114,7 +114,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 if (record.Type != DnsResourceRecordType.DS)
                     throw new InvalidOperationException();
 
-                if (IsDigestTypeSupported((record.RDATA as DnsDSRecordData)._digestType))
+                if (IsDigestTypeSupported((record.RDATA as DnsDSRecordData)!._digestType))
                     return true;
             }
 
@@ -189,7 +189,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
             }
         }
 
-        protected override void WriteRecordData(Stream s, List<DnsDomainOffset> domainEntries, bool canonicalForm)
+        protected override void WriteRecordData(Stream s, List<DnsDomainOffset>? domainEntries, bool canonicalForm)
         {
             s.Write(_rData);
         }
@@ -200,19 +200,19 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         internal static async Task<DnsDSRecordData> FromZoneFileEntryAsync(ZoneFile zoneFile)
         {
-            Stream rdata = await zoneFile.GetRData();
+            Stream? rdata = await zoneFile.GetRData();
             if (rdata is not null)
                 return new DnsDSRecordData(rdata);
 
-            ushort keyTag = ushort.Parse(await zoneFile.PopItemAsync());
-            DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopItemAsync());
-            DnssecDigestType digestType = (DnssecDigestType)byte.Parse(await zoneFile.PopItemAsync());
-            byte[] digest = Convert.FromHexString(await zoneFile.PopItemAsync());
+            ushort keyTag = ushort.Parse(await zoneFile.PopFieldAsync());
+            DnssecAlgorithm algorithm = (DnssecAlgorithm)byte.Parse(await zoneFile.PopFieldAsync());
+            DnssecDigestType digestType = (DnssecDigestType)byte.Parse(await zoneFile.PopFieldAsync());
+            byte[] digest = Convert.FromHexString(await zoneFile.PopFieldAsync());
 
             return new DnsDSRecordData(keyTag, algorithm, digestType, digest);
         }
 
-        internal override string ToZoneFileEntry(string originDomain = null)
+        internal override string ToZoneFileEntry(string? originDomain = null)
         {
             return _keyTag + " " + (byte)_algorithm + " " + (byte)_digestType + " " + Convert.ToHexString(_digest);
         }
@@ -221,7 +221,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         #region public
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is null)
                 return false;
