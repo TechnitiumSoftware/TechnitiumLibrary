@@ -103,7 +103,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
                 return 0;
 
             byte count = 0;
-            string[] labels = domain.Split('.');
+            string[] labels = DnsDatagram.SplitDomainNameLabels(domain);
 
             for (int i = 0; i < labels.Length; i++)
             {
@@ -260,7 +260,7 @@ namespace TechnitiumLibrary.Net.Dns.ResourceRecords
 
         private static string GetTrimmedDomain(string domain, int labelCount)
         {
-            string[] labels = domain.Split('.');
+            string[] labels = DnsDatagram.SplitDomainNameLabels(domain);
             string trimmedDomain = null;
 
             for (int i = 0; i < labelCount; i++)

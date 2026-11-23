@@ -120,7 +120,7 @@ namespace TechnitiumLibrary.Net.Dns
 
             if ((zoneCut is not null) && (name.Length > (zoneCut.Length + 1)))
             {
-                int i = name.LastIndexOf('.', name.Length - zoneCut.Length - 2);
+                int i = DnsDatagram.FindLastDomainLabelSeparator(name.AsSpan(0, name.Length - zoneCut.Length - 1));
                 if (i < 0)
                     return name;
 
@@ -246,7 +246,7 @@ namespace TechnitiumLibrary.Net.Dns
             {
                 _zoneCut = value;
                 _minimizedName = GetMinimizedName(_name, _zoneCut);
-                if ((_minimizedName is null) || _minimizedName.StartsWith('_') || (_minimizedName.Split('.').Length > MAX_MINIMISE_COUNT))
+                if ((_minimizedName is null) || _minimizedName.StartsWith('_') || (DnsDatagram.SplitDomainNameLabels(_minimizedName).Length > MAX_MINIMISE_COUNT))
                 {
                     //auto disable QNAME minimization
                     _zoneCut = null;
@@ -275,7 +275,7 @@ namespace TechnitiumLibrary.Net.Dns
         }
 
         public ushort UncompressedLength
-        { get { return Convert.ToUInt16(_name.Length + 2 + 2 + 2); } }
+        { get { return Convert.ToUInt16(DnsDatagram.GetSerializeDomainNameLength(_name) + 2 + 2); } }
 
         #endregion
     }
